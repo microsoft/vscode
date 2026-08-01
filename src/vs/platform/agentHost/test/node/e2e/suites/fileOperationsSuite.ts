@@ -10,14 +10,26 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
+import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import type { ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
 	return typeof value === 'string' ? value : value?.markdown;
+}
+
+function fileReadToolNames(provider: string): readonly string[] {
+	switch (provider) {
+		case 'claude':
+			return ['Read'];
+		case 'copilotcli':
+			return ['view'];
+		default:
+			return ['Read', 'view', 'shell'];
+	}
 }
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
@@ -46,6 +58,14 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		context.client.beginAhpSnapshotRound();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-read', 'Read note.txt and reply with its exact contents only.', 1);
 		assert.match(result.responseText, /ALPHA BETA GAMMA/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-read',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/ALPHA BETA GAMMA/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -60,6 +80,14 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		context.client.beginAhpSnapshotRound();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-read', `Read nested/value.txt and reply with its exact contents only.${PREFER_FILE_TOOLS}`, 1);
 		assert.match(result.responseText, /NESTED_VALUE_42/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-nested-read',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/NESTED_VALUE_42/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -79,6 +107,14 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-list', `Run exactly this shell command, with no modifications: \`${listCommand}\`. Then reply with the filenames it printed and nothing else.`, 1);
 		assert.match(result.responseText, /first\.txt/);
 		assert.match(result.responseText, /second\.md/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-list',
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/first\.txt second\.md/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -97,14 +133,17 @@ STREAM_GAMMA
 Use your file creation tool; do not run a shell command. Then reply exactly "done".`, 1);
 
 		const start = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
-			.find(action => action.turnId === turnId && action.toolName === config.streamingFileCreateToolName);
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+			.find(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId && action.toolName === config.streamingFileCreateToolName)?.action;
+		const chatUri = buildDefaultChatUri(sessionUri);
 		const deltas = start ? context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallDeltaAction)
-			.filter(action => action.toolCallId === start.toolCallId) : [];
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallDeltaAction }))
+			.filter(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.toolCallId)
+			.map(({ action }) => action) : [];
 		const ready = start ? context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
-			.filter(action => action.toolCallId === start.toolCallId) : [];
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
+			.filter(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.toolCallId)
+			.map(({ action }) => action) : [];
 		const progressMessages = deltas.map(delta => stringOrMarkdownText(delta.invocationMessage));
 		const fileContent = readFileSync(join(workspace, 'streaming.txt'), 'utf8');
 		const normalizedFileContent = fileContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
@@ -140,6 +179,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		context.client.beginAhpSnapshotRound();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-json', 'Read config.json and reply with the numeric value of "answer" only.', 1);
 		assert.match(result.responseText, /\b42\b/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-json',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/"answer":\s*42|answer[^\n]*42/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -159,6 +206,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		context.client.beginAhpSnapshotRound();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-lines', `Count the lines in lines.txt and reply with the number only.${PREFER_FILE_TOOLS}`, 1);
 		assert.match(result.responseText, /\b4\b/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-lines',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/one/, /two/, /three/, /four/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -171,6 +226,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		context.client.beginAhpSnapshotRound();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-missing', `Try to read missing.txt. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`, 1);
 		assert.match(result.responseText, /missing/i);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-missing',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/does not exist/],
+			success: false,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -269,6 +332,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		// and whichever it picks is frozen into the fixture.
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell', 'Run exactly this shell command, with no modifications: `echo SHELL_VALUE_73`. Then reply with that exact value only.', 1);
 		assert.match(result.responseText, /SHELL_VALUE_73/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-shell',
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/SHELL_VALUE_73/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -288,6 +359,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-git', 'Inspect git status. Reply with the names of the modified and untracked files only.', 1);
 		assert.match(result.responseText, /tracked\.txt/);
 		assert.match(result.responseText, /untracked\.txt/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-git',
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/M tracked\.txt/, /\?\? untracked\.txt/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 

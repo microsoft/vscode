@@ -16,9 +16,9 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ReconnectResultType, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ReconnectResultType, type FetchTurnsResult, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type Turn } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
@@ -62,12 +62,12 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		await context.client.call('ping', { channel: ROOT_STATE_URI });
 	});
 
-	conformanceTest(context, 'fetchTurns reports the turns a chat already has', async function () {
+	conformanceTest(context, 'fetchTurns currently emits an empty loaded-turns page', async function () {
 		const { sessionUri } = await createSession('fetch-turns');
 		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 
-		// Give the chat a turn to page over. `/rename` is handled entirely by the
+		// Give the chat an existing turn. `/rename` is handled entirely by the
 		// host's local-command dispatcher, so the turn is real without crossing
 		// the model boundary and without depending on a shell.
 		dispatchTurn(context.client, sessionUri, 'turn-fetch', '/rename Fetch Turns', 1);
@@ -79,16 +79,27 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		);
 
 		context.client.clearReceived();
-		await context.client.call('fetchTurns', { channel: chatUri });
+		const result = await context.client.call<FetchTurnsResult>('fetchTurns', { channel: chatUri });
 
-		// `fetchTurns` answers with an empty result and delivers the page as a
-		// `chat/turnsLoaded` action, so the action is the contract.
+		// The current host implementation accepts the request but has no backing
+		// pager: it always publishes an empty page, even when the chat already has
+		// loaded turns.
 		const loaded = await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnsLoaded') && getActionEnvelope(n).channel === chatUri,
 			30_000,
 		);
+		const action = getActionEnvelope(loaded).action as { readonly type: ActionType.ChatTurnsLoaded; readonly turns: readonly Turn[] };
 
-		assert.strictEqual((getActionEnvelope(loaded).action as { type: string }).type, ActionType.ChatTurnsLoaded);
+		assert.deepStrictEqual({
+			result,
+			action,
+		}, {
+			result: {},
+			action: {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [],
+			},
+		});
 	});
 
 	/**

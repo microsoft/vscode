@@ -258,7 +258,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Scope: Codex on Linux in deterministic replay.
 - Gate: `shellToolReplayUnstableOnLinux: true`.
 - Tests directly affected by this gate:
-  - `tool call triggers permission request and can be approved`
   - `worktree session uses the resolved worktree as working directory`
   - `lists workspace entries`
   - `counts lines in a file`
@@ -291,9 +290,14 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Scope: deterministic replay for every provider (`can abort a running turn`);
   Copilot deterministic replay (`accepted steering followed by abort does not block the replacement turn`).
 - Reason: replay serves the intentionally truncated response immediately, so there is no real streaming window in which to abort.
+- Expected: the client-dispatched `chat/turnCancelled` action cancels the active provider turn, clears active/input-needed state, and allows a replacement turn to complete.
 - Run:
 
   ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "can abort a running turn"
+
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "accepted steering followed by abort"
@@ -305,12 +309,11 @@ This is an intentional test-mode limitation, not a suspected product bug.
 
 The tests in `codexAgentHostLive.integrationTest.ts` require `AGENT_HOST_REAL_CODEX=1` because they exercise live, timing-sensitive Codex behavior that is not represented by deterministic model replay:
 
-- `mid-turn steering surfaces as a new turn and never sticks in pending`
+- `mid-turn steering clears pending state without getting stuck`
 - `client tool is registered and invoked end-to-end`
-- `client tool registered after the thread prewarms restarts the thread and still works`
+- `client tool registered after session creation is still invoked`
 - `server tool (listComments) is registered and executed in-process`
 - `file-change approval is surfaced and can be approved`
-- `truncate rolls back trailing turns and archive/unarchive reach codex`
 - `Plan mode (Agent Mode control) makes request_user_input reachable end-to-end`
 
 These are opt-in live tests, not known failures.

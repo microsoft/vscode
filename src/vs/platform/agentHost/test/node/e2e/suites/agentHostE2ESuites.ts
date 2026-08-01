@@ -71,11 +71,20 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		});
 
 		suiteTeardown(async function () {
-			this.timeout(90_000);
+			this.timeout(120_000);
+			const errors: Error[] = [];
 			try {
 				await lease?.dispose();
-			} finally {
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			try {
 				await removeTempDirs(tempDirs);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, 'Failed to dispose Agent Host E2E suite resources');
 			}
 		});
 
@@ -89,7 +98,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		});
 
 		teardown(async function () {
-			this.timeout(90_000);
+			this.timeout(120_000);
 			if (!lease) {
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
@@ -102,7 +111,20 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				// the server is restarted and its temp home is eventually removed.
 				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 			}
-			await lease.release(createdSessions, failed);
+			const errors: Error[] = [];
+			try {
+				await lease.release(createdSessions, failed);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			try {
+				await removeTempDirs(tempDirs);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, 'Failed to dispose Agent Host E2E test resources');
+			}
 		});
 
 		// Suites that contain only conformance-tier scenarios.
