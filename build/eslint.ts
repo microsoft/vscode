@@ -14,13 +14,17 @@ export function getEslintFilePatterns(args: readonly string[]): string[] {
 	return Array.from(args);
 }
 
+export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean {
+	return args.length > 0;
+}
+
 async function eslint(args: readonly string[]): Promise<void> {
 	const linter = new ESLint({
 		cache: true,
 		cacheLocation: '.eslintcache',
 		cacheStrategy: 'content',
 		concurrency: 'auto',
-		errorOnUnmatchedPattern: false,
+		errorOnUnmatchedPattern: shouldErrorOnUnmatchedPattern(args),
 	});
 	const formatter = await linter.loadFormatter('compact');
 

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { getEslintFilePatterns } from '../../eslint.ts';
+import { getEslintFilePatterns, shouldErrorOnUnmatchedPattern } from '../../eslint.ts';
 import { eslintFilter } from '../../filters.ts';
 
 suite('eslint', () => {
@@ -18,5 +18,12 @@ suite('eslint', () => {
 		const files = ['src/vs/base/common/arrays.ts', 'src/vs/base/common/async.ts'];
 
 		assert.deepStrictEqual(getEslintFilePatterns(files), files);
+	});
+
+	test('errors on unmatched positional arguments only', () => {
+		assert.deepStrictEqual([
+			shouldErrorOnUnmatchedPattern([]),
+			shouldErrorOnUnmatchedPattern(['src/vs/base/common/arrays.ts']),
+		], [false, true]);
 	});
 });
