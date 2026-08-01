@@ -4152,6 +4152,157 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(pendingSolicitedNarrations.size, 0);
 		assert.strictEqual(controller.statusText.get(), 'Tap to start');
 	});
+
+	test('discards late audio for a confirmation narration that timed out waiting for audio', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = 'agent-host-copilot:/timed-out-confirmation';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		await controller.connect(mainWindow);
+		controller.setActiveSessionShown(URI.parse(sessionId));
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'confirmation', 'I need your approval to run the tests.'), true);
+		const narrationId = voiceClientService.requests[0].narrationId;
+
+		// The audio-start watchdog fires before any audio arrives, abandoning the
+		// attempt. The form it spoke may be gone by the time audio shows up.
+		clock.tick(30_000);
+
+		// Late audio for that confirmation must be swallowed, not spoken.
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-approval',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: narrationId,
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+		}, {
+			playedAudio: [],
+			stopCount: 0,
+		});
+	});
+
+	test('tombstones a timed-out confirmation narration id so it is remembered as cancelled', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const sessionId = 'agent-host-copilot:/tombstoned-confirmation';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		const cancelledIds = Reflect.get(controller, '_cancelledPendingNarrationIds') as Set<string>;
+		await controller.connect(mainWindow);
+		controller.setActiveSessionShown(URI.parse(sessionId));
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'confirmation', 'Approve the deletion?'), true);
+		const narrationId = voiceClientService.requests[0].narrationId;
+		assert.strictEqual(cancelledIds.has(narrationId), false);
+
+		clock.tick(30_000);
+
+		// The abandoned attempt leaves a tombstone so any late audio is dropped.
+		assert.strictEqual(cancelledIds.has(narrationId), true);
+	});
+
+	test('still plays late audio for a response narration that timed out waiting for audio', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = 'agent-host-copilot:/timed-out-response';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		const cancelledIds = Reflect.get(controller, '_cancelledPendingNarrationIds') as Set<string>;
+		await controller.connect(mainWindow);
+		controller.setActiveSessionShown(URI.parse(sessionId));
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'All the tests passed.'), true);
+		const narrationId = voiceClientService.requests[0].narrationId;
+
+		clock.tick(30_000);
+
+		// A completed reply is deliberately exempt from the tombstone: it stays
+		// worth hearing even if its audio arrives late.
+		assert.strictEqual(cancelledIds.has(narrationId), false);
+		voiceClientService.fireAudioResponse({
+			audio: 'late-reply',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: narrationId,
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['late-reply']);
+	});
+
+	test('bounds the cancelled-narration tombstone set at 64 entries, evicting oldest first', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		const cancelledIds = Reflect.get(controller, '_cancelledPendingNarrationIds') as Set<string>;
+		await controller.connect(mainWindow);
+
+		// Arm 65 independent confirmation narrations (distinct sessions so none is
+		// deduped against another), then fire every audio-start watchdog at once.
+		const narrationIds: string[] = [];
+		for (let i = 0; i < 65; i++) {
+			assert.strictEqual(narrate.call(controller, `agent-host-copilot:/bounded-${i}`, 'confirmation', `Approve step ${i}?`), true);
+			narrationIds.push(voiceClientService.requests[i].narrationId);
+		}
+		clock.tick(30_000);
+
+		// Each timed-out confirmation tombstones its id; the set stays bounded and
+		// the very first id was evicted to make room for the last.
+		assert.strictEqual(cancelledIds.size, 64);
+		assert.strictEqual(cancelledIds.has(narrationIds[0]), false);
+		assert.strictEqual(cancelledIds.has(narrationIds[64]), true);
+	});
+
+	test('resolving an in-flight confirmation still cancels playback and swallows late frames after the helper extraction', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = 'agent-host-copilot:/resolved-confirmation';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		const stopPendingNarration = Reflect.get(controller, '_stopPendingNarration') as (sessionId: string) => void;
+		const pendingSolicitedNarrations = Reflect.get(controller, '_pendingSolicitedNarrations') as Map<string, unknown>;
+		await controller.connect(mainWindow);
+		controller.setActiveSessionShown(URI.parse(sessionId));
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'confirmation', 'Approve running the migration?'), true);
+		const narrationId = voiceClientService.requests[0].narrationId;
+		// Its audio starts playing live (well before any watchdog timeout).
+		voiceClientService.fireAudioResponse({
+			audio: 'approval',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: sessionId,
+			responseId: narrationId,
+		});
+
+		// The user resolves the confirmation while it is still speaking.
+		stopPendingNarration.call(controller, sessionId);
+
+		// A trailing frame arriving afterwards must be dropped, not spoken.
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-approval',
+			isFirstChunk: false,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: narrationId,
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+			pendingSize: pendingSolicitedNarrations.size,
+		}, {
+			playedAudio: ['approval'],
+			stopCount: 1,
+			pendingSize: 0,
+		});
+	});
+
 	test('auto-listen opens a passive mic turn so the backend does not latch user_is_speaking', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
