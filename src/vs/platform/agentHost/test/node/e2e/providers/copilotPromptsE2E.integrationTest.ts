@@ -284,6 +284,17 @@ interface IWireRequest {
  */
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
+	const system = extractText(request.instructions ?? request.system);
+	const tools = request.tools ?? [];
+
+	// Both are read through dialect-specific field names, and a shape this
+	// formatter does not recognize yields empty rather than throwing. That is how
+	// the first version of these tests pinned a 12-character system prompt and no
+	// tools at all for a whole model family, green. Refuse to build a baseline out
+	// of nothing instead.
+	assert.ok(system.length > 0, 'the model request carried no system prompt — the wire shape likely changed');
+	assert.ok(tools.length > 0, 'the model request carried no tool definitions — the wire shape likely changed');
+
 	const lines: string[] = [];
 
 	lines.push('### Model');
@@ -292,27 +303,24 @@ function formatPromptSnapshot(rawBody: string): string {
 
 	lines.push('### System');
 	lines.push('~~~md');
-	lines.push(extractText(request.instructions ?? request.system));
+	lines.push(system);
 	lines.push('~~~');
 	lines.push('');
 
-	const tools = request.tools ?? [];
-	if (tools.length > 0) {
-		lines.push(`### Tools (${tools.length})`);
-		lines.push('');
-		for (const tool of tools) {
-			lines.push(`#### ${tool.name ?? '(unnamed)'}`);
-			if (tool.description) {
-				lines.push(tool.description);
-			}
-			const schema = tool.input_schema ?? tool.parameters;
-			if (schema) {
-				lines.push('```json');
-				lines.push(JSON.stringify(schema, null, 2));
-				lines.push('```');
-			}
-			lines.push('');
+	lines.push(`### Tools (${tools.length})`);
+	lines.push('');
+	for (const tool of tools) {
+		lines.push(`#### ${tool.name ?? '(unnamed)'}`);
+		if (tool.description) {
+			lines.push(tool.description);
 		}
+		const schema = tool.input_schema ?? tool.parameters;
+		if (schema) {
+			lines.push('```json');
+			lines.push(JSON.stringify(schema, null, 2));
+			lines.push('```');
+		}
+		lines.push('');
 	}
 
 	const messages = readMessages(request);
