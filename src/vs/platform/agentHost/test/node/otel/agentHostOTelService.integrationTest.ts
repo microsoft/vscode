@@ -223,6 +223,33 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
+	test('native SDK config splits DB traces from direct external signals', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+			process.env.OTEL_EXPORTER_OTLP_PROTOCOL = 'http/protobuf';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const config = await svc.getNativeSdkTelemetryConfig();
+			ok(config?.traces?.endpoint.startsWith('http://127.0.0.1:'));
+			strictEqual(config?.traces?.protocol, 'http/json');
+			deepStrictEqual(config?.external, { endpoint: 'http://collector:4318', protocol: 'http/protobuf' });
+			const context = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			ok(context);
+			strictEqual(context.traceparent, `00-${context.traceId}-${context.spanId}-01`);
+			strictEqual(svc.withTraceContext(context, () => svc.getCurrentTraceContext()), context);
+			strictEqual(svc.getCurrentTraceContext(), undefined);
+		} finally {
+			restoreEnv(saved);
+			await rm(tmp, { recursive: true, force: true });
+		}
+	});
+
 	test('DB mode: starts loopback, persists posted spans to SQLite, and exposes db path', async () => {
 		const saved = saveEnv();
 		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
@@ -304,11 +331,12 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const reader = new OTelSqliteStore(dbPath!.fsPath);
 			try {
 				const spans = reader.getSpansByConversationId('conv-title');
-				strictEqual(spans.length, 1);
-				strictEqual(spans[0].name, AgentHostSessionTitleSpanName);
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionTitleAttribute)?.length, 200);
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, 'service.name'), 'agent-host-test');
+				strictEqual(spans.length, 2);
+				const titleSpan = spans.find(span => span.name === AgentHostSessionTitleSpanName);
+				ok(titleSpan);
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionTitleAttribute)?.length, 200);
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, 'service.name'), 'agent-host-test');
 			} finally {
 				reader.close();
 			}

@@ -1,6 +1,6 @@
 # Agent Host OTel Pipeline
 
-The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that embeds the native [`@github/copilot-sdk`](https://github.com/github/copilot-cli) runtime instead of using the extension's in-process tool-calling loop. The agent host has its own OTel pipeline so traces from native-SDK sessions can be exported to a collector or persisted locally for inspection.
+The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that hosts native Copilot, Claude, and Codex runtimes instead of using the extension's in-process harnesses. The agent host has its own OTel pipeline so provider-native traces can be exported to a collector or persisted locally for inspection.
 
 > **Availability:** Insiders / non-stable builds only. Requires `chat.agentHost.enabled` to be `true`.
 
@@ -11,7 +11,7 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
 | Settings prefix | `chat.agentHost.otel.*` | `github.copilot.chat.otel.*` |
 | Service | `IAgentHostOTelService` (`node/otel/agentHostOTelService.ts`) | `IOTelService` (`extensions/copilot/src/platform/otel/`) |
-| SDK | `@github/copilot-sdk` `TelemetryConfig` | `@opentelemetry/sdk-node` directly |
+| SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
 ## Two Modes
@@ -50,7 +50,25 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 ```
 
 - **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
-- **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then constructs the SDK pointing at that loopback URL. For each batch the receiver decodes the OTLP-JSON body and inserts spans into `OTelSqliteStore` (`onSpans`). If an external `otlpEndpoint` is also configured, the receiver fans the **raw** OTLP body out to an `OtlpHttpForwarder` (`onForward`) so the user's collector keeps receiving traces alongside the local DB.
+- **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an external `otlpEndpoint` is also configured, the receiver fans the raw trace body out to an `OtlpHttpForwarder` (`onForward`) so the user's collector keeps receiving traces alongside the local DB.
+
+## Native Provider Signal Routing
+
+Only traces enter the Agent Host loopback and SQLite database. When an external OTLP endpoint is configured, provider-native logs and metrics bypass Agent Host and export directly from the SDK:
+
+| Provider | Trace configuration | Direct external signals |
+|---|---|---|
+| Copilot | SDK `TelemetryConfig` plus a trace-specific endpoint | Metrics |
+| Claude | `OTEL_TRACES_EXPORTER` and trace-specific endpoint | Logs and metrics |
+| Codex | `otel.trace_exporter` launch override | Logs and metrics |
+
+In DB mode the private trace hop always uses OTLP/HTTP JSON, which all three runtimes support and the local receiver decodes. The external logs/metrics hop retains the configured provider-supported protocol. Agent Host does not receive or persist `/v1/logs` or `/v1/metrics`.
+
+When Agent Host OTel is enabled, its launch configuration overrides standalone Claude/Codex exporter destinations for that Agent Host process. When it is disabled, standalone provider telemetry remains untouched. Authentication headers are supported through inherited standard OTel environment variables; managed-header delivery to provider subprocesses is not currently supported.
+
+## Distributed Trace Context
+
+The host emits a zero-duration `vscode.agent_host.session` anchor and passes its W3C `traceparent`/`tracestate` to native runtimes. Copilot reads the context through `CopilotClientOptions.onGetTraceContext`, Claude receives it in its session subprocess environment, and Codex receives it on session-scoped JSON-RPC request envelopes. Provider-native traces can therefore share one trace id while retaining their provider conversation attributes.
 
 ## Session Title Metadata
 
@@ -58,13 +76,12 @@ When content capture is enabled, the agent host emits a zero-duration `vscode.ag
 
 | Attribute | Description |
 |---|---|
-| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID or Claude SDK session ID; native Claude currently reports it as `session.id`). |
+| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID or Claude SDK session ID). |
 | `vscode.agent_host.session.title` | Latest session title, bounded to 200 characters. |
 | `vscode.agent_host.session.uri` | Agent Host protocol URI for the session. |
 
 Title text is user-derived content, so these spans are emitted only when `chat.agentHost.otel.captureContent` is enabled. Host-produced title spans copy `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` so collectors group them with the SDK telemetry. They are persisted in DB mode and use the configured OTLP, file, or console forwarder. Synthetic OTLP forwarding currently uses OTLP/HTTP JSON; when `http/protobuf` or gRPC is configured, title spans remain available in DB mode but are not sent to that external endpoint.
 
-Emitting title metadata does not itself enable provider-native telemetry. In particular, `chat.agentHost.otel.*` does not currently turn on Claude's native OTel: an agent-host Claude turn emits no `claude_code.*` spans unless Claude's standalone OTel settings are configured separately.
 
 ## VS Code Settings
 
