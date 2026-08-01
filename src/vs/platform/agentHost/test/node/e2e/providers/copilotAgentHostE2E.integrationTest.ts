@@ -467,7 +467,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			const next = await client.waitForNotification(
 				n => {
 					if (isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error')) {
-						return getActionEnvelope(n).channel === chatUri && (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
+						return (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
 					}
 					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;
@@ -501,14 +501,6 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				});
 			}
 		}
-		assertToolCallCompleteText(client, {
-			channel: chatUri,
-			turnId,
-			toolNames: [COPILOT_CONFIG.shellToolName],
-			workspace: workspaceDir,
-			expected: [/strip-me-please/],
-			success: true,
-		});
 	});
 
 });

@@ -33,7 +33,8 @@ function fileReadToolNames(provider: string): readonly string[] {
 }
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, supportsFileTools, stableSharedServerFileScenarios } = context;
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, supportsFileTools, stableSharedServerFileScenarios, isWindows } = context;
+	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
 	const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
 	/**
 	 * Steers the agent toward its own file tools instead of a shell command.
@@ -91,7 +92,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
+	(stableSharedServerFileScenarios && portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-list-'));
 		tempDirs.push(workspace);
@@ -318,7 +319,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('runs a deterministic shell command', async function () {
+	(stableSharedServerFileScenarios && portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
 		tempDirs.push(workspace);
@@ -344,7 +345,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 	});
 
 	// Claude and Codex emit customization/changeset updates at nondeterministic points in this snapshot.
-	(portableShellToolReplayEnabled && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
+	(portableShellToolReplayEnabled && shellOutputOracleAvailable && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);

@@ -251,6 +251,15 @@ One row remains, and it is not about command portability:
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
 
+Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview`
+on Windows, while its terminal-shaped resource is not backed by the host terminal
+manager and cannot be subscribed. These tests are skipped for Copilot on Windows
+because their direct output oracle would otherwise be empty:
+
+- `lists workspace entries`
+- `runs a deterministic shell command`
+- `inspects git status`
+
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
 ### Codex shell-tool replay on Linux

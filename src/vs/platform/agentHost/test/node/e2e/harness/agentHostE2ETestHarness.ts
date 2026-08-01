@@ -30,11 +30,12 @@ import {
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
-	fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
+	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 
 // #region Record/replay
 
@@ -599,11 +600,16 @@ function toolResultText(content: readonly ToolResultContent[] | undefined): stri
 	if (!content) {
 		return '';
 	}
-	const terminalPreviews = content
-		.filter((part): part is Extract<ToolResultContent, { type: ToolResultContentType.Terminal }> => part.type === ToolResultContentType.Terminal)
-		.map(part => part.result?.preview ?? '')
-		.filter(preview => preview.length > 0);
-	return [textFromContent(content), ...terminalPreviews].filter(text => text.length > 0).join('\n');
+	const terminalTexts: string[] = [];
+	for (const part of content) {
+		if (part.type !== ToolResultContentType.Terminal) {
+			continue;
+		}
+		if (part.result?.preview) {
+			terminalTexts.push(part.result.preview);
+		}
+	}
+	return [textFromContent(content), ...terminalTexts].filter(text => text.length > 0).join('\n');
 }
 
 function normalizeToolResultText(value: string, workspace?: string): string {
@@ -622,26 +628,28 @@ export function assertToolCallCompleteText(
 	client: TestProtocolClient,
 	options: { readonly channel: string; readonly turnId: string; readonly toolNames: readonly string[]; readonly workspace?: string; readonly expected: readonly RegExp[]; readonly success?: boolean },
 ): void {
-	const toolNames = new Set(options.toolNames);
+	const toolNames = new Set(options.toolNames.map(normalizeShellToolNameForCapture));
 	const starts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 		.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
-		.filter(({ envelope, action }) => envelope.channel === options.channel && action.turnId === options.turnId && toolNames.has(action.toolName));
+		.filter(({ envelope, action }) => envelope.channel === options.channel && action.turnId === options.turnId && toolNames.has(normalizeShellToolNameForCapture(action.toolName)));
 	const startedToolCallIds = new Set(starts.map(({ action }) => action.toolCallId));
 	const completions = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 		.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 		.filter(({ envelope, action }) => envelope.channel === options.channel && action.turnId === options.turnId && startedToolCallIds.has(action.toolCallId));
-	const matchingCompletion = completions.find(({ action }) => {
+	const observed: { toolCallId: string; success: boolean; text: string }[] = [];
+	let matchingCompletion: ChatToolCallCompleteAction | undefined;
+	for (const { action } of completions) {
 		if (options.success !== undefined && action.result.success !== options.success) {
-			return false;
+			continue;
 		}
 		const text = normalizeToolResultText(toolResultText(action.result.content), options.workspace);
-		return options.expected.every(expected => expected.test(text));
-	});
-	assert.ok(matchingCompletion, `expected ${options.turnId} to complete ${options.toolNames.join('/')} with result text matching ${options.expected.map(String).join(', ')}; observed ${completions.map(({ action }) => JSON.stringify({
-		toolCallId: action.toolCallId,
-		success: action.result.success,
-		text: normalizeToolResultText(toolResultText(action.result.content), options.workspace),
-	})).join(', ')}`);
+		observed.push({ toolCallId: action.toolCallId, success: action.result.success, text });
+		if (options.expected.every(expected => expected.test(text))) {
+			matchingCompletion = action;
+			break;
+		}
+	}
+	assert.ok(matchingCompletion, `expected ${options.turnId} to complete ${options.toolNames.join('/')} with result text matching ${options.expected.map(String).join(', ')}; observed ${observed.map(value => JSON.stringify(value)).join(', ')}`);
 }
 
 export function terminalText(state: TerminalState): string {
@@ -989,7 +997,7 @@ export class AgentHostE2EServerLease {
 							10_000,
 						);
 					}
-					await client.call('disposeSession', { channel: session }, 30_000);
+					await client.call('disposeSession', { channel: session }, getAgentHostE2ETestTimeout(30_000, 90_000));
 				} catch (error) {
 					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 				}
