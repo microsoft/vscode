@@ -386,7 +386,8 @@
 		setupNLS<T>(configuration);
 
 		// Compute base URL and set as global
-		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		const outputDirectory = safeProcess.env['VSCODE_DEV'] === 'out-build' ? 'out-build' : 'out';
+		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/${outputDirectory}/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 		// Set product configuration as global (used e.g. to select the ASAR path in `amdX`)
