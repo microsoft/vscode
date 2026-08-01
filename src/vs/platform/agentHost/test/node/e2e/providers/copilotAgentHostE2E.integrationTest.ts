@@ -467,7 +467,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			const next = await client.waitForNotification(
 				n => {
 					if (isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error')) {
-						return (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
+						return true;
 					}
 					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;

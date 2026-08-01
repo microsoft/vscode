@@ -84,7 +84,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
 			if (errors.length > 0) {
-				throw new AggregateError(errors, 'Failed to dispose Agent Host E2E suite resources');
+				throw new AggregateError(errors, `Failed to dispose Agent Host E2E suite resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
 
@@ -123,7 +123,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
 			if (errors.length > 0) {
-				throw new AggregateError(errors, 'Failed to dispose Agent Host E2E test resources');
+				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
 

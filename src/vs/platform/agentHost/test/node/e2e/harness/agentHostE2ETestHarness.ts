@@ -19,9 +19,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type TerminalState,
+	ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
+import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
@@ -997,6 +999,13 @@ export class AgentHostE2EServerLease {
 							10_000,
 						);
 					}
+					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					const terminals = (root.snapshot!.state as RootState).terminals ?? [];
+					for (const terminal of terminals) {
+						if (terminal.claim.kind === TerminalClaimKind.Session && terminal.claim.session === session) {
+							await client.call('disposeTerminal', { channel: terminal.resource }, getAgentHostE2ETestTimeout(30_000, 90_000));
+						}
+					}
 					await client.call('disposeSession', { channel: session }, getAgentHostE2ETestTimeout(30_000, 90_000));
 				} catch (error) {
 					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
@@ -1061,7 +1070,7 @@ export class AgentHostE2EServerLease {
 				}
 				return;
 			}
-			throw new AggregateError(cleanupErrors, 'Failed to release Agent Host E2E test resources');
+			throw new AggregateError(cleanupErrors, `Failed to release Agent Host E2E test resources: ${cleanupErrors.map(error => error.message).join('; ')}`);
 		}
 	}
 
