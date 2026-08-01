@@ -102,6 +102,8 @@ function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): st
 		const url = new URL(endpoint);
 		if (url.pathname === '' || url.pathname === '/') {
 			url.pathname = `/v1/${signal}`;
+		} else if (url.pathname.endsWith('/v1/traces')) {
+			url.pathname = `${url.pathname.slice(0, -'/v1/traces'.length)}/v1/${signal}`;
 		}
 		return url.toString().replace(/\/$/, '');
 	} catch {
