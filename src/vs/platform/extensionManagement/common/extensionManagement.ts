@@ -418,7 +418,7 @@ export interface IExtensionGalleryService {
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 	getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]>;
-	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
+	download(extension: IGalleryExtension, location: URI, operation: InstallOperation, progress?: (progress: ExtensionDownloadProgress) => void): Promise<void>;
 	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
@@ -426,6 +426,26 @@ export interface IExtensionGalleryService {
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
+}
+
+export interface ExtensionDownloadProgress {
+	readonly downloadedBytes: number;
+	readonly totalBytes?: number;
+}
+
+export const enum ExtensionInstallStage {
+	Downloading = 'downloading',
+	Verifying = 'verifying',
+	Extracting = 'extracting',
+	Installing = 'installing',
+}
+
+export interface InstallExtensionProgressEvent {
+	readonly identifier: IExtensionIdentifier;
+	readonly profileLocation: URI;
+	readonly stage: ExtensionInstallStage;
+	readonly downloadedBytes?: number;
+	readonly totalBytes?: number;
 }
 
 export interface InstallExtensionEvent {
@@ -611,6 +631,7 @@ export interface IExtensionManagementService {
 	readonly preferPreReleases: boolean;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
+	onInstallExtensionProgress: Event<InstallExtensionProgressEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
@@ -805,4 +826,3 @@ export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryM
 	}
 	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
 }
-
