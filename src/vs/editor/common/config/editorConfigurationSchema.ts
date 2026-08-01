@@ -238,6 +238,16 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.ignoreTrimWhitespace,
 			description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
 		},
+		'diffEditor.ignoreInteriorSpacing': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.ignoreInteriorSpacing,
+			description: nls.localize('ignoreInteriorSpacing', "When enabled, the diff editor ignores whitespace changes strictly between two non-whitespace characters on a line (for example, spacing around operators). Leading or trailing whitespace (indentation) is unaffected — see `#diffEditor.ignoreTrimWhitespace#` for that.")
+		},
+		'diffEditor.ignoreAllSpaces': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.ignoreAllSpaces,
+			description: nls.localize('ignoreAllSpaces', "When enabled, the diff editor ignores all whitespace changes on a line, including indentation. Equivalent to `git diff --ignore-all-space`. Takes effect regardless of `#diffEditor.ignoreTrimWhitespace#` or `#diffEditor.ignoreInteriorSpacing#`.")
+		},
 		'diffEditor.renderIndicators': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderIndicators,

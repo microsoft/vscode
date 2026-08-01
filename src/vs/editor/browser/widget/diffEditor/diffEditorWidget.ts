@@ -561,6 +561,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	get ignoreTrimWhitespace(): boolean { return this._options.ignoreTrimWhitespace.get(); }
 
+	get ignoreInteriorSpacing(): boolean { return this._options.ignoreInteriorSpacing.get(); }
+
+	get ignoreAllSpaces(): boolean { return this._options.ignoreAllSpaces.get(); }
+
 	get maxComputationTime(): number { return this._options.maxComputationTimeMs.get(); }
 
 	get renderSideBySide(): boolean { return this._options.renderSideBySide.get(); }

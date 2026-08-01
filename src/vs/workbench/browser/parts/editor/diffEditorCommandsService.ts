@@ -47,6 +47,12 @@ export interface IDiffEditorCommandsService {
 	/** Toggles whether the active diff editor ignores trim whitespace. */
 	toggleDiffIgnoreTrimWhitespace(args: unknown[]): Promise<void>;
 
+	/** Toggles whether the active diff editor ignores interior spacing. */
+	toggleDiffIgnoreInteriorSpacing(args: unknown[]): Promise<void>;
+
+	/** Toggles whether the active diff editor ignores all whitespace. */
+	toggleDiffIgnoreAllSpaces(args: unknown[]): Promise<void>;
+
 	/** Swaps the original and modified sides of the active diff editor. */
 	swapDiffSides(args: unknown[]): Promise<void>;
 }
@@ -128,6 +134,32 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		}
 
 		const key = 'diffEditor.ignoreTrimWhitespace';
+		const value = this.textResourceConfigurationService.getValue(model.uri, key);
+		await this.textResourceConfigurationService.updateValue(model.uri, key, !value);
+	}
+
+	async toggleDiffIgnoreInteriorSpacing(args: unknown[]): Promise<void> {
+		const activeTextDiffEditor = this.getActiveTextDiffEditor(args);
+
+		const model = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (!model) {
+			return;
+		}
+
+		const key = 'diffEditor.ignoreInteriorSpacing';
+		const value = this.textResourceConfigurationService.getValue(model.uri, key);
+		await this.textResourceConfigurationService.updateValue(model.uri, key, !value);
+	}
+
+	async toggleDiffIgnoreAllSpaces(args: unknown[]): Promise<void> {
+		const activeTextDiffEditor = this.getActiveTextDiffEditor(args);
+
+		const model = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (!model) {
+			return;
+		}
+
+		const key = 'diffEditor.ignoreAllSpaces';
 		const value = this.textResourceConfigurationService.getValue(model.uri, key);
 		await this.textResourceConfigurationService.updateValue(model.uri, key, !value);
 	}

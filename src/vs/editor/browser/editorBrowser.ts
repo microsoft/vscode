@@ -1362,6 +1362,16 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	readonly ignoreTrimWhitespace: boolean;
 	/**
+	 * Returns whether the diff editor is ignoring interior spacing or not.
+	 * @internal
+	 */
+	readonly ignoreInteriorSpacing: boolean;
+	/**
+	 * Returns whether the diff editor is ignoring all whitespace or not.
+	 * @internal
+	 */
+	readonly ignoreAllSpaces: boolean;
+	/**
 	 * Returns whether the diff editor is rendering side by side or inline.
 	 * @internal
 	 */
