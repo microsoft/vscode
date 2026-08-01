@@ -3188,7 +3188,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 16px;
 }
 
-/* Per-row action bar in the changed-files list (e.g. the "Preview" action). The
+/* Per-row action bar in the changed-files list (e.g. the Preview icon). The
 	row becomes a flex row so the file label fills the remaining width and the
 	actions hug the right edge. Scoped via the class the renderer adds only when a
 	row-action provider is supplied. */
@@ -3209,12 +3209,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-summary-list-actions .action-label {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-icon-foreground);
 	cursor: pointer;
+	border-radius: 4px;
+	padding: 2px;
 }
 
 .interactive-session .chat-summary-list-actions .action-label:hover {
-	color: var(--vscode-textLink-activeForeground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-icon-foreground);
 }
 
 .interactive-session .chat-used-context {

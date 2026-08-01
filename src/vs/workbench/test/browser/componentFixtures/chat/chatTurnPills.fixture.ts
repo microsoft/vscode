@@ -133,7 +133,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		// Expanded list showing the per-row "Preview" action on the markdown row
+		// Expanded list showing the per-row Preview icon action on the markdown row
 		// (edited `.ts`/`.css` and HTML rows have no preview action).
 		ChangesAndPreview_Expanded: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { IAction, toAction } from '../../../../../../base/common/actions.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
@@ -29,7 +29,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, createTurnChangesPreviewActions, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -264,20 +264,11 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Row actions for the changed-files list: markdown files get a labelless,
-	 * icon-free action that opens the file.
+	 * Row actions for the changed-files list: markdown files get an icon-only
+	 * Preview action that opens the file.
 	 */
 	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
-		const kind = previewKind(diff.modifiedURI);
-		if (!kind) {
-			return [];
-		}
-		const file: IPreviewFile = { uri: diff.modifiedURI, kind, created: isEqual(diff.originalURI, diff.modifiedURI) };
-		return [toAction({
-			id: 'chat.turnChanges.previewFile',
-			label: localize('chat.turnChanges.preview', "Preview"),
-			run: () => openChatTurnFile(file, this._openerService, this._configurationService),
-		})];
+		return createTurnChangesPreviewActions(diff.modifiedURI, diff.originalURI, this._openerService, this._configurationService);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
