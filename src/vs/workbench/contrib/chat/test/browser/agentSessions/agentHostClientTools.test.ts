@@ -856,6 +856,55 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('settles a client tool invocation when referenced input cannot be read', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			const toolInputUri = URI.parse('session-db:/tool-input');
+			const read = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			connection.resourceReadResponses.set(toolInputUri.toString(), read.p);
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await read.error(new Error('read failed'));
+			await timeout(0);
+
+			const completion = connection.dispatchedActions.find(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === 'tool-call-1');
+			assert.deepStrictEqual({
+				invocationState: toolsService.begunToolCalls[0]?.state.get().type,
+				completionError: completion?.action.type === ActionType.ChatToolCallComplete ? completion.action.result.error?.message : undefined,
+			}, {
+				invocationState: IChatToolInvocation.StateKind.Completed,
+				completionError: 'read failed',
+			});
+		});
+
 		test('reads referenced client tool input after confirmation', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');

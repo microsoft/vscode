@@ -3140,7 +3140,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				}
 
-				result = { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
+				result ??= { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
 			}
 
 			const protocolToolCall = part$.get().toolCall;
@@ -3251,7 +3251,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return;
 				}
 				invoked = true;
-				handleSettled(undefined, err);
+				const result: IToolResult = { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
+				void invocation.didExecuteTool(result);
+				handleSettled(result, err);
 			});
 		};
 
