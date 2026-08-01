@@ -1293,7 +1293,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
 	position: relative;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
@@ -1302,9 +1302,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 22px;
 	justify-content: center;
 	font-size: var(--vscode-codiconFontSize-compact);
-	/* Keep the control corner radius in both states — the enabled rule below only
+	/* Keep the fully-rounded shape in both states — the enabled rule below only
 		adds the filled background, it shouldn't be what defines the shape. */
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
@@ -1323,7 +1323,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled):has(> .action-label:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label:focus,
@@ -2101,15 +2101,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-/* Add context button icon sizing */
-.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
-	display: flex;
-	align-items: center;
+/* Icon-only chips in the primary input toolbar (add context, configure tools,
+	MCP servers) all sit on the compact tier, so the row reads as one dense strip
+	of chrome instead of a 16px glyph towering over the 12px send / mic buttons
+	across the toolbar. The base action-bar rule gives these labels a fixed 16px
+	box with no inline centering, so a 12px glyph would otherwise sit flush left
+	inside it — center it explicitly. Scoped to labels that are *themselves*
+	codicons, so the text chips (mode / model pickers) keep their own type size. */
+.monaco-workbench .interactive-session .chat-input-toolbar .monaco-action-bar .action-item > .action-label.codicon[class*='codicon-'] {
 	justify-content: center;
-}
-
-.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
@@ -4680,11 +4681,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Standalone dictation / Voice Mode buttons (shown when the segmented voice pill
 	isn't active). Give them the same control tier as the send button they sit
-	beside — a 22×22 surface with the control corner radius — and the compact 12px
-	glyph used by the agent / model pickers, so the mic group reads as one
-	consistent row in every state: dictation idle / recording / preparing /
-	connecting, and Voice Mode idle / connecting / listening / speaking /
-	disconnect. */
+	beside — a 22×22 surface with the compact 12px glyph used by the agent /
+	model pickers — so the mic group reads as one consistent row in every state:
+	dictation idle / recording / preparing / connecting, and Voice Mode idle /
+	connecting / listening / speaking / disconnect.
+
+	On their own they lose the segmented pill's enclosure, so each one carries a
+	circular outline of its own and reads as a single-cell version of it rather
+	than a bare glyph. The ring uses the pill's exact border declaration so the
+	two enclosures are indistinguishable when the UI swaps between them —
+	`input.border` is `null` outside high contrast and resolves to a soft
+	20%-alpha `editorWidget.border`, and in high contrast it resolves to
+	`contrastBorder` so the ring stays fully opaque there. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
@@ -4695,7 +4703,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
@@ -4710,32 +4719,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Voice mode: blue when listening. The glow keeps the button's resting shape —
-	only its color and the pulse change between states, so the control never
-	morphs from a rounded square into a circle mid-session. */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
-	color: var(--vscode-charts-blue, #58a6ff) !important;
-	border-radius: var(--vscode-cornerRadius-small);
+/* Voice mode mic glyph: tinted with the same theme-derived accent as the ambient
+	glow (published as `--voice-accent` by the glow controller). The glow keeps the
+	button's resting shape — only its color and the pulse change between states, so
+	the control never morphs from a circle into a rounded square mid-session. */
+.chat-input-container.voice-active .chat-input-toolbars .action-label.codicon-voice-mode-compact {
+	--chat-voice-icon-glow-color: color-mix(in srgb, var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) 40%, transparent);
+	color: var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) !important;
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
-}
-
-/* Voice mode: purple when speaking */
-.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
-	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact,
 .monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
-/* Voice mode: green disconnect button */
-.chat-input-container .chat-input-toolbars .codicon-debug-disconnect-compact {
+/* Voice mode: green disconnect button. This has to out-specify the blanket
+	`icon-foreground !important` rule that colors every toolbar codicon, so it
+	carries the full toolbar path rather than a short `.chat-input-container`
+	prefix — with equal `!important` the higher specificity wins, and the short
+	form silently lost the cascade and rendered grey. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
 	color: var(--vscode-charts-green, #3fb950) !important;
 }
 

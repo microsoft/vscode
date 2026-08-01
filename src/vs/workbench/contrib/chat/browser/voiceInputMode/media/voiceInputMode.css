@@ -30,17 +30,18 @@
 	transition: none;
 }
 
-/* Voice Mode color by state — matches the input-box glow shades: listening (user) = charts.blue, speaking (assistant) = charts.purple, so custom/high-contrast themes can override them. */
+/* Voice Mode color by state — driven from the same theme-derived accents as the input-box glow
+ * (see `resolveVoiceGlowColors`), so the pill, the waveform and the glow always agree. */
 .chat-voice-input-mode-cell.voice {
 	color: var(--vscode-icon-foreground);
 }
 
 .chat-voice-input-mode-cell.voice.listening {
-	color: var(--vscode-charts-blue, #58a6ff);
+	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
 }
 
 .chat-voice-input-mode-cell.voice.speaking {
-	color: var(--vscode-charts-purple, #a371f7);
+	color: var(--voice-color-speaking, var(--vscode-charts-purple, #a371f7));
 }
 
 /* Compact glyph size, matching the agent / model picker icons that sit beside the pill.

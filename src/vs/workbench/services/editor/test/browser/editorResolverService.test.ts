@@ -12,11 +12,21 @@ import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
+	test('Agents window diff editor default follows the Markdown editor setting', () => {
+		assert.deepStrictEqual({
+			enabled: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true }),
+			disabled: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false }),
+		}, {
+			enabled: { '*.md': 'vscode.markdown.editor' },
+			disabled: { '*.md': 'vscode.markdown.preview.editor' },
+		});
+	});
+
 
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorResolverService';
 	const disposables = new DisposableStore();

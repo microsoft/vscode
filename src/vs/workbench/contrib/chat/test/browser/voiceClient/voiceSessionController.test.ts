@@ -20,7 +20,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -47,6 +48,8 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
 	readonly requests: { sessionId: string; kind: VoiceNarrationKind; text: string; narrationId: string; pendingId?: string; checkpoint?: IVoiceCheckpointNarrationMetadata; confirmationType?: VoiceConfirmationType }[] = [];
+	readonly sessionCommands: ('start' | 'resume')[] = [];
+	readonly sessionCommandSent = new DeferredPromise<void>();
 	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
 	override readonly onAudioResponse = this.audioResponseEmitter.event;
 	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
@@ -71,8 +74,12 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
 	private connected = false;
+	private resuming = false;
+	private reconnecting = false;
 
 	override get isConnected(): boolean { return this.connected; }
+	override get isResuming(): boolean { return this.resuming; }
+	override get willReconnect(): boolean { return this.reconnecting; }
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
@@ -87,6 +94,14 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		}
 	}
 	override invalidateSessionCache(): void { }
+	override sendStartSession(): void {
+		this.sessionCommands.push('start');
+		this.sessionCommandSent.complete();
+	}
+	override sendResumeSession(): void {
+		this.sessionCommands.push('resume');
+		this.sessionCommandSent.complete();
+	}
 	readonly playbackCompletions: { sessionId: string; narrationId: string; playbackId: string }[] = [];
 	override sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void {
 		this.playbackCompletions.push({ sessionId: codingSessionId, narrationId, playbackId });
@@ -122,8 +137,8 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.toolCallEmitter.fire(event);
 	}
 
-	fireSpeechStarted(): void {
-		this.speechStartedEmitter.fire({});
+	fireSpeechStarted(turnId?: string): void {
+		this.speechStartedEmitter.fire({ turnId });
 	}
 
 	fireNarrationInterrupted(event: IVoiceNarrationSignal): void {
@@ -138,9 +153,14 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.narrationUnblockedEmitter.fire(event);
 	}
 
-	fireConnectionState(connected: boolean): void {
+	fireConnectionState(connected: boolean, willReconnect = false): void {
 		this.connected = connected;
+		this.reconnecting = !connected && willReconnect;
 		this.connectionStateEmitter.fire(connected);
+	}
+
+	setResuming(resuming: boolean): void {
+		this.resuming = resuming;
 	}
 
 	fireSessionInit(): void {
@@ -165,6 +185,12 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
 	abortCalls = 0;
 	prepareCalls = 0;
+	startCaptureCalls = 0;
+	stopCaptureCalls = 0;
+	readonly captureStarted = new DeferredPromise<void>();
+	constructor(private readonly captureBarrier?: Promise<void>) {
+		super();
+	}
 	override readonly onPttStart = Event.None;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
@@ -172,13 +198,28 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	override readonly analyserNode = undefined;
 	override isMuted = false;
 	override prepare(): void { this.prepareCalls++; }
-	override async startCapture(): Promise<void> { }
-	override stopCapture(): void { }
+	override async startCapture(): Promise<void> {
+		this.startCaptureCalls++;
+		if (this.startCaptureCalls === 1) {
+			this.captureStarted.complete();
+		}
+		await this.captureBarrier;
+	}
+	override stopCapture(): void { this.stopCaptureCalls++; }
 	override abortPtt(): void { this.abortCalls++; }
 	override pttUp(): void { }
 	override suppressUntil(): void { }
 	override async pttDown(turnId: string, passive?: boolean): Promise<void> {
 		this.pttDownCalls.push({ turnId, passive });
+	}
+}
+
+class VoiceTestNotificationService extends TestNotificationService {
+	readonly notifications: INotification[] = [];
+
+	override notify(notification: INotification): INotificationHandle {
+		this.notifications.push(notification);
+		return new NoOpNotification();
 	}
 }
 
@@ -434,6 +475,7 @@ suite('VoiceSessionController', () => {
 			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
 		}(),
 		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
+		notificationService: INotificationService = new VoiceTestNotificationService(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -467,7 +509,7 @@ suite('VoiceSessionController', () => {
 			}(),
 			new TestAccessibilityService(),
 			new TestChatWidgetService(),
-			new class extends mock<INotificationService>() { }(),
+			notificationService,
 			promptsService,
 		));
 	}
@@ -546,6 +588,351 @@ suite('VoiceSessionController', () => {
 		}, {
 			connected: false,
 			prepareCalls: 0,
+		});
+	});
+
+	test('warms hands-free capture before starting or resuming the backend session', async () => {
+		const results: {
+			command: 'start' | 'resume';
+			beforeWarmup: {
+				prepareCalls: number;
+				startCaptureCalls: number;
+				stopCaptureCalls: number;
+				sessionCommands: readonly ('start' | 'resume')[];
+				socketConnected: boolean;
+			};
+			afterWarmup: readonly ('start' | 'resume')[];
+		}[] = [];
+		for (const command of ['start', 'resume'] as const) {
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.setResuming(command === 'resume');
+			const captureBarrier = new DeferredPromise<void>();
+			const micCaptureService = new RecordingMicCaptureService(captureBarrier.p);
+			const controller = createController(
+				voiceClientService,
+				undefined,
+				undefined,
+				undefined,
+				micCaptureService,
+				new TestConfigurationService({ 'agents.voice.handsFree': true }),
+			);
+			await controller.connect(mainWindow);
+
+			voiceClientService.fireConnectionState(true);
+			await micCaptureService.captureStarted.p;
+			const beforeWarmup = {
+				prepareCalls: micCaptureService.prepareCalls,
+				startCaptureCalls: micCaptureService.startCaptureCalls,
+				stopCaptureCalls: micCaptureService.stopCaptureCalls,
+				sessionCommands: [...voiceClientService.sessionCommands],
+				socketConnected: voiceClientService.isConnected,
+			};
+
+			captureBarrier.complete();
+			await voiceClientService.sessionCommandSent.p;
+			results.push({ command, beforeWarmup, afterWarmup: voiceClientService.sessionCommands });
+		}
+
+		assert.deepStrictEqual(results, [{
+			command: 'start',
+			beforeWarmup: {
+				prepareCalls: 1,
+				startCaptureCalls: 1,
+				stopCaptureCalls: 0,
+				sessionCommands: [],
+				socketConnected: true,
+			},
+			afterWarmup: ['start'],
+		}, {
+			command: 'resume',
+			beforeWarmup: {
+				prepareCalls: 1,
+				startCaptureCalls: 1,
+				stopCaptureCalls: 1,
+				sessionCommands: [],
+				socketConnected: true,
+			},
+			afterWarmup: ['resume'],
+		}]);
+	});
+
+	test('keeps microphone acquisition lazy when hands-free mode is disabled', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new RecordingMicCaptureService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+
+		assert.deepStrictEqual({
+			prepareCalls: micCaptureService.prepareCalls,
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			sessionCommands: voiceClientService.sessionCommands,
+		}, {
+			prepareCalls: 1,
+			startCaptureCalls: 0,
+			sessionCommands: ['start'],
+		});
+	});
+
+	test('hands-free warm-up failure returns to idle and allows retry', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const resetObserved = new DeferredPromise<void>();
+		const micCaptureService = new class extends RecordingMicCaptureService {
+			override async startCapture(): Promise<void> {
+				this.startCaptureCalls++;
+				if (this.startCaptureCalls === 1) {
+					throw new Error('microphone unavailable');
+				}
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+			undefined,
+			undefined,
+			undefined,
+			new class extends VoiceTestNotificationService {
+				override notify(notification: INotification): INotificationHandle {
+					resetObserved.complete();
+					return super.notify(notification);
+				}
+			}(),
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await resetObserved.p;
+		await Promise.resolve();
+		const afterFailure = {
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			stopCaptureCalls: micCaptureService.stopCaptureCalls,
+			sessionCommands: [...voiceClientService.sessionCommands],
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			status: controller.statusText.get(),
+		};
+
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			afterFailure,
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			sessionCommands: voiceClientService.sessionCommands,
+		}, {
+			afterFailure: {
+				startCaptureCalls: 1,
+				stopCaptureCalls: 1,
+				sessionCommands: [],
+				connecting: false,
+				connected: false,
+				status: 'Tap to start',
+			},
+			startCaptureCalls: 2,
+			sessionCommands: ['start'],
+		});
+	});
+
+	test('hands-free permission denial does not add a generic connection notification', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const permissionError = new Error('Permission denied');
+		permissionError.name = 'NotAllowedError';
+		const micCaptureService = new class extends RecordingMicCaptureService {
+			override async startCapture(): Promise<void> {
+				this.startCaptureCalls++;
+				throw permissionError;
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await clock.tickAsync(0);
+
+		assert.deepStrictEqual({
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+			sessionCommands: voiceClientService.sessionCommands,
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			status: controller.statusText.get(),
+		}, {
+			startCaptureCalls: 1,
+			notifications: [],
+			sessionCommands: [],
+			connecting: false,
+			connected: false,
+			status: 'Tap to start',
+		});
+	});
+
+	test('connect watchdog covers a stalled hands-free warm-up', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const captureBarrier = new DeferredPromise<void>();
+		const micCaptureService = new RecordingMicCaptureService(captureBarrier.p);
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await micCaptureService.captureStarted.p;
+		clock.tick(10_000);
+		captureBarrier.complete();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			stopCaptureCalls: micCaptureService.stopCaptureCalls,
+			sessionCommands: voiceClientService.sessionCommands,
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			status: controller.statusText.get(),
+		}, {
+			stopCaptureCalls: 1,
+			sessionCommands: [],
+			connecting: false,
+			connected: false,
+			status: 'Tap to start',
+		});
+	});
+
+	test('clean socket close during acquisition aborts initialization and allows explicit retry', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const firstCaptureBarrier = new DeferredPromise<void>();
+		const micCaptureService = new RecordingMicCaptureService(firstCaptureBarrier.p);
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await micCaptureService.captureStarted.p;
+		voiceClientService.fireConnectionState(false);
+		firstCaptureBarrier.complete();
+		await Promise.resolve();
+
+		const afterDrop = {
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			stopCaptureCalls: micCaptureService.stopCaptureCalls,
+			sessionCommands: [...voiceClientService.sessionCommands],
+			connected: controller.isConnected.get(),
+			status: controller.statusText.get(),
+		};
+
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+
+		assert.deepStrictEqual({
+			afterDrop,
+			afterRetry: {
+				startCaptureCalls: micCaptureService.startCaptureCalls,
+				stopCaptureCalls: micCaptureService.stopCaptureCalls,
+				sessionCommands: voiceClientService.sessionCommands,
+				connected: controller.isConnected.get(),
+			},
+		}, {
+			afterDrop: {
+				startCaptureCalls: 1,
+				stopCaptureCalls: 1,
+				sessionCommands: [],
+				connected: false,
+				status: 'Tap to start',
+			},
+			afterRetry: {
+				startCaptureCalls: 2,
+				stopCaptureCalls: 1,
+				sessionCommands: ['start'],
+				connected: true,
+			},
+		});
+	});
+
+	test('transient socket drop during acquisition retries warm-up before starting the session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const firstCaptureBarrier = new DeferredPromise<void>();
+		const micCaptureService = new RecordingMicCaptureService(firstCaptureBarrier.p);
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await micCaptureService.captureStarted.p;
+		voiceClientService.fireConnectionState(false, true);
+		firstCaptureBarrier.complete();
+		await Promise.resolve();
+		const afterDrop = {
+			connecting: controller.isConnecting.get(),
+			reconnecting: controller.isReconnecting.get(),
+			stopCaptureCalls: micCaptureService.stopCaptureCalls,
+			sessionCommands: [...voiceClientService.sessionCommands],
+			status: controller.statusText.get(),
+		};
+
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+
+		assert.deepStrictEqual({
+			afterDrop,
+			afterRetry: {
+				startCaptureCalls: micCaptureService.startCaptureCalls,
+				sessionCommands: voiceClientService.sessionCommands,
+				connected: controller.isConnected.get(),
+			},
+		}, {
+			afterDrop: {
+				connecting: false,
+				reconnecting: true,
+				stopCaptureCalls: 1,
+				sessionCommands: [],
+				status: 'Reconnecting...',
+			},
+			afterRetry: {
+				startCaptureCalls: 2,
+				sessionCommands: ['start'],
+				connected: true,
+			},
 		});
 	});
 
@@ -3344,6 +3731,57 @@ suite('VoiceSessionController', () => {
 			},
 			acceptedInputs: ['actually scratch that and check the code in the repository'],
 			toolResults: [{ callId: 'send-follow-up', result: 'ok' }],
+		});
+	});
+
+	test('speech-started alone interrupts playback and accepts the scoped passive turn', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'story-start',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		voiceClientService.fireSpeechStarted('follow-up-turn');
+		voiceClientService.fireTranscription({
+			text: 'check the repository instead',
+			status: 'final',
+			turnId: 'follow-up-turn',
+			revision: 1,
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story',
+			isFirstChunk: false,
+			isFinal: true,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'follow-up',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'follow-up-turn',
+			responseId: 'follow-up-response',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+			transcript: controller.transcriptTurns.get().at(-1),
+		}, {
+			playedAudio: ['story-start', 'follow-up'],
+			stopCount: 1,
+			transcript: {
+				speaker: 'user',
+				text: 'check the repository instead',
+				committed: '',
+				isPartial: false,
+			},
 		});
 	});
 

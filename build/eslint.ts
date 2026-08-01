@@ -6,17 +6,29 @@
 import { ESLint } from 'eslint';
 import { eslintFilter } from './filters.ts';
 
-async function eslint(): Promise<void> {
+export function getEslintFilePatterns(args: readonly string[]): string[] {
+	if (args.length === 0) {
+		return Array.from(eslintFilter);
+	}
+
+	return Array.from(args);
+}
+
+export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean {
+	return args.length > 0;
+}
+
+async function eslint(args: readonly string[]): Promise<void> {
 	const linter = new ESLint({
 		cache: true,
 		cacheLocation: '.eslintcache',
 		cacheStrategy: 'content',
 		concurrency: 'auto',
-		errorOnUnmatchedPattern: false,
+		errorOnUnmatchedPattern: shouldErrorOnUnmatchedPattern(args),
 	});
 	const formatter = await linter.loadFormatter('compact');
 
-	const results = await linter.lintFiles(Array.from(eslintFilter));
+	const results = await linter.lintFiles(getEslintFilePatterns(args));
 	const message = await formatter.format(results);
 	if (message) {
 		console.log(message);
@@ -34,7 +46,7 @@ async function eslint(): Promise<void> {
 }
 
 if (import.meta.main) {
-	eslint().catch((err) => {
+	eslint(process.argv.slice(2)).catch((err) => {
 		console.error();
 		console.error(err);
 		process.exit(1);

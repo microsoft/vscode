@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -123,6 +123,22 @@ suite('VoiceClientService', () => {
 			turnId: 'interrupting-turn',
 			interruptedTurnId: 'cancelled-turn',
 		}]);
+	});
+
+	test('preserves the turn ID on speech-started events', async () => {
+		const { service } = createService();
+		const events: IVoiceSpeechStarted[] = [];
+		store.add(service.onSpeechStarted(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'speech_started',
+				turn_id: 'passive-turn',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{ turnId: 'passive-turn' }]);
 	});
 
 	test('preserves checkpoint interruption metadata from the backend', async () => {
@@ -744,5 +760,17 @@ suite('VoiceClientService', () => {
 
 		assert.strictEqual(service.isResuming, false);
 		assert.strictEqual(service.currentSessionId, undefined);
+	});
+
+	test('reports when an abnormal close has scheduled a reconnect', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4000 }));
+
+		assert.strictEqual(service.willReconnect, true);
+		service.disconnect();
+		assert.strictEqual(service.willReconnect, false);
 	});
 });

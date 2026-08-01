@@ -59,6 +59,10 @@ export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefau
 	};
 }
 
+export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+	return editorsAssociationsAgentsWindowDefault(options);
+}
+
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
@@ -86,6 +90,9 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
+			},
+			agentsWindow: {
+				default: diffEditorsAssociationsAgentsWindowDefault()
 			}
 		}
 	}

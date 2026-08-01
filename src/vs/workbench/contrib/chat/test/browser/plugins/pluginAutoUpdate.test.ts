@@ -9,7 +9,6 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { PluginAutoUpdate } from '../../../browser/pluginAutoUpdate.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -18,28 +17,29 @@ suite('PluginAutoUpdate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface MockState {
-		hasUpdatesAvailable: ReturnType<typeof observableValue<boolean>>;
+		marketplacesWithUpdates: ReturnType<typeof observableValue<ReadonlySet<string>>>;
 		updateAllCalls: IUpdateAllPluginsOptions[];
 		updateAllImpl: () => Promise<IUpdateAllPluginsResult>;
-		clearUpdatesAvailableCalls: number;
+		clearUpdatesAvailableCalls: ReadonlySet<string>[];
 	}
 
-	function createContribution(autoUpdate: AutoUpdateConfigurationValue, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
+	function createContribution(stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		const state: MockState = {
-			hasUpdatesAvailable: observableValue<boolean>('test.hasUpdatesAvailable', false),
+			marketplacesWithUpdates: observableValue<ReadonlySet<string>>('test.marketplacesWithUpdates', new Set()),
 			updateAllCalls: [],
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: [] }),
-			clearUpdatesAvailableCalls: 0,
+			clearUpdatesAvailableCalls: [],
 			...stateOverrides,
 		};
 
 		instantiationService.stub(IPluginMarketplaceService, {
-			hasUpdatesAvailable: state.hasUpdatesAvailable,
-			clearUpdatesAvailable: () => {
-				state.clearUpdatesAvailableCalls++;
-				state.hasUpdatesAvailable.set(false, undefined);
+			marketplacesWithUpdates: state.marketplacesWithUpdates,
+			clearUpdatesAvailable: marketplaceIds => {
+				state.clearUpdatesAvailableCalls.push(marketplaceIds ?? new Set());
+				const remaining = new Set([...state.marketplacesWithUpdates.get()].filter(id => !marketplaceIds?.has(id)));
+				state.marketplacesWithUpdates.set(remaining, undefined);
 			},
 		} as Partial<IPluginMarketplaceService> as IPluginMarketplaceService);
 
@@ -49,10 +49,6 @@ suite('PluginAutoUpdate', () => {
 				return state.updateAllImpl();
 			},
 		} as Partial<IPluginInstallService> as IPluginInstallService);
-
-		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => autoUpdate,
-		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -66,93 +62,79 @@ suite('PluginAutoUpdate', () => {
 	}
 
 	test('does not trigger update on construction', async () => {
-		const { state } = createContribution('on');
+		const { state } = createContribution();
 		await flushMicrotasks();
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
-	test('triggers silent updateAllPlugins when hasUpdatesAvailable becomes true', async () => {
-		const { state } = createContribution('on');
+	test('triggers a targeted silent update when a marketplace reports updates', async () => {
+		const { state } = createContribution();
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['github:microsoft/plugins']), undefined);
 		await flushMicrotasks();
 
-		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
+		assert.deepStrictEqual(state.updateAllCalls.map(call => ({
+			silent: call.silent,
+			automatic: call.automatic,
+			marketplaceIds: [...call.marketplaceIds ?? []],
+		})), [{ silent: true, automatic: true, marketplaceIds: ['github:microsoft/plugins'] }]);
 	});
 
-	test('does not trigger update when extensions.autoUpdate is off', async () => {
-		const { state } = createContribution('off');
-
-		state.hasUpdatesAvailable.set(true, undefined);
-		await flushMicrotasks();
-
-		assert.deepStrictEqual(state.updateAllCalls, []);
-	});
-
-	test('triggers update when extensions.autoUpdate is on', async () => {
-		const { state } = createContribution('on');
-
-		state.hasUpdatesAvailable.set(true, undefined);
-		await flushMicrotasks();
-
-		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
-	});
-
-	test('does not run a second update concurrently with one in flight', async () => {
+	test('queues a marketplace reported while another update is in flight', async () => {
 		let resolveUpdate!: () => void;
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
-		const { state } = createContribution('on', {
-			updateAllImpl: () => pendingUpdate,
+		let updateCount = 0;
+		const { state } = createContribution({
+			updateAllImpl: () => updateCount++ === 0 ? pendingUpdate : Promise.resolve({ updatedNames: [], failedNames: [] }),
 		});
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
-		// While the first update is still pending, simulate a redundant signal
-		// (e.g. another periodic check firing). Observable de-dupes equal
-		// values, so toggle false→true to force the autorun to re-run.
-		state.hasUpdatesAvailable.set(false, undefined);
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a', 'b']), undefined);
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 1, 'should not start a second concurrent update');
 
 		resolveUpdate();
 		await pendingUpdate;
+		await flushMicrotasks();
+		await flushMicrotasks();
+		assert.deepStrictEqual(state.updateAllCalls.map(call => [...call.marketplaceIds ?? []]), [['a'], ['b']]);
 	});
 
 	test('continues running on subsequent cycles after the previous update finished', async () => {
-		const { state } = createContribution('on');
+		const { state } = createContribution();
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 		assert.strictEqual(state.updateAllCalls.length, 1);
 
 		// Simulate `updateAllPlugins` clearing the flag, then the next
 		// periodic check finding updates again.
-		state.hasUpdatesAvailable.set(false, undefined);
+		state.marketplacesWithUpdates.set(new Set(), undefined);
 		await flushMicrotasks();
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 2);
 	});
 
 	test('swallows errors from updateAllPlugins', async () => {
-		const { state } = createContribution('on', {
+		const { state } = createContribution({
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		// Wait long enough for the rejected promise to settle.
 		await flushMicrotasks();
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 1);
 		// A subsequent cycle should still work after the failure.
-		state.hasUpdatesAvailable.set(false, undefined);
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(), undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 		await flushMicrotasks();
 		assert.strictEqual(state.updateAllCalls.length, 2);
@@ -163,36 +145,37 @@ suite('PluginAutoUpdate', () => {
 		// path in `PluginInstallService.updateAllPlugins`). Without our own
 		// clear in `finally`, the observable would stay stuck at `true` and
 		// the next periodic check's `set(true)` would not notify subscribers.
-		const { state } = createContribution('on', {
+		const { state } = createContribution({
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: ['plugin-a'] }),
 		});
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 1);
-		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
-		assert.strictEqual(state.hasUpdatesAvailable.get(), false);
+		assert.strictEqual(state.clearUpdatesAvailableCalls.length, 1);
+		assert.deepStrictEqual([...state.clearUpdatesAvailableCalls[0]], ['a']);
+		assert.strictEqual(state.marketplacesWithUpdates.get().size, 0);
 
 		// The next periodic check finds updates again; the cleared flag lets
 		// the autorun re-fire via a clean `false → true` transition.
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 		await flushMicrotasks();
 		assert.strictEqual(state.updateAllCalls.length, 2);
 	});
 
 	test('clears the flag even when updateAllPlugins throws', async () => {
-		const { state } = createContribution('on', {
+		const { state } = createContribution({
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 
-		state.hasUpdatesAvailable.set(true, undefined);
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
 		await flushMicrotasks();
 
-		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
-		assert.strictEqual(state.hasUpdatesAvailable.get(), false);
+		assert.strictEqual(state.clearUpdatesAvailableCalls.length, 1);
+		assert.strictEqual(state.marketplacesWithUpdates.get().size, 0);
 	});
 });

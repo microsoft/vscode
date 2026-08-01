@@ -24,6 +24,12 @@ export interface IUpdateAllPluginsOptions {
 	 * updated, and error notifications are shown on failure.
 	 */
 	readonly silent?: boolean;
+
+	/** Restricts updates to plugins installed from these canonical marketplace IDs. */
+	readonly marketplaceIds?: ReadonlySet<string>;
+
+	/** Rechecks marketplace automatic-update policy before updating. */
+	readonly automatic?: boolean;
 }
 
 export interface IUpdateAllPluginsResult {

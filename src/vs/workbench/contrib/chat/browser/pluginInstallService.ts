@@ -355,6 +355,14 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {
+		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+			this._notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+			});
+			return false;
+		}
+
 		const kind = plugin.sourceDescriptor.kind;
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
@@ -371,7 +379,11 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult> {
-		const installed = this._pluginMarketplaceService.installedPlugins.get();
+		const allInstalled = this._pluginMarketplaceService.installedPlugins.get();
+		const installed = allInstalled.filter(entry =>
+			(!options.marketplaceIds || options.marketplaceIds.has(entry.plugin.marketplaceReference.canonicalId))
+			&& (!options.automatic || this._pluginMarketplaceService.isMarketplaceAutoUpdateEnabled(entry.plugin.marketplaceReference))
+		);
 		if (installed.length === 0) {
 			return { updatedNames: [], failedNames: [] };
 		}
@@ -393,6 +405,10 @@ export class PluginInstallService implements IPluginInstallService {
 					continue;
 				}
 				seenMarketplaces.add(ref.canonicalId);
+				if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(ref)) {
+					failedNames.push(ref.displayLabel);
+					continue;
+				}
 				gitTasks.push((async () => {
 					if (token.isCancellationRequested) {
 						return;
@@ -419,7 +435,8 @@ export class PluginInstallService implements IPluginInstallService {
 
 			// 2. Re-fetch marketplace data *after* pulling so we see any
 			//    updated plugin descriptors (new versions, refs, etc.).
-			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token);
+			const marketplaceIds = new Set(installed.map(entry => entry.plugin.marketplaceReference.canonicalId));
+			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds);
 			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
 			for (const mp of marketplacePlugins) {
 				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
@@ -513,13 +530,17 @@ export class PluginInstallService implements IPluginInstallService {
 				},
 			});
 		} else if (updatedNames.length > 0) {
-			this._pluginMarketplaceService.clearUpdatesAvailable();
+			if (!options.automatic) {
+				this._pluginMarketplaceService.clearUpdatesAvailable(options.marketplaceIds);
+			}
 			this._notificationService.notify({
 				severity: Severity.Info,
 				message: localize('updateAllSuccess', "Updated plugins: {0}", updatedNames.join(', ')),
 			});
 		} else if (!token.isCancellationRequested) {
-			this._pluginMarketplaceService.clearUpdatesAvailable();
+			if (!options.automatic) {
+				this._pluginMarketplaceService.clearUpdatesAvailable(options.marketplaceIds);
+			}
 		}
 
 		return { updatedNames, failedNames };

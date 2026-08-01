@@ -64,7 +64,6 @@ suite('Editor Type Picker', () => {
 			diffDefaultEditor: true,
 		});
 	});
-
 	test('inline custom diff editor is classified as a diff editor', () => {
 		const original = URI.file('/original/test.md');
 		const modified = URI.file('/modified/test.md');
