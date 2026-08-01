@@ -250,6 +250,8 @@ One row remains, and it is not about command portability:
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
+| `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
+| ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
 
 Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview`
 on Windows, while its terminal-shaped resource is not backed by the host terminal

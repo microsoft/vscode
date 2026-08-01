@@ -43,7 +43,7 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs } = context;
+	const { config, createdSessions, tempDirs, isWindows } = context;
 
 	function createWorkspace(prefix: string): string {
 		const workspace = mkdtempSync(join(tmpdir(), prefix));
@@ -181,7 +181,7 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 
 		const watch = await context.client.call<CreateResourceWatchResult>('createResourceWatch', {
 			channel: ROOT_STATE_URI, uri: rootUri, recursive: false,
-		});
+		}, !isWindows);
 		let subscribed = false;
 
 		try {

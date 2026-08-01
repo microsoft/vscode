@@ -62,6 +62,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 };
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const isWindows = process.platform === 'win32';
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -392,7 +393,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
+	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
