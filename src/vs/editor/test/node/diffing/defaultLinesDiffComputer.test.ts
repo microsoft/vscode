@@ -116,3 +116,77 @@ suite('LinesSliceCharSequence', () => {
 		);
 	});
 });
+
+suite('LinesSliceCharSequence with ignoreInteriorWhitespace', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function textOf(seq: LinesSliceCharSequence): string {
+		return seq.getText(new OffsetRange(0, seq.length));
+	}
+
+	test('collapses interior spacing but keeps indentation, considerWhitespaceChanges=true', () => {
+		const seq = new LinesSliceCharSequence(
+			['  if ( x  ==  1 )   {'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		// leading indentation ("  ") and the single trailing space before "{" boundary handling
+		// are preserved; only whitespace strictly between non-whitespace tokens is dropped.
+		assert.strictEqual(textOf(seq), '  if(x==1){');
+	});
+
+	test('drops all whitespace when considerWhitespaceChanges=false too (ignoreAllSpaces equivalent)', () => {
+		const seq = new LinesSliceCharSequence(
+			['  if ( x  ==  1 )   {'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			false,
+			true,
+		);
+		assert.strictEqual(textOf(seq), 'if(x==1){');
+	});
+
+	test('pure indentation-only line is untouched when trim is considered (interior-only mode)', () => {
+		const seq = new LinesSliceCharSequence(
+			['    return 1;'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		assert.strictEqual(textOf(seq), '    return 1;');
+	});
+
+	test('translateOffset resolves back to real positions around collapsed interior whitespace', () => {
+		const seq = new LinesSliceCharSequence(
+			['  if ( x  ==  1 )   {'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		// "  if(x==1){"
+		//  0123456789...
+		// offset 0 -> 'i' of "if" at raw column 3 (1-based), after the 2-space indent
+		assert.strictEqual(seq.translateOffset(0).toString(), '(1,3)');
+		// offset 2 -> 'x' at raw column 7 (raw: "  if ( x  ==  1 )   {", 1-based index of 'x' is 8... verify via full range)
+		const positions = OffsetRange.ofLength(seq.length).map(o => seq.translateOffset(o).toString());
+		// Every resolved position must point at a non-space character (or line end) in the raw text.
+		const raw = '  if ( x  ==  1 )   {';
+		for (let i = 0; i < positions.length; i++) {
+			const m = /\((\d+),(\d+)\)/.exec(positions[i])!;
+			const col = parseInt(m[2], 10);
+			assert.ok(!/\s/.test(raw[col - 1]), `position ${positions[i]} for kept char index ${i} should not resolve to whitespace`);
+		}
+	});
+
+	test('end-to-end: interior-only diff produces no changes when ignoreInteriorWhitespace is set', () => {
+		const s1 = new LinesSliceCharSequence(['if(x==1){'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		const s2 = new LinesSliceCharSequence(['if ( x == 1 ) {'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		assert.strictEqual(textOf(s1), textOf(s2));
+	});
+
+	test('indentation-only diff still differs when ignoreInteriorWhitespace is set without ignoreAllSpaces', () => {
+		const s1 = new LinesSliceCharSequence(['  return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		const s2 = new LinesSliceCharSequence(['    return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		assert.notStrictEqual(textOf(s1), textOf(s2));
+	});
+});

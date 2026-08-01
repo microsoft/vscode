@@ -16,8 +16,24 @@ export class LinesSliceCharSequence implements ISequence {
 	private readonly firstElementOffsetByLineIdx: number[] = [];
 	private readonly lineStartOffsets: number[] = [];
 	private readonly trimmedWsLengthsByLineIdx: number[] = [];
+	/**
+	 * Only populated when `ignoreInteriorWhitespace` is set. For each line, maps the index of a
+	 * kept (non-collapsed) character in `elements` to its column offset in the original line
+	 * (relative to the same baseline as `trimmedWsLengthsByLineIdx`). Has one extra sentinel entry
+	 * per line equal to that line's raw processed length, so `translateOffset` can resolve the
+	 * position one-past-the-last kept character without special-casing the line boundary.
+	 */
+	private readonly rawColumnsByLineIdx: number[][] | undefined;
 
-	constructor(public readonly lines: string[], private readonly range: Range, public readonly considerWhitespaceChanges: boolean) {
+	constructor(
+		public readonly lines: string[],
+		private readonly range: Range,
+		public readonly considerWhitespaceChanges: boolean,
+		private readonly ignoreInteriorWhitespace: boolean = false,
+	) {
+		if (ignoreInteriorWhitespace) {
+			this.rawColumnsByLineIdx = [];
+		}
 		this.firstElementOffsetByLineIdx.push(0);
 		for (let lineNumber = this.range.startLineNumber; lineNumber <= this.range.endLineNumber; lineNumber++) {
 			let line = lines[lineNumber - 1];
@@ -37,8 +53,31 @@ export class LinesSliceCharSequence implements ISequence {
 			this.trimmedWsLengthsByLineIdx.push(trimmedWsLength);
 
 			const lineLength = lineNumber === this.range.endLineNumber ? Math.min(this.range.endColumn - 1 - lineStartOffset - trimmedWsLength, line.length) : line.length;
-			for (let i = 0; i < lineLength; i++) {
-				this.elements.push(line.charCodeAt(i));
+
+			if (ignoreInteriorWhitespace) {
+				// Any whitespace already trimmed above (leading/trailing of the *slice*) stays trimmed.
+				// Beyond that, only whitespace strictly between two kept characters on this line is
+				// dropped here — genuine leading/trailing whitespace of what remains is preserved,
+				// so this only ever removes interior spacing, never indentation.
+				const slice = line.slice(0, lineLength);
+				const leadingLen = slice.length - slice.trimStart().length;
+				const trailingLen = slice.length - slice.trimEnd().length;
+				const rawColumns: number[] = [];
+				for (let i = 0; i < lineLength; i++) {
+					const isInterior = i >= leadingLen && i < lineLength - trailingLen;
+					const charCode = line.charCodeAt(i);
+					if (isInterior && isSpace(charCode)) {
+						continue;
+					}
+					this.elements.push(charCode);
+					rawColumns.push(trimmedWsLength + i);
+				}
+				rawColumns.push(trimmedWsLength + lineLength);
+				this.rawColumnsByLineIdx!.push(rawColumns);
+			} else {
+				for (let i = 0; i < lineLength; i++) {
+					this.elements.push(line.charCodeAt(i));
+				}
 			}
 
 			if (lineNumber < this.range.endLineNumber) {
@@ -102,6 +141,13 @@ export class LinesSliceCharSequence implements ISequence {
 		// find smallest i, so that lineBreakOffsets[i] <= offset using binary search
 		const i = findLastIdxMonotonous(this.firstElementOffsetByLineIdx, (value) => value <= offset);
 		const lineOffset = offset - this.firstElementOffsetByLineIdx[i];
+		if (this.rawColumnsByLineIdx) {
+			const rawColumn = this.rawColumnsByLineIdx[i][lineOffset];
+			return new Position(
+				this.range.startLineNumber + i,
+				1 + this.lineStartOffsets[i] + ((lineOffset === 0 && preference === 'left') ? 0 : rawColumn)
+			);
+		}
 		return new Position(
 			this.range.startLineNumber + i,
 			1 + this.lineStartOffsets[i] + lineOffset + ((lineOffset === 0 && preference === 'left') ? 0 : this.trimmedWsLengthsByLineIdx[i])

@@ -11,6 +11,18 @@ export interface ILinesDiffComputer {
 
 export interface ILinesDiffComputerOptions {
 	readonly ignoreTrimWhitespace: boolean;
+	/**
+	 * Ignores whitespace changes strictly between two non-whitespace characters on a line.
+	 * Leading/trailing whitespace (indentation) is unaffected by this option — see
+	 * {@link ignoreTrimWhitespace} for that. Independent of {@link ignoreAllSpaces}.
+	 */
+	readonly ignoreInteriorSpacing?: boolean;
+	/**
+	 * Ignores whitespace differences everywhere on a line — both interior spacing and
+	 * leading/trailing whitespace (indentation). Equivalent to `git diff --ignore-all-space`.
+	 * When set, takes effect regardless of {@link ignoreTrimWhitespace} / {@link ignoreInteriorSpacing}.
+	 */
+	readonly ignoreAllSpaces?: boolean;
 	readonly maxComputationTimeMs: number;
 	readonly computeMoves: boolean;
 	readonly extendToSubwords?: boolean;

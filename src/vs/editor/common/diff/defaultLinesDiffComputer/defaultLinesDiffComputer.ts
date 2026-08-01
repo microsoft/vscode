@@ -45,7 +45,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		}
 
 		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
-		const considerWhitespaceChanges = !options.ignoreTrimWhitespace;
+		const considerWhitespaceChanges = !options.ignoreTrimWhitespace && !options.ignoreAllSpaces;
 
 		const perfectHashes = new Map<string, number>();
 		function getOrCreateHash(text: string): number {
@@ -217,9 +217,10 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean, options: ILinesDiffComputerOptions): { mappings: RangeMapping[]; hitTimeout: boolean } {
 		const lineRangeMapping = toLineRangeMapping(diff);
 		const rangeMapping = lineRangeMapping.toRangeMapping2(originalLines, modifiedLines);
+		const ignoreInteriorWhitespace = !!options.ignoreInteriorSpacing || !!options.ignoreAllSpaces;
 
-		const slice1 = new LinesSliceCharSequence(originalLines, rangeMapping.originalRange, considerWhitespaceChanges);
-		const slice2 = new LinesSliceCharSequence(modifiedLines, rangeMapping.modifiedRange, considerWhitespaceChanges);
+		const slice1 = new LinesSliceCharSequence(originalLines, rangeMapping.originalRange, considerWhitespaceChanges, ignoreInteriorWhitespace);
+		const slice2 = new LinesSliceCharSequence(modifiedLines, rangeMapping.modifiedRange, considerWhitespaceChanges, ignoreInteriorWhitespace);
 
 		const diffResult = slice1.length + slice2.length < 500
 			? this.dynamicProgrammingDiffing.compute(slice1, slice2, timeout)
