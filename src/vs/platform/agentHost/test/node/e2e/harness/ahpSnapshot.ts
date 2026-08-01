@@ -611,9 +611,8 @@ function escapeRegExpCharacters(value: string): string {
 
 /**
  * Resolves the file {@link assertSnapshot} would compare against, so an update
- * run can write the same path the assert run reads. Mirrors `SnapshotContext`:
- * the snapshot lives next to the *source* of the registering test file, keyed by
- * its full title, even though the compiled test runs from `out/`.
+ * run writes the path the assert run reads. Mirrors `SnapshotContext`: the
+ * snapshot sits next to the test's *source*, though the test runs from `out/`.
  */
 export function snapshotPathForTest(test: Mocha.Runnable, name: string, extension: string): string {
 	if (!test.file) {

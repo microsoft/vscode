@@ -4,34 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * System-prompt snapshot tests for the Copilot provider.
+ * Pins the prompt and tool schemas the bundled Copilot CLI assembles per model.
  *
- * The assembled prompt is the Copilot CLI's product rather than the host's: it
- * is compiled into the `@github/copilot` native binary and only becomes
- * observable when the CLI serializes it onto the wire. The replay proxy sees
- * every model request whether or not it forwards upstream, so the prompt is read
- * off a *replayed* turn — deterministic, tokenless, and safe to assert in CI.
+ * The prompt is compiled into the `@github/copilot` binary and only becomes
+ * observable when the CLI serializes it onto the wire, so it is read off a
+ * *replayed* turn — deterministic and tokenless. Recording is the
+ * nondeterministic direction: it reaches live CAPI for the model catalog and
+ * experiment assignment, either of which moves the prompt for reasons this
+ * repository does not own, so a recording run never produces a baseline.
  *
- * Recording is the nondeterministic direction, which is why these tests do not
- * snapshot there: a recording run reaches live CAPI for the model catalog and
- * experiment assignment, and both can move the prompt underneath the host. A
- * baseline taken while recording would churn for reasons that have nothing to do
- * with this repository.
+ * A diff means the CLI changed (an SDK bump) or the host changed what it hands
+ * the CLI. See the README's "Prompt snapshots" section for what is elided and
+ * how to add a model.
  *
- * What this pins is the prompt and tool schemas the *bundled* CLI produces for a
- * given model. A diff means either the CLI changed (an SDK bump) or the host
- * changed what it hands the CLI. The host's own contribution — the
- * `SystemMessageConfig` it composes — is a pure function unit-tested in
- * `agentHostPromptRegistry.test.ts`; this is its end-to-end counterpart, and the
- * only place the SDK-authored foundation prompt is visible at all.
- *
- * Run (no token needed):
- *   ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts
- *
- * Accept new baselines after an SDK bump, then review the diff:
- *   AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts
+ * Run, then accept a new baseline and review the diff:
+ *   ./scripts/test-integration.sh --run <this file>
+ *   AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run <this file>
  */
 
 import assert from 'assert';
@@ -49,40 +37,24 @@ import {
 import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
-/**
- * Only the replay-scoped flag accepts a baseline. `AgentHostUpdateSnapshotsEnvVar`
- * also puts the harness in live-record mode, and a prompt captured while recording
- * reflects the live model catalog and experiment assignment rather than this repo.
- */
+/** Only the replay-scoped flag accepts a baseline; the other one implies recording. */
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
 const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
 	|| process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 
 /**
- * Model families whose assembled prompt is pinned, mirroring the `testFamilies`
- * list in the Copilot extension's `agentPrompt.spec.tsx` so the two prompt
- * surfaces are compared over the same set.
+ * Mirrors the `testFamilies` list in the extension's `agentPrompt.spec.tsx` so
+ * both prompt surfaces are compared over the same set. Baselines within a
+ * dialect are near-identical by construction; they are kept per family so a
+ * future divergence names the family that introduced it.
  *
- * `gpt-4.1` and `grok-code-fast-1` are intentionally absent: the CLI issues no
- * model request for either under replay, so there is no prompt to capture and
- * the test fails with an empty body rather than a diff.
+ * Adding one takes an entry here, an entry in `capiStubs.ts` (a model missing
+ * from `/models` is rejected before the CLI builds a request), a fixture in
+ * `captures/`, and a committed baseline.
  *
- * Families sharing a dialect largely produce the same prompt — the CLI does not
- * branch it per model within a dialect, and the host contributes the same
- * sections to every model without a contributor of its own — so several of these
- * baselines are near-identical by construction. They are kept per family anyway
- * so a future per-model divergence shows up against the family that introduced
- * it rather than silently against whichever one happened to be pinned.
- *
- * Each entry needs a committed fixture in `captures/` named after its test title
- * (`copilotcli-<slug>.yaml`), because a replayed turn still has to be answered,
- * and an entry in `capiStubs.ts`'s catalog, because a model missing from
- * `/models` is rejected before the CLI ever builds a request.
- *
- * Every entry is selected explicitly. Sending no selection is deliberately not
- * pinned: the CLI would then choose from `capiStubs.ts`'s stub catalog by its own
- * ranking, so the baseline would record a property of this suite's fixture and
- * would move whenever a higher-ranked model was added to or removed from it.
+ * `gpt-4.1` and `grok-code-fast-1` are absent because the CLI issues no model
+ * request for either under replay. No unselected entry is pinned: the CLI would
+ * rank the stub catalog itself, making the baseline a property of the fixture.
  */
 const SNAPSHOT_MODELS = [
 	'gpt-5',
@@ -136,16 +108,10 @@ suite('Agent Host E2E — Copilot prompts', function () {
 	});
 
 	for (const model of SNAPSHOT_MODELS) {
-		// POSIX-only. The Windows prompt is not a renaming of this one: the CLI
-		// runtime carries whole PowerShell-only sections (no-heredoc guidance,
-		// `if ($?)` chaining, the `.bat` PATH caveat) that POSIX never emits, and
-		// one of them is gated on whether the host has PowerShell 7 — resolved by
-		// probing the machine, so two Windows runners can legitimately disagree.
-		// A fixture sidesteps all of this by storing `${shell}` and expanding it
-		// per platform, but here the prose *is* the asserted artifact: projecting
-		// it away would delete the tool instructions this snapshot exists to pin.
-		// Prompt drift from an SDK bump is provider-wide, so the Linux and macOS
-		// runners already deliver that signal; see KNOWN_ISSUES.md.
+		// POSIX-only: the Windows prompt carries PowerShell-only sections rather
+		// than being a renaming of this one, and one is gated on a machine probe.
+		// SDK drift is provider-wide, so POSIX runners already catch it. See
+		// KNOWN_ISSUES.md.
 		(process.platform === 'win32' ? test.skip : test)(model, async function () {
 			this.timeout(120_000);
 
@@ -155,9 +121,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await driveTurnWithModel(client, sessionUri, model);
 
-			// The last request is the one the turn ended on; for a single-turn
-			// prompt there is exactly one, and taking the last keeps the snapshot
-			// meaningful if the CLI ever inserts a preflight request.
+			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
 
@@ -223,19 +187,6 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
 	}
 }
 
-/**
- * Skips while recording, writes the baseline under the update flag, and compares
- * against the committed one otherwise.
- *
- * A recording run is never allowed to produce a baseline: its prompt reflects the
- * live model catalog and experiment assignment rather than anything this
- * repository owns. Accepting a changed prompt therefore takes the same explicit
- * env var the AHP snapshots use.
- *
- * A missing baseline is a hard error rather than something `assertSnapshot`
- * quietly creates, which would otherwise let a newly added model go green against
- * a file nobody wrote or reviewed.
- */
 async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Promise<void> {
 	if (RECORDING) {
 		return;
@@ -245,6 +196,8 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 		writeFileSync(snapshotPath, content);
 		return;
 	}
+	// `assertSnapshot` would create the missing file and pass, greening a model
+	// against a baseline nobody wrote.
 	if (!existsSync(snapshotPath)) {
 		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
@@ -271,31 +224,18 @@ interface IWireRequest {
 }
 
 /**
- * Renders everything the model is given, as reviewable markdown: the system
- * prompt, the tool definitions, and the turn messages.
- *
- * The messages are included because the CLI wraps the user's text in injected
- * context — `<current_datetime>`, `<system_reminder>`, the available-table
- * listing — that reaches the model exactly like the system prompt does. The
- * scaffolding text this test sends (`Say exactly "ok"`) rides along, but it is a
- * constant, so it costs three stable lines and keeps the injection visible.
- *
- * Both CAPI dialects are handled from one formatter: the Anthropic Messages
- * shape (`system` / `messages` / `input_schema`) and the Responses shape
- * (`instructions` / `input` / `parameters`). Reading only the Anthropic spelling
- * silently produced an empty prompt for every OpenAI-family model, which is
- * exactly the content these tests exist to pin.
+ * Renders everything the model is given as reviewable markdown. The turn
+ * messages are included because the CLI wraps the user's text in injected
+ * context (`<current_datetime>`, `<system_reminder>`) that reaches the model
+ * exactly like the system prompt does.
  */
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
 	const system = extractText(request.instructions ?? request.system);
 	const tools = request.tools ?? [];
 
-	// Both are read through dialect-specific field names, and a shape this
-	// formatter does not recognize yields empty rather than throwing. That is how
-	// the first version of these tests pinned a 12-character system prompt and no
-	// tools at all for a whole model family, green. Refuse to build a baseline out
-	// of nothing instead.
+	// An unrecognized wire shape reads as empty rather than throwing, which once
+	// pinned a 12-character prompt and no tools for a whole family, green.
 	assert.ok(system.length > 0, 'the model request carried no system prompt — the wire shape likely changed');
 	assert.ok(tools.length > 0, 'the model request carried no tool definitions — the wire shape likely changed');
 
@@ -393,41 +333,12 @@ function extractText(content: unknown): string {
 }
 
 /**
- * Normalizes what the replay proxy does not.
- *
- * The goal is to keep as much real prompt text in the baseline as possible, so
- * nothing is dropped merely for being long or awkward to review. The exceptions
- * are values that differ between two correct runs, plus one that is stable but
- * belongs to a different file's change budget.
- *
- * `CapiReplayProxy._normalize` has already collapsed the workspace and home
- * directories, the temp-dir suffix, the user name, and file-listing timestamps
- * before the body reaches `observedModelRequestBodies`, so none of that is
- * repeated here. What remains:
- *
- *  - **Line endings.** The CLI emits the host's, so a macOS baseline would
- *    otherwise fail on Windows.
- *  - **Session id.** Minted per run, and scoped to the session-state path it
- *    actually appears in rather than matched document-wide — a UUID surfacing
- *    anywhere else is new information and should fail the baseline.
- *  - **Clock.** The datetime the CLI stamps into the turn message.
- *  - **Environment probe.** The OS name and the tools found on `PATH` describe
- *    the machine running the test, not the prompt the host assembled. Both keep
- *    their label, so a change to the *shape* of these lines still fails.
- *  - **Repository instructions.** The CLI injects `copilot-instructions.md` and
- *    `AGENTS.md`, read from the server's working directory — this checkout, not
- *    the session's temp workspace. Their content is stable across machines, so
- *    it *could* be pinned, and briefly was. It is elided because the cost is
- *    paid by the wrong file: appending one line to `AGENTS.md` rewrites every
- *    baseline here, turning a docs edit into a large unrelated diff. The
- *    surviving `<custom_instruction>` wrappers still assert that instructions
- *    are injected, how many, and where they sit in the prompt.
- *  - **Model catalog.** The CLI inlines the whole `/models` list into the
- *    `Task` tool's schema, as a count and a per-model listing. Left verbatim,
- *    adding ONE entry to `capiStubs.ts` rewrites every baseline here — including
- *    models nobody snapshots — so a new model release would land as a 13-file
- *    diff. The labels survive, so a change to the shape of those lines, or the
- *    catalog disappearing from the prompt entirely, still fails.
+ * Elides what `CapiReplayProxy._normalize` does not: values that differ between
+ * two correct runs, plus two that are stable but belong to another file's change
+ * budget — the injected repository instructions, and the model catalog the CLI
+ * inlines into the `Task` schema, either of which would otherwise rewrite every
+ * baseline here on an unrelated edit. Each keeps its label or wrapper, so a
+ * change to the shape of these lines, or their disappearance, still fails.
  */
 function normalizeVolatile(text: string): string {
 	return text
