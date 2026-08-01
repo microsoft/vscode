@@ -514,6 +514,11 @@ suite('VoiceSessionController', () => {
 		));
 	}
 
+	function fireSolicitedNarrationAudioStartTimeout(controller: IVoiceSessionController, narrationId: string): void {
+		const handler = Reflect.get(controller, '_handleSolicitedNarrationAudioStartTimeout') as (narrationId: string) => void;
+		handler.call(controller, narrationId);
+	}
+
 	function createVoiceProgressResponse(id: string, requestId = `request-${id}`) {
 		const changeEmitter = store.add(new Emitter<{ reason: 'other' }>());
 		const parts: { kind: 'voiceProgress'; id: string; value: string }[] = [];
@@ -4165,9 +4170,9 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(narrate.call(controller, sessionId, 'confirmation', 'I need your approval to run the tests.'), true);
 		const narrationId = voiceClientService.requests[0].narrationId;
 
-		// The audio-start watchdog fires before any audio arrives, abandoning the
-		// attempt. The form it spoke may be gone by the time audio shows up.
-		clock.tick(30_000);
+		// Exercise the watchdog callback directly: advancing the connected
+		// controller's fake clock would also run its unrelated 5s session poll.
+		fireSolicitedNarrationAudioStartTimeout(controller, narrationId);
 
 		// Late audio for that confirmation must be swallowed, not spoken.
 		voiceClientService.fireAudioResponse({
@@ -4200,7 +4205,7 @@ suite('VoiceSessionController', () => {
 		const narrationId = voiceClientService.requests[0].narrationId;
 		assert.strictEqual(cancelledIds.has(narrationId), false);
 
-		clock.tick(30_000);
+		fireSolicitedNarrationAudioStartTimeout(controller, narrationId);
 
 		// The abandoned attempt leaves a tombstone so any late audio is dropped.
 		assert.strictEqual(cancelledIds.has(narrationId), true);
@@ -4219,7 +4224,7 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'All the tests passed.'), true);
 		const narrationId = voiceClientService.requests[0].narrationId;
 
-		clock.tick(30_000);
+		fireSolicitedNarrationAudioStartTimeout(controller, narrationId);
 
 		// A completed reply is deliberately exempt from the tombstone: it stays
 		// worth hearing even if its audio arrives late.
@@ -4249,13 +4254,70 @@ suite('VoiceSessionController', () => {
 			assert.strictEqual(narrate.call(controller, `agent-host-copilot:/bounded-${i}`, 'confirmation', `Approve step ${i}?`), true);
 			narrationIds.push(voiceClientService.requests[i].narrationId);
 		}
-		clock.tick(30_000);
+		for (const narrationId of narrationIds) {
+			fireSolicitedNarrationAudioStartTimeout(controller, narrationId);
+		}
 
 		// Each timed-out confirmation tombstones its id; the set stays bounded and
 		// the very first id was evicted to make room for the last.
 		assert.strictEqual(cancelledIds.size, 64);
 		assert.strictEqual(cancelledIds.has(narrationIds[0]), false);
 		assert.strictEqual(cancelledIds.has(narrationIds[64]), true);
+	});
+
+	test('purges transcript-only deferred state when a confirmation narration times out', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const foregroundSessionId = 'agent-host-copilot:/foreground';
+		const backgroundSessionId = 'agent-host-copilot:/transcript-only-timeout';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		const deferredResponses = Reflect.get(controller, '_deferredResponses') as Map<string, unknown>;
+		const responseRoutes = Reflect.get(controller, '_responseRoutes') as Map<string, 'live' | 'deferred'>;
+		const recentlyRead = Reflect.get(controller, '_recentlyReadResponse') as Map<string, unknown>;
+		const lastHeard = Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>;
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+		controller.setActiveSessionShown(URI.parse(foregroundSessionId));
+
+		assert.strictEqual(narrate.call(controller, backgroundSessionId, 'confirmation', 'Approve deleting the branch?'), true);
+		const narrationId = voiceClientService.requests[0].narrationId;
+		voiceClientService.fireAudioResponse({
+			audio: '',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: backgroundSessionId,
+			responseId: narrationId,
+			transcript: 'Approve deleting the branch?',
+		});
+
+		const beforeTimeout = {
+			deferred: deferredResponses.has(backgroundSessionId),
+			route: responseRoutes.get(narrationId),
+		};
+		fireSolicitedNarrationAudioStartTimeout(controller, narrationId);
+		const afterTimeout = {
+			deferred: deferredResponses.has(backgroundSessionId),
+			route: responseRoutes.has(narrationId),
+		};
+		controller.setActiveSessionShown(URI.parse(backgroundSessionId));
+
+		assert.deepStrictEqual({
+			beforeTimeout,
+			afterTimeout,
+			recentlyReadAfterFocus: recentlyRead.has(backgroundSessionId),
+			lastHeardAfterFocus: lastHeard.has(backgroundSessionId),
+		}, {
+			beforeTimeout: {
+				deferred: true,
+				route: 'deferred',
+			},
+			afterTimeout: {
+				deferred: false,
+				route: false,
+			},
+			recentlyReadAfterFocus: false,
+			lastHeardAfterFocus: false,
+		});
 	});
 
 	test('resolving an in-flight confirmation still cancels playback and swallows late frames after the helper extraction', async () => {

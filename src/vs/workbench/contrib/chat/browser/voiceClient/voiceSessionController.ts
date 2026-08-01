@@ -3972,6 +3972,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// playable (mirrors the `kind !== 'response'` carve-out there).
 		if (pending.kind !== 'response') {
 			this._rememberCancelledPendingNarration(narrationId);
+			this._discardCancelledPendingNarrationResponses(new Set([narrationId]));
 		}
 		// Only restore state when this was the last thing we were waiting on. If a
 		// direct chat reply is still expected (`_awaitingReplyAudio`) or another
@@ -5008,19 +5009,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (cancelledIds.size === 0) {
 			return;
 		}
-		// Drop any not-yet-played chunks of those narrations from the queue.
-		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
-			const responseId = this._audioQueue[i].responseId;
-			if (responseId !== undefined && cancelledIds.has(responseId)) {
-				this._audioQueue.splice(i, 1);
-			}
-		}
 		// Remember the ids so trailing chunks (or a narration whose audio has
 		// not started arriving yet) are swallowed in the audio_response handler.
 		// Bound the set so ids that never yield audio can't leak across a long
 		// session.
 		for (const id of cancelledIds) {
 			this._rememberCancelledPendingNarration(id);
+		}
+		this._discardCancelledPendingNarrationResponses(cancelledIds);
+		// If one of the cancelled narrations is what's currently playing, cut it
+		// off. Mark it interrupted first so onPlaybackStopped doesn't treat it as
+		// "heard"; that handler then resets the slot, drains the queue and
+		// restores idle / hands-free listening.
+		if (this._currentPlaybackResponseId !== undefined && cancelledIds.has(this._currentPlaybackResponseId)) {
+			this._stopCurrentPlaybackAsInterrupted();
+		}
+	}
+
+	private _discardCancelledPendingNarrationResponses(cancelledIds: ReadonlySet<string>): void {
+		// Drop any not-yet-played chunks of those narrations from the queue.
+		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
+			const responseId = this._audioQueue[i].responseId;
+			if (responseId !== undefined && cancelledIds.has(responseId)) {
+				this._audioQueue.splice(i, 1);
+			}
 		}
 		// A confirmation narration may already have been buffered for an
 		// unfocused session (in _deferredResponses); the queue splice above and
@@ -5044,13 +5056,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// cleanup), so their _responseRoutes entries would otherwise leak.
 		for (const id of cancelledIds) {
 			this._responseRoutes.delete(id);
-		}
-		// If one of the cancelled narrations is what's currently playing, cut it
-		// off. Mark it interrupted first so onPlaybackStopped doesn't treat it as
-		// "heard"; that handler then resets the slot, drains the queue and
-		// restores idle / hands-free listening.
-		if (this._currentPlaybackResponseId !== undefined && cancelledIds.has(this._currentPlaybackResponseId)) {
-			this._stopCurrentPlaybackAsInterrupted();
 		}
 	}
 
