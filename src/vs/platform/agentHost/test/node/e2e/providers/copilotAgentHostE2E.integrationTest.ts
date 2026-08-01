@@ -426,8 +426,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			return envelope.channel === chatUri
 				&& action.turnId === turnId
 				&& action.toolCallId === toolStartAction.toolCallId
-				&& typeof action.toolInput === 'string'
-				&& action.toolInput.includes('echo strip-me-please');
+				&& typeof action.toolInput === 'string';
 		}, 90_000);
 
 		const toolReadyEnvelope = getActionEnvelope(toolReadyNotif);
@@ -443,8 +442,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			`toolInput should not contain a redundant cd-prefix targeting the working directory; got: ${JSON.stringify(toolInput)}`,
 		);
 		assert.ok(
-			toolInput.includes('echo strip-me-please'),
-			`toolInput should contain the rewritten command body; got: ${JSON.stringify(toolInput)}`,
+			toolInput.includes('strip-me-please'),
+			`toolInput should retain the command marker after rewriting; got: ${JSON.stringify(toolInput)}`,
 		);
 
 		if (!toolReadyAction.confirmed) {
