@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeHex } from '../../../base/common/buffer.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
+import { basename } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 
 const SESSION_DB_SCHEME = 'session-db';
@@ -74,6 +75,30 @@ export function canonicalizeSessionDbUri(uri: URI, fileUri: URI): URI {
 		return uri;
 	}
 	return sessionDbUri(fileUri.path, fields);
+}
+
+/**
+ * Rewrites a current-layout `session-db:` URI to the legacy wire format.
+ *
+ * Remote agent hosts may be older than the client and only understand the
+ * legacy hex-encoded layout. The path component of the current URI is only
+ * used for display, so converting it before an AHP resource request preserves
+ * the canonical client-side label while keeping the request backward
+ * compatible. Legacy, malformed, and foreign URIs are returned unchanged.
+ */
+export function toLegacySessionDbUri(uri: URI): URI {
+	if (uri.scheme !== SESSION_DB_SCHEME || !uri.query) {
+		return uri;
+	}
+	const fields = parseSessionDbUriQuery(uri.query);
+	if (!fields) {
+		return uri;
+	}
+	return URI.from({
+		scheme: SESSION_DB_SCHEME,
+		authority: encodeHex(VSBuffer.fromString(fields.sessionUri)).toString(),
+		path: `/${encodeURIComponent(fields.toolCallId)}/${encodeHex(VSBuffer.fromString(fields.filePath))}/${fields.part}/${basename(uri.path)}`,
+	});
 }
 
 function isNonEmptyString(value: unknown): value is string {

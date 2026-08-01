@@ -7,7 +7,7 @@ import assert from 'assert';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildSessionDbUri, canonicalizeSessionDbUri, parseSessionDbUri } from '../../common/sessionDbUri.js';
+import { buildSessionDbUri, canonicalizeSessionDbUri, parseSessionDbUri, toLegacySessionDbUri } from '../../common/sessionDbUri.js';
 
 const hex = (value: string) => encodeHex(VSBuffer.fromString(value)).toString();
 
@@ -142,6 +142,32 @@ suite('canonicalizeSessionDbUri', () => {
 		assert.deepStrictEqual(
 			[canonical, unparseable, foreign].map(uri => canonicalizeSessionDbUri(uri, fileUri).toString()),
 			[canonical.toString(), unparseable.toString(), foreign.toString()],
+		);
+	});
+});
+
+suite('toLegacySessionDbUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rewrites the current layout to the backward-compatible wire format', () => {
+		const canonical = URI.parse(buildSessionDbUri('copilot:/abc-123', 'call_1', 'C:\\Code\\repo\\file.ts', 'before'));
+		const legacy = toLegacySessionDbUri(canonical);
+
+		assert.deepStrictEqual(
+			[legacy.query, parseSessionDbUri(legacy.toString())],
+			['', { sessionUri: 'copilot:/abc-123', toolCallId: 'call_1', filePath: 'C:\\Code\\repo\\file.ts', part: 'before' }],
+		);
+	});
+
+	test('leaves legacy, malformed and foreign URIs untouched', () => {
+		const legacy = legacyUri('copilot:/abc-123', 'call_1', '/workspace/file.ts', 'before', 'file.ts');
+		const malformed = URI.from({ scheme: 'session-db', path: '/file.ts', query: '{}' });
+		const foreign = URI.file('/workspace/file.ts');
+
+		assert.deepStrictEqual(
+			[legacy, malformed, foreign].map(uri => toLegacySessionDbUri(uri).toString()),
+			[legacy.toString(), malformed.toString(), foreign.toString()],
 		);
 	});
 });

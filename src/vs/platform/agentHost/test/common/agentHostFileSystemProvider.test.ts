@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -162,6 +162,32 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 			wrappedPath: original.path,
 			wrappedFragment: original.fragment,
 			unwrapped: original.toString(),
+		});
+	});
+
+	test('round-trips a canonical session-db URI', () => {
+		const original = URI.from({
+			scheme: 'session-db',
+			path: '/c:/src/vscode/file.ts',
+			query: JSON.stringify({
+				sessionUri: 'copilot:/session-1',
+				toolCallId: 'call-1',
+				filePath: 'C:\\src\\vscode\\file.ts',
+				part: 'before',
+			}),
+		});
+
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		const unwrapped = fromAgentHostUri(wrapped);
+
+		assert.deepStrictEqual({
+			wrappedPath: wrapped.path,
+			unwrappedPath: unwrapped.path,
+			unwrappedQuery: unwrapped.query,
+		}, {
+			wrappedPath: '/c:/src/vscode/file.ts',
+			unwrappedPath: original.path,
+			unwrappedQuery: original.query,
 		});
 	});
 
@@ -431,6 +457,37 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 
 		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
 		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+	});
+
+	test('readFile keeps the canonical session-db path for labels but sends the legacy wire format to a remote host', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.from({
+			scheme: 'session-db',
+			path: '/c:/src/vscode/file.ts',
+			query: JSON.stringify({
+				sessionUri: 'copilot:/session-1',
+				toolCallId: 'call-1',
+				filePath: 'C:\\src\\vscode\\file.ts',
+				part: 'before',
+			}),
+		});
+		const wrapped = toAgentHostUri(inner, 'remote');
+
+		await provider.readFile(wrapped);
+
+		assert.deepStrictEqual({
+			wrappedPath: wrapped.path,
+			remoteReads: connection.readCalls.map(uri => uri.toString()),
+		}, {
+			wrappedPath: '/c:/src/vscode/file.ts',
+			remoteReads: [URI.from({
+				scheme: 'session-db',
+				authority: encodeHex(VSBuffer.fromString('copilot:/session-1')).toString(),
+				path: `/call-1/${encodeHex(VSBuffer.fromString('C:\\src\\vscode\\file.ts'))}/before/file.ts`,
+			}).toString()],
+		});
 	});
 
 	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {

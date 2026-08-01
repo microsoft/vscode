@@ -9,7 +9,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
-import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
+import { fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from './agentHostUri.js';
+import { toLegacySessionDbUri } from './sessionDbUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -640,7 +641,13 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
  */
 export class AgentHostFileSystemProvider extends AHPFileSystemProvider {
 	protected _decodeUri(resource: URI): URI {
-		return fromAgentHostUri(resource);
+		const originalUri = fromAgentHostUri(resource);
+		// A remote Agent Host can be older than the client. Current-layout
+		// session-db URIs were introduced after the legacy wire format, while
+		// all Agent Host versions that produce file-edit snapshots understand
+		// legacy references. Keep the canonical outer path for labels, but send
+		// the backward-compatible reference over AHP.
+		return resource.authority === LOCAL_AGENT_HOST_AUTHORITY ? originalUri : toLegacySessionDbUri(originalUri);
 	}
 
 	protected _encodeUri(resource: URI, authority: string): URI {
