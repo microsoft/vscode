@@ -364,6 +364,7 @@ function normalizeVolatile(text: string): string {
 		.replace(/<current_datetime>[^<]*<\/current_datetime>/g, '<current_datetime>${datetime}</current_datetime>')
 		.replace(/^\* Operating System: .*$/gm, '* Operating System: ${os}')
 		.replace(/^\* Available tools: .*$/gm, '* Available tools: ${available_tools}')
+		.replace(/^\* You can install (?:Linux, )?Python, JavaScript and Go packages with the (?:`apt`, )?`pip`, `npm` and `go` commands\.$/gm, '* You can install ${platform_packages}.')
 		.replace(/<custom_instruction>[\s\S]*?<\/custom_instruction>/g, '<custom_instruction>${repository_instructions}</custom_instruction>')
 		.replace(/\(\d+ models available\)/g, '(${model_count} models available)')
 		.replace(/(Available models:)(?:\\n {2}- '[^']*' \([^)]*\)[^\\"]*)+/g, '$1${model_catalog}');

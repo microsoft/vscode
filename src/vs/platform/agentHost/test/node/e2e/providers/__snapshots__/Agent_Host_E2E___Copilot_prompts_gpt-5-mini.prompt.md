@@ -420,7 +420,7 @@ Runs a Bash command.
 * Sync sessions are discarded after the command completes. Use async mode for sessions that need follow-up interaction.
 * `initial_wait` must be 30-600 seconds. Use short waits for commands that you can leave running in the background — you'll be notified when commands complete. Use longer waits (120+ seconds) for commands that you need to wait for.
 * If a command hasn't completed within initial_wait, it returns partial output and continues running. Use `read_bash` for more output or `stop_bash` to stop it.
-* You can install Python, JavaScript and Go packages with the `pip`, `npm` and `go` commands.
+* You can install ${platform_packages}.
 ```json
 {
   "type": "object",

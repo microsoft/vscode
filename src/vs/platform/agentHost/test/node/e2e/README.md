@@ -292,7 +292,7 @@ The update scope is the tests selected by the command. Running a whole provider 
 
 `providers/copilotPromptsE2E.integrationTest.ts` pins what the bundled Copilot CLI actually gives the model: the assembled system prompt, the tool definitions, and the turn messages with the context the CLI injects around them (`<current_datetime>`, `<system_reminder>`).
 
-It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails.
+It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails.
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
