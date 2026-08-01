@@ -44,9 +44,7 @@ interface IStubModel {
 
 const STUB_MODELS: readonly IStubModel[] = [
 	// Every family pinned by `copilotPromptsE2E`, plus the provider default and
-	// the generic models other suites use. A model missing from this catalog is
-	// rejected before the CLI ever builds a request, so a prompt snapshot for it
-	// captures nothing. `supportedEndpoints` picks the wire dialect the CLI uses.
+	// the generic models other suites use. `supportedEndpoints` picks the dialect.
 	{ id: 'gpt-5', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
 	{ id: 'gpt-5-mini', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
 	{ id: 'gpt-5-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
