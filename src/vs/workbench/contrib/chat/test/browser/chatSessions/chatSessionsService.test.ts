@@ -249,6 +249,136 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 	});
 });
 
+suite('ChatSessionsService - archive capability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestItemController implements IChatSessionItemController {
+		readonly onDidChangeChatSessionItems = Event.None;
+
+		constructor(
+			readonly setChatSessionItemArchived?: (resource: URI, archived: boolean) => void,
+		) { }
+
+		readonly items: readonly IChatSessionItem[] = [];
+
+		async refresh(): Promise<void> { }
+	}
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('delegates to the registered controller', () => {
+		const sessionType = 'supported-type';
+		const updates: { resource: string; archived: boolean }[] = [];
+		const controller = new TestItemController((resource, archived) => updates.push({ resource: resource.toString(), archived }));
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, controller));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		service.setChatSessionItemArchived(resource, true);
+
+		assert.deepStrictEqual({
+			canSetArchived: service.canSetChatSessionItemArchived(resource),
+			updates,
+		}, {
+			canSetArchived: true,
+			updates: [{ resource: resource.toString(), archived: true }],
+		});
+	});
+
+	test('reports and rejects an unsupported controller', () => {
+		const sessionType = 'unsupported-type';
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, new TestItemController()));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		assert.strictEqual(service.canSetChatSessionItemArchived(resource), false);
+		assert.throws(() => service.setChatSessionItemArchived(resource, true), /does not support archiving/);
+	});
+});
+
+suite('ChatSessionsService - read capability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestItemController implements IChatSessionItemController {
+		readonly onDidChangeChatSessionItems = Event.None;
+
+		constructor(
+			readonly setChatSessionItemRead?: (resource: URI, isRead: boolean) => void,
+		) { }
+
+		readonly items: readonly IChatSessionItem[] = [];
+
+		async refresh(): Promise<void> { }
+	}
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('delegates to the registered controller', () => {
+		const sessionType = 'read-supported-type';
+		const updates: { resource: string; isRead: boolean }[] = [];
+		const controller = new TestItemController((resource, isRead) => updates.push({ resource: resource.toString(), isRead }));
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, controller));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		service.setChatSessionItemRead(resource, true);
+		service.setChatSessionItemRead(resource, false);
+
+		assert.deepStrictEqual({
+			canSetRead: service.canSetChatSessionItemRead(resource),
+			updates,
+		}, {
+			canSetRead: true,
+			updates: [
+				{ resource: resource.toString(), isRead: true },
+				{ resource: resource.toString(), isRead: false },
+			],
+		});
+	});
+
+	test('reports and rejects an unsupported controller', () => {
+		const sessionType = 'read-unsupported-type';
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, new TestItemController()));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		assert.strictEqual(service.canSetChatSessionItemRead(resource), false);
+		assert.throws(() => service.setChatSessionItemRead(resource, true), /does not own read state/);
+	});
+});
+
 suite('ChatSessionsService - untitled↔real session aliases', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

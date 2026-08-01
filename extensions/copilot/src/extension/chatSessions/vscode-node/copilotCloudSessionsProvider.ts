@@ -35,13 +35,13 @@ import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, isActiveTaskState, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CloudAgentBackend, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
+import { CloudAgentBackend, CloudSessionData, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
 import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
-import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -139,6 +139,18 @@ export function normalizeInitialSessionOptions(initialOptions: unknown, logServi
 
 	logService?.warn(`[chatParticipantImpl] Ignoring unsupported initialSessionOptions for ${chatResource?.toString() ?? 'unknown-resource'}. Received ${describeRuntimeValue(initialOptions)}.`);
 	return [];
+}
+
+export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs']): { readonly owner: string; readonly name: string; readonly host?: string; readonly branch?: string } | undefined {
+	if (!repo) {
+		return undefined;
+	}
+	return {
+		owner: repo.owner,
+		name: repo.name,
+		...(repo.host ? { host: repo.host } : {}),
+		...(diffRefs?.headRef ? { branch: diffRefs.headRef } : {}),
+	};
 }
 
 export function parseSessionLogChunksSafely(rawText: string, logService: ILogService, parser: (value: string) => SessionResponseLogChunk[]): SessionResponseLogChunk[] {
@@ -444,7 +456,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessionList = await this._backend.fetchSessionList(repoIds, false, false);
+					const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, false);
 					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
@@ -457,7 +469,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
 					try {
-						const sessionList = await this._backend.fetchSessionList(repoIds, false, true);
+						const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
 						if (this.cachedSessionsSize !== sessionList.length) {
 							this.refresh();
 						}
@@ -513,8 +525,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
 			}
 
-
+			// Reachable when `chatSessionPullRequest` is unknown, which keeps the action visible.
 			if (!pullRequestNumber) {
+				this.logService.warn('No pull request number could be resolved for the requested cloud session action.');
 				return;
 			}
 			const repoIds = await getRepoId(this._gitService);
@@ -1303,7 +1316,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			//   `pullArtifact` (so we know it's a Task API entry); PR-less Jobs entries are skipped.
 			const sessionItems = await Promise.all(sessionList.map(async entry => {
 				const pr = entry.pullRequest
-					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, undefined, this.telemetry) : undefined);
+					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, entry.repo, undefined, this.telemetry) : undefined);
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
 
@@ -1327,11 +1340,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					const changes = entry.diffRefs
 						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
 						: undefined;
+					const metadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs);
 					return {
 						resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) }),
 						label: entry.latestSession.name || taskId,
 						status,
 						...(changes?.length ? { changes } : {}),
+						...(metadata ? { metadata } : {}),
 						...(createdAt ? {
 							timing: {
 								created: createdAt,
@@ -1581,7 +1596,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
 		if (taskContent.pullArtifact) {
-			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
@@ -2383,7 +2398,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		let url = taskContent.task.html_url;
 		if (taskContent.pullArtifact) {
-			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 			url = pr?.url ?? url;
 		}
 		if (!url) {

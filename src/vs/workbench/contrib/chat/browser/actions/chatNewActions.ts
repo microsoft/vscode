@@ -12,21 +12,19 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export interface INewEditSessionActionContext {
 
@@ -193,6 +191,19 @@ export function registerNewChatActions() {
 
 			// Context from toolbar or lastFocusedWidget
 			const context = getEditingSessionContext(accessor, args);
+
+			// When no chat widget is open yet, opening the view resolves the
+			// computed default provider (a non-local harness when the agent host
+			// is enabled). Open the view, then explicitly start a local session:
+			// `startNewLocalSession` cancels that in-flight default resolution so
+			// the local request is honored without waiting for the agent host.
+			if (!context?.chatWidget) {
+				const view = await accessor.get(IViewsService).openView(ChatViewId, true) as ChatViewPane | null;
+				await view?.startNewLocalSession();
+				view?.focusInput();
+				return;
+			}
+
 			await runNewChatAction(accessor, context, executeCommandContext, AgentSessionProviders.Local);
 		}
 	});
@@ -316,11 +327,7 @@ async function runNewChatAction(
 	sessionType?: AgentSessionProviders
 ) {
 	const accessibilityService = accessor.get(IAccessibilityService);
-	const viewsService = accessor.get(IViewsService);
-	const configurationService = accessor.get(IConfigurationService);
-	const chatSessionsService = accessor.get(IChatSessionsService);
-	const storageService = accessor.get(IStorageService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const { editingSession, chatWidget: widget } = context ?? {};
 	if (!widget) {
@@ -337,7 +344,7 @@ async function runNewChatAction(
 	await editingSession?.stop();
 
 	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace());
+	await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, sessionType);
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

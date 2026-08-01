@@ -36,7 +36,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -226,7 +226,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -248,7 +248,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -351,6 +351,15 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerAuxiliaryControllers(): void { }
 
 	/**
+	 * Whether a custom view currently replaces the sessions grid. The parts it
+	 * covers are force-hidden, so those transitions must not be captured as the
+	 * active session's layout preference.
+	 */
+	protected _isCustomViewVisible(): boolean {
+		return this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+	}
+
+	/**
 	 * Registers the `Toggle Side Panel` action (menu item, keybinding,
 	 * command-palette entry). The action delegates straight to `toggleSidePane()`,
 	 * so no command/service indirection is needed; the controller owns the toggle
@@ -374,8 +383,9 @@ export abstract class BaseLayoutController extends Disposable {
 					category: Categories.View,
 					f1: true,
 					// A quick chat has no side pane (Round 20 hides the empty aux bar
-					// and the chat is full-width), so toggling it is meaningless.
-					precondition: IsQuickChatSessionContext.negate(),
+					// and the chat is full-width), so toggling it is meaningless. A custom
+					// view replaces the side pane entirely.
+					precondition: ContextKeyExpr.and(IsQuickChatSessionContext.negate(), CustomViewVisibleContext.negate()),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB

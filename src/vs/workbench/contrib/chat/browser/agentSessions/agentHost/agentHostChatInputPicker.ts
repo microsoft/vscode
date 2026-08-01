@@ -36,7 +36,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAssistedPermissionsEnabled, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -73,6 +73,9 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
+		if (value === 'assisted') {
+			return Codicon.sparkle;
+		}
 		return Codicon.shield;
 	}
 	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
@@ -96,12 +99,12 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => {
-		const disabled = policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot');
+		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
 		const hover = getConfigPickerItemHover(property, item, disabled);
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			detail: item.description,
+			detail: disabled ? hover : item.description,
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
@@ -121,6 +124,8 @@ function getAutoApproveHover(value: unknown | undefined, fallback: string | unde
 	switch (value) {
 		case ChatPermissionLevel.Default:
 			return localize('agentHostChatInputPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
+		case ChatPermissionLevel.Assisted:
+			return localize('agentHostChatInputPicker.assistedApprovalsHover', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval.");
 		case ChatPermissionLevel.AutoApprove:
 			return localize('agentHostChatInputPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
 		case ChatPermissionLevel.Autopilot:
@@ -154,7 +159,7 @@ export function getConfigPickerTriggerHover(property: string, schema: SessionCon
 
 export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | undefined {
 	if (disabled) {
-		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by enterprise policy");
+		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by your organization. Contact your administrator.");
 	}
 	if (property === SessionConfigKey.AutoApprove) {
 		return getAutoApproveHover(item.value, item.description);
@@ -173,9 +178,16 @@ function getPermissionsLearnMoreUrl(property: string): string | undefined {
 }
 
 export function getConfigPickerListOptions(property: string): IActionListOptions | undefined {
-	return property === CodexSessionConfigKey.PermissionsPreset
-		? getCodexApprovalsPickerListOptions()
-		: undefined;
+	switch (property) {
+		case SessionConfigKey.Mode:
+			return { minWidth: 260 };
+		case SessionConfigKey.AutoApprove:
+			return { minWidth: 255 };
+		case CodexSessionConfigKey.PermissionsPreset:
+			return getCodexApprovalsPickerListOptions();
+		default:
+			return undefined;
+	}
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -243,6 +255,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
@@ -478,10 +491,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (icon) {
 			dom.append(trigger, renderIcon(icon));
 		}
-		// Mirror the sessions-side picker: elevated auto-approve levels
-		// (autopilot / bypass) get themed colors on the chip trigger.
+		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {
-			trigger.classList.toggle('warning', value === 'autopilot');
+			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
 		const label = this._labelFor(schema, value);
@@ -589,7 +601,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					}
 					return;
 				}
-				void this._confirmAndSetValue(ctx.backendSession, item.value);
+				void this._confirmAndSetValue(ctx.backendSession, item);
 			},
 			onFilter: ctx.schema.enumDynamic
 				? query => this._filterDelayer.trigger(async () => {
@@ -643,16 +655,24 @@ export class AgentHostChatInputPicker extends Disposable {
 					workingDirectory: this._readWorkingDirectory(),
 					config: this._readCurrentValues(),
 				});
-				return result.items.map(item => this._fromCompletion(item));
+				return this._filterAutoApproveItems(result.items.map(item => this._fromCompletion(item)));
 			} catch {
 				// Fall through to the static enum below.
 			}
 		}
-		return (schema.enum ?? []).map((value, index) => ({
+		return this._filterAutoApproveItems((schema.enum ?? []).map((value, index) => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
-		}));
+		})));
+	}
+
+	private _filterAutoApproveItems(items: readonly IConfigPickerItem[]): readonly IConfigPickerItem[] {
+		if (this._property !== SessionConfigKey.AutoApprove) {
+			return items;
+		}
+		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
+		return items.filter(item => isPermissionLevelVisible(item.value, assistedPermissionsEnabled));
 	}
 
 	private _fromCompletion(item: SessionConfigValueItem): IConfigPickerItem {
@@ -662,7 +682,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.workingDirectory;
+			const cwd = state.workingDirectories?.[0];
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
@@ -683,20 +703,23 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	/**
-	 * Surfaces the shared elevated-level warning for a Bypass / (legacy)
-	 * Autopilot approval pick before applying it. Non-elevated levels and
-	 * non-approval properties apply directly. Tolerated forward/legacy
-	 * auto-approve values that are not recognized {@link ChatPermissionLevel}s
-	 * (e.g. `assisted`) are still treated as elevated and fall back to the
-	 * Bypass Approvals warning so they can never be selected silently.
+	 * Surfaces the shared elevated-level warning before applying an approval
+	 * pick. Unknown non-default values fall back to the Bypass warning.
 	 */
-	private async _confirmAndSetValue(backendSession: URI, value: string): Promise<void> {
+	private async _confirmAndSetValue(backendSession: URI, item: IConfigPickerItem): Promise<void> {
+		const value = item.value;
+		if (this._property === SessionConfigKey.AutoApprove && !isPermissionLevelVisible(value, isAssistedPermissionsEnabled(this._configurationService))) {
+			return;
+		}
 		if (this._property === SessionConfigKey.AutoApprove) {
 			const levelToConfirm = isChatPermissionLevel(value)
 				? value
 				: (value !== ChatPermissionLevel.Default ? ChatPermissionLevel.AutoApprove : undefined);
 			if (levelToConfirm) {
-				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
+				const confirmed = await maybeConfirmElevatedPermissionLevel(levelToConfirm, this._dialogService, this._storageService, {
+					defaultSettingKey: ChatConfiguration.DefaultConfiguration,
+					levelLabel: item.label,
+				});
 				if (!confirmed) {
 					return;
 				}

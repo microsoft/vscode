@@ -93,3 +93,8 @@
 .style-override .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
 	padding: 0 var(--vscode-spacing-size60);
 }
+
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-right: var(--vscode-spacing-size40);
+}

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
@@ -202,6 +203,74 @@ suite('ActionListWidget', () => {
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
 	});
 
+	test('does not filter while an IME composition is in progress', () => {
+		const filters: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: async filter => {
+				filters.push(filter);
+				return [action(`result-${filter}`)];
+			},
+		});
+
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+		typeFilter(widget, 'd');
+		typeFilter(widget, 'deepseek');
+		widget.filterInput.value = 'DeepSeek';
+		widget.filterInput.dispatchEvent(new Event('compositionend'));
+		// Chromium fires a trailing `input` for the committed text, which must not re-filter.
+		typeFilter(widget, 'DeepSeek');
+
+		assert.deepStrictEqual(filters, ['DeepSeek']);
+	});
+
+	test('cancels an in-flight dynamic filter when a composition starts', async () => {
+		const pending = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const widget = createActionListWidget(disposables, {
+			onFilter: () => pending.p,
+		});
+
+		typeFilter(widget, 'd');
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+
+		// Resolving now must not splice/re-layout the list underneath the IME candidate window.
+		pending.complete([action('stale-result')]);
+		await timeout(0);
+		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
+	});
+
+	test('batches row width writes before reading layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('first'),
+				{ ...action('second'), toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+				action('third'),
+			],
+		});
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const allRowsAutoAtRead: boolean[] = [];
+		const measuredWidths = [120, 240, 180];
+		for (let i = 0; i < rows.length; i++) {
+			rows[i].getBoundingClientRect = () => {
+				allRowsAutoAtRead.push(rows.every(row => row.style.width === 'auto'));
+				return new mainWindow.DOMRect(0, 0, measuredWidths[i], 24);
+			};
+		}
+
+		const width = widget.computeMaxWidth(0);
+
+		assert.deepStrictEqual({
+			width,
+			allRowsAutoAtRead,
+			restoredWidths: rows.map(row => row.style.width),
+		}, {
+			width: 268,
+			allRowsAutoAtRead: [true, true, true],
+			restoredWidths: ['', '', ''],
+		});
+	});
+
 	test('keeps titled separator above first filtered match', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -283,6 +352,55 @@ suite('ActionListWidget', () => {
 			{ dismissed: true, layoutRequested: true, headerCleared: true, headerStillInDom: false },
 		);
 	});
+
+	test('shows a row hover panel once the hover delay elapses', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
+	}));
+
+	test('does not open a row hover panel once the pointer has left the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		// The banner is a sibling of the list, so reaching it drags the pointer across a row.
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: 'none', text: '' });
+	}));
+
+	test('dismisses an open row hover panel when the pointer reaches the header banner', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		// Dwelling on the row long enough for the panel to open, then continuing to the banner.
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(600);
+		const openedWhileOnRow = panel.textContent;
+
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		widget.headerContainer!.dispatchEvent(new MouseEvent('mouseenter'));
+
+		assert.deepStrictEqual(
+			{ openedWhileOnRow, display: panel.style.display, text: panel.textContent },
+			{ openedWhileOnRow: 'Auto routes based on your task', display: 'none', text: '' },
+		);
+	}));
 
 	test('header renders a "Learn more" link to the given uri', () => {
 		const widget = createActionListWidget(disposables, {

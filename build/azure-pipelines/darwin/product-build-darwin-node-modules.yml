@@ -69,6 +69,12 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - task: PipAuthenticate@1
+        inputs:
+          artifactFeeds: Monaco/vscode
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Setup PyPI Authentication
+
       - script: |
           set -e
           c++ --version

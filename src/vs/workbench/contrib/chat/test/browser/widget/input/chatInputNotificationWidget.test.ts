@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../../../../platform/instantiation/common/descriptors.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
@@ -106,6 +107,101 @@ suite('ChatInputNotificationWidget', () => {
 
 		currentSessionType.set(localChatSessionType, undefined);
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
+	});
+
+	test('reactively applies session resource filter when the session changes', () => {
+		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', SessionType.AgentHostCopilot);
+		const currentSessionResource = observableValue<URI | undefined>('currentSessionResource', firstSession);
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, {
+			modelTargetChatSessionType: currentSessionType,
+			sessionResource: currentSessionResource,
+		}));
+
+		notificationService.setNotification({
+			id: 'first-session-only',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'First session only',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			sessionResources: [firstSession],
+		});
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'First session only');
+		currentSessionResource.set(secondSession, undefined);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+	});
+
+	test('renders markdown descriptions as rich content', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+
+		notificationService.setNotification({
+			id: 'markdown-description',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Cache is stale',
+			description: new MarkdownString('Consider a new chat. [Learn more](https://aka.ms/learn)'),
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		});
+
+		const description = widget.domNode.querySelector('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.deepStrictEqual({
+			text: description?.textContent,
+			markdown: !!description?.querySelector('.chat-input-notification-description-markdown'),
+			linkText: link?.textContent,
+			linkHref: link?.getAttribute('data-href') ?? link?.getAttribute('href'),
+		}, {
+			text: 'Consider a new chat. Learn more',
+			markdown: true,
+			linkText: 'Learn more',
+			linkHref: 'https://aka.ms/learn',
+		});
+	});
+
+	test('auto-dismiss on message only applies to the sending session', () => {
+		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
+		const notificationService = createNotificationService();
+
+		for (const [id, sessionResource] of [['first', firstSession], ['second', secondSession]] as const) {
+			notificationService.setNotification({
+				id,
+				severity: ChatInputNotificationSeverity.Info,
+				message: 'Cache is stale',
+				description: undefined,
+				actions: [],
+				dismissible: true,
+				autoDismissOnMessage: true,
+				sessionResources: [sessionResource],
+			});
+		}
+
+		notificationService.handleMessageSent({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession });
+
+		assert.deepStrictEqual({
+			inFirstSession: notificationService.getActiveNotification(n => n.id === 'first')?.id,
+			inSecondSession: notificationService.getActiveNotification(n => n.id === 'second')?.id,
+		}, {
+			inFirstSession: undefined,
+			inSecondSession: 'second',
+		});
 	});
 
 	/**

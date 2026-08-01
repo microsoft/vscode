@@ -34,7 +34,7 @@ import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { stringifyEntryWithFallback } from './objectMutationLog.js';
 
-const maxPersistedSessions = 50;
+const maxPersistedSessions = 400;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';

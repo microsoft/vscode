@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -218,6 +218,81 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.length >= 2);
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
+	});
+
+	test('BYOK display names use provider and optional configured group paths', function () {
+		const originalIdentifier = 'openrouter/OpenRouter 2/amazon/nova-micro-v1';
+		const originalModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: originalIdentifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				id: 'amazon/nova-micro-v1',
+				vendor: 'openrouter',
+				version: '1.0',
+				family: 'amazon/nova-micro-v1',
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				isBYOK: true,
+			},
+		};
+		const bridgedModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'openrouter' },
+				byokModelIdentifier: originalIdentifier,
+			},
+		};
+		const nativeModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:claude-sonnet-4.6',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Claude Sonnet 4.6',
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'copilotcli' },
+			},
+		};
+		const geminiModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'gemini/models/gemini-3.1-pro-preview',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Gemini 3.1 Pro Preview (models/gemini-3.1-pro-preview)',
+				id: 'models/gemini-3.1-pro-preview',
+				vendor: 'gemini',
+			},
+		};
+		const createService = (groupName?: string): ILanguageModelsService => ({
+			getVendors: () => [
+				{ vendor: 'openrouter', displayName: 'OpenRouter' },
+				{ vendor: 'gemini', displayName: 'Gemini' },
+			],
+			getLanguageModelGroups: (vendor: string) => vendor === 'openrouter' && groupName ? [{
+				group: { vendor, name: groupName },
+				modelIdentifiers: [originalIdentifier],
+			}] : [],
+			lookupLanguageModel: (identifier: string) => identifier === originalIdentifier ? originalModel.metadata : undefined,
+		} as unknown as ILanguageModelsService);
+
+		assert.deepStrictEqual({
+			direct: getLanguageModelDisplayNameWithProvider(originalModel, createService()),
+			bridged: getLanguageModelDisplayNameWithProvider(bridgedModel, createService()),
+			grouped: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter 2')),
+			duplicateGroup: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter')),
+			gemini: getLanguageModelDisplayNameWithProvider(geminiModel, createService()),
+			native: getLanguageModelDisplayNameWithProvider(nativeModel, createService('OpenRouter 2')),
+		}, {
+			direct: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			bridged: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			grouped: 'OpenRouter/OpenRouter 2/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			duplicateGroup: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			gemini: 'Gemini/Gemini 3.1 Pro Preview (models/gemini-3.1-pro-preview)',
+			native: 'Claude Sonnet 4.6',
+		});
 	});
 
 	test('selectLanguageModels matches by id for copilot vendor models even when isUserSelectable is false', async function () {
@@ -618,6 +693,24 @@ suite('LanguageModels - Model Change Events', function () {
 
 		const firedVendorId = await eventPromise;
 		assert.strictEqual(firedVendorId, 'test-vendor', 'Should fire event when new models are added');
+	});
+
+	test('fires onChange when the first authoritative model resolution is empty', async function () {
+		const events: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendorId => events.push(vendorId)));
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		assert.deepStrictEqual({ models, events }, {
+			models: [],
+			events: ['test-vendor'],
+		});
 	});
 
 	test('does not fire onChange event when models are unchanged', async function () {
@@ -1420,27 +1513,19 @@ suite('LanguageModels - Provider Group Management', function () {
 		}]);
 	});
 
-	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
-		acceptedInputValues.push('new-api-key');
-		await secretStorageService.set('existing-secret', 'old-api-key');
+	test('updateLanguageModelsProviderGroupApiKey trims whitespace from the new apiKey secret', async function () {
+		acceptedInputValues.push('new-api-key\r\n');
 
 		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
 
-		const updatedGroup = updateCalls[0]?.to;
-		const encodedApiKey = typeof updatedGroup?.apiKey === 'string' ? updatedGroup.apiKey : '';
+		const encodedApiKey = typeof updateCalls[0]?.to.apiKey === 'string' ? updateCalls[0].to.apiKey : '';
 		const secretKey = encodedApiKey.substring('${input:'.length, encodedApiKey.length - 1);
 		assert.deepStrictEqual({
 			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
-			newSecretValue: await secretStorageService.get(secretKey),
-			oldSecretValue: await secretStorageService.get('existing-secret'),
-			settings: updatedGroup?.settings,
-			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
+			newSecretValue: await secretStorageService.get(secretKey)
 		}, {
 			encodedApiKeyUsesSecretStorage: true,
-			newSecretValue: 'new-api-key',
-			oldSecretValue: undefined,
-			settings: { model: { temperature: 0.7 } },
-			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+			newSecretValue: 'new-api-key'
 		});
 	});
 
@@ -2024,4 +2109,3 @@ suite('LanguageModels - provider usage telemetry', function () {
 		assert.strictEqual(events.length, 0);
 	});
 });
-

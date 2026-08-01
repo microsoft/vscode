@@ -62,10 +62,11 @@ export function buildAutomationsHelpContent(keybindingService: IKeybindingServic
 
 	lines.push(nls.localize('automations.help.header', 'Accessibility Help: Automations'));
 	lines.push(nls.localize('automations.help.intro', 'Automations let you schedule agent sessions to run on a cadence you choose. When an automation is due, a fresh chat session is created in the background and the prompt is sent automatically.'));
+	lines.push(nls.localize('automations.help.agentProposals', 'Agents can list, create, update, run, or delete automations using the current tool approval policy. Create, update, and run requests use normal tool confirmation when approval is required, while delete requests show Delete and Cancel options. Agent-triggered runs start a new session in the background and return after dispatch. Successful create and update requests include a chat button that opens the affected automation. Cancelling or denying a request makes no changes.'));
 	lines.push('');
 
 	lines.push(nls.localize('automations.help.layoutHeader', 'Layout:'));
-	lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), the workspace folder it targets, the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
+	lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), whether it targets a workspace folder or runs without a workspace, the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
 	lines.push('');
 
 	lines.push(nls.localize('automations.help.actionsHeader', 'Row Actions (Tab between them):'));
@@ -77,8 +78,8 @@ export function buildAutomationsHelpContent(keybindingService: IKeybindingServic
 	lines.push('');
 
 	lines.push(nls.localize('automations.help.dialogHeader', 'Create/Edit Dialog:'));
-	lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, a Workspace folder selector with a Browse button, a Session type selector that appears when the selected folder offers more than one session type, an Agent Mode selector (Use default, Agent, Ask, Edit), and a Permission Mode selector (Use default, Default Approvals, Bypass Approvals, Autopilot). The selected Agent Mode and Permission Mode are replayed when the scheduler starts a run, so the chat opens with the same configuration every time. The Browse button opens a folder picker so you can target any folder, even one that is not currently open. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
-	lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. Activate Cancel or press Escape to dismiss without saving.'));
+	lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, a Workspace target selector, a Session type selector, an isolation selector, a branch selector for supported Worktree sessions, an Agent Mode selector (Use default, Agent, Ask, Edit), and a Permission Mode selector (Use default, Default Approvals, Bypass Approvals, Autopilot). Choose No workspace from the Workspace target selector to run without a backing workspace. Only workspace-less-capable session types are then offered, and the isolation and branch controls do not apply. Folder isolation follows the selected repository\u2019s current branch. Worktree isolation lets you choose a local base branch. The selected configuration is replayed when the scheduler starts a run. Tab and Shift+Tab move between fields; Enter or Space opens a focused selector, and Escape closes an open selector before it closes the dialog.'));
+	lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Session type are set. Workspace-backed automations also require a Workspace folder, and Worktree isolation requires a branch. Activate Cancel or press Escape to dismiss without saving.'));
 	lines.push('');
 
 	lines.push(nls.localize('automations.help.historyHeader', 'Run History:'));

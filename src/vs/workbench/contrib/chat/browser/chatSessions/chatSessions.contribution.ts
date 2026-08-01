@@ -452,6 +452,30 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return entry.controller.resolveChatSessionItem(resource, token);
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
+	canSetChatSessionItemRead(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemRead === 'function';
+	}
+
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemRead) {
+			throw new Error(`Session ${sessionResource.toString()} does not own read state`);
+		}
+		controller.setChatSessionItemRead(sessionResource, isRead);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];
@@ -1174,15 +1198,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
-		const sessionType = getChatSessionType(sessionResource);
-		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
-		const controllerData = this._itemControllers.get(resolvedType);
+		const controllerData = this._getChatSessionItemController(sessionResource);
 		if (!controllerData?.controller.deleteChatSessionItem) {
 			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
 		}
 
 		await controllerData.initialRefresh;
 		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
+	private _getChatSessionItemController(sessionResource: URI) {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		return this._itemControllers.get(resolvedType);
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
@@ -1661,17 +1689,21 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
-			if (result.kind === 'sent' && result.newSessionResource && !resources.isEqual(result.newSessionResource, sessionResource)) {
+			const newSessionResource = result.kind === 'sent' || result.kind === 'rejected' ? result.newSessionResource : undefined;
+			if (newSessionResource && !resources.isEqual(newSessionResource, sessionResource)) {
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						await view.loadSession(result.newSessionResource);
+						await view.loadSession(newSessionResource);
 						break;
 					}
 					case ChatSessionPosition.Editor: {
-						const activeEditor = editorGroupService.activeGroup.activeEditor;
-						if (activeEditor instanceof ChatEditorInput && resources.isEqual(activeEditor.sessionResource, sessionResource)) {
-							await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: result.newSessionResource, options: { override: ChatEditorInput.EditorID, pinned: true } } }], editorGroupService.activeGroup);
+						for (const group of editorGroupService.groups) {
+							const editor = group.editors.find(e => e instanceof ChatEditorInput && resources.isEqual(e.sessionResource, sessionResource));
+							if (editor) {
+								await editorService.replaceEditors([{ editor, replacement: { resource: newSessionResource, options: { override: ChatEditorInput.EditorID, pinned: true } } }], group);
+								break;
+							}
 						}
 						break;
 					}

@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseRenameCommand } from '../agentHostRenameCommand.js';
-import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
+import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandHandling, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
 
 /**
  * The generic `/rename [title]` command: renames the session (or an individual
@@ -25,12 +25,12 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 		super();
 	}
 
-	tryHandle(request: ILocalChatCommandRequest): (() => Promise<void>) | undefined {
+	tryHandle(request: ILocalChatCommandRequest): ILocalChatCommandHandling | undefined {
 		const title = parseRenameCommand(request.text);
 		if (title === undefined) {
 			return undefined;
 		}
-		return async () => this._run(request.turnChannel, request.turnId, title);
+		return { run: async () => this._run(request.turnChannel, request.turnId, title), suggestedTitle: title };
 	}
 
 	private _run(channel: ProtocolURI, turnId: string, title: string): void {

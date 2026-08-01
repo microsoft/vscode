@@ -96,7 +96,7 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
-	padding: 0 var(--vscode-spacing-size40);
+	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -279,7 +279,7 @@
 	max-width: 100%;
 }
 
-.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button:not(.monaco-dropdown-button) {
 	flex: 1 1 auto;
 	flex-wrap: wrap;
 	min-width: 0;

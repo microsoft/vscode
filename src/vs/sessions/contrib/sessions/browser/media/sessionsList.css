@@ -94,9 +94,13 @@
 		}
 	}
 
+	.monaco-list-row:has(.session-item.session-archive-animation) .session-title-toolbar {
+		display: block;
+	}
+
 	/* Pinned but not hovered/focused: show only the unpin action */
 	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-title-toolbar {
+		.session-item:not(.session-archive-animation) .session-title-toolbar {
 			display: block;
 
 			.action-item:not(:last-child) {
@@ -108,6 +112,18 @@
 			margin-right: 8px;
 		}
 	}
+}
+
+.session-archive-catch-pulse {
+	position: fixed;
+	z-index: 1000;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	pointer-events: none;
+	border: var(--vscode-strokeThickness) solid var(--vscode-textLink-foreground);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Session Item */
@@ -126,6 +142,40 @@
 	&.sticky {
 		border-left: 2px solid var(--vscode-focusBorder);
 		padding-left: 4px;
+	}
+
+	/* Quick-chat rows are compact single-line entries — no second (details) row.
+	 * Icon and title top-align naturally (same mechanics as regular sessions),
+	 * so the first row still lines up correctly when an approval/CI row grows
+	 * the row taller — a row-level vertical-center would instead center the
+	 * whole (now multi-line) content block, throwing the title off the icon. */
+	&.quick-chat {
+		padding: 6px 6px 6px 12px;
+
+		.session-icon {
+			line-height: 16px;
+
+			> .codicon {
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
+			}
+
+			> .monaco-pixel-spinner {
+				width: 14px;
+				height: 14px;
+			}
+		}
+
+		.session-title-row {
+			line-height: 16px;
+			/* The delegate always reserves a fixed 28px row for quick chats
+			 * regardless of section, so the title's bottom padding must be
+			 * cleared unconditionally — otherwise it overflows the row. */
+			padding-bottom: 0;
+		}
+
+		.session-details-row {
+			display: none;
+		}
 	}
 
 	.session-main,
@@ -464,6 +514,17 @@
 		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
+	.session-section-status-indicator {
+		flex-shrink: 0;
+		margin-left: 4px;
+		position: relative;
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	.session-section-count {
 		flex-shrink: 0;
 		opacity: 0.7;
@@ -498,6 +559,24 @@
 	display: block;
 }
 
+/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+.monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: hidden;
+}
+.session-section.session-section-shortcut .session-section-toolbar {
+	display: block;
+	visibility: hidden;
+}
+.monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: visible;
+}
+
+/* Active background for shortcut sections when their editor is open */
+.session-section.session-section-shortcut.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
 .monaco-list-row.focused .session-section .session-section-chevron.collapsible {
 	display: flex;
@@ -525,6 +604,12 @@
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	/* Shortcut sections only change label and icon color on hover, unless active. */
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
 	}
 
 	&.session-section-focus-from-pointer {
@@ -608,7 +693,11 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s linear infinite;
+			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+		}
+
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+			animation-play-state: paused;
 		}
 
 		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
@@ -680,6 +769,13 @@
 		 * of the title-row flow so a 44px tap target doesn't inflate
 		 * the title line-height or shift the details row down). */
 		position: relative;
+
+		/* Quick chats keep the icon/title top-aligned (same as desktop) so an
+		 * approval/CI row growing the main column taller doesn't center the
+		 * icon against the whole multi-line block and throw it off the title. */
+		&.quick-chat {
+			align-items: flex-start;
+		}
 	}
 
 	.session-item .session-icon {

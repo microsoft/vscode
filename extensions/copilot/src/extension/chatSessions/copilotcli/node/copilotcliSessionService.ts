@@ -16,7 +16,7 @@ import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgre
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
-import { RelativePattern } from '../../../../platform/filesystem/common/fileTypes';
+import { FileType, RelativePattern } from '../../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -29,7 +29,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError, SequencerBy
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
-import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -55,6 +55,10 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
+const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
+const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
+const COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID = 'chat.editor.copilotCli.hideExtensionHost';
+const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
@@ -144,6 +148,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _sessionTracker: CopilotCLISessionWorkspaceTracker;
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
 	private readonly _onDidChangeSessionsThrottler = this._register(new ThrottledDelayer<void>(500));
+	private readonly _sessionFileMonitor = this._register(new MutableDisposable<IDisposable>());
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
 	private readonly _sessionsBeingCreatedViaFork = new Set<string>();
 	private readonly _newSessionIds = new Set<string>();
@@ -186,6 +191,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
 			}
+			if (e.affectsConfiguration(AGENT_HOST_ENABLED_SETTING_ID) || e.affectsConfiguration(this.sessionFileMonitoringDisabledSettingId)) {
+				this.updateSessionFileMonitoring();
+			}
 		}));
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
@@ -193,7 +201,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				void this.createCustomAgentLookup();
 			}
 		}));
-		this.monitorSessionFiles();
+		this.updateSessionFileMonitoring();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
@@ -229,6 +237,32 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 		});
 		this._sessionTracker = this.instantiationService.createInstance(CopilotCLISessionWorkspaceTracker);
+	}
+
+	private shouldMonitorSessionFiles(): boolean {
+		if (this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true) {
+			return true;
+		}
+
+		return this.configurationService.getNonExtensionConfig<boolean>(this.sessionFileMonitoringDisabledSettingId) !== true;
+	}
+
+	private get sessionFileMonitoringDisabledSettingId(): string {
+		return this._agentSessionsWorkspace.isAgentSessionsWorkspace
+			? AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID
+			: COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID;
+	}
+
+	private updateSessionFileMonitoring(): void {
+		const shouldMonitor = this.shouldMonitorSessionFiles();
+		if (shouldMonitor === !!this._sessionFileMonitor.value) {
+			return;
+		}
+		if (shouldMonitor) {
+			this.monitorSessionFiles();
+		} else {
+			this._sessionFileMonitor.clear();
+		}
 	}
 
 	private async getSDKPackage(): Promise<SDKPackage> {
@@ -291,11 +325,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._newSessionIds.has(sessionId);
 	}
 
-	protected monitorSessionFiles() {
+	protected monitorSessionFiles(): void {
+		const disposables = new DisposableStore();
 		try {
 			const sessionDir = joinPath(this.nativeEnv.userHome, '.copilot', 'session-state');
-			const watcher = this._register(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
-			this._register(watcher.onDidCreate(async (e) => {
+			const watcher = disposables.add(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
+			disposables.add(watcher.onDidCreate(async (e) => {
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
 				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
 					return;
@@ -306,7 +341,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this._onDidChangeSession.fire(sessionItem);
 				}
 			}));
-			this._register(watcher.onDidDelete(e => {
+			disposables.add(watcher.onDidDelete(e => {
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
 				if (sessionId) {
 					this._cachedSessionItems.delete(sessionId);
@@ -314,7 +349,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				}
 				this.triggerSessionsChangeEvent();
 			}));
-			this._register(watcher.onDidChange((e) => {
+			disposables.add(watcher.onDidChange((e) => {
 				// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
 				if (this._isGettingSessions > 0) {
 					return;
@@ -335,8 +370,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.triggerSessionsChangeEvent();
 			}));
 		} catch (error) {
-			this.logService.error(`Failed to monitor Copilot CLI session files: ${error}`);
+			disposables.dispose();
+			this.logService.error('Failed to monitor Copilot CLI session files:', error);
+			return;
 		}
+		this._sessionFileMonitor.value = disposables;
 	}
 	async getSessionManager() {
 		return this._sessionManager.value;
@@ -396,6 +434,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const sessionManager = await raceCancellation(this.getSessionManager(), token);
 		const metadata = sessionManager ? await raceCancellationError(sessionManager.getSessionMetadata({ sessionId }), token) : undefined;
 		if (!metadata || token.isCancellationRequested) {
+			return;
+		}
+		if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME) {
 			return;
 		}
 		await this._sessionTracker.initialize();
@@ -480,19 +521,19 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return joinPath(userDataPath, 'agentSessionData');
 	}
 
-	/**
-	 * Whether the agent host owns this session — it writes a per-session SQLite DB at
-	 * `<userDataPath>/agentSessionData/<sessionId>/session.db` and we skip those to avoid double-listing sessions both
-	 * surfaces read from the shared `~/.copilot/session-state/` directory.
-	 */
-	private async _isOwnedByAgentHost(sessionId: string, dataDir: URI | undefined): Promise<boolean> {
+	private async _getAgentHostOwnedSessionIds(dataDir: URI | undefined): Promise<ReadonlySet<string>> {
 		if (!dataDir) {
-			return false;
+			return new Set();
 		}
-		// Must mirror `SessionDataService._sanitizedSessionKey`.
-		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
-		const dbPath = joinPath(dataDir, sanitized, 'session.db');
-		return this.fileSystem.stat(dbPath).then(() => true, () => false);
+		try {
+			const entries = await this.fileSystem.readDirectory(dataDir);
+			return new Set(entries
+				.filter(([, type]) => (type & FileType.Directory) !== 0)
+				.map(([name]) => name));
+		} catch (error) {
+			this.logService.trace(`Failed to read Agent Host session data directory: ${error}`);
+			return new Set();
+		}
 	}
 
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
@@ -505,11 +546,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
 			const agentHostDataDir = this._getAgentHostSessionDataDir();
+			const sessionsWithoutAgentHostClientName = sessionMetadataList.filter(metadata => metadata.clientName !== AGENT_HOST_COPILOT_CLIENT_NAME);
+			const agentHostOwnedSessionIds = sessionsWithoutAgentHostClientName.length > 0
+				? await this._getAgentHostOwnedSessionIds(agentHostDataDir)
+				: new Set<string>();
 
 			// Convert SessionMetadata to ICopilotCLISession
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
-					if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
+					const sanitizedSessionId = metadata.sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+					if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME || agentHostOwnedSessionIds.has(sanitizedSessionId)) {
 						return;
 					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
