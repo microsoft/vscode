@@ -205,8 +205,7 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptToolSetsCodeLensProvider.js';
 import './promptTimeline/promptTimeline.contribution.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
-import './planReviewFeedback/planReviewFeedbackEditorContribution.js';
-import { registerPlanReviewFeedbackEditorActions } from './planReviewFeedback/planReviewFeedbackEditorActions.js';
+import './planReviewFeedback/planReviewFeedbackEditorOverlay.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from './planReviewFeedback/planReviewFeedbackService.js';
 import { PluginUrlHandler } from './pluginUrlHandler.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
@@ -545,11 +544,6 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.autopilot.advanced.enabled', "Enables **Advanced Autopilot**, a single switch that turns on all advanced Autopilot behaviors that delegate more of the loop to the agent. Currently, after each Autopilot turn a small, fast model evaluates whether your original request is complete; if not, Autopilot keeps working using that evaluation as guidance for the next turn, instead of relying on the agent to signal completion itself."),
 			default: false,
 			tags: ['experimental'],
-		},
-		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
-			default: true,
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
@@ -1279,21 +1273,19 @@ configurationRegistry.registerConfiguration({
 			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
 			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
 			//
-			// Stored as a `{ [name]: url-or-shorthand }` object so that:
+			// Stored as a named string map. Explicit update overrides are JSON-encoded
+			// inside the value string so the Settings Editor can use its inline object renderer.
+			// This ensures:
 			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
 			//     managed by policy, rather than only showing "Edit in settings.json".
 			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
 			//
-			// `additionalProperties: { type: ['string'] }` uses the single-element array form of
-			// JSON Schema's `type` keyword (equivalent to `type: 'string'`) to trigger VS Code's
-			// ComplexObject renderer, which shows key-value rows inline and hides the
-			// "Edit in settings.json" link when the value is managed by policy.
 			type: 'object',
 			additionalProperties: { type: ['string'] as ['string'] },
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
-			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}. An entry's `autoUpdate` value overrides {1} for plugins from that marketplace.", `\`#${ChatConfiguration.PluginMarketplaces}#\``, '`#extensions.autoUpdate#`'),
 			policy: {
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
@@ -1305,7 +1297,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`), optionally with an enterprise-managed auto-update override."),
 					}
 				},
 			},
@@ -2912,7 +2904,6 @@ registerChatElicitationActions();
 registerChatToolActions();
 registerLanguageModelActions();
 registerChatPluginActions();
-registerPlanReviewFeedbackEditorActions();
 registerAction2(ConfigureToolSets);
 registerEditorFeature(ChatPasteProvidersFeature);
 
