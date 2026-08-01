@@ -287,8 +287,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	// ---- workbench-only flows -----------------------------------------------
 
 	async installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
-		const depsList = missingDependencies.join(' ');
-		return this._runSandboxPrerequisiteCommand(`sudo apt install -y ${depsList}`, sessionResource, token, options);
+		const status = await this._resolveSandboxDependencyStatus();
+		if (!status?.dependencyInstallCommand) {
+			return { exitCode: undefined };
+		}
+		const depsList = missingDependencies.map(dependency => this._quoteShellArgument(dependency)).join(' ');
+		return this._runSandboxPrerequisiteCommand(`${status.dependencyInstallCommand} ${depsList}`, sessionResource, token, options);
 	}
 
 	async runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
@@ -362,6 +366,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		installCommandSent = true;
 
 		return { exitCode: await completionPromise };
+	}
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
 	/**

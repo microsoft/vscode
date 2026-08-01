@@ -66,12 +66,20 @@ export type LanguageContextOptions = {
 export type NeighborFilesOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
+	/**
+	 * Whether to include language-service "related" (non-open-tab) files in the
+	 * neighbor-files context. NES has its own language-context implementation, so
+	 * this can be turned off to avoid redundant context. When `false`, only
+	 * open-tab neighbors are considered.
+	 */
+	readonly includeRelatedFiles: boolean;
 };
 
 export namespace NeighborFilesOptions {
 	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
 		'enabled': vBoolean(),
 		'maxTokens': vNumber(),
+		'includeRelatedFiles': vBoolean(),
 	});
 }
 
@@ -614,6 +622,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 	neighborFiles: {
 		enabled: false,
 		maxTokens: 1000,
+		includeRelatedFiles: true,
 	},
 	diffHistory: {
 		nEntries: 25,

@@ -668,6 +668,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
+	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
@@ -725,6 +726,10 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
 			this._scheduleSubmenuHide();
+		}));
+		// A panel scheduled while crossing a row must not pop up after the pointer has left.
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._cancelSubmenuShow();
 		}));
 		this._register(toDisposable(() => {
 			this._cancelSubmenuHide();
@@ -841,10 +846,34 @@ export class ActionListWidget<T> extends Disposable {
 					filterActionBar.push(filterActions, { icon: true, label: false });
 				}
 
-				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-					this._filterText = this._filterInput!.value;
+				// While an IME composition is running the input holds intermediate text (e.g. pinyin)
+				// which must not drive the filter: re-filtering splices the list, re-highlights a row and
+				// re-layouts the popup, all of which disrupt the composition and the IME candidate window.
+				// Filter once the composition commits instead.
+				const onFilterValueChanged = () => {
+					const value = this._filterInput!.value;
+					// `compositionend` and the `input` event that follows it both land here (and browsers
+					// disagree on their order), so only filter when the text actually changed.
+					if (this._imeSessionInProgress || value === this._filterText) {
+						return;
+					}
+					this._filterText = value;
 					this._applyOrUpdateFilter();
+				};
+
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
+					this._imeSessionInProgress = true;
+					// A dynamic filter request issued for the previous value can still be in flight.
+					// Letting it resolve now would splice and re-layout the list underneath the IME
+					// candidate window - the very disruption this guard exists to prevent. The
+					// committed value starts a fresh request from `compositionend`.
+					this._filterCts.value?.cancel();
 				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
+					this._imeSessionInProgress = false;
+					onFilterValueChanged();
+				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'input', onFilterValueChanged));
 			}
 
 			if (this._options?.secondaryHeading) {
@@ -872,6 +901,9 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
+
+			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
+			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => this._hideSubmenu()));
 
 			if (this._options.headerLink) {
 				const { label, uri } = this._options.headerLink;
@@ -917,7 +949,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight') {
+			if (e.key === 'ArrowRight' && !e.isComposing) {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
@@ -938,7 +970,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (this._filterInput && !dom.isActiveElement(this._filterInput)
-					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
@@ -1391,16 +1423,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._list.layout(allItemsHeight);
 
-			const itemWidths: number[] = [];
-			for (let i = 0; i < allItems.length; i++) {
-				const element = this._getRowElement(i);
-				if (element) {
-					element.style.width = 'auto';
-					const width = element.getBoundingClientRect().width;
-					element.style.width = '';
-					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
-				}
-			}
+			const itemWidths = this._measureItemWidths(allItems);
 
 			maxWidth = clamp(Math.max(...itemWidths));
 
@@ -1410,16 +1433,11 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// All items are visible, measure them directly
-		const itemWidths: number[] = [];
+		const visibleItems: IActionListItem<T>[] = [];
 		for (let i = 0; i < visibleCount; i++) {
-			const element = this._getRowElement(i);
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
-			}
+			visibleItems.push(this._list.element(i));
 		}
+		const itemWidths = this._measureItemWidths(visibleItems);
 		return clamp(Math.max(...itemWidths));
 	}
 
@@ -1610,6 +1628,25 @@ export class ActionListWidget<T> extends Disposable {
 			if (item.kind === ActionListItemKind.Action && item.group?.title && !seenTitles.has(item.group.title)) {
 				seenTitles.add(item.group.title);
 				this._groupTitleByIndex.set(i, item.group.title);
+			}
+		}
+	}
+
+	private _measureItemWidths(items: readonly IActionListItem<T>[]): number[] {
+		const rows: { element: HTMLElement; item: IActionListItem<T> }[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const element = this._getRowElement(i);
+			if (element) {
+				element.style.width = 'auto';
+				rows.push({ element, item: items[i] });
+			}
+		}
+
+		try {
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+		} finally {
+			for (const { element } of rows) {
+				element.style.width = '';
 			}
 		}
 	}

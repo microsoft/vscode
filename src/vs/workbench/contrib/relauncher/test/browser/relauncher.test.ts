@@ -125,6 +125,17 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
+	test('prompts to restart when chat.editor.codex.preferAgentHost changes', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.editor.codex.preferAgentHost',
+			() => ({ chat: { editor: { codex: { preferAgentHost: true } } } }),
+			c => c.chat.editor.codex.preferAgentHost = false);
+
+		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
+		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+	});
+
 	test('does not restart when the confirmation is declined', async () => {
 		confirmResult = false;
 		await changeSetting(

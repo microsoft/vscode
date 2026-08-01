@@ -448,8 +448,9 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 	) {
-		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
@@ -476,9 +477,11 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 				inputs: mcpServerConfiguration.inputs
 			};
 
+			this.ensureServerAllowed(installable);
+
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
 
-			await this.updateLocal();
+			await this.updateLocal(server);
 			const local = (await this.getInstalled()).find(s => s.name === server.name);
 			if (!local) {
 				throw new Error(`Failed to install MCP server: ${server.name}`);

@@ -40,7 +40,7 @@ export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociation
 /**
  * Setting that controls whether the Markdown editor is the default editor for
  * `*.md` files in the Agents window. Gated behind an experiment so it can be
- * rolled out gradually. Defaults to off.
+ * rolled out gradually. Defaults to on.
  */
 export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
 
@@ -59,6 +59,10 @@ export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefau
 	};
 }
 
+export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+	return editorsAssociationsAgentsWindowDefault(options);
+}
+
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
@@ -66,7 +70,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		[markdownDefaultEditorAgentsWindowSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),
@@ -86,6 +90,9 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
+			},
+			agentsWindow: {
+				default: diffEditorsAssociationsAgentsWindowDefault()
 			}
 		}
 	}

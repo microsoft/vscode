@@ -56,6 +56,7 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
+import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
@@ -120,20 +121,28 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
+		if (value === 'assisted') {
+			return Codicon.sparkle;
+		}
 		return Codicon.shield;
 	}
 	return undefined;
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => ({
-		kind: ActionListItemKind.Action,
-		label: item.label,
-		detail: item.description,
-		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
-	}));
+	return items.map(item => {
+		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
+		return {
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: disabled
+				? localize('agentHostSessionConfig.policyDisabled', "Disabled by your organization. Contact your administrator.")
+				: item.description,
+			group: { title: '', icon: getConfigIcon(property, item.value) },
+			disabled,
+			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+		};
+	});
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -195,11 +204,11 @@ function applyAutoApproveFiltering(
  * picker. Returns `true` when confirmed (or not elevated), `false` when the
  * user cancels.
  */
-async function confirmAutoApproveLevel(value: string, dialogService: IDialogService, storageService: IStorageService): Promise<boolean> {
+async function confirmAutoApproveLevel(value: string, label: string, dialogService: IDialogService, storageService: IStorageService): Promise<boolean> {
 	if (!isChatPermissionLevel(value)) {
 		return true;
 	}
-	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
+	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration, levelLabel: label });
 }
 
 /**
@@ -207,7 +216,7 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
  */
 function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
 	if (property === SessionConfigKey.AutoApprove) {
-		trigger.classList.toggle('warning', value === 'autopilot');
+		trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
 		trigger.classList.toggle('info', value === 'autoApprove');
 	}
 }
@@ -218,6 +227,27 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
+
+	/**
+	 * Session/property-scoped value→label cache for `enumDynamic`
+	 * properties (e.g. branch), populated whenever `_getItems` fetches
+	 * completions. `enumDynamic` completions are transient protocol
+	 * data — only `value` is persisted via `setSessionConfigValue`/
+	 * `resolveSessionConfig` — so this is the only place a completion's
+	 * `label` for a previously-picked value can be recovered once the
+	 * dropdown/sheet closes. Static `enum` properties don't need this:
+	 * their label is always derivable from `schema.enum`/`enumLabels`.
+	 *
+	 * Keyed by session so entries don't leak across sessions: this picker
+	 * is only ever created for the new-session composer (`Menus.NewSession-
+	 * RepositoryConfig`), and that composer's `_session` tracks the
+	 * globally active session — so the *same* picker instance can observe
+	 * a sequence of different (not-yet-created) draft sessions as the user
+	 * switches between them. `_renderConfigPickers` evicts entries for any
+	 * session other than the current one on every render, so the map never
+	 * grows beyond the properties of the currently active session.
+	 */
+	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
 
 	constructor(
 		protected readonly _session: IObservable<IActiveSession | undefined>,
@@ -280,6 +310,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(this._container);
 
 		const session = this._session.get();
+		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
@@ -303,6 +334,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		for (const [property, schema] of properties) {
 			if (!this._isPickable(schema)) {
+				continue;
+			}
+			// A hidden carrier property (see `worktreeBranchTrackProperty` in
+			// `worktreeIsolation.ts`) consumed only by the host for worktree
+			// isolation, never edited by the user. Its boolean type otherwise
+			// passes `_isPickable` unlike its string/array carrier siblings
+			// (`worktreeBranchPrefix`/`worktreeIncludeFiles`), which are
+			// filtered out because they lack an `enum`.
+			if (property === SessionConfigKey.WorktreeBranchTrack) {
+				continue;
+			}
+			if (property === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
 				continue;
 			}
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
@@ -352,7 +395,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			const tooltip = schema.description ?? schema.title;
+			// The read-only Branch chip skips the hover: it just mirrors the
+			// current/default branch name (already visible as the label),
+			// and the schema description reads awkwardly as a hover for a
+			// fixed value. The editable Branch chip (worktree isolation)
+			// keeps its description, which is useful context there.
+			const tooltip = (property === SessionConfigKey.Branch && isReadOnly) ? undefined : (schema.description ?? schema.title);
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
@@ -360,7 +408,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				slot.classList.add('disabled');
 				trigger.setAttribute('aria-disabled', 'true');
 			}
-			this._renderTrigger(trigger, property, schema, value, isReadOnly);
+			this._renderTrigger(trigger, session.sessionId, property, schema, value, isReadOnly);
 		}
 	}
 
@@ -419,7 +467,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		return !!schema.readOnly;
 	}
 
-	protected _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
+	protected _renderTrigger(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
@@ -427,7 +475,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			dom.append(trigger, renderIcon(icon));
 		}
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		const label = this._getLabel(schema, value);
+		const label = this._getLabel(sessionId, property, schema, value);
 		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
@@ -462,7 +510,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 
-		const tooltip = schema.description ?? schema.title;
+		// Reuse the schema's own `worktree` enum description (e.g. "Create a
+		// Git worktree for isolation") since it already explains what
+		// checking the box does. Fall back to the schema's description/title
+		// if the enum shape is unexpected.
+		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
+		const tooltip = (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
 		if (tooltip) {
 			this._renderDisposables.add(this._hoverService.setupDelayedHover(row, { content: tooltip }));
 		}
@@ -475,8 +528,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				name: `NewChatAgentHostSessionConfigPicker.${SessionConfigKey.Isolation}`,
 				optionIdBefore: typeof before === 'string' ? before : undefined,
 				optionIdAfter: nextValue,
-				optionLabelBefore: typeof before === 'string' ? this._getLabel(schema, before) : undefined,
-				optionLabelAfter: this._getLabel(schema, nextValue),
+				optionLabelBefore: typeof before === 'string' ? this._getLabel(sessionId, SessionConfigKey.Isolation, schema, before) : undefined,
+				optionLabelAfter: this._getLabel(sessionId, SessionConfigKey.Isolation, schema, nextValue),
 				isPII: false,
 			});
 			provider.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, nextValue).catch(() => { /* best-effort */ });
@@ -533,8 +586,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					isPII: !!schema.enumDynamic,
 				});
 
-				if (isAutoApproveProperty && (item.value === 'autoApprove' || item.value === 'autopilot')) {
-					const confirmed = await confirmAutoApproveLevel(item.value, this._dialogService, this._storageService);
+				if (isAutoApproveProperty && item.value !== 'default') {
+					const confirmed = await confirmAutoApproveLevel(item.value, item.label, this._dialogService, this._storageService);
 					if (!confirmed) {
 						return;
 					}
@@ -565,7 +618,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				getAriaLabel: item => item.label ?? '',
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			actionItems.length > 10 ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : undefined,
+			actionItems.length > 10
+				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
+				: { minWidth: 255 },
 		);
 	}
 
@@ -580,9 +635,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
 		if (dynamicItems?.length) {
-			return dynamicItems.map(item => this._fromCompletionItem(item));
+			const items = dynamicItems.map(item => this._fromCompletionItem(item));
+			this._cacheDynamicValueLabels(sessionId, property, items);
+			return items;
 		}
 
+		// Static enum: schema.enum/enumLabels already carry a reliable
+		// label mapping, so there's no need to cache these separately.
 		return (schema.enum ?? []).map((value, index) => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
@@ -598,13 +657,60 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+	private _dynamicValueLabelsKey(sessionId: string, property: string): string {
+		return `${sessionId}\0${property}`;
+	}
+
+	private _cacheDynamicValueLabels(sessionId: string, property: string, items: readonly IConfigPickerItem[]): void {
+		const key = this._dynamicValueLabelsKey(sessionId, property);
+		let labels = this._dynamicValueLabels.get(key);
+		if (!labels) {
+			labels = new Map();
+			this._dynamicValueLabels.set(key, labels);
+		}
+
+		for (const item of items) {
+			labels.set(item.value, item.label);
+		}
+	}
+
+	/**
+	 * Drops cached labels for any session other than `sessionId`. Called on
+	 * every render so the cache tracks whichever session the picker is
+	 * currently bound to, instead of accumulating entries for every draft
+	 * session this (potentially long-lived) picker instance has ever shown.
+	 */
+	private _evictDynamicValueLabelsForOtherSessions(sessionId: string | undefined): void {
+		if (!sessionId) {
+			return;
+		}
+
+		const prefix = `${sessionId}\0`;
+		for (const key of this._dynamicValueLabels.keys()) {
+			if (!key.startsWith(prefix)) {
+				this._dynamicValueLabels.delete(key);
+			}
+		}
+	}
+
+	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (schema.type === 'boolean') {
 			return value === true
 				? localize('agentHostSessionConfig.boolean.onLabel', "On")
 				: localize('agentHostSessionConfig.boolean.offLabel', "Off");
 		}
 		if (typeof value === 'string') {
+			if (schema.enumDynamic) {
+				// Look up the dynamic value label. If we are unable
+				// to lookup the dynamic value label, we fall back to
+				// the value itself.
+				const key = this._dynamicValueLabelsKey(sessionId, property);
+				const dynamicLabel = this._dynamicValueLabels.get(key)?.get(value);
+				if (dynamicLabel) {
+					return dynamicLabel;
+				}
+			}
+
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
 		}
@@ -686,6 +792,12 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 	protected override async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (!isPhoneLayout(this._layoutService)) {
 			return super._showPicker(provider, sessionId, property, schema, trigger);
+		}
+
+		// Mirror the base `_showPicker` guard (the repo-sheet path below bypasses
+		// it): bail while resolving so injected disabled chips don't open a sheet.
+		if (provider.isSessionConfigResolving(sessionId).get()) {
+			return;
 		}
 
 		if (property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch) {
@@ -954,6 +1066,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 			const pickerOptions: IChatInputPickerOptions = {
 				compact: constObservable(true),
+				listOptions: { minWidth: 255 },
 			};
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,

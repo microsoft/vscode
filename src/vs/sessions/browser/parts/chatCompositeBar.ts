@@ -5,6 +5,7 @@
 
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -33,6 +34,10 @@ import { ISessionsPartService } from '../../services/sessions/browser/sessionsPa
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
+import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData } from '../dnd.js';
+import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -64,7 +69,6 @@ export class ChatCompositeBar extends Disposable {
 	private _session: IActiveSession | undefined;
 	private readonly _newChatAction: Action;
 	private readonly _newChatContainer: HTMLElement;
-	private readonly _actionMenuToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -95,6 +99,7 @@ export class ChatCompositeBar extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -115,22 +120,9 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
-		// Chat tab bar action menu (e.g. the Conversations dropdown) grouped with
-		// the New Chat button at the end of the strip; items are contributed into
-		// Menus.SessionChatTabBar.
-		const actionMenuContainer = $('.chat-composite-bar-action-menu');
-		this._tabsRow.appendChild(actionMenuContainer);
-		this._actionMenuToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionMenuContainer, Menus.SessionChatTabBar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-		}));
-
-		// "New Chat" button pinned at the end of the tab strip, next to the
-		// Conversations menu. Starting a new chat is offered here while the tabs
-		// are shown; when the session has a single chat the session header toolbar
-		// offers it instead.
+		// "New Chat" button pinned at the end of the tab strip. Starting a new chat
+		// is offered here while the tabs are shown; when the session has a single
+		// chat the session header toolbar offers it instead.
 		const newChatAction = this._newChatAction = this._register(new Action(
 			'chatCompositeBar.addChat',
 			localize('chatCompositeBar.addChat', "New Chat"),
@@ -188,8 +180,6 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 		this._session = session;
-
-		this._actionMenuToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -348,6 +338,47 @@ export class ChatCompositeBar extends Disposable {
 			this._onTabClicked(chat);
 		}));
 
+		// Make the tab a drag source that offers a chat reference, so it can be
+		// dropped into an agent-host chat input to insert an inline `#chat:` ref.
+		tab.draggable = true;
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+			if (!e.dataTransfer) {
+				e.preventDefault();
+				return;
+			}
+
+			// Don't start a drag from the tab's actions toolbar (e.g. close), a
+			// small pointer move during a button click would otherwise swallow it.
+			const target = e.target as HTMLElement | null;
+			if (target?.closest('.chat-composite-bar-tab-actions')) {
+				e.preventDefault();
+				return;
+			}
+
+			// Don't start a drag while any tab rename is in progress.
+			if (this._editingTab) {
+				e.preventDefault();
+				return;
+			}
+
+			e.dataTransfer.effectAllowed = 'copy';
+			// The reference entry must carry the opaque backend chat URI, which only
+			// the owning agent-host provider knows. Look it up; when it is
+			// unavailable (not agent-host backed, or state not yet hydrated) offer
+			// no chat-reference payload — the drag simply carries no reference.
+			const backendChatResource = this._backendChatResource(chat);
+			if (backendChatResource) {
+				fillChatReferenceDragData(e, backendChatResource, chat.resource, chat.title.get());
+			}
+			applyDragImage(e, tab, chat.title.get());
+		}));
+
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, () => {
+			// Drop the in-process chat-reference transfer so it can't leak into a
+			// later, unrelated drag.
+			clearChatReferenceDragData();
+		}));
+
 		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
@@ -409,6 +440,22 @@ export class ChatCompositeBar extends Disposable {
 		if (this._session) {
 			this._sessionsService.openChat(this._session, chat.resource);
 		}
+	}
+
+	/**
+	 * Resolves the opaque backend chat URI for a chat tab so a dragged `#chat:`
+	 * reference can carry it. Reaches the owning agent-host provider by id and
+	 * asks it to look up the host-supplied backend resource. Returns `undefined`
+	 * when the session is not agent-host backed or the provider has no hydrated
+	 * state for the chat — the caller then offers no chat-reference payload.
+	 */
+	private _backendChatResource(chat: IChat): URI | undefined {
+		const providerId = this._session?.providerId;
+		if (!providerId) {
+			return undefined;
+		}
+		const provider = this._sessionsProvidersService.getProvider(providerId);
+		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 
 	/**

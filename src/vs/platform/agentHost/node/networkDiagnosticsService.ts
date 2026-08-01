@@ -174,6 +174,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	});
 }
 
-function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
+function errorMessage(error: unknown): string {
+	const seen = new Set<unknown>();
+	function collect(error: unknown): string {
+		if (seen.has(error)) {
+			return '';
+		}
+		seen.add(error);
+		if (!(error instanceof Error)) {
+			return String(error);
+		}
+		const details = [
+			error.cause ? collect(error.cause) : '',
+			...(error instanceof AggregateError ? error.errors.map(collect) : []),
+		].filter(Boolean).join(', ');
+		return details ? `${error.message}: ${details}` : error.message;
+	}
+	return collect(error);
 }

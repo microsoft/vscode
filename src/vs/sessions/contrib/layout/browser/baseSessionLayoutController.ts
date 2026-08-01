@@ -7,6 +7,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -35,7 +36,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -111,6 +112,16 @@ export abstract class BaseLayoutController extends Disposable {
 	protected get _isRestoringSessionLayout(): boolean {
 		return this._restoringSessionLayoutDepth > 0;
 	}
+
+	/**
+	 * Fires when a session-switch layout restore fully settles (the restore depth
+	 * returns to 0, after the — possibly async — working-set apply and aux-bar
+	 * restore complete). Subclasses reconcile off this instead of reacting to the
+	 * transient part/editor changes *during* the restore, which race the settled
+	 * state (e.g. a new session's empty working set closing the docked tabs).
+	 */
+	private readonly _onDidEndSessionLayoutRestore = this._register(new Emitter<void>());
+	protected readonly onDidEndSessionLayoutRestore: Event<void> = this._onDidEndSessionLayoutRestore.event;
 
 	/**
 	 * [D9] `true` while {@link toggleSidePane} hides/shows the editor + auxiliary
@@ -215,7 +226,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -237,7 +248,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -340,6 +351,15 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerAuxiliaryControllers(): void { }
 
 	/**
+	 * Whether a custom view currently replaces the sessions grid. The parts it
+	 * covers are force-hidden, so those transitions must not be captured as the
+	 * active session's layout preference.
+	 */
+	protected _isCustomViewVisible(): boolean {
+		return this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+	}
+
+	/**
 	 * Registers the `Toggle Side Panel` action (menu item, keybinding,
 	 * command-palette entry). The action delegates straight to `toggleSidePane()`,
 	 * so no command/service indirection is needed; the controller owns the toggle
@@ -363,8 +383,9 @@ export abstract class BaseLayoutController extends Disposable {
 					category: Categories.View,
 					f1: true,
 					// A quick chat has no side pane (Round 20 hides the empty aux bar
-					// and the chat is full-width), so toggling it is meaningless.
-					precondition: IsQuickChatSessionContext.negate(),
+					// and the chat is full-width), so toggling it is meaningless. A custom
+					// view replaces the side pane entirely.
+					precondition: ContextKeyExpr.and(IsQuickChatSessionContext.negate(), CustomViewVisibleContext.negate()),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
@@ -529,15 +550,21 @@ export abstract class BaseLayoutController extends Disposable {
 			if (isThenable(result)) {
 				settledSync = false;
 				Promise.resolve(result).catch(() => undefined).finally(() => {
-					this._restoringSessionLayoutDepth--;
-					suppression?.dispose();
+					this._endSessionLayoutRestore(suppression);
 				});
 			}
 		} finally {
 			if (settledSync) {
-				this._restoringSessionLayoutDepth--;
-				suppression?.dispose();
+				this._endSessionLayoutRestore(suppression);
 			}
+		}
+	}
+
+	private _endSessionLayoutRestore(suppression: IDisposable | undefined): void {
+		this._restoringSessionLayoutDepth--;
+		suppression?.dispose();
+		if (this._restoringSessionLayoutDepth === 0) {
+			this._onDidEndSessionLayoutRestore.fire();
 		}
 	}
 

@@ -15,6 +15,12 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
+const MAX_TITLE_TOKENS = 32;
+const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
+const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
+const MIN_LATIN_LETTER_RATIO = 0.8;
+const HAN_CHARACTER = /\p{sc=Han}/u;
+const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 
 /**
  * Soft upper bound, in characters, for the first-turn context fed to the
@@ -41,6 +47,15 @@ export class AgentHostSessionTitleController extends Disposable {
 	 */
 	private readonly _lastAppliedTitle = new Map<ProtocolURI, string>();
 
+	/**
+	 * Session/chat keys whose current title is a provisional placeholder set by
+	 * {@link seedProvisionalTitle} (e.g. from a `!command`). Such a title does
+	 * not describe the session's topic, so the first subsequent request that
+	 * carries real intent replaces it with a generated title via
+	 * {@link seedTitleFromFirstMessage}.
+	 */
+	private readonly _provisionalTitles = new Set<ProtocolURI>();
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
@@ -50,52 +65,115 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
-		const fallbackTitle = userPrompt.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
-		if (fallbackTitle.length === 0) {
+		const fallbackTitle = this._normalizeTitle(userPrompt);
+		if (!fallbackTitle) {
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
-		if (isAdditionalChat) {
-			// Auto-title the additional chat from its own first message,
-			// independently of the session title.
-			const chatState = this._stateManager.getChatState(chatChannel);
-			if (!chatState || chatState.turns.length !== 0 || chatState.title) {
-				return;
-			}
-			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
-			apply(fallbackTitle);
-			this._generateTitleSoon(
-				chatChannel,
-				userPrompt,
-				false,
-				fallbackTitle,
-				apply,
-				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
-				title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
-			);
+		const additionalChat = this._additionalChatChannel(chatChannel);
+		const key = additionalChat ?? channel;
+		const state = additionalChat ? this._stateManager.getChatState(additionalChat) : this._stateManager.getSessionState(channel);
+		if (!state || !this._canSeedFirstMessageTitle(key, state.turns.length, state.title)) {
 			return;
 		}
-
-		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 0 || state.title) {
-			return;
+		const replacesProvisionalTitle = this._provisionalTitles.has(key);
+		this._provisionalTitles.delete(key);
+		this._applySeedTitle(channel, additionalChat, fallbackTitle);
+		if (replacesProvisionalTitle) {
+			this._persistSeedTitle(channel, additionalChat, fallbackTitle);
 		}
-
-		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
-			type: ActionType.SessionTitleChanged,
-			title: t,
-		}));
-		apply(fallbackTitle);
 		this._generateTitleSoon(
-			channel,
+			key,
 			userPrompt,
 			false,
 			fallbackTitle,
-			apply,
-			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
+			title => this._applySeedTitle(channel, additionalChat, title),
+			() => this._currentSeedTitle(channel, additionalChat) === this._lastAppliedTitle.get(key),
+			title => this._persistSeedTitle(channel, additionalChat, title),
 		);
+	}
+
+	/** Seeds and persists a provisional title suggested by a locally handled command. */
+	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void {
+		const title = this._normalizeTitle(suggestedTitle);
+		if (!title) {
+			return;
+		}
+
+		const additionalChat = this._additionalChatChannel(chatChannel);
+		const key = additionalChat ?? channel;
+		const state = additionalChat ? this._stateManager.getChatState(additionalChat) : this._stateManager.getSessionState(channel);
+		if (!state || !this._canSeedProvisionalTitle(key, state.title)) {
+			return;
+		}
+		this._provisionalTitles.add(key);
+		this._applySeedTitle(channel, additionalChat, title);
+		this._persistSeedTitle(channel, additionalChat, title);
+	}
+
+	/** Trims, collapses whitespace, and length-caps a candidate title. */
+	private _normalizeTitle(text: string): string {
+		return text.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
+	}
+
+	/**
+	 * The peer (additional) chat a seed should title, or `undefined` to title
+	 * the session itself. The default chat maps to the session.
+	 */
+	private _additionalChatChannel(chatChannel?: ProtocolURI): ProtocolURI | undefined {
+		return !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel) ? chatChannel : undefined;
+	}
+
+	/**
+	 * Applies `title` to the addressed peer chat (`additionalChat`) or, when
+	 * that is `undefined`, to the session itself, recording it as last-applied.
+	 */
+	private _applySeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
+		if (additionalChat) {
+			this._applyTitle(additionalChat, title, t => this._stateManager.updateChatTitle(channel, additionalChat, t));
+		} else {
+			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionTitleChanged,
+				title: t,
+			}));
+		}
+	}
+
+	/** Persists `title` as the custom title of the addressed peer chat or session. */
+	private _persistSeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
+		this._persistSessionFlag(channel, additionalChat ? `customChatTitle:${additionalChat}` : 'customTitle', title);
+	}
+
+	/** The live title of the addressed peer chat or session. */
+	private _currentSeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined): string | undefined {
+		return additionalChat ? this._stateManager.getChatState(additionalChat)?.title : this._stateManager.getSessionState(channel)?.title;
+	}
+
+	/**
+	 * Whether {@link seedTitleFromFirstMessage} may (re)title `key`: true for a
+	 * fresh, untitled target (its first message) or when its title is a
+	 * provisional placeholder we applied and no one has changed it since — the
+	 * first real request supersedes the placeholder.
+	 */
+	private _canSeedFirstMessageTitle(key: ProtocolURI, turnsLength: number, currentTitle: string | undefined): boolean {
+		if (turnsLength === 0 && !currentTitle) {
+			return true;
+		}
+		return this._provisionalTitles.has(key) && !!currentTitle && currentTitle === this._lastAppliedTitle.get(key);
+	}
+
+	/**
+	 * Whether {@link seedProvisionalTitle} may (re)title `key`: true when it is
+	 * untitled (the first message carried a suggestion) or when its title is a
+	 * provisional placeholder we applied and no one has changed it since —
+	 * successive suggestions keep the newest one visible without clobbering a
+	 * manual rename.
+	 */
+	private _canSeedProvisionalTitle(key: ProtocolURI, currentTitle: string | undefined): boolean {
+		if (!currentTitle) {
+			return true;
+		}
+		return this._provisionalTitles.has(key) && currentTitle === this._lastAppliedTitle.get(key);
 	}
 
 	/**
@@ -295,10 +373,11 @@ export class AgentHostSessionTitleController extends Disposable {
 		try {
 			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
 				messages: this._buildTitlePrompt(promptContent, isConversation),
+				maxTokens: MAX_TITLE_TOKENS,
 			}, {
 				signal: abortController.signal,
 			});
-			return this._cleanTitle(rawTitle);
+			return this._cleanTitle(rawTitle, promptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -337,7 +416,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		];
 	}
 
-	private _cleanTitle(rawTitle: string): string | undefined {
+	private _cleanTitle(rawTitle: string, promptContent: string): string | undefined {
 		let title = rawTitle.trim();
 		const firstLine = title.split(/\r?\n/).map(line => line.trim()).find(line => line.length > 0);
 		title = firstLine ?? '';
@@ -349,7 +428,28 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (!title || title.includes('can\'t assist with that')) {
 			return undefined;
 		}
-		return title.slice(0, MAX_TITLE_LENGTH);
+		title = title.slice(0, MAX_TITLE_LENGTH + MAX_TRAILING_HAN_SUFFIX_CODE_UNITS);
+		return this._stripUnexpectedTrailingHanSuffix(title, promptContent).slice(0, MAX_TITLE_LENGTH);
+	}
+
+	private _stripUnexpectedTrailingHanSuffix(title: string, promptContent: string): string {
+		if (HAN_CHARACTER.test(promptContent)) {
+			return title;
+		}
+
+		const suffix = TRAILING_HAN_SUFFIX.exec(title);
+		if (!suffix) {
+			return title;
+		}
+
+		const prefix = title.slice(0, suffix.index).trimEnd();
+		const letterCount = prefix.match(/\p{L}/gu)?.length ?? 0;
+		const latinLetterCount = prefix.match(/\p{sc=Latin}/gu)?.length ?? 0;
+		if (latinLetterCount < MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX || latinLetterCount / letterCount < MIN_LATIN_LETTER_RATIO) {
+			return title;
+		}
+
+		return prefix;
 	}
 
 	/**
@@ -429,6 +529,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		this._titleGenerationCancellationSources.clear();
 		this._lastAppliedTitle.clear();
+		this._provisionalTitles.clear();
 		super.dispose();
 	}
 }

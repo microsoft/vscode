@@ -34,6 +34,7 @@ import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test'
 import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
 import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
+import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -52,7 +53,8 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing'
+		'tracing',
+		'skip-stable-build'
 	],
 	default: {
 		verbose: false
@@ -63,6 +65,7 @@ const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	tracing?: boolean;
+	'skip-stable-build'?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
@@ -362,7 +365,7 @@ async function setup(): Promise<void> {
 	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	if (!opts.web && !opts.remote && opts.build) {
+	if (!opts.web && !opts.remote && opts.build && !opts['skip-stable-build']) {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
@@ -440,5 +443,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
+	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });

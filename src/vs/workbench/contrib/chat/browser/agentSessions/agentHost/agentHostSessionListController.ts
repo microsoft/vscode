@@ -69,7 +69,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	get items(): readonly IChatSessionItem[] {
 		return this._sessionListStore.getSessions(this._provider)
-			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary));
+			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
 	}
 
 	isNewSession(resource: URI): boolean {
@@ -136,6 +136,22 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._sessionListStore.removeSession(this._provider, rawId);
 	}
 
+	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		this._sessionListStore.setSessionArchived(this._provider, AgentSession.id(resource), archived);
+	}
+
+	setChatSessionItemRead(resource: URI, isRead: boolean): void {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		this._sessionListStore.setSessionRead(this._provider, AgentSession.id(resource), isRead);
+	}
+
 	async refresh(token: CancellationToken): Promise<void> {
 		// The store fans out a delta during the await when its list changes, which
 		// projects into a change event. When nothing changed (e.g. the store cache
@@ -149,7 +165,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary));
+			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
 		}
 
 		let removed: URI[] | undefined;
@@ -166,11 +182,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
 	}
 
-	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
-		const workingDir = typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : summary.workingDirectory;
+	private _makeItemFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
+		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,
+			statusKnown,
 			activity: summary.activity,
 			workingDirectory: workingDir,
 			createdAt: Date.parse(summary.createdAt),
@@ -182,6 +199,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _makeItem(rawId: string, opts: {
 		title?: string;
 		status?: SessionStatus;
+		/** Whether `status`'s session-scoped flag bits came from the host. */
+		statusKnown?: boolean;
 		activity?: string;
 		workingDirectory?: URI;
 		createdAt: number;
@@ -197,6 +216,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
+			// Without a host-provided status there is no opinion on read state —
+			// a pending new session, or a cold one the host has no record for.
+			// Leave it unset rather than reporting the synthesized bit as unread.
+			isRead: opts.status !== undefined && opts.statusKnown !== false
+				? (opts.status & SessionStatus.IsRead) === SessionStatus.IsRead
+				: undefined,
 			metadata: this._buildMetadata(opts.workingDirectory),
 			timing: {
 				created: opts.createdAt,

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -13,17 +12,15 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor } from './sessionChangesEditor.js';
 
 export class ChangesetReviewAction extends Action2 {
 	constructor() {
 		super({
-			id: 'changeset.review',
-			title: localize('changeset.viewed', "Mark as Viewed"),
-			icon: Codicon.check,
+			id: CHANGESET_REVIEW_ACTION_ID,
+			title: localize('changeset.viewed', "Viewed"),
 			f1: false,
 			toggled: {
-				title: localize('changeset.notviewed', "Mark as Not Viewed"),
 				condition: ContextKeyExpr.in(
 					SessionChangesFileResourceContext.key,
 					ChangesetReviewedFilesContext.key)

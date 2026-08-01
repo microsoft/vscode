@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
@@ -15,6 +16,7 @@ import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, po
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../platform/chat/common/chatSettings.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -47,6 +49,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { localize } from '../../nls.js';
 
 //#region Layout Implementation
 
@@ -97,6 +100,7 @@ enum LayoutClasses {
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
+	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
@@ -1871,6 +1875,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
@@ -1908,6 +1913,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
@@ -2317,6 +2323,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.PANEL_PART:
 				return this.setPanelHidden(hidden);
 		}
+	}
+
+	toggleSecondarySideBar(): void {
+		const visible = !this.isSecondarySideBarVisible();
+		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
+		alert(visible
+			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
+			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
 	}
 
 	hasMainWindowBorder(): boolean {
@@ -3005,7 +3023,7 @@ class LayoutStateModel extends Disposable {
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
 				configuration.value !== 'hidden' &&
-				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+				!this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)
 			) {
 				return false;
 			}
