@@ -7,6 +7,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
+import { isRuntimeSourceActive, materializeRuntimeSourcePackage } from './copilotRuntimeSource.ts';
+import { copilotPlatforms } from './copilotPlatforms.ts';
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
@@ -22,12 +24,7 @@ export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
  * The platforms that @github/copilot ships platform-specific packages for.
  * These are the `@github/copilot-{platform}` optional dependency packages.
  */
-export const copilotPlatforms = [
-	'darwin-arm64', 'darwin-x64',
-	'linux-arm64', 'linux-x64',
-	'linuxmusl-arm64', 'linuxmusl-x64',
-	'win32-arm64', 'win32-x64',
-];
+export { copilotPlatforms };
 
 /**
  * Converts VS Code build platform/arch to the values that Node.js reports
@@ -228,6 +225,15 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 	}
 
 	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
+	const packageDir = path.join(nodeModulesRoot, ...packageName.split('/'));
+
+	// A `copilotOverride` runtime `git:<commit>` override builds the runtime from
+	// source (full native build) and replaces the published platform package.
+	if (isRuntimeSourceActive()) {
+		materializeRuntimeSourcePackage(packageDir, copilotPackagePlatformArch);
+		return;
+	}
+
 	ensureNpmPackage(packageName, nodeModulesRoot, options);
 }
 

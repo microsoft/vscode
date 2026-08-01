@@ -2,6 +2,10 @@
   "name": "code-oss-dev",
   "version": "1.132.0",
   "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
+  "copilotOverride": {
+    "@github/copilot-sdk": "",
+    "@github/copilot": ""
+  },
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -52,6 +56,7 @@
     "precommit": "node --experimental-strip-types build/hygiene.ts",
     "gulp": "node --experimental-strip-types --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron.ts",
+    "copilot-override": "node build/azure-pipelines/common/apply-copilot-override.ts",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.ts",
     "update-localization-extension": "node build/npm/update-localization-extension.ts",
@@ -90,6 +95,8 @@
     "perf:chat-leak": "node scripts/chat-simulation/test-chat-mem-leaks.js",
     "copilot:setup": "npm --prefix extensions/copilot run setup",
     "copilot:get_token": "npm --prefix extensions/copilot run get_token",
+    "copilot:dev": "node --experimental-strip-types build/copilot-dev.ts",
+    "copilot:verify-source": "node --experimental-strip-types build/azure-pipelines/common/verify-copilot-source-build.ts",
     "update-build-ts-version": "npm install -D typescript@npm:@typescript/typescript6@^6.0.2 && npm install -D @typescript/native@npm:typescript@next && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",

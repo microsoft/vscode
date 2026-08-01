@@ -1,0 +1,92 @@
+# Builds `@github/copilot` from source for a single platform target and
+# publishes it as a pipeline artifact.
+#
+# The packaging jobs download that artifact instead of compiling the runtime
+# themselves. See build/lib/copilotRuntimeSource.ts for why: a packaging agent is
+# provisioned to package VS Code, and every fidelity defect this integration has
+# hit came from the Rust build being a guest in an environment shaped for
+# something else. Here the environment exists for the build alone.
+#
+# Fans out from runtime-source-build.yml.
+
+parameters:
+  # A `@github/copilot-<platform>-<arch>` target, e.g. `linuxmusl-arm64`.
+  # See `copilotPlatforms` in build/lib/copilot.ts.
+  - name: VSCODE_COPILOT_TARGET
+    type: string
+  # Run as the nightly canary rather than for a requested override: build the
+  # commit the pinned release came from, and stay out of the product build's way.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY
+    type: boolean
+    default: false
+
+jobs:
+  # Job names may not contain `-`.
+  - job: CopilotRuntime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}
+    displayName: ${{ parameters.VSCODE_COPILOT_TARGET }}
+    # A cold Rust build of the runtime takes ~20 minutes; leave room for a slow
+    # agent without letting a hung build hold the release for an hour.
+    timeoutInMinutes: 60
+    # The override is committed to package.json, which nothing can read until a
+    # job is on an agent, so Detect reads it and this job asks Detect. A normal
+    # build skips here without ever acquiring an agent.
+    dependsOn: CopilotRuntimeDetect
+    ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, true) }}:
+      condition: eq(dependencies.CopilotRuntimeDetect.outputs['detect.VSCODE_COPILOT_RUNTIME_SOURCE'], 'true')
+      # A scheduled build publishes. Losing the canary must never fail it — the
+      # signal is the job's own result, not the build's.
+      continueOnError: true
+    ${{ else }}:
+      condition: eq(dependencies.CopilotRuntimeDetect.outputs['detect.VSCODE_COPILOT_RUNTIME_SOURCE'], 'true')
+    ${{ if startsWith(parameters.VSCODE_COPILOT_TARGET, 'win32') }}:
+      pool:
+        name: 1es-windows-2022-x64
+        os: windows
+    ${{ elseif startsWith(parameters.VSCODE_COPILOT_TARGET, 'darwin') }}:
+      pool:
+        name: AcesShared
+        os: macOS
+        demands:
+          - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+    ${{ else }}:
+      pool:
+        name: 1es-ubuntu-22.04-x64
+        os: linux
+    variables:
+      VSCODE_COPILOT_TARGET: ${{ parameters.VSCODE_COPILOT_TARGET }}
+      COPILOT_RUNTIME_STAGING: $(Build.ArtifactStagingDirectory)/copilot-runtime
+    templateContext:
+      outputs:
+        # The canary proves the build works; nothing consumes its output, and
+        # publishing it on every scheduled build would retain gigabytes a day.
+        - ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, false) }}:
+          - output: pipelineArtifact
+            # Only set when this build actually carries a runtime *source*
+            # override; a build that merely pins a published version produces
+            # nothing here.
+            condition: and(succeeded(), eq(variables['COPILOT_RUNTIME_ARTIFACT_READY'], 'true'))
+            targetPath: $(COPILOT_RUNTIME_STAGING)
+            artifactName: $(ARTIFACT_PREFIX)copilot_runtime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}
+            displayName: Publish ${{ parameters.VSCODE_COPILOT_TARGET }} runtime artifact
+            sbomPackageName: "@github/copilot ${{ parameters.VSCODE_COPILOT_TARGET }} (source build)"
+            sbomPackageVersion: $(Build.SourceVersion)
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      # Resolves the override to a commit, mints the clone token and installs the
+      # Rust toolchain. `runtimeOnly` because this job never installs VS Code's
+      # own dependencies.
+      - template: ../common/apply-copilot-override.yml@self
+        parameters:
+          windows: ${{ startsWith(parameters.VSCODE_COPILOT_TARGET, 'win32') }}
+          installRuntimeToolchain: true
+          runtimeOnly: true
+          runtimeCanary: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
+
+      - script: node build/azure-pipelines/common/build-copilot-runtime-target.ts --target=$(VSCODE_COPILOT_TARGET) --out=$(COPILOT_RUNTIME_STAGING)
+        displayName: Build ${{ parameters.VSCODE_COPILOT_TARGET }} from source

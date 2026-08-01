@@ -145,6 +145,20 @@ variables:
       value: ""
     ${{ else }}:
       value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
+  # Canary mode: a scheduled build runs the CopilotRuntime stage against the
+  # commit the pinned release was built from, purely to prove the hotfix path
+  # still works. A scheduled build publishes, so the canary is kept out of its
+  # way — it never changes what ships and never fails a build that does.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY
+    ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+      value: "true"
+    ${{ else }}:
+      value: "false"
+  # The one daily schedule the canary runs on. Every cron triggers this pipeline,
+  # so without this it would run on all of them. Kept in sync with `schedules:`
+  # by a test, since a renamed cron would otherwise silently stop the canary.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY_CRON
+    value: "Mon-Fri at 5:00 UTC (build, publish, and release)"
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -304,6 +318,31 @@ extends:
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+
+      # Builds @github/copilot from source per target and publishes each as an
+      # artifact the packaging stages consume, so the Rust build runs on an agent
+      # that exists for it rather than inside nine packaging jobs.
+      #
+      # Always present, and nothing depends on it. The override is committed to
+      # package.json, which cannot be read while stages are being selected, so a
+      # Detect job inside the stage reads it and gates the eight build jobs. The
+      # packaging stages stay independent and wait for an artifact only if their
+      # own copy of package.json says one is coming.
+      - stage: CopilotRuntime
+        displayName: Copilot Runtime
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
+            parameters:
+              VSCODE_COPILOT_RUNTIME_CANARY: ${{ eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'true') }}
+              VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+              VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+              VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+              VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+              VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+              VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
+              VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+              VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows

@@ -41,6 +41,10 @@ jobs:
         parameters:
           windows: true
 
+      - template: ../common/apply-copilot-override.yml@self
+        parameters:
+          windows: true
+
       - pwsh: |
           mkdir .build -ea 0
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash

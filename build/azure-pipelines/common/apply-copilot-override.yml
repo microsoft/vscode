@@ -1,0 +1,110 @@
+# Copilot runtime + SDK override (package.json copilotOverride). No-op for a normal build.
+#
+# Runs `apply-copilot-override.ts` BEFORE the node_modules cache-key step so a
+# feed/SDK override rewrites the manifests + lockfiles and naturally busts the
+# cache. The SDK can also be built from source at a commit SHA, cloned from
+# its public repo. A runtime commit override builds the runtime from source during
+# gulp packaging; set `installRuntimeToolchain: true` in the compile jobs so the
+# Rust toolchain is installed only when actually building from source. Feed auth
+# is set up first (the standard npmAuthenticate runs only after the cache-key
+# step). Mirrors common/apply-sdk-canary.yml.
+
+parameters:
+  - name: windows
+    type: boolean
+    default: false
+  # Install the Rust toolchain when a runtime source build is requested. Only the
+  # compile jobs (which run gulp packaging) need it, so this defaults off.
+  - name: installRuntimeToolchain
+    type: boolean
+    default: false
+  # Resolve the runtime source override and stop, skipping the SDK tarball and
+  # the manifest/lockfile rewrites. For the dedicated runtime build jobs, which
+  # never install VS Code's dependencies.
+  - name: runtimeOnly
+    type: boolean
+    default: false
+  # Verify the commit the pinned release was built from. Only the nightly canary,
+  # which has no committed override to resolve.
+  - name: runtimeCanary
+    type: boolean
+    default: false
+
+steps:
+  # Detect whether a runtime source build is requested and surface it as a
+  # pipeline variable so the Key Vault + toolchain steps below can gate on it
+  # (covers both the committed copilotOverride field and the queue-time param).
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: node build/azure-pipelines/common/apply-copilot-override.ts --detect
+        env:
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
+        displayName: Copilot override — detect
+  - ${{ else }}:
+      - script: node build/azure-pipelines/common/apply-copilot-override.ts --detect
+        env:
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
+        displayName: Copilot override — detect
+
+  # GitHub App key for cloning the private github/copilot-agent-runtime repo,
+  # fetched only for a runtime source build in the compile jobs.
+  - ${{ if eq(parameters.installRuntimeToolchain, true) }}:
+      - task: AzureKeyVault@2
+        displayName: Copilot override — get runtime App key
+        condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: copilot-agent-runtime-gh-app
+
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: |
+          npm config set registry $env:NPM_REGISTRY
+          Write-Host "##vso[task.setvariable variable=COPILOT_OVERRIDE_NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Copilot override — set registry for auth
+  - ${{ else }}:
+      - script: |
+          set -e
+          npm config set registry "$NPM_REGISTRY"
+          echo "##vso[task.setvariable variable=COPILOT_OVERRIDE_NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Copilot override — set registry for auth
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(COPILOT_OVERRIDE_NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Copilot override — authenticate feed
+
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: node build/azure-pipelines/common/apply-copilot-override.ts
+        env:
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
+          COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
+          # App credentials for minting a runtime clone token. Only set when the
+          # gated Key Vault step above ran; otherwise the literal $(...) macro is
+          # treated as "no key" by the script.
+          GITHUB_APP_ID: "4297675"
+          GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
+        displayName: Apply Copilot override
+  - ${{ else }}:
+      - script: node build/azure-pipelines/common/apply-copilot-override.ts
+        env:
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
+          COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
+          GITHUB_APP_ID: "4297675"
+          GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
+        displayName: Apply Copilot override
+
+  # Rust toolchain for runtime source builds. Compile-time gated to the compile
+  # jobs (installRuntimeToolchain) and runtime gated to actual source builds
+  # (VSCODE_COPILOT_RUNTIME_SOURCE, set by the apply step above).
+  - ${{ if eq(parameters.installRuntimeToolchain, true) }}:
+      - ${{ if eq(parameters.windows, true) }}:
+          - powershell: node build/azure-pipelines/common/install-runtime-build-toolchain.ts
+            condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+            displayName: Install runtime build toolchain
+      - ${{ else }}:
+          - script: node build/azure-pipelines/common/install-runtime-build-toolchain.ts
+            condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+            displayName: Install runtime build toolchain

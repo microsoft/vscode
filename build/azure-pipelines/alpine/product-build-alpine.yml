@@ -76,6 +76,14 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
+      # Runtime/SDK override (package.json copilotOverride). Placed before the cache key so a
+      # feed/SDK override busts it and gets installed by npm ci below; installs the
+      # Rust toolchain only for a runtime source build. Alpine builds the musl
+      # runtime natively (per-arch host), so no cross toolchain is needed.
+      - template: ../common/apply-copilot-override.yml@self
+        parameters:
+          installRuntimeToolchain: true
+
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
@@ -211,6 +219,11 @@ jobs:
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
+
+      # Alpine is musl Linux; the runtime stages those prebuilds under `linuxmusl-*`.
+      - template: ../copilot/download-runtime-artifact.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linuxmusl-${{ parameters.VSCODE_ARCH }}
 
       - script: |
           set -e

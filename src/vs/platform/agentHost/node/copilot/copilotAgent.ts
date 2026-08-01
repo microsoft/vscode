@@ -23,6 +23,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
+import product from '../../../product/common/product.js';
 import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -127,7 +128,27 @@ function getCopilotPlatformPackageCandidates(): string[] {
 	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
 }
 
+/**
+ * A locally built runtime to run instead of the bundled platform package, for
+ * developing the Copilot CLI against VS Code. `product.copilotCliPath` comes
+ * from the git-ignored `product.overrides.json`, which is only merged when
+ * running from source; the environment variable also works against a packaged
+ * build for one-off verification.
+ */
+export function resolveCopilotCliPathOverride(env: NodeJS.ProcessEnv = process.env, productConfiguration: { copilotCliPath?: string } = product): string | undefined {
+	const override = (env['VSCODE_COPILOT_CLI_PATH'] ?? productConfiguration.copilotCliPath ?? '').trim();
+	return override || undefined;
+}
+
 async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+	const override = resolveCopilotCliPathOverride();
+	if (override) {
+		if (!await fileExists(override)) {
+			throw new Error(`Copilot CLI override does not exist: ${override}. Point VSCODE_COPILOT_CLI_PATH or product.overrides.json "copilotCliPath" at a built dist-cli/index.js, or remove it.`);
+		}
+		return override;
+	}
+
 	const tried: string[] = [];
 	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
 		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
