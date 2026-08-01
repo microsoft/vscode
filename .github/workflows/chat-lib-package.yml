@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+            write
 
 concurrency:
   group: chat-lib-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
