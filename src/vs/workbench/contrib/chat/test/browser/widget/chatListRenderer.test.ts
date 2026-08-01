@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -415,9 +415,10 @@ suite('ChatListRenderer', () => {
 				},
 			},
 			listWidget: {
-				suppressAutoScroll: false,
+				acquireAutoScrollHold: () => toDisposable(() => { }),
 				scrollToCurrentItem: () => { },
 			},
+			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
 			createInput: () => { },
 			onDidChangeItems: () => { },
 			getContrib: () => undefined,
@@ -573,6 +574,53 @@ suite('ChatListRenderer', () => {
 			}, 'Approved plan');
 
 			assert.strictEqual(content.value, 'Approved&nbsp;plan\n\n## Plan summary\n\n[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)');
+		});
+
+		test('renders structured feedback as markdown before the plan', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '## Plan summary',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				planUri: URI.file('/sessions/abc/plan.md').toJSON(),
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Use **named helpers**.\n\nInline comments on `plan.md`:\n- **Line 6:** Extract this',
+					feedbackOverall: 'Use **named helpers**.',
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Use **named helpers**.',
+				'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				'## Plan summary',
+				'[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)',
+			].join('\n\n'));
+		});
+
+		test('renders combined legacy feedback as markdown', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Overall **comment**\n\nInline comments:\n- **Line 7:** Rename this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Overall **comment**',
+				'Inline comments:\n- **Line 7:** Rename this',
+			].join('\n\n'));
 		});
 	});
 

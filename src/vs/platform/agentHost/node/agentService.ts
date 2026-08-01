@@ -531,13 +531,9 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-			onTurnComplete: async session => {
-				// Refresh the git state for the session.
+			onTurnComplete: session => {
 				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-				void this._gitStateService.refreshSessionGitState(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
-
-				// Check for a GitHub pull request associated with the session's branch.
-				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
+				void this._gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 			},
 			onUserMessage: (session, text) => {
 				// Record the GitHub issues the message references on the session.
@@ -2848,11 +2844,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
-		// Refresh the git state for the session.
-		void this._gitStateService.refreshSessionGitState(sessionStr, meta.workingDirectories?.[0]);
-
-		// Check for a GitHub pull request associated with the session's branch.
-		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr);
+		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr, meta.workingDirectories?.[0]);
 	}
 
 	/**

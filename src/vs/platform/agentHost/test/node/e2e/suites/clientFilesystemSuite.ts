@@ -20,7 +20,7 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -33,9 +33,10 @@ import type {
 	ResourceResolveResult,
 	SubscribeResult,
 } from '../../../../common/state/protocol/commands.js';
-import { ContentEncoding, ResourceType } from '../../../../common/state/protocol/common/commands.js';
-import { ResourceChangeType, type ResourceChange, type ResourceWatchState } from '../../../../common/state/protocol/state.js';
+import { ContentEncoding, ResourceType, ResourceWriteMode } from '../../../../common/state/protocol/common/commands.js';
+import { ResourceChangeType, type ResourceChange, type ResourceWatchState } from '../../../../common/state/protocol/channels-resource-watch/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
+import { AhpErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -65,6 +66,21 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 			channel: ROOT_STATE_URI,
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: `${purpose}-${config.provider}`,
+		});
+	}
+
+	async function writeText(uri: string, data: string, options: {
+		readonly createOnly?: boolean;
+		readonly ifMatch?: string;
+		readonly mode?: ResourceWriteMode;
+		readonly position?: number;
+	} = {}): Promise<void> {
+		await context.client.call('resourceWrite', {
+			channel: ROOT_STATE_URI,
+			uri,
+			data,
+			encoding: ContentEncoding.Utf8,
+			...options,
 		});
 	}
 
@@ -210,6 +226,406 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 				context.client.notify('unsubscribe', { channel: watch.channel });
 			}
 		}
+	});
+
+	conformanceTest(context, 'resource watch subscription preserves its descriptor', async function () {
+		await initializeClient('resource-watch-descriptor');
+		const root = createWorkspace('ahp-resource-watch-descriptor-');
+		const rootUri = URI.file(root).toString();
+		const watch = await context.client.call<{ channel: string }>('createResourceWatch', {
+			channel: ROOT_STATE_URI,
+			uri: rootUri,
+			recursive: true,
+			excludes: { items: ['**/*.tmp'] },
+			includes: { items: ['**/*.txt'] },
+		});
+
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: watch.channel });
+
+		assert.deepStrictEqual(subscribed.snapshot!.state as ResourceWatchState, {
+			root: rootUri,
+			recursive: true,
+			excludes: { items: ['**/*.tmp'] },
+			includes: { items: ['**/*.txt'] },
+		});
+	});
+
+	conformanceTest(context, 'creating a resource watch for a missing root is rejected', async function () {
+		await initializeClient('resource-watch-missing');
+		const root = createWorkspace('ahp-resource-watch-missing-');
+
+		await assert.rejects(context.client.call('createResourceWatch', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'missing'),
+			recursive: true,
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceWrite appends at the end of a file', async function () {
+		await initializeClient('resource-append');
+		const root = createWorkspace('ahp-resource-append-');
+		const file = fileUri(root, 'append.txt');
+		writeFileSync(join(root, 'append.txt'), 'BEGIN');
+
+		await writeText(file, '-END', { mode: ResourceWriteMode.Append });
+
+		assert.strictEqual(readFileSync(join(root, 'append.txt'), 'utf8'), 'BEGIN-END');
+	});
+
+	conformanceTest(context, 'resourceWrite append position counts backwards from EOF', async function () {
+		await initializeClient('resource-append-offset');
+		const root = createWorkspace('ahp-resource-append-offset-');
+		const file = fileUri(root, 'append-offset.txt');
+		writeFileSync(join(root, 'append-offset.txt'), 'BEGIN-END');
+
+		await writeText(file, '-MIDDLE', { mode: ResourceWriteMode.Append, position: 4 });
+
+		assert.strictEqual(readFileSync(join(root, 'append-offset.txt'), 'utf8'), 'BEGIN-MIDDLE-END');
+	});
+
+	conformanceTest(context, 'resourceWrite inserts without replacing existing bytes', async function () {
+		await initializeClient('resource-insert');
+		const root = createWorkspace('ahp-resource-insert-');
+		const file = fileUri(root, 'insert.txt');
+		writeFileSync(join(root, 'insert.txt'), 'ABCD');
+
+		await writeText(file, '12', { mode: ResourceWriteMode.Insert, position: 2 });
+
+		assert.strictEqual(readFileSync(join(root, 'insert.txt'), 'utf8'), 'AB12CD');
+	});
+
+	conformanceTest(context, 'resourceWrite truncates from the requested position', async function () {
+		await initializeClient('resource-truncate');
+		const root = createWorkspace('ahp-resource-truncate-');
+		const file = fileUri(root, 'truncate.txt');
+		writeFileSync(join(root, 'truncate.txt'), 'PREFIX-OLD-SUFFIX');
+
+		await writeText(file, 'NEW', { mode: ResourceWriteMode.Truncate, position: 7 });
+
+		assert.strictEqual(readFileSync(join(root, 'truncate.txt'), 'utf8'), 'PREFIX-NEW');
+	});
+
+	conformanceTest(context, 'resourceWrite createOnly rejects an existing file', async function () {
+		await initializeClient('resource-create-only');
+		const root = createWorkspace('ahp-resource-create-only-');
+		const file = fileUri(root, 'existing.txt');
+		writeFileSync(join(root, 'existing.txt'), 'original');
+
+		await assert.rejects(writeText(file, 'replacement', { createOnly: true }), { code: AhpErrorCodes.AlreadyExists });
+		assert.strictEqual(readFileSync(join(root, 'existing.txt'), 'utf8'), 'original');
+	});
+
+	conformanceTest(context, 'resourceWrite ifMatch rejects a stale etag', async function () {
+		await initializeClient('resource-if-match');
+		const root = createWorkspace('ahp-resource-if-match-');
+		const file = fileUri(root, 'etag.txt');
+		writeFileSync(join(root, 'etag.txt'), 'before');
+		const resolved = await context.client.call<ResourceResolveResult>('resourceResolve', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+		});
+		if (resolved.etag === undefined) {
+			this.skip();
+		}
+		await writeText(file, 'first', { ifMatch: resolved.etag });
+
+		await assert.rejects(writeText(file, 'stale', { ifMatch: resolved.etag }), { code: AhpErrorCodes.Conflict });
+		assert.strictEqual(readFileSync(join(root, 'etag.txt'), 'utf8'), 'first');
+	});
+
+	conformanceTest(context, 'resourceCopy failIfExists preserves the destination', async function () {
+		await initializeClient('resource-copy-conflict');
+		const root = createWorkspace('ahp-resource-copy-conflict-');
+		writeFileSync(join(root, 'source.txt'), 'source');
+		writeFileSync(join(root, 'destination.txt'), 'destination');
+
+		await assert.rejects(context.client.call('resourceCopy', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source.txt'),
+			destination: fileUri(root, 'destination.txt'),
+			failIfExists: true,
+		}), { code: AhpErrorCodes.AlreadyExists });
+		assert.strictEqual(readFileSync(join(root, 'destination.txt'), 'utf8'), 'destination');
+	});
+
+	conformanceTest(context, 'resourceMove failIfExists preserves both files', async function () {
+		await initializeClient('resource-move-conflict');
+		const root = createWorkspace('ahp-resource-move-conflict-');
+		writeFileSync(join(root, 'source.txt'), 'source');
+		writeFileSync(join(root, 'destination.txt'), 'destination');
+
+		await assert.rejects(context.client.call('resourceMove', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source.txt'),
+			destination: fileUri(root, 'destination.txt'),
+			failIfExists: true,
+		}), { code: AhpErrorCodes.AlreadyExists });
+		assert.deepStrictEqual({
+			source: readFileSync(join(root, 'source.txt'), 'utf8'),
+			destination: readFileSync(join(root, 'destination.txt'), 'utf8'),
+		}, {
+			source: 'source',
+			destination: 'destination',
+		});
+	});
+
+	conformanceTest(context, 'resourceMkdir rejects a path occupied by a file', async function () {
+		await initializeClient('resource-mkdir-file');
+		const root = createWorkspace('ahp-resource-mkdir-file-');
+		const file = fileUri(root, 'occupied');
+		writeFileSync(join(root, 'occupied'), 'file');
+
+		await assert.rejects(context.client.call('resourceMkdir', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+		}), { code: AhpErrorCodes.AlreadyExists });
+	});
+
+	conformanceTest(context, 'resourceDelete recursively removes a directory tree', async function () {
+		await initializeClient('resource-delete-tree');
+		const root = createWorkspace('ahp-resource-delete-tree-');
+		const tree = join(root, 'tree');
+		mkdirSync(join(tree, 'nested'), { recursive: true });
+		writeFileSync(join(tree, 'nested', 'file.txt'), 'delete');
+
+		await context.client.call('resourceDelete', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(tree).toString(),
+			recursive: true,
+		});
+
+		assert.strictEqual(existsSync(tree), false);
+	});
+
+	conformanceTest(context, 'resourceWrite decodes base64 content', async function () {
+		await initializeClient('resource-base64');
+		const root = createWorkspace('ahp-resource-base64-');
+		const file = fileUri(root, 'base64.txt');
+
+		await context.client.call('resourceWrite', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+			data: Buffer.from('BASE64_CONTENT').toString('base64'),
+			encoding: ContentEncoding.Base64,
+		});
+
+		assert.strictEqual(readFileSync(join(root, 'base64.txt'), 'utf8'), 'BASE64_CONTENT');
+	});
+
+	conformanceTest(context, 'resourceWrite append creates a missing file', async function () {
+		await initializeClient('resource-append-create');
+		const root = createWorkspace('ahp-resource-append-create-');
+		const file = fileUri(root, 'created.txt');
+
+		await writeText(file, 'created', { mode: ResourceWriteMode.Append });
+
+		assert.strictEqual(readFileSync(join(root, 'created.txt'), 'utf8'), 'created');
+	});
+
+	conformanceTest(context, 'resourceWrite insert creates a missing file', async function () {
+		await initializeClient('resource-insert-create');
+		const root = createWorkspace('ahp-resource-insert-create-');
+		const file = fileUri(root, 'created.txt');
+
+		await writeText(file, 'created', { mode: ResourceWriteMode.Insert, position: 0 });
+
+		assert.strictEqual(readFileSync(join(root, 'created.txt'), 'utf8'), 'created');
+	});
+
+	conformanceTest(context, 'resourceWrite accepts the current etag', async function () {
+		await initializeClient('resource-if-match-current');
+		const root = createWorkspace('ahp-resource-if-match-current-');
+		const file = fileUri(root, 'etag.txt');
+		writeFileSync(join(root, 'etag.txt'), 'before');
+		const resolved = await context.client.call<ResourceResolveResult>('resourceResolve', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+		});
+		if (resolved.etag === undefined) {
+			this.skip();
+		}
+
+		await writeText(file, 'after', { ifMatch: resolved.etag });
+
+		assert.strictEqual(readFileSync(join(root, 'etag.txt'), 'utf8'), 'after');
+	});
+
+	conformanceTest(context, 'resourceWrite ifMatch rejects a missing file', async function () {
+		await initializeClient('resource-if-match-missing');
+		const root = createWorkspace('ahp-resource-if-match-missing-');
+
+		await assert.rejects(writeText(fileUri(root, 'missing.txt'), 'content', { ifMatch: 'missing-etag' }), {
+			code: AhpErrorCodes.Conflict,
+		});
+	});
+
+	conformanceTest(context, 'resourceCopy recursively copies a directory', async function () {
+		await initializeClient('resource-copy-directory');
+		const root = createWorkspace('ahp-resource-copy-directory-');
+		mkdirSync(join(root, 'source', 'nested'), { recursive: true });
+		writeFileSync(join(root, 'source', 'nested', 'file.txt'), 'copied');
+
+		await context.client.call('resourceCopy', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source'),
+			destination: fileUri(root, 'destination'),
+		});
+
+		assert.strictEqual(readFileSync(join(root, 'destination', 'nested', 'file.txt'), 'utf8'), 'copied');
+	});
+
+	conformanceTest(context, 'resourceCopy overwrites an existing destination by default', async function () {
+		await initializeClient('resource-copy-overwrite');
+		const root = createWorkspace('ahp-resource-copy-overwrite-');
+		writeFileSync(join(root, 'source.txt'), 'source');
+		writeFileSync(join(root, 'destination.txt'), 'destination');
+
+		await context.client.call('resourceCopy', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source.txt'),
+			destination: fileUri(root, 'destination.txt'),
+		});
+
+		assert.strictEqual(readFileSync(join(root, 'destination.txt'), 'utf8'), 'source');
+	});
+
+	conformanceTest(context, 'resourceCopy reports a missing source', async function () {
+		await initializeClient('resource-copy-missing');
+		const root = createWorkspace('ahp-resource-copy-missing-');
+
+		await assert.rejects(context.client.call('resourceCopy', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'missing.txt'),
+			destination: fileUri(root, 'destination.txt'),
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceMove relocates a directory tree', async function () {
+		await initializeClient('resource-move-directory');
+		const root = createWorkspace('ahp-resource-move-directory-');
+		mkdirSync(join(root, 'source', 'nested'), { recursive: true });
+		writeFileSync(join(root, 'source', 'nested', 'file.txt'), 'moved');
+
+		await context.client.call('resourceMove', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source'),
+			destination: fileUri(root, 'destination'),
+		});
+
+		assert.deepStrictEqual({
+			sourceExists: existsSync(join(root, 'source')),
+			contents: readFileSync(join(root, 'destination', 'nested', 'file.txt'), 'utf8'),
+		}, {
+			sourceExists: false,
+			contents: 'moved',
+		});
+	});
+
+	conformanceTest(context, 'resourceMove overwrites an existing destination by default', async function () {
+		await initializeClient('resource-move-overwrite');
+		const root = createWorkspace('ahp-resource-move-overwrite-');
+		writeFileSync(join(root, 'source.txt'), 'source');
+		writeFileSync(join(root, 'destination.txt'), 'destination');
+
+		await context.client.call('resourceMove', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'source.txt'),
+			destination: fileUri(root, 'destination.txt'),
+		});
+
+		assert.deepStrictEqual({
+			sourceExists: existsSync(join(root, 'source.txt')),
+			contents: readFileSync(join(root, 'destination.txt'), 'utf8'),
+		}, {
+			sourceExists: false,
+			contents: 'source',
+		});
+	});
+
+	conformanceTest(context, 'resourceMove reports a missing source', async function () {
+		await initializeClient('resource-move-missing');
+		const root = createWorkspace('ahp-resource-move-missing-');
+
+		await assert.rejects(context.client.call('resourceMove', {
+			channel: ROOT_STATE_URI,
+			source: fileUri(root, 'missing.txt'),
+			destination: fileUri(root, 'destination.txt'),
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceDelete requires recursive mode for a non-empty directory', async function () {
+		await initializeClient('resource-delete-non-recursive');
+		const root = createWorkspace('ahp-resource-delete-non-recursive-');
+		const directory = join(root, 'directory');
+		mkdirSync(directory);
+		writeFileSync(join(directory, 'file.txt'), 'preserved');
+
+		await assert.rejects(context.client.call('resourceDelete', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(directory).toString(),
+		}));
+		assert.strictEqual(readFileSync(join(directory, 'file.txt'), 'utf8'), 'preserved');
+	});
+
+	conformanceTest(context, 'resourceDelete reports a missing resource', async function () {
+		await initializeClient('resource-delete-missing');
+		const root = createWorkspace('ahp-resource-delete-missing-');
+
+		await assert.rejects(context.client.call('resourceDelete', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'missing.txt'),
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceRead reports a missing file', async function () {
+		await initializeClient('resource-read-missing');
+		const root = createWorkspace('ahp-resource-read-missing-');
+
+		await assert.rejects(context.client.call('resourceRead', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'missing.txt'),
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceList reports a missing directory', async function () {
+		await initializeClient('resource-list-missing');
+		const root = createWorkspace('ahp-resource-list-missing-');
+
+		await assert.rejects(context.client.call('resourceList', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'missing'),
+		}), { code: AhpErrorCodes.NotFound });
+	});
+
+	conformanceTest(context, 'resourceList rejects a file resource', async function () {
+		await initializeClient('resource-list-file');
+		const root = createWorkspace('ahp-resource-list-file-');
+		const file = fileUri(root, 'file.txt');
+		writeFileSync(join(root, 'file.txt'), 'content');
+
+		await assert.rejects(context.client.call('resourceList', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+		}));
+	});
+
+	conformanceTest(context, 'resourceWrite reports a missing parent directory', async function () {
+		await initializeClient('resource-write-missing-parent');
+		const root = createWorkspace('ahp-resource-write-missing-parent-');
+
+		await assert.rejects(writeText(fileUri(root, 'missing', 'file.txt'), 'content'), {
+			code: AhpErrorCodes.NotFound,
+		});
+	});
+
+	conformanceTest(context, 'resourceResolve reports a missing resource', async function () {
+		await initializeClient('resource-resolve-missing');
+		const root = createWorkspace('ahp-resource-resolve-missing-');
+
+		await assert.rejects(context.client.call('resourceResolve', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'missing'),
+		}), { code: AhpErrorCodes.NotFound });
 	});
 
 	conformanceTest(context, 'host reads a client-hosted plugin through reverse resource requests', async function () {
