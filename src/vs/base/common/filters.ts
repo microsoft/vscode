@@ -857,7 +857,7 @@ function _doScore(
 	let score = 1;
 	let isGapLocation = false;
 	let isCommonPrefix = false;
-	if (wordPos === (patternPos - patternStart)) {
+	if (wordPos === wordStart + (patternPos - patternStart)) {
 		// common prefix: `foobar <-> foobaz`
 		//                            ^^^^^
 		score = pattern[patternPos] === word[wordPos] ? 7 : 5;
