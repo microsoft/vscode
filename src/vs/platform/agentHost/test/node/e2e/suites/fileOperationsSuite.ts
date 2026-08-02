@@ -42,7 +42,11 @@ function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled } = context;
-	const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
+	const BEHAVIOR_SNAPSHOT = {
+		profile: 'behavior',
+		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
+		omitToolCallSuccessForToolNames: config.provider === 'codex' ? ['shell'] : [],
+	} as const;
 
 	fileOperationTest(context, 'reads an existing text file', async function () {
 		this.timeout(180_000);

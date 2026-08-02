@@ -43,8 +43,6 @@ rounds:
           type: chat/toolCallComplete
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          result:
-            success: true
       - channel: ${chat_0}
         action:
           type: chat/responsePart
