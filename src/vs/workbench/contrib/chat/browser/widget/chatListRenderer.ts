@@ -289,8 +289,8 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 
 /**
  * Token consumption summary shown when hovering the response footer's model and
- * credits stat. The counts cover the whole turn — providers report usage per
- * turn, not per model call — so the title says so.
+ * credits stat. Provider call-level reports are aggregated by model for the
+ * whole turn.
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
