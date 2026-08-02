@@ -740,8 +740,8 @@ export const platformRootSchema = createSchema({
 	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
-		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
-		default: false,
+		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true` (default), models with a free long context window only show the long context option in the picker. When `false`, the smaller default context option stays selectable."),
+		default: true,
 	}),
 	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

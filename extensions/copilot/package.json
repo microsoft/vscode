@@ -3418,7 +3418,7 @@
           },
           "github.copilot.chat.preferLongContext.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
           },
           "github.copilot.enable": {
