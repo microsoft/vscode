@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir } from 'fs/promises';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { dirname, join } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -141,13 +142,74 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	};
 }
 
-function upsertResourceAttribute(attributes: Array<{ key?: string; value?: { stringValue?: string } }>, key: string, value: string): void {
+interface IOtlpAttribute {
+	key?: string;
+	value?: { stringValue?: string };
+}
+
+interface IOtlpSpan {
+	name?: string;
+	attributes?: IOtlpAttribute[];
+}
+
+interface IOtlpScopeSpans {
+	spans?: IOtlpSpan[];
+}
+
+interface IOtlpResourceSpans {
+	resource?: { attributes?: IOtlpAttribute[] };
+	scopeSpans?: IOtlpScopeSpans[];
+}
+
+interface IOtlpTracePayload {
+	resourceSpans?: IOtlpResourceSpans[];
+}
+
+export interface INormalizedAgentHostOtlpBody {
+	readonly body: Buffer;
+	readonly filteredSpanCount: number;
+}
+
+const CodexAuthPollingServiceName = 'codex-app-server';
+const CodexAuthPollingSpanName = 'auth';
+const CodexAuthPollingModuleName = 'codex_login::auth::manager';
+
+function attributeValue(attributes: readonly IOtlpAttribute[] | undefined, key: string): string | undefined {
+	return attributes?.find(attribute => attribute.key === key)?.value?.stringValue;
+}
+
+function upsertResourceAttribute(attributes: IOtlpAttribute[], key: string, value: string): void {
 	const existing = attributes.find(attribute => attribute.key === key);
 	if (existing) {
 		existing.value = { stringValue: value };
 	} else {
 		attributes.push({ key, value: { stringValue: value } });
 	}
+}
+
+/** Normalize Agent Host resource identity and suppress the Codex 0.142 auth polling span. */
+export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOtlpBody {
+	const payload = JSON.parse(body.toString('utf8')) as IOtlpTracePayload;
+	let filteredSpanCount = 0;
+	for (const resourceSpan of payload.resourceSpans ?? []) {
+		const resource = resourceSpan.resource ??= {};
+		const resourceAttributes = resource.attributes ??= [];
+		const isCodex = attributeValue(resourceAttributes, 'service.name') === CodexAuthPollingServiceName;
+		upsertResourceAttribute(resourceAttributes, 'service.namespace', AgentHostOTelServiceNamespace);
+		for (const scopeSpans of resourceSpan.scopeSpans ?? []) {
+			const spans = scopeSpans.spans ?? [];
+			scopeSpans.spans = spans.filter(span => {
+				const shouldFilter = isCodex
+					&& span.name === CodexAuthPollingSpanName
+					&& attributeValue(span.attributes, 'code.module.name') === CodexAuthPollingModuleName;
+				if (shouldFilter) {
+					filteredSpanCount++;
+				}
+				return !shouldFilter;
+			});
+		}
+	}
+	return { body: Buffer.from(JSON.stringify(payload)), filteredSpanCount };
 }
 
 export class AgentHostOTelService extends Disposable implements IAgentHostOTelService {
@@ -164,6 +226,9 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _metadataExportQueue = Promise.resolve();
 	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
 	private _currentTraceContext: IAgentHostTraceContext | undefined;
+	private _pendingFilteredCodexAuthSpans = 0;
+	private _totalFilteredCodexAuthSpans = 0;
+	private readonly _filteredSpanLogScheduler: RunOnceScheduler;
 
 	constructor(
 		private readonly _fetchFn: typeof globalThis.fetch | undefined,
@@ -171,6 +236,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
+		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
 		this._config = readAgentHostOTelEnv(process.env);
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
 	}
@@ -304,6 +370,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	async flush(): Promise<void> {
+		this._filteredSpanLogScheduler.flush();
 		await this._metadataExportQueue;
 		await this._startPromise;
 		if (this._forwarder) {
@@ -363,7 +430,11 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		// 3. Loopback OTLP/HTTP receiver.
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
-				transformBody: body => this._normalizeNativeResourceIdentity(body),
+				transformBody: body => {
+					const normalized = normalizeAgentHostOtlpBody(body);
+					this._recordFilteredCodexAuthSpans(normalized.filteredSpanCount);
+					return normalized.body;
+				},
 				onSpans: result => {
 					for (const span of result.spans) {
 						try {
@@ -420,14 +491,23 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		}
 	}
 
-	private _normalizeNativeResourceIdentity(body: Buffer): Buffer {
-		const payload = JSON.parse(body.toString('utf8')) as { resourceSpans?: Array<{ resource?: { attributes?: Array<{ key?: string; value?: { stringValue?: string } }> } }> };
-		for (const resourceSpan of payload.resourceSpans ?? []) {
-			const attributes = resourceSpan.resource ??= {};
-			const values = attributes.attributes ??= [];
-			upsertResourceAttribute(values, 'service.namespace', AgentHostOTelServiceNamespace);
+	private _recordFilteredCodexAuthSpans(count: number): void {
+		if (count <= 0) {
+			return;
 		}
-		return Buffer.from(JSON.stringify(payload));
+		this._pendingFilteredCodexAuthSpans = Math.min(Number.MAX_SAFE_INTEGER, this._pendingFilteredCodexAuthSpans + count);
+		this._totalFilteredCodexAuthSpans = Math.min(Number.MAX_SAFE_INTEGER, this._totalFilteredCodexAuthSpans + count);
+		if (!this._filteredSpanLogScheduler.isScheduled()) {
+			this._filteredSpanLogScheduler.schedule();
+		}
+	}
+
+	private _logFilteredCodexAuthSpans(): void {
+		if (this._pendingFilteredCodexAuthSpans === 0) {
+			return;
+		}
+		this._logService.info(`[agentHost.otel] filtered ${this._pendingFilteredCodexAuthSpans} Codex 0.142 auth polling span(s); total=${this._totalFilteredCodexAuthSpans}`);
+		this._pendingFilteredCodexAuthSpans = 0;
 	}
 
 	private _canForwardSyntheticSpan(): boolean {

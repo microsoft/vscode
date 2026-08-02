@@ -19,7 +19,7 @@ import {
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { AgentHostOTelService, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
+import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
 interface IPostResponse {
@@ -176,6 +176,48 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				'service.namespace': 'vscode.agent-host',
 			},
 		});
+	});
+
+	test('normalizes resources and narrowly filters Codex 0.142 auth polling spans', () => {
+		const payload = {
+			resourceSpans: [
+				{
+					resource: {
+						attributes: [
+							{ key: 'service.name', value: { stringValue: 'codex-app-server' } },
+							{ key: 'service.namespace', value: { stringValue: 'foreign' } },
+							{ key: 'deployment.environment.name', value: { stringValue: 'test' } },
+						]
+					},
+					scopeSpans: [
+						{
+							spans: [
+								{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] },
+								{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'other::module' } }] },
+								{ name: 'list_models', attributes: [] },
+							]
+						},
+						{ spans: [] },
+						{ spans: [{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] }] },
+					],
+				},
+				{
+					resource: { attributes: [{ key: 'service.name', value: { stringValue: 'another-service' } }] },
+					scopeSpans: [{ spans: [{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] }] }],
+				},
+				{ resource: { attributes: [{ key: 'custom', value: { stringValue: 'kept' } }] }, scopeSpans: [] },
+			],
+		};
+
+		const normalized = normalizeAgentHostOtlpBody(Buffer.from(JSON.stringify(payload)));
+		const result = JSON.parse(normalized.body.toString('utf8')) as typeof payload;
+		strictEqual(normalized.filteredSpanCount, 2);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[0].spans.map(span => span.name), ['auth', 'list_models']);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[1].spans, []);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[2].spans, []);
+		strictEqual(result.resourceSpans[1].scopeSpans[0].spans.length, 1);
+		ok(result.resourceSpans[0].resource.attributes.some(attribute => attribute.key === 'deployment.environment.name' && attribute.value.stringValue === 'test'));
+		ok(result.resourceSpans.every(resourceSpan => resourceSpan.resource.attributes.some(attribute => attribute.key === 'service.namespace' && attribute.value.stringValue === 'vscode.agent-host')));
 	});
 
 	test('getSdkTelemetryConfig: returns undefined when fully disabled', async () => {

@@ -66,6 +66,12 @@ In DB mode the private trace hop always uses OTLP/HTTP JSON, which all three run
 
 When Agent Host OTel is enabled, its launch configuration overrides standalone Claude/Codex exporter destinations for that Agent Host process. When it is disabled, standalone provider telemetry remains untouched. Authentication headers are supported through inherited standard OTel environment variables; managed-header delivery to provider subprocesses is not currently supported.
 
+### Temporary Codex 0.142 trace filter
+
+In DB mode, the loopback receiver drops only Codex spans with all three stable identifiers: resource `service.name=codex-app-server`, span name `auth`, and `code.module.name=codex_login::auth::manager`. Codex 0.142 emits this internal authentication polling span about twice per second, mostly as standalone root traces. The receiver keeps an aggregate filtered count and logs it at most once per minute; all other Codex spans are retained. Remove this compatibility filter after Codex stops exporting the polling span or provides native sampling/filtering.
+
+External-only mode sends traces directly from each SDK to the user's collector and bypasses the Agent Host receiver, so this narrow filter does not apply there. Covering that path would require a general telemetry proxy or a provider change and is intentionally outside this PR.
+
 ## Resource Identity
 
 Agent Host is one logical system with several native OTel producers. Agent Host-owned launch and ingest boundaries assign the standard resource attribute `service.namespace=vscode.agent-host` while keeping component service names distinct:
