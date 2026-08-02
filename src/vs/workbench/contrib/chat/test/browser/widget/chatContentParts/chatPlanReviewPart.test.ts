@@ -149,6 +149,22 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(body?.querySelector('.rendered-markdown'));
 		});
 
+		test('uses the themed foreground for markdown links', () => {
+			createWidget(createMockReview({ content: '[link](https://example.com)' }));
+			const container = mainWindow.document.createElement('div');
+			container.classList.add('interactive-session');
+			container.style.setProperty('--vscode-textLink-foreground', 'rgb(1, 2, 3)');
+			mainWindow.document.body.appendChild(container);
+			container.appendChild(widget.domNode);
+
+			try {
+				const link = widget.domNode.querySelector<HTMLElement>('.rendered-markdown a');
+				assert.strictEqual(link && mainWindow.getComputedStyle(link).color, 'rgb(1, 2, 3)');
+			} finally {
+				container.remove();
+			}
+		});
+
 		test('renders approve and reject buttons in footer', () => {
 			createWidget(createMockReview());
 
