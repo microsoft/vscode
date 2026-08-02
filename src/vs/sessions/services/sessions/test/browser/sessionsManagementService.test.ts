@@ -34,6 +34,7 @@ import { SessionsManagementService } from '../../browser/sessionsManagementServi
 import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -191,6 +192,7 @@ function createSessionsManagementService(
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	provider: ISessionsProvider = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
+	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
@@ -208,6 +210,9 @@ function createSessionsManagementService(
 		override moveHistory(): void { }
 	});
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+	if (workspaceTrustRequestService) {
+		instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
+	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const view = createView(instantiationService, service, disposables);
@@ -233,6 +238,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -610,6 +616,65 @@ suite('SessionsManagementService', () => {
 		}, {
 			createNewSessionCalled: false,
 			activeSession: null,
+		});
+	});
+
+	test('cancelled openNewSession does not replace a newer draft after workspace trust resolves', async () => {
+		const staleFolder = URI.file('/stale');
+		const latestFolder = URI.file('/latest');
+		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
+			uri,
+			label: uri.path,
+			icon: Codicon.folder,
+			folders: [{ root: uri, workingDirectory: uri, name: uri.path, description: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		});
+		const staleSession = stubSession({ sessionId: 'stale', providerId: 'test', workspace: constObservable(makeWorkspace(staleFolder)) });
+		const latestSession = stubSession({ sessionId: 'latest', providerId: 'test', workspace: constObservable(makeWorkspace(latestFolder)) });
+		const createdFolders: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(latestSession); }
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace { return makeWorkspace(folderUri); }
+			override createNewSession(folderUri: URI): ISession {
+				createdFolders.push(folderUri.toString());
+				return folderUri.toString() === staleFolder.toString() ? staleSession : latestSession;
+			}
+		};
+		const staleTrust = new DeferredPromise<boolean>();
+		let trustRequestCount = 0;
+		const trustRequestService = new class extends mock<IWorkspaceTrustRequestService>() {
+			override requestResourcesTrust(): Promise<boolean> {
+				trustRequestCount++;
+				return trustRequestCount === 1 ? staleTrust.p : Promise.resolve(true);
+			}
+		};
+		const { view } = createSessionsManagementService(
+			latestSession,
+			disposables,
+			provider,
+			new TestWorkspaceTrustManagementService(),
+			trustRequestService,
+		);
+		const staleCts = disposables.add(new CancellationTokenSource());
+
+		const staleOpen = view.openNewSession({ folderUri: staleFolder }, staleCts.token);
+		await Promise.resolve();
+		staleCts.cancel();
+		const latestResult = await view.openNewSession({ folderUri: latestFolder });
+		staleTrust.complete(true);
+		const staleResult = await staleOpen;
+
+		assert.deepStrictEqual({
+			createdFolders,
+			activeSessionId: view.activeSession.get()?.sessionId,
+			latestSessionId: latestResult.session?.sessionId,
+			staleSessionId: staleResult.session?.sessionId,
+		}, {
+			createdFolders: [latestFolder.toString()],
+			activeSessionId: 'latest',
+			latestSessionId: 'latest',
+			staleSessionId: undefined,
 		});
 	});
 

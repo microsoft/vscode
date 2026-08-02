@@ -19,10 +19,12 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
@@ -46,6 +48,22 @@ import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChat
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
+
+const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
+
+function isAgentHostAskUserTool(toolName: string): boolean {
+	return agentHostAskUserToolNames.has(toolName);
+}
+
+function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boolean {
+	if (!isAgentHostAskUserTool(toolCall.toolName)) {
+		return false;
+	}
+	if (toolCall.status === ToolCallStatus.Completed) {
+		return toolCall.success;
+	}
+	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
+}
 
 export interface IAgentHostToolInvocationOptions {
 	readonly currentClientId: string;
@@ -108,6 +126,14 @@ export function convertProtocolAnswers(raw: Record<string, ChatInputAnswer> | un
 		}
 	}
 	return Object.keys(answers).length > 0 ? answers : undefined;
+}
+
+export function containsAutomaticReplyAnswer(raw: Record<string, ChatInputAnswer> | undefined): boolean {
+	return Object.values(raw ?? {}).some(answer =>
+		answer.state === ChatInputAnswerState.Submitted
+		&& answer.value.kind === ChatInputAnswerValueKind.Text
+		&& answer.value.value === AgentHostAutoReplyAnswer
+	);
 }
 
 function getPlanReviewAction(planReview: IAgentHostPlanReview, actionId: string | undefined) {
@@ -221,7 +247,7 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 		});
 	}
 
-	return new ChatQuestionCarouselData(
+	const carousel = new ChatQuestionCarouselData(
 		questions,
 		true,
 		inputReq.id,
@@ -229,6 +255,8 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 		undefined,
 		inputReq.message ? rawMarkdownToString(inputReq.message, connectionAuthority) : undefined,
 	);
+	carousel.answerPresentation = 'conversation';
+	return carousel;
 }
 
 export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview): ChatPlanReviewData {
@@ -297,7 +325,8 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 		: undefined;
 	carousel.data = answers ?? {};
 	carousel.isUsed = true;
-	carousel.answeredExternally = part.response === ChatInputResponseKind.Accept && !answers;
+	carousel.autoReply = containsAutomaticReplyAnswer(inputReq.answers);
+	carousel.answeredExternally = part.response === ChatInputResponseKind.Accept && (carousel.autoReply || !answers);
 	return carousel;
 }
 
@@ -523,9 +552,17 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits: getCopilotCredits(usage),
+		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 		modelTotals: readUsageInfoMeta(usage).turnTokenTotals,
 	};
+}
+
+function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const sessionTotalNanoAiu = readUsageInfoMeta(usage).copilotUsage?.sessionTotalNanoAiu;
+	return typeof sessionTotalNanoAiu === 'number' && sessionTotalNanoAiu >= 0
+		? sessionTotalNanoAiu / 1_000_000_000
+		: undefined;
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
@@ -1656,7 +1693,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: undefined,
+		presentation: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
@@ -2161,6 +2198,10 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	if (isAgentHostAskUserTool(tc.toolName)) {
+		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
+		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
 		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
 	}
@@ -2264,10 +2305,37 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		},
 		subagentInvocationId: subAgentInvocationId,
 	});
+	updateStreamingToolInvocation(invocation, tc, connectionAuthority ?? '');
+	if (isAgentHostAskUserTool(tc.toolName)) {
+		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
+		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	}
 	if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
 	}
 	return invocation;
+}
+
+function getStreamingToolInputForDisplay(tc: ToolCallState): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming || !tc.partialInput) {
+		return undefined;
+	}
+	return parsePartialToolInputForDisplay(tc.partialInput) ?? tc.partialInput;
+}
+
+export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming) {
+		return undefined;
+	}
+	const partialInput = getStreamingToolInputForDisplay(tc);
+	if (partialInput !== undefined) {
+		existing.updatePartialInput(partialInput);
+	}
+	const invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority);
+	if (invocationMessage) {
+		existing.updateStreamingMessage(invocationMessage);
+	}
+	return partialInput;
 }
 
 /**
@@ -2300,6 +2368,10 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		return;
 	}
 	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	if (isAgentHostAskUserTool(tc.toolName)) {
+		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
+		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	}
 	if (isAddCommentTool(tc.toolName)) {
 		existing.invocationMessage = addCommentReference(tc) ?? existing.invocationMessage;
 	}
@@ -2415,6 +2487,9 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (isAddCommentTool(tc.toolName)) {
 		invocation.invocationMessage = addCommentReference(tc) ?? invocation.invocationMessage;
 	}
+	if (isAgentHostAskUserTool(tc.toolName)) {
+		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	}
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
 	if (isCompleted) {
@@ -2497,6 +2572,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const errorMessage = isCompleted ? tc.error?.message : (isCancelled ? tc.reasonMessage : undefined);
 	const errorString = typeof errorMessage === 'string' ? errorMessage : errorMessage?.markdown;
 	const fileEdits = isCompleted ? fileEditsToExternalEdits(tc) : [];
+	if (isAgentHostAskUserTool(tc.toolName)) {
+		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
+			? ToolInvocationPresentation.HiddenAfterComplete
+			: undefined;
+	}
 
 	// Hide the tool widget when file edits are shown separately via onFileEdits
 	if (fileEdits.length > 0 && !isFailure) {
@@ -2519,7 +2599,13 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const result: IToolResult | undefined = isFailure || resultDetails
 		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
 		: undefined;
-	invocation.didExecuteTool(result);
+	const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
+		tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied,
+		tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+	);
+	if (!cancelledFromStreaming) {
+		invocation.didExecuteTool(result);
+	}
 
 	return fileEdits;
 }

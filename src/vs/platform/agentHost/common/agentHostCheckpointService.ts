@@ -9,12 +9,6 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const IAgentHostCheckpointService = createDecorator<IAgentHostCheckpointService>('agentHostCheckpointService');
 
 /**
- * `session_metadata` key under which the per-session baseline (turn/0)
- * checkpoint ref is stored.
- */
-export const META_CHECKPOINT_BASE_REF = 'checkpoint.baseRef';
-
-/**
  * Returns the canonical name for a per-turn checkpoint ref.
  * Distinct from the chat extension's `refs/sessions/...` so the two can
  * coexist safely in the same repository.
@@ -42,24 +36,30 @@ export interface IAgentHostCheckpointService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Captures the session's baseline (turn/0) checkpoint. Idempotent: if
-	 * a baseline already exists for the session, returns the existing ref.
-	 * Returns `undefined` when the working directory is not a git work tree
-	 * (folder-isolation against a non-git folder) or when checkpoint
-	 * capture fails.
+	 * Captures the session's baseline (turn/0) checkpoint in each of
+	 * `workingDirectories`. Idempotent per repository: a directory that
+	 * already has a baseline ref is skipped, as is one that is not a git
+	 * work tree (folder-isolation against a non-git folder). Best-effort —
+	 * a failure for one repository does not stop the others.
 	 *
 	 * Called once per session, immediately after the session's working
-	 * directory has been resolved and any worktree metadata has been
+	 * directories have been resolved and any worktree metadata has been
 	 * persisted (e.g. `CopilotAgent._materializeProvisional`).
+	 *
+	 * The caller must pass the directories it just resolved rather than
+	 * letting this service look them up: at that point the resolved set
+	 * (which for an isolated session is the *worktree*, not the folder the
+	 * user picked) has not necessarily reached the state manager yet, so a
+	 * lookup can silently capture the baseline against the wrong repository.
 	 */
-	captureBaseline(sessionUri: URI, workingDirectory: URI | undefined): Promise<string | undefined>;
+	captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/**
-	 * Captures an end-of-turn checkpoint, chained to the previous turn's
-	 * checkpoint (or the baseline for turn 1). Persists the ref against
-	 * the turn via `ISessionDatabase.setTurnCheckpointRef`. Returns
-	 * `undefined` when the session is not git-backed, the baseline is
-	 * missing, or capture fails.
+	 * Captures an end-of-turn checkpoint in each of `workingDirectories`,
+	 * chained to the previous turn's checkpoint (or the baseline for turn 1).
+	 * Persists the ref against the turn via `ISessionDatabase.setTurnCheckpointRef`
+	 * once at least one repository captured successfully. A directory that is
+	 * not git-backed, or has no baseline, is skipped.
 	 *
 	 * If the captured tree OID matches the parent's tree OID (no-op turn)
 	 * the parent ref is recorded against the turn rather than creating a
@@ -68,15 +68,19 @@ export interface IAgentHostCheckpointService {
 	 * Called from `AgentSideEffects` when a `ChatTurnComplete` action
 	 * fires, BEFORE the changeset service's `onTurnComplete` hook so the
 	 * per-turn changeset compute can pick up the new refs.
+	 *
+	 * As with {@link captureBaselineCheckpoint}, the caller supplies the directories
+	 * so that every checkpoint operation is explicit about the repositories
+	 * it acts on rather than depending on live session state.
 	 */
-	captureTurnCheckpoint(sessionUri: URI, turnId: string): Promise<string | undefined>;
+	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/**
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
 	 * `undefined` when either is missing. Used by the changeset service
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
 	 */
-	getTurnCheckpointPair(sessionUri: URI, turnId: string): Promise<{ parent: string; current: string } | undefined>;
+	getTurnCheckpointPair(sessionUri: URI, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
 
 	/**
 	 * Returns the session's baseline checkpoint ref, or `undefined` when
@@ -84,7 +88,7 @@ export interface IAgentHostCheckpointService {
 	 * failed). Used by the changeset service to resolve compare-turns
 	 * URIs whose `originalTurnId` is the `BASELINE_TURN_ID` sentinel.
 	 */
-	getBaselineCheckpointRef(sessionUri: URI): Promise<string | undefined>;
+	getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined>;
 
 	/**
 	 * Deletes every checkpoint ref this service created for the session
@@ -93,22 +97,25 @@ export interface IAgentHostCheckpointService {
 	 *
 	 * Called from a subscriber to `ISessionDataService.onWillDeleteSessionData`
 	 * before the session's data directory is removed.
+	 *
+	 * `workingDirectories` identifies the repositories holding the refs.
+	 * There is deliberately no fallback to the session's live state: by
+	 * the time this runs the session has typically already been removed
+	 * from the state manager, so omitting them is a silent no-op that
+	 * leaks the refs.
 	 */
-	disposeSessionData(sessionUri: URI): Promise<void>;
+	deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void>;
 }
 
 /**
  * A no-op implementation of {@link IAgentHostCheckpointService} used as a
- * fallback in test fixtures that don't exercise checkpoint capture, and
- * as the default value for the optional `_checkpointService` parameter
- * on `AgentService` so existing test callsites keep compiling without
- * forced fixture updates.
+ * fallback in test fixtures that don't exercise checkpoint capture.
  */
 export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	_serviceBrand: undefined,
-	captureBaseline: async () => undefined,
-	captureTurnCheckpoint: async () => undefined,
+	captureBaselineCheckpoint: async () => { },
+	captureTurnCheckpoint: async () => { },
 	getTurnCheckpointPair: async () => undefined,
-	getBaselineCheckpointRef: async () => undefined,
-	disposeSessionData: async () => { },
+	getBaselineCheckpoint: async () => undefined,
+	deleteCheckpoints: async () => { },
 };

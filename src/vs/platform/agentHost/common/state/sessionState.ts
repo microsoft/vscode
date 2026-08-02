@@ -111,7 +111,15 @@ export interface UsageInfoMeta {
 	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
+		/** This turn's nano-AIU cost. */
 		totalNanoAiu?: number;
+		/**
+		 * The whole session's accumulated nano-AIU cost, as reported by the
+		 * backend rather than summed from the turns. Clients SHOULD prefer this
+		 * over adding up per-turn totals: it is authoritative, and it also
+		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
+		 */
+		sessionTotalNanoAiu?: number;
 		[key: string]: unknown;
 	};
 	/**
@@ -226,6 +234,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const rawUsage = copilotUsage as Record<string, unknown>;
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		if (typeof rawUsage['sessionTotalNanoAiu'] === 'number') { usage.sessionTotalNanoAiu = rawUsage['sessionTotalNanoAiu']; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta['quotaSnapshots'];
@@ -304,6 +313,10 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 	const meta = readUsageInfoMeta(usage);
 	// Negative totals are treated as absent, matching how credits are read for display.
 	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		// A report can carry only the session total — a compaction billed while no turn
+		// was active advances it without any per-event billing payload — and that is
+		// still consumption worth showing.
+		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
 		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 
@@ -1189,6 +1202,8 @@ export interface ISessionGitState {
 	readonly uncommittedChanges?: number;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
+	/** GitHub owner parsed from the current branch's upstream remote. */
+	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
 }
@@ -1209,6 +1224,34 @@ export interface ISessionGitHubState {
 	readonly repo?: string;
 	/** The URL of the GitHub pull request. */
 	readonly pullRequestUrl?: string;
+	/**
+	 * URLs of the GitHub issues referenced by the session's user messages, in
+	 * order of first appearance.
+	 */
+	readonly issueUrls?: readonly string[];
+	/**
+	 * The name of the branch {@link pullRequestUrl} was found (or created) for.
+	 * A pull request always relates to a branch: when the working copy switches
+	 * to a different branch the host keeps reporting the known pull request but
+	 * resumes looking for one that belongs to the newly checked out branch.
+	 */
+	readonly pullRequestBranchName?: string;
+}
+
+/**
+ * Whether the known pull request of `gitHubState` belongs to `branchName`.
+ *
+ * State persisted before pull requests were tracked per branch has no
+ * {@link ISessionGitHubState.pullRequestBranchName}; such a pull request is
+ * optimistically treated as belonging to the given branch so existing sessions
+ * keep their pull request affordances until the host has verified which branch
+ * it actually belongs to.
+ */
+export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState | undefined, branchName: string | undefined): boolean {
+	if (!gitHubState?.pullRequestUrl) {
+		return false;
+	}
+	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
 }
 
 /**
@@ -1237,6 +1280,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
 		githubOwner?: string;
+		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
@@ -1247,6 +1291,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
 }
@@ -1287,11 +1332,15 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		owner?: string;
 		repo?: string;
 		pullRequestUrl?: string;
+		issueUrls?: readonly string[];
+		pullRequestBranchName?: string;
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
 	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
+	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
 

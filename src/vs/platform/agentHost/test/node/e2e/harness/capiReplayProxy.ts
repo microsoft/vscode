@@ -401,6 +401,11 @@ export class CapiReplayProxy {
 		if (this._requestMismatches.length > 0) {
 			sections.push(`[capi-replay] ${this._requestMismatches.length} model request mismatch(es):\n${this._requestMismatches.join('\n')}`);
 		}
+		const unconsumed = Array.from(this._replayBuckets.entries())
+			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
+		if (unconsumed.length > 0) {
+			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
+		}
 		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;
 	}
 

@@ -2463,6 +2463,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 	position: relative;
 }
 
+.monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {
+	outline: none;
+}
+
 /*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
@@ -2679,11 +2683,11 @@ pane is first mounted. View switches inside the modal are not animated. */
  * Hide chips from the embedded chat input's primary toolbar that don't fit
  * the automation dialog's reduced surface:
  *  - "Configure Tools" (`workbench.action.chat.configureTools`,
- *    `.codicon-settings`) — tool selection is not relevant for a scheduled
- *    prompt.
- *  - "Add Context" (`workbench.action.chat.attachContext`, `.codicon-add`,
- *    the `+`) — the dialog doesn't support attachments; the prompt is the
- *    only payload sent at run time.
+ *    `.codicon-settings-compact`) — tool selection is not relevant for a
+ *    scheduled prompt.
+ *  - "Add Context" (`workbench.action.chat.attachContext`,
+ *    `.codicon-add-compact`, the `+`) — the dialog doesn't support
+ *    attachments; the prompt is the only payload sent at run time.
  *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`) —
  *    MCP server management belongs in the live chat surface, not a one-off
  *    prompt definition.
@@ -2701,8 +2705,8 @@ pane is first mounted. View switches inside the modal are not animated. */
  * will migrate to `newChatInput.ts`, which builds its own toolbars and never
  * renders these `MenuId.ChatInput` chips at all.
  */
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings,
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add,
+.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings-compact,
+.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add-compact,
 .automation-form-prompt-host .chat-input-toolbar .action-item.chat-mcp {
 	display: none;
 }
@@ -2823,6 +2827,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 	margin-top: 2px;
 	padding-top: 10px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
+	margin-right: 0;
 }
 
 /*
@@ -2992,10 +3000,6 @@ pane is first mounted. View switches inside the modal are not animated. */
  * `.new-chat-bottom-container` chip vocabulary (see
  * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
  * compact label text and codicons, icon-foreground color, no border.
- * The `|` divider between the Folder chip and the branch slot
- * uses the same `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)`
- * trick the new-session row uses to draw a 1px vertical separator
- * without adding a DOM element.
  */
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
 	display: inline-flex;
@@ -3060,13 +3064,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* Mirror the new-session `|` divider between repo-config chips:
- * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
- * a 1px-wide bar in the gap to the chip's left. */
-.automation-form-prompt-host .automation-form-isolation-group .automation-form-branch-picker-slot {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {

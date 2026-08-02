@@ -178,12 +178,26 @@ export interface IChatUsage {
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	/**
+	 * The Copilot credit cost of whatever this usage describes — a turn's own
+	 * cost on a response's usage, a sub-agent's component cost on a sub-agent's.
+	 * Scoped to its container, so summing it across responses is only ever a
+	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
+	 */
 	copilotCredits?: number;
 	/**
 	 * Whole-turn token consumption per model, when the provider reports it.
 	 * Only agent host sessions supply this today.
 	 */
 	modelTotals?: readonly IChatUsageModelTotal[];
+	/**
+	 * The whole session's Copilot credit cost as reported by the backend, rather
+	 * than summed from the individual turns. Unlike {@link copilotCredits} this
+	 * deliberately describes more than its container: it is authoritative when
+	 * present, and covers work billed outside any turn (e.g. a compaction that
+	 * ran between turns). Not every backend reports it.
+	 */
+	sessionCopilotCredits?: number;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers
@@ -507,14 +521,18 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
-	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	/** True when accepted/answered outside the carousel UI, such as by voice or automatic reply. */
 	answeredExternally?: boolean;
+	/** True when Copilot supplied the answer through automatic reply. */
+	autoReply?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
 	/** Terminal ID when the carousel was triggered by a terminal needing input */
 	terminalId?: string;
+	/** Visual treatment for the answered state. */
+	answerPresentation?: 'conversation';
 	kind: 'questionCarousel';
 }
 
@@ -600,6 +618,14 @@ export interface IChatHookPart {
 	metadata?: { readonly [key: string]: unknown };
 	/** If set, this hook was executed within a subagent invocation and should be grouped with it. */
 	subAgentInvocationId?: string;
+}
+
+export type ChatVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export interface IChatVoiceProgressPart {
+	readonly kind: 'voiceProgress';
+	readonly id: ChatVoiceProgressStage;
+	readonly value: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -1469,6 +1495,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatThinkingPart
+	| IChatVoiceProgressPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
@@ -1808,6 +1835,7 @@ export interface IRemotePendingRequest {
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
+	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
 	/**
 	 * The configuration (e.g. context size, thinking effort) for the selected
