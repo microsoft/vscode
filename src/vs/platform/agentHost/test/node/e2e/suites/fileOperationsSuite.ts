@@ -437,6 +437,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		);
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-spaces', prompt, 1);
 		assert.match(result.responseText, /SPACED_VALUE/);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-spaces',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/SPACED_VALUE/],
+			success: true,
+		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 }

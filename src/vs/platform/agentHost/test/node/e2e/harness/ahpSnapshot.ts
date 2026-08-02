@@ -76,6 +76,7 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
 	readonly omitToolCallSuccessForToolNames?: readonly string[];
 }
 
@@ -374,7 +375,7 @@ function projectAction(
 		}
 		case ActionType.ChatToolCallStart: {
 			const toolName = normalizeShellToolName(action.toolName);
-			toolCallNames.set(action.toolCallId, toolName);
+			toolCallNames.set(action.toolCallId, action.toolName);
 			return {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
