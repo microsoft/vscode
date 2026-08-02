@@ -43,11 +43,10 @@ const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
 	|| process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 
 /**
- * Mirrors the `testFamilies` list in the extension's `agentPrompt.spec.tsx` so
- * both prompt surfaces are compared over the same set. Several families share a
- * baseline — the five claude entries are byte-identical — but the axis is not the
- * dialect: the seven responses families split four ways. They are kept per family
- * so a future divergence names the family that introduced it.
+ * Includes the model families covered by the extension's `agentPrompt.spec.tsx`
+ * plus newer families supported by the Agent Host. Several families share a
+ * baseline, but they are kept per family so a future divergence names the family
+ * that introduced it.
  *
  * Adding one takes an entry here, an entry in `capiStubs.ts` (a model missing
  * from `/models` is rejected before the CLI builds a request), a fixture in
@@ -64,11 +63,18 @@ const SNAPSHOT_MODELS = [
 	'gpt-5.1',
 	'gpt-5.1-codex',
 	'gpt-5.1-codex-mini',
+	'gpt-5.6-sol',
+	'gpt-5.6-luna',
+	'gpt-5.6-terra',
 	'claude-haiku-4.5',
 	'claude-sonnet-4.5',
 	'claude-opus-4.5',
 	'claude-sonnet-4.6',
 	'claude-opus-4.6',
+	'claude-opus-4.7',
+	'claude-opus-4.8',
+	'claude-sonnet-5',
+	'claude-opus-5',
 	'gemini-2.0-flash',
 ] as const;
 
@@ -222,11 +228,14 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 }
 
 interface IWireTool {
+	readonly type?: string;
 	readonly name?: string;
 	readonly description?: string;
 	/** Anthropic Messages spells the schema `input_schema`; Responses uses `parameters`. */
 	readonly input_schema?: unknown;
 	readonly parameters?: unknown;
+	/** Responses custom tools describe free-form input with a grammar or text format. */
+	readonly format?: unknown;
 }
 
 interface IWireRequest {
@@ -250,11 +259,17 @@ function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
 	const system = extractText(request.instructions ?? request.system);
 	const tools = request.tools ?? [];
+	const messages = readMessages(request);
+	const toolWithoutInputDefinition = tools.find(tool => tool.input_schema === undefined && tool.parameters === undefined && tool.format === undefined);
+	const emptyMessage = messages.find(message => message.text.length === 0);
 
 	// An unrecognized wire shape reads as empty rather than throwing, which once
 	// pinned a 12-character prompt and no tools for a whole family, green.
 	assert.ok(system.length > 0, 'the model request carried no system prompt — the wire shape likely changed');
 	assert.ok(tools.length > 0, 'the model request carried no tool definitions — the wire shape likely changed');
+	assert.ok(!toolWithoutInputDefinition, `the '${toolWithoutInputDefinition?.name ?? '(unnamed)'}' tool carried no input definition — the wire shape likely changed`);
+	assert.ok(messages.length > 0, 'the model request carried no turn messages — the wire shape likely changed');
+	assert.ok(!emptyMessage, `the '${emptyMessage?.role ?? 'unknown'}' turn message was empty — the wire shape likely changed`);
 
 	const lines: string[] = [];
 
@@ -275,24 +290,21 @@ function formatPromptSnapshot(rawBody: string): string {
 		if (tool.description) {
 			lines.push(tool.description);
 		}
-		const schema = tool.input_schema ?? tool.parameters;
-		if (schema) {
+		const inputDefinition = tool.input_schema ?? tool.parameters ?? tool.format;
+		if (inputDefinition) {
 			lines.push('```json');
-			lines.push(JSON.stringify(schema, null, 2));
+			lines.push(JSON.stringify(inputDefinition, null, 2));
 			lines.push('```');
 		}
 		lines.push('');
 	}
 
-	const messages = readMessages(request);
-	if (messages.length > 0) {
-		lines.push(`### Messages (${messages.length})`);
+	lines.push(`### Messages (${messages.length})`);
+	lines.push('');
+	for (const message of messages) {
+		lines.push(`#### [${message.role}]`);
+		lines.push(message.text);
 		lines.push('');
-		for (const message of messages) {
-			lines.push(`#### [${message.role}]`);
-			lines.push(message.text);
-			lines.push('');
-		}
 	}
 
 	return normalizeVolatile(lines.join('\n'));
@@ -301,7 +313,7 @@ function formatPromptSnapshot(rawBody: string): string {
 /** Reads the turn's messages from whichever dialect the request uses. */
 function readMessages(request: IWireRequest): { role: string; text: string }[] {
 	if (request.messages) {
-		return request.messages.map(message => ({ role: message.role ?? 'unknown', text: extractText(message.content) }));
+		return request.messages.map(message => ({ role: message.role ?? 'unknown', text: extractMessageContent(message.content) }));
 	}
 	if (typeof request.input === 'string') {
 		return [{ role: 'user', text: request.input }];
@@ -319,19 +331,43 @@ function readMessages(request: IWireRequest): { role: string; text: string }[] {
 		switch (item.type) {
 			case undefined:
 			case 'message':
-				messages.push({ role: item.role ?? 'user', text: extractText(item.content) });
+				messages.push({ role: item.role ?? 'user', text: extractMessageContent(item.content) });
 				break;
 			case 'function_call':
 				messages.push({ role: 'assistant', text: `[tool_use ${item.name ?? '(unnamed)'}] ${item.arguments ?? ''}` });
 				break;
 			case 'function_call_output':
-				messages.push({ role: 'user', text: `[tool_result] ${extractText(item.output)}` });
+				messages.push({ role: 'user', text: `[tool_result] ${extractMessageContent(item.output)}` });
 				break;
 			default:
 				break;
 		}
 	}
 	return messages;
+}
+
+/** Formats text and structured tool blocks without retaining volatile tool-call ids. */
+function extractMessageContent(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content.map(extractMessageContent).filter(Boolean).join('\n');
+	}
+	if (!content || typeof content !== 'object') {
+		return '';
+	}
+	const block = content as { type?: string; text?: unknown; name?: unknown; input?: unknown; content?: unknown };
+	if (typeof block.text === 'string') {
+		return block.text;
+	}
+	if (block.type === 'tool_use') {
+		return `[tool_use ${typeof block.name === 'string' ? block.name : '(unnamed)'}] ${JSON.stringify(block.input ?? {})}`;
+	}
+	if (block.type === 'tool_result') {
+		return `[tool_result] ${extractMessageContent(block.content)}`;
+	}
+	return Object.keys(block).length > 0 ? JSON.stringify(block) : '';
 }
 
 /** Flattens a string, a content-block list, or a single block down to its text. */
@@ -369,3 +405,20 @@ function normalizeVolatile(text: string): string {
 		.replace(/\(\d+ models available\)/g, '(${model_count} models available)')
 		.replace(/(Available models:)(?:\\n {2}- '[^']*' \([^)]*\)[^\\"]*)+/g, '$1${model_catalog}');
 }
+
+suite('Copilot prompt snapshot formatting', () => {
+	test('retains structured Anthropic message content', () => {
+		const snapshot = formatPromptSnapshot(JSON.stringify({
+			model: 'claude-opus-5',
+			system: 'System prompt',
+			tools: [{ name: 'example', input_schema: { type: 'object' } }],
+			messages: [{
+				role: 'assistant',
+				content: [{ type: 'tool_use', id: 'volatile-id', name: 'example', input: { value: 1 } }],
+			}],
+		}));
+
+		assert.ok(snapshot.includes('[tool_use example] {"value":1}'));
+		assert.ok(!snapshot.includes('volatile-id'));
+	});
+});

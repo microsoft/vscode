@@ -149,9 +149,6 @@ export class AhpSnapshotRecorder {
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
-						if (options.includeUsage === false && action.type === ActionType.ChatUsage) {
-							continue;
-						}
 						if (profile === 'behavior' && isBehaviorSnapshotNoise(action.type)) {
 							continue;
 						}
