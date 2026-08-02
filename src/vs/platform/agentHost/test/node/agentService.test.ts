@@ -5084,6 +5084,27 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a failed restore does not suppress later provisional GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = AgentSession.uri('copilot', 'failed-restore');
+				await assert.rejects(() => service.restoreSession(sessionResource), /Session not found on backend/);
+
+				await service.createSession({ provider: 'copilot', session: sessionResource });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					disposeCalls: copilotAgent.disposeSessionCalls.map(uri => uri.toString()),
+					releaseCalls: copilotAgent.releaseSessionCalls.length,
+				}, {
+					disposeCalls: [sessionResource.toString()],
+					releaseCalls: 0,
+				});
+			});
+		});
+
 		test('a first turn during the grace period prevents destructive GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				service.registerProvider(copilotAgent);
@@ -5100,6 +5121,52 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'the first turn must prevent pending destructive GC');
+				assert.strictEqual(copilotAgent.releaseSessionCalls.length, 0, 'a still-provisional provider session must not be released');
+				assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'a still-provisional provider session must remain observable');
+			});
+		});
+
+		test('a persisted draft keeps the provider-provisional session observable until materialization', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const persistedSessionDataService = createSessionDataService();
+				let hasDatabase = false;
+				const sessionDataService: ISessionDataService = {
+					...persistedSessionDataService,
+					openDatabase: session => {
+						hasDatabase = true;
+						return persistedSessionDataService.openDatabase(session);
+					},
+					tryOpenDatabase: session => hasDatabase ? persistedSessionDataService.tryOpenDatabase(session) : Promise.resolve(undefined),
+				};
+				const localAgent = new MockAgent('copilot');
+				localAgent.createSessionProvisional = true;
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					sessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const sessionResource = await localService.createSession({ provider: 'copilot' });
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.dispatchAction(
+					buildDefaultChatUri(sessionResource.toString()),
+					{ type: ActionType.ChatDraftChanged, draft: { text: 'keep this draft', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					releaseCalls: localAgent.releaseSessionCalls.length,
+					statePresent: localService.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					releaseCalls: 0,
+					statePresent: true,
+				});
 			});
 		});
 
@@ -5136,7 +5203,140 @@ suite('AgentService (node dispatcher)', () => {
 				localService.unsubscribe(sessionResource, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
-				assert.strictEqual(localAgent.disposeSessionCalls.length, 0, 'persisted sessions must not be GC-disposed');
+				assert.deepStrictEqual({
+					disposeCalls: localAgent.disposeSessionCalls.length,
+					releaseCalls: localAgent.releaseSessionCalls.length,
+					statePresent: localService.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					disposeCalls: 0,
+					releaseCalls: 0,
+					statePresent: true,
+				});
+			});
+		});
+
+		test('a stale duplicate provisional result cannot re-pin a materialized session', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				class MaterializingAgent extends MockAgent {
+					private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
+					readonly onDidMaterializeSession = this._onDidMaterialize.event;
+					private readonly _duplicateCreate = new DeferredPromise<IAgentCreateSessionResult>();
+					private createCount = 0;
+
+					override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+						if (this.createCount++ === 0) {
+							return { ...await super.createSession(config), provisional: true };
+						}
+						return this._duplicateCreate.p;
+					}
+
+					materialize(session: URI): void {
+						this._onDidMaterialize.fire({ session, workingDirectories: undefined, project: undefined });
+					}
+
+					completeDuplicateCreate(session: URI): void {
+						this._duplicateCreate.complete({ session, provisional: true });
+					}
+
+					override dispose(): void {
+						this._onDidMaterialize.dispose();
+						super.dispose();
+					}
+				}
+
+				const localAgent = new MaterializingAgent('copilot');
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					nullSessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const session = AgentSession.uri('copilot', 'materialization-race');
+				const sessionResource = await localService.createSession({ provider: 'copilot', session });
+				const duplicateCreate = localService.createSession({ provider: 'copilot', session });
+
+				localAgent.materialize(sessionResource);
+				localAgent.completeDuplicateCreate(sessionResource);
+				await duplicateCreate;
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					releaseCalls: localAgent.releaseSessionCalls.map(uri => uri.toString()),
+					statePresent: localService.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					releaseCalls: [sessionResource.toString()],
+					statePresent: false,
+				});
+			});
+		});
+
+		test('late materialization during disposal cannot affect a recreated session', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				class DisposalRaceAgent extends MockAgent {
+					private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
+					readonly onDidMaterializeSession = this._onDidMaterialize.event;
+					private readonly _firstDispose = new DeferredPromise<void>();
+
+					override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+						return { ...await super.createSession(config), provisional: true };
+					}
+
+					materialize(session: URI): void {
+						this._onDidMaterialize.fire({ session, workingDirectories: undefined, project: undefined });
+					}
+
+					completeFirstDispose(): void {
+						this._firstDispose.complete();
+					}
+
+					override async disposeSession(session: URI): Promise<void> {
+						if (this.disposeSessionCalls.length === 0) {
+							this.disposeSessionCalls.push(session);
+							return this._firstDispose.p;
+						}
+						return super.disposeSession(session);
+					}
+
+					override dispose(): void {
+						this._onDidMaterialize.dispose();
+						super.dispose();
+					}
+				}
+
+				const localAgent = new DisposalRaceAgent('copilot');
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					nullSessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const session = AgentSession.uri('copilot', 'dispose-materialization-race');
+				const sessionResource = await localService.createSession({ provider: 'copilot', session });
+				const disposing = localService.disposeSession(sessionResource);
+
+				localAgent.materialize(sessionResource);
+				localAgent.completeFirstDispose();
+				await disposing;
+				await localService.createSession({ provider: 'copilot', session });
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					disposeCalls: localAgent.disposeSessionCalls.map(uri => uri.toString()),
+					releaseCalls: localAgent.releaseSessionCalls.length,
+				}, {
+					disposeCalls: [session.toString(), session.toString()],
+					releaseCalls: 0,
+				});
 			});
 		});
 
@@ -5236,25 +5436,77 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('createSession on the same URI cancels a pending GC', () => {
-			// Models the reconnect path: client subscribes to a session,
-			// drops the subscription (GC armed), then re-issues
-			// `createSession` for the same URI before the grace expires.
-			// Without explicit cancellation, the timer would fire and
-			// dispose the just-revived session.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
-				const sessionResource = await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
-				service.addSubscriber(sessionResource, 'client-1');
-				service.unsubscribe(sessionResource, 'client-1');
+				const probeStarted = new DeferredPromise<void>();
+				const databaseProbe = new DeferredPromise<IReference<ISessionDatabase> | undefined>();
+				const sessionDataService: ISessionDataService = {
+					...nullSessionDataService,
+					tryOpenDatabase: async () => {
+						probeStarted.complete();
+						return databaseProbe.p;
+					},
+				};
+				const localAgent = new MockAgent('copilot');
+				localAgent.createSessionProvisional = true;
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					sessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const session = AgentSession.uri('copilot', 'recreate-test');
+				const sessionResource = await localService.createSession({ provider: 'copilot', session });
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
 
-				// Re-issue createSession mid-grace.
-				await new Promise(resolve => setTimeout(resolve, 5_000));
-				await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
-
-				// Wait past the original grace window. If GC wasn't
-				// cancelled by createSession, dispose would have fired.
 				await new Promise(resolve => setTimeout(resolve, 30_000));
-				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+				await probeStarted.p;
+				const recreate = localService.createSession({ provider: 'copilot', session });
+				databaseProbe.complete(undefined);
+				await recreate;
+				await Promise.resolve();
+
+				assert.strictEqual(localAgent.disposeSessionCalls.length, 0, 'createSession must cancel in-flight GC');
+			});
+		});
+
+		test('failed createSession on the same URI rearms pending GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				class FailingRecreateAgent extends MockAgent {
+					failCreate = false;
+
+					override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+						if (this.failCreate) {
+							throw new Error('create failed');
+						}
+						return { ...await super.createSession(config), provisional: true };
+					}
+				}
+
+				const localAgent = new FailingRecreateAgent('copilot');
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					nullSessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const session = AgentSession.uri('copilot', 'failed-recreate');
+				const sessionResource = await localService.createSession({ provider: 'copilot', session });
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				localAgent.failCreate = true;
+				await assert.rejects(() => localService.createSession({ provider: 'copilot', session }), /create failed/);
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual(localAgent.disposeSessionCalls.map(uri => uri.toString()), [session.toString()]);
 			});
 		});
 	});
