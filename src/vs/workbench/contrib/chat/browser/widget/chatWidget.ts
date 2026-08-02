@@ -2610,6 +2610,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			case ThinkingDisplayMode.Collapsed:
 			case ThinkingDisplayMode.CollapsedPreview:
 			case ThinkingDisplayMode.FixedScrolling:
+			case ThinkingDisplayMode.Scrolling:
 				return thinkingStyle;
 			default:
 				return ThinkingDisplayMode.FixedScrolling;

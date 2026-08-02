@@ -431,6 +431,94 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	suite('ThinkingDisplayMode.Scrolling', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Scrolling);
+		});
+
+		test('reasoning expands while streaming and collapses when finalized', () => {
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Analyzing**\nDetailed reasoning'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			const expandedWhileStreaming = !part.domNode.classList.contains('chat-used-context-collapsed');
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				expandedWhileStreaming,
+				collapsedWhenFinalized: part.domNode.classList.contains('chat-used-context-collapsed'),
+			}, {
+				expandedWhileStreaming: true,
+				collapsedWhenFinalized: true,
+			});
+		});
+
+		test('completed reasoning starts collapsed', () => {
+			const completePart = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Completed reasoning**'),
+				createMockRenderContext(true),
+				mockMarkdownRenderer,
+				true
+			));
+			const lookAheadCompletePart = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Look-ahead complete reasoning**'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				true
+			));
+
+			assert.deepStrictEqual({
+				complete: completePart.domNode.classList.contains('chat-used-context-collapsed'),
+				lookAheadComplete: lookAheadCompletePart.domNode.classList.contains('chat-used-context-collapsed'),
+			}, {
+				complete: true,
+				lookAheadComplete: true,
+			});
+		});
+
+		for (const testCase of [
+			{ name: 'streaming', isComplete: false, streamingCompleted: false },
+			{ name: 'completed', isComplete: true, streamingCompleted: true },
+			{ name: 'look-ahead complete', isComplete: false, streamingCompleted: true },
+		]) {
+			test(`${testCase.name} grouped items remain visible without a collapsible header`, () => {
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					createThinkingPart(),
+					createMockRenderContext(testCase.isComplete),
+					mockMarkdownRenderer,
+					testCase.streamingCompleted
+				));
+
+				mainWindow.document.body.appendChild(part.domNode);
+				disposables.add(toDisposable(() => part.domNode.remove()));
+				part.appendItem(() => ({ domNode: $('.test-tool', undefined, 'Tool call') }), 'test-tool');
+				part.finalizeTitleIfDefault();
+
+				assert.deepStrictEqual({
+					alwaysVisibleItems: part.domNode.classList.contains('chat-thinking-always-visible-items'),
+					collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+					hasHeader: !!part.domNode.querySelector(':scope > .chat-used-context-label'),
+					hasTool: !!part.domNode.querySelector('.test-tool'),
+				}, {
+					alwaysVisibleItems: true,
+					collapsed: false,
+					hasHeader: false,
+					hasTool: true,
+				});
+			});
+		}
+	});
+
 	suite('ThinkingDisplayMode.FixedScrolling', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.FixedScrolling);

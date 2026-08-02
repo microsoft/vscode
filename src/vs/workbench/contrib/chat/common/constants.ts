@@ -209,6 +209,7 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+	Scrolling = 'scrolling',
 }
 
 export enum CollapsedToolsDisplayMode {
