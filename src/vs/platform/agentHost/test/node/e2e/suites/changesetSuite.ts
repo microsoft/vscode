@@ -31,9 +31,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ChangesetOperationTargetKind } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
+import { buildDefaultChatUri, type SessionState } from '../../../../common/state/sessionState.js';
 import {
+	ChangesetKind,
 	buildBranchChangesetUri,
-	buildSessionChangesetUri,
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
 import { createRealSession, dispatchTurn, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
@@ -135,6 +136,16 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return action.files.find(file => fileUri(file).endsWith(`/${basename}`))!;
 	}
 
+	async function waitForTurnComplete(sessionUri: string, turnId: string): Promise<void> {
+		const chatUri = buildDefaultChatUri(sessionUri);
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
+			90_000,
+		);
+	}
+
 	async function waitForIdleResourceOnlyOperation(
 		channel: string,
 		operationId: string,
@@ -208,9 +219,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, `turn-${prefix}`, writeFileCommand('seed.txt', 'edited'), 1);
+		const turnId = `turn-${prefix}`;
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('seed.txt', 'edited'), 1);
 		const file = await waitForFileInChangeset(changeset, 'seed.txt');
 		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
+		await waitForTurnComplete(sessionUri, turnId);
 		return { workspace, changeset, file };
 	}
 
@@ -249,9 +262,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-changeset-add', writeFileCommand('added.txt', 'ADDED'), 1);
+		const turnId = 'turn-changeset-add';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('added.txt', 'ADDED'), 1);
 
 		const file = await waitForFileInChangeset(branchUri, 'added.txt');
+		await waitForTurnComplete(sessionUri, turnId);
 
 		// A newly added file has no before-side, and its diff counts the added
 		// line. Both come from git rather than from anything the tool reported,
@@ -276,9 +291,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-changeset-edit', writeFileCommand('seed.txt', 'edited'), 1);
+		const turnId = 'turn-changeset-edit';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('seed.txt', 'edited'), 1);
 
 		const file = await waitForFileInChangeset(branchUri, 'seed.txt');
+		await waitForTurnComplete(sessionUri, turnId);
 
 		// Unlike an added file, an edit to a committed file has a before-side —
 		// the committed revision — so the client can render a real diff.
@@ -298,8 +315,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-changeset-review', writeFileCommand('reviewme.txt', 'REVIEW'), 1);
+		const turnId = 'turn-changeset-review';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('reviewme.txt', 'REVIEW'), 1);
 		const file = await waitForFileInChangeset(branchUri, 'reviewme.txt');
+		await waitForTurnComplete(sessionUri, turnId);
 
 		// `changeset/filesReviewChanged` is the one client-dispatchable action
 		// on this channel: review state is the client's to own, and the server
@@ -330,7 +349,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-changeset-ops', writeFileCommand('operate.txt', 'OPERATE'), 1);
+		const turnId = 'turn-changeset-ops';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('operate.txt', 'OPERATE'), 1);
 
 		// Operations are what a client turns into affordances, and they are
 		// only offered once there is something to act on — a session with no
@@ -345,6 +365,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, 60_000);
 
 		const operations = (getActionEnvelope(notification).action as IContentChangedAction).operations ?? [];
+		await waitForTurnComplete(sessionUri, turnId);
 		assert.deepStrictEqual(operations.map(operation => ({ id: operation.id, scopes: operation.scopes })), [
 			{ id: 'commit', scopes: ['changeset'] },
 			{ id: 'discard-changes', scopes: ['resource'] },
@@ -403,23 +424,31 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}));
 	});
 
-	conformanceTest(context, 'the session advertises its changeset catalog on separate channels', async function () {
+	conformanceTest(context, 'a new session advertises its initial changeset catalog on a separate channel', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-catalog-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-catalog');
 
-		// Each changeset is its own channel. A client that subscribes only to
-		// the session never receives `changeset/*` actions, so the catalog is
-		// how it learns what else to subscribe to.
-		const subscribed = await Promise.all([
-			context.client.call<SubscribeResult>('subscribe', { channel: buildBranchChangesetUri(sessionUri) }),
-			context.client.call<SubscribeResult>('subscribe', { channel: buildUncommittedChangesetUri(sessionUri) }),
-			context.client.call<SubscribeResult>('subscribe', { channel: buildSessionChangesetUri(sessionUri) }),
-		]);
+		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const changesets = (session.snapshot!.state as SessionState).changesets ?? [];
+		const advertisedChannels = changesets.map(changeset => changeset.uriTemplate).filter(uri => !uri.includes('{'));
+		const subscribed = await Promise.all(advertisedChannels.map(channel =>
+			context.client.call<SubscribeResult>('subscribe', { channel })
+		));
 
-		assert.deepStrictEqual(subscribed.map(result => result.snapshot!.resource), [
-			buildBranchChangesetUri(sessionUri),
-			buildUncommittedChangesetUri(sessionUri),
-			buildSessionChangesetUri(sessionUri),
-		]);
+		assert.deepStrictEqual({
+			catalog: changesets.map(changeset => ({
+				changeKind: changeset.changeKind,
+				uriTemplate: changeset.uriTemplate,
+				canReview: changeset.capabilities?.review !== undefined,
+			})),
+			subscribedChannels: subscribed.map(result => result.snapshot!.resource),
+		}, {
+			catalog: [{
+				changeKind: ChangesetKind.Uncommitted,
+				uriTemplate: buildUncommittedChangesetUri(sessionUri),
+				canReview: false,
+			}],
+			subscribedChannels: advertisedChannels,
+		});
 	});
 }

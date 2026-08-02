@@ -55,7 +55,7 @@ export interface IAgentHostE2ETestContext {
 function registerHostOnlyTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled: boolean): void {
 	context.registerNoModelTrafficTest(title);
 	(enabled ? test : test.skip)(title, function () {
-		this.timeout(60_000);
+		this.timeout(120_000);
 		return run.call(this);
 	});
 }
