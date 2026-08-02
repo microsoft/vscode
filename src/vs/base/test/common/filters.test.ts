@@ -545,7 +545,7 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
-	test.skip('Bad completion ranking changes valid variable name to class name when pressing "." #187055', function () {
+	test('Bad completion ranking changes valid variable name to class name when pressing "." #187055', function () {
 		assertTopScore(fuzzyScore, 'a', 1, 'A', 'a');
 		assertTopScore(fuzzyScore, 'theme', 1, 'Theme', 'theme');
 	});
