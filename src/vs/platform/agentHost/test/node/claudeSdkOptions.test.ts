@@ -91,7 +91,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
 		assert.deepStrictEqual(env, {
 			CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-			OTEL_SERVICE_NAME: 'claude',
+			OTEL_SERVICE_NAME: 'claude-code',
 			OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=vscode.agent-host,region=west%20us',
 			CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
 			OTEL_TRACES_EXPORTER: 'otlp',

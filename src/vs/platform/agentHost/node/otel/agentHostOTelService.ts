@@ -425,12 +425,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		for (const resourceSpan of payload.resourceSpans ?? []) {
 			const attributes = resourceSpan.resource ??= {};
 			const values = attributes.attributes ??= [];
-			const serviceName = values.find(attribute => attribute.key === 'service.name')?.value?.stringValue;
-			const normalizedName = serviceName === 'claude-code' ? 'claude' : serviceName === 'codex-app-server' ? 'codex' : serviceName;
 			upsertResourceAttribute(values, 'service.namespace', AgentHostOTelServiceNamespace);
-			if (normalizedName) {
-				upsertResourceAttribute(values, 'service.name', normalizedName);
-			}
 		}
 		return Buffer.from(JSON.stringify(payload));
 	}

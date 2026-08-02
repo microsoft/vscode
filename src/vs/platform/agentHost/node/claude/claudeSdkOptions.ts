@@ -251,7 +251,7 @@ export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | und
 	}
 	const env: Record<string, string> = {
 		CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-		OTEL_SERVICE_NAME: 'claude',
+		OTEL_SERVICE_NAME: 'claude-code',
 		OTEL_RESOURCE_ATTRIBUTES: serializeResourceAttributes(config.resourceAttributes),
 		CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: config.traces ? '1' : '0',
 		OTEL_TRACES_EXPORTER: config.traces ? 'otlp' : 'none',

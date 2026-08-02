@@ -35,7 +35,7 @@ suite('CodexLaunchConfig', () => {
 			captureContent: false,
 			resourceAttributes: { 'service.namespace': 'vscode.agent-host', region: 'west us' },
 		});
-		assert.strictEqual(config.env.OTEL_SERVICE_NAME, 'codex');
+		assert.strictEqual(config.env.OTEL_SERVICE_NAME, undefined);
 		assert.strictEqual(config.env.OTEL_RESOURCE_ATTRIBUTES, 'service.namespace=vscode.agent-host,region=west%20us');
 		assert.ok(config.args.includes('otel.log_user_prompt=false'));
 		assert.ok(config.args.includes('otel.trace_exporter={ otlp-http = { endpoint = "http://127.0.0.1:4567/v1/traces", protocol = "json" } }'));

@@ -74,12 +74,12 @@ Agent Host is one logical system with several native OTel producers. Agent Host-
 |---|---|
 | Host session/title metadata | `vscode-agent-host` (unless the host has an explicit service-name override) |
 | Copilot runtime | `github-copilot` |
-| Claude runtime | `claude` |
-| Codex app-server | `codex` for traces normalized at the Agent Host receiver |
+| Claude runtime | `claude-code` |
+| Codex app-server | `codex-app-server` |
 
 Unrelated inherited resource attributes are preserved. A conflicting inherited `service.namespace` is replaced only inside Agent Host-owned telemetry and provider launch environments; no global VS Code namespace is set. Provider launch environments do not inherit a host `OTEL_SERVICE_NAME`.
 
-Claude honors these standard resource variables for traces, logs, and metrics. The current Codex app-server hardcodes `codex-app-server` and does not consume standard resource overrides for its direct logs/metrics; Agent Host therefore normalizes intercepted Codex traces, while direct Codex logs/metrics retain their upstream identity until Codex adds standard resource override support.
+Claude honors these standard resource variables for traces, logs, and metrics while retaining its native `claude-code` service name. The current Codex app-server hardcodes `codex-app-server` and does not consume standard resource overrides; Agent Host preserves that native name and adds the shared namespace to intercepted traces. Direct Codex logs/metrics cannot carry the namespace until Codex adds standard resource-attribute support.
 
 ## Distributed Trace Context
 

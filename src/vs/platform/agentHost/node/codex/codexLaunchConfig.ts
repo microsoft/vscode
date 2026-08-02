@@ -48,7 +48,7 @@ export function buildCodexLaunchConfig(
 	}
 	const env: NodeJS.ProcessEnv = { ...inheritedEnv, [AiAgentEnvVar]: AiAgentEnvValue };
 	if (telemetry) {
-		env.OTEL_SERVICE_NAME = 'codex';
+		delete env.OTEL_SERVICE_NAME;
 		env.OTEL_RESOURCE_ATTRIBUTES = serializeResourceAttributes(telemetry.resourceAttributes);
 	}
 	if (proxy) {
