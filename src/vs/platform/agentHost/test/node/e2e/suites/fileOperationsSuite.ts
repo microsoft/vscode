@@ -20,23 +20,31 @@ function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | und
 	return typeof value === 'string' ? value : value?.markdown;
 }
 
+const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
+
+function fileOperationPrompt(
+	context: IAgentHostE2ETestContext,
+	fileToolsPrompt: string,
+	shellCommand: string,
+	shellFollowup: string,
+	strategy = context.config.fileOperationStrategy,
+): string {
+	if (strategy === 'fileTools') {
+		return fileToolsPrompt;
+	}
+	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
+}
+
+function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc): void {
+	const enabled = context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled;
+	(enabled ? test : test.skip)(title, run);
+}
+
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, supportsFileTools, stableSharedServerFileScenarios } = context;
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled } = context;
 	const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
-	/**
-	 * Steers the agent toward its own file tools instead of a shell command.
-	 *
-	 * These tests assert that a *file operation* happened, not that a shell ran.
-	 * Left to choose, providers diverge: Claude and Codex already reach for their
-	 * file tools here, while Copilot reaches for `bash` — and whichever POSIX
-	 * command it happens to emit is then frozen into the fixture and cannot
-	 * replay on Windows. Asking for the file tool removes the platform coupling
-	 * and exercises the more meaningful path.
-	 */
-	const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
-	// Expected to pass. Copilot never completed this turn during recording; Codex
-	// has no file tools, so it cannot honor this prompt's steer away from the shell.
-	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('reads an existing text file', async function () {
+
+	fileOperationTest(context, 'reads an existing text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-read-'));
 		tempDirs.push(workspace);
@@ -44,12 +52,18 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		const sessionUri = await createRealSession(context.client, config, `coverage-read-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-read', 'Read note.txt and reply with its exact contents only.', 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Read note.txt and reply with its exact contents only.${config.provider === 'copilotcli' ? PREFER_FILE_TOOLS : ''}`,
+			`node -e "process.stdout.write(require('fs').readFileSync('note.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-read', prompt, 1);
 		assert.match(result.responseText, /ALPHA BETA GAMMA/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(supportsFileTools ? test : test.skip)('reads a file from a nested directory', async function () {
+	fileOperationTest(context, 'reads a file from a nested directory', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-read-'));
 		tempDirs.push(workspace);
@@ -58,12 +72,18 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		const sessionUri = await createRealSession(context.client, config, `coverage-nested-read-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-read', `Read nested/value.txt and reply with its exact contents only.${PREFER_FILE_TOOLS}`, 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Read nested/value.txt and reply with its exact contents only.${PREFER_FILE_TOOLS}`,
+			`node -e "process.stdout.write(require('fs').readFileSync('nested/value.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-read', prompt, 1);
 		assert.match(result.responseText, /NESTED_VALUE_42/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
+	(portableShellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-list-'));
 		tempDirs.push(workspace);
@@ -82,7 +102,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(supportsFileTools && config.streamingFileCreateToolName ? test : test.skip)('streams rich file creation progress without exposing partial input', async function () {
+	(config.streamingFileCreateToolName ? test : test.skip)('streams rich file creation progress without exposing partial input', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-streaming-create-'));
 		tempDirs.push(workspace);
@@ -128,9 +148,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		});
 	});
 
-	// Copilot never completes the replayed turn; Codex has no file tools, so it
-	// cannot honor this prompt's steer away from the shell.
-	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('reads a value from JSON', async function () {
+	fileOperationTest(context, 'reads a value from JSON', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-json-'));
 		tempDirs.push(workspace);
@@ -138,14 +156,18 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const sessionUri = await createRealSession(context.client, config, `coverage-json-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-json', 'Read config.json and reply with the numeric value of "answer" only.', 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Read config.json and reply with the numeric value of "answer" only.${config.provider === 'copilotcli' ? PREFER_FILE_TOOLS : ''}`,
+			`node -e "console.log(JSON.parse(require('fs').readFileSync('config.json','utf8')).answer)"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-json', prompt, 1);
 		assert.match(result.responseText, /\b42\b/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Codex has no file tools, so it cannot honor this prompt's steer away from
-	// the shell — it answers from guesswork instead of reading the file.
-	(supportsFileTools && portableShellToolReplayEnabled ? test : test.skip)('counts lines in a file', async function () {
+	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-lines-'));
 		tempDirs.push(workspace);
@@ -157,38 +179,56 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const sessionUri = await createRealSession(context.client, config, `coverage-lines-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-lines', `Count the lines in lines.txt and reply with the number only.${PREFER_FILE_TOOLS}`, 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Count the lines in lines.txt and reply with the number only.${PREFER_FILE_TOOLS}`,
+			`node -e "console.log(require('fs').readFileSync('lines.txt','utf8').split(/\\r?\\n/).length)"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-lines', prompt, 1);
 		assert.match(result.responseText, /\b4\b/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(supportsFileTools ? test : test.skip)('handles a missing file without a session error', async function () {
+	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-missing-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-missing-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-missing', `Try to read missing.txt. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`, 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Try to read missing.txt. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`,
+			`node -e "console.log(require('fs').existsSync('missing.txt')?'present':'missing')"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-missing', prompt, 1);
 		assert.match(result.responseText, /missing/i);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Copilot does not consistently emit tool completion for this scenario.
-	(supportsFileTools && stableSharedServerFileScenarios && config.provider !== 'copilotcli' ? test : test.skip)('creates a new text file', async function () {
+	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-create-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-create', 'Create result.txt containing exactly CREATED_VALUE.', 1);
+		const prompt = fileOperationPrompt(
+			context,
+			'Create result.txt containing exactly CREATED_VALUE.',
+			`node -e "require('fs').writeFileSync('result.txt','CREATED_VALUE')"`,
+			'Then reply exactly "done".',
+			// Copilot does not consistently emit completion for its native create tool.
+			config.provider === 'copilotcli' ? 'shell' : config.fileOperationStrategy,
+		);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-create', prompt, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'result.txt'), 'utf8'), 'CREATED_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Copilot never completes this turn.
-	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('edits an existing text file', async function () {
+	fileOperationTest(context, 'edits an existing text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-edit-'));
 		tempDirs.push(workspace);
@@ -196,13 +236,20 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const sessionUri = await createRealSession(context.client, config, `coverage-edit-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-edit', `Replace the complete contents of edit.txt with AFTER_VALUE.${PREFER_FILE_TOOLS}`, 1);
+		const prompt = fileOperationPrompt(
+			context,
+			`Replace the complete contents of edit.txt with AFTER_VALUE.${PREFER_FILE_TOOLS}`,
+			`node -e "require('fs').writeFileSync('edit.txt','AFTER_VALUE')"`,
+			'Then reply exactly "done".',
+			// Copilot searches with a POSIX-only shell command despite the file-tool instruction.
+			config.provider === 'copilotcli' ? 'shell' : config.fileOperationStrategy,
+		);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-edit', prompt, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'edit.txt'), 'utf8'), 'AFTER_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Copilot's fixture uses a POSIX shell.
-	(stableSharedServerFileScenarios ? test : test.skip)('creates a file in a new nested directory', async function () {
+	(portableShellToolReplayEnabled ? test : test.skip)('creates a file in a new nested directory', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-create-'));
 		tempDirs.push(workspace);
@@ -219,7 +266,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
+	(portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-rename-'));
 		tempDirs.push(workspace);
@@ -238,8 +285,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Copilot never completed this turn.
-	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('deletes a workspace file', async function () {
+	(portableShellToolReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);
@@ -255,7 +301,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('runs a deterministic shell command', async function () {
+	(portableShellToolReplayEnabled ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
 		tempDirs.push(workspace);
@@ -291,7 +337,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableSharedServerFileScenarios ? test : test.skip)('reads a filename containing spaces', async function () {
+	fileOperationTest(context, 'reads a filename containing spaces', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-spaces-'));
 		tempDirs.push(workspace);
@@ -299,7 +345,13 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const sessionUri = await createRealSession(context.client, config, `coverage-spaces-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-spaces', 'Read "file with spaces.txt" and reply with its exact contents only.', 1);
+		const prompt = fileOperationPrompt(
+			context,
+			'Read "file with spaces.txt" and reply with its exact contents only.',
+			`node -e "process.stdout.write(require('fs').readFileSync('file with spaces.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-spaces', prompt, 1);
 		assert.match(result.responseText, /SPACED_VALUE/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});

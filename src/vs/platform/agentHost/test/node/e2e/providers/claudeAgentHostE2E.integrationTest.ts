@@ -59,6 +59,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
 	streamingFileCreateToolName: 'Write',
@@ -85,7 +86,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// The Claude SDK currently receives the AHP turn id as upToMessageId and
 	// rejects it as invalid when the fork is exercised against a real transcript.
 	supportsChatForkE2E: false,
-	supportsFileTools: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

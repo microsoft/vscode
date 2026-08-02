@@ -945,6 +945,102 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(state.currentTurnId, undefined);
 	});
 
+	test('turn/completed infers a dropped command completion from the following response', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_1')!.toolCallId;
+		const responseStarted = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		const responseDelta = mapAgentMessageDelta(state, {
+			threadId: 'thr_1', turnId: 'turn_a', itemId: 'msg_1', delta: 'done',
+		});
+		assert.deepStrictEqual({ responseStarted, responseDelta }, { responseStarted: [], responseDelta: [] });
+
+		const partId = state.itemToPartId.get('msg_1')!;
+		const notification = {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a', items: [], itemsView: 'notLoaded' as const, status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		};
+		const actions = mapTurnCompleted(state, notification);
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: { success: true, pastTenseMessage: 'Ran shell', content: undefined, error: undefined },
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: '' } },
+			{ type: ActionType.ChatDelta, turnId: 'turn_a', partId, content: 'done' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
+	test('turn/completed does not infer success for an unresolved non-shell tool', () => {
+		const state = createCodexSessionMapState();
+		state.itemToToolCall.set('tool_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'web_search', output: '' });
+		mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		const partId = state.itemToPartId.get('msg_1')!;
+
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a', items: [], itemsView: 'notLoaded' as const, status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		});
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId: 'tc_1',
+				result: { success: false, pastTenseMessage: 'Stopped web_search', content: undefined, error: { message: 'Turn completed before the tool reported completion' } },
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: '' } },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
+	test('turn/completed does not infer success for a declined shell tool', () => {
+		const state = createCodexSessionMapState();
+		state.itemToToolCall.set('cmd_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'shell', output: '' });
+		state.declinedToolCalls.add('tc_1');
+		mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		const partId = state.itemToPartId.get('msg_1')!;
+
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a', items: [], itemsView: 'notLoaded' as const, status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		});
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId: 'tc_1',
+				result: { success: false, pastTenseMessage: 'Stopped shell', content: undefined, error: { message: 'Turn completed before the tool reported completion' } },
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: '' } },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
 	test('turn/completed completes orphaned tool calls before completing the turn', () => {
 		const state = createCodexSessionMapState();
 		state.itemToToolCall.set('cmd_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'shell', output: 'partial output' });

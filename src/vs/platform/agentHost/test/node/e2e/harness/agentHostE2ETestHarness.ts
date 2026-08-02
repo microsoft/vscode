@@ -255,6 +255,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * `Bash` for Claude.)
 	 */
 	readonly shellToolName: string;
+	/** How file-operation scenarios should drive this provider. */
+	readonly fileOperationStrategy: 'fileTools' | 'shell';
 	/**
 	 * Tool names the provider uses to dispatch a subagent. The first entry
 	 * is used in the subagent-routing prompt; all entries are exempted from
@@ -314,28 +316,6 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/**
-	 * Whether this provider offers file-reading/writing tools of its own.
-	 *
-	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
-	 * tools; do not run a shell command.") cannot be satisfied by a provider
-	 * that only has a shell: it refuses the operation rather than falling back.
-	 * Codex is the current example — its captures contain only `exec_command`.
-	 *
-	 * Scenarios that pin a portable shell command instead are unaffected.
-	 */
-	readonly supportsFileTools: boolean;
-	/**
-	 * Whether this provider's file-manipulation scenarios replay stably when the
-	 * whole suite shares one server.
-	 *
-	 * A provider without file tools performs each of them through its shell, and
-	 * several such turns on one long-lived server hit the shared-server load
-	 * ceiling: the tool-call completion is reported inconsistently and the
-	 * failing scenario moves between runs. Individually they replay fine, so
-	 * this gates the family rather than any single test.
-	 */
-	readonly stableSharedServerFileScenarios?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
