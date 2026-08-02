@@ -21,7 +21,7 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
-	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. Off by default. */
+	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
