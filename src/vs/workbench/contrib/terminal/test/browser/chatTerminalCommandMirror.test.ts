@@ -36,10 +36,9 @@ const defaultTerminalConfig = {
  * tests can inspect the resulting buffer and count resize/write calls. The fixed font metrics
  * (charWidth 10, letterSpacing 0) make width-to-cols math deterministic on any machine.
  */
-function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions) {
+function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions, font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 }) {
 	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
 	const counters = { resizeCalls: 0, writeCalls: 0 };
-	const font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
 	const instance = {
 		xterm: {
 			raw,
@@ -970,6 +969,85 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const { resizeCalls, writeCalls } = { ...fakes[0].counters };
 			await mirror.layout(1224);
 			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
+		});
+	});
+
+	suite('getRowHeightPx', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+		let nextFont: ITerminalFont | undefined;
+
+		setup(async () => {
+			const configurationService = new TestConfigurationService({
+				editor: {
+					fastScrollSensitivity: 2,
+					mouseWheelScrollSensitivity: 1
+				} as Partial<IEditorOptions>,
+				files: {},
+				terminal: {
+					integrated: defaultTerminalConfig
+				},
+			});
+			instantiationService = workbenchInstantiationService({
+				configurationService: () => configurationService
+			}, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			nextFont = undefined;
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options, nextFont);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		function createSnapshotMirror(output: { text: string } | undefined): DetachedTerminalSnapshotMirror {
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+		}
+
+		async function createLaidOutCommandMirror(): Promise<DetachedTerminalCommandMirror> {
+			const capabilities = store.add(new TerminalCapabilityStore());
+			const source = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 10,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+			const mirror = store.add(instantiationService.createInstance(DetachedTerminalCommandMirror, source, {} as ITerminalCommand));
+			// layout creates the detached terminal without needing a rendered command
+			await mirror.layout(1224);
+			return mirror;
+		}
+
+		test('snapshot mirror reports the mirror cell height once the terminal exists', async () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.render();
+			// charHeight 14 × lineHeight 1 from the fake font
+			strictEqual(mirror.getRowHeightPx(), 14);
+		});
+
+		test('snapshot mirror reports undefined before the detached terminal resolves', () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			strictEqual(mirror.getRowHeightPx(), undefined);
+		});
+
+		test('uses the exact fractional cell height without per-row rounding', async () => {
+			// The DOM renderer paints each row at the exact css cell height; ceiling the
+			// per-row value would accumulate across rows and slice the last row
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1.1, charWidth: 10, charHeight: 14.4 };
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.render();
+			strictEqual(mirror.getRowHeightPx(), 14.4 * 1.1);
+		});
+
+		test('command mirror reports the mirror cell height', async () => {
+			const mirror = await createLaidOutCommandMirror();
+			strictEqual(mirror.getRowHeightPx(), 14);
 		});
 	});
 });
