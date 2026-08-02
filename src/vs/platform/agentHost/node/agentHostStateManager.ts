@@ -34,15 +34,17 @@ export interface IAgentHostStateManagerOptions {
 }
 
 /**
- * How a session's cached state came to exist in this process.
+ * Whether a session is still an unused draft: minted by this process and never
+ * used. Only such a session is safe to destroy automatically.
  *
- * This is about *origin*, not current contents: callers that are about to
- * destroy user data must key off this rather than off observable emptiness,
- * because an empty-looking state is also what a failed history load produces.
+ * Deliberately not derived from the current turn count. An empty session is
+ * also what a failed history load produces, and what a truncate-to-zero leaves
+ * behind — neither means the session is disposable. The flag latches to `false`
+ * on first use and never returns to `true`.
  */
-export const enum SessionProvenance {
-	Created = 'created',
-	Restored = 'restored',
+const enum SessionUse {
+	UnusedDraft,
+	Used,
 }
 
 /**
@@ -61,8 +63,8 @@ interface ISessionEntry {
 	modifiedAt: string;
 	/** Aggregate file-change counts for the session-wide changeset. Catalog-only. */
 	changes?: ChangesSummary;
-	/** How this entry came to exist. */
-	readonly provenance: SessionProvenance;
+	/** Whether this session is still an unused draft. Latches to `Used`. */
+	use: SessionUse;
 }
 
 /**
@@ -333,16 +335,28 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Returns how the cached state for a session came to exist, or `undefined`
-	 * when the session is not currently in state. Accepts either a session URI
-	 * or one of its chat channel URIs.
+	 * Whether a session is still an unused draft minted by this process, or
+	 * `undefined` when the session is not currently in state. Accepts either a
+	 * session URI or one of its chat channel URIs.
+	 *
+	 * Callers about to destroy durable data must use this rather than checking
+	 * whether the session currently looks empty.
 	 */
-	getSessionProvenance(sessionOrChat: URI): SessionProvenance | undefined {
+	isUnusedDraft(sessionOrChat: URI): boolean | undefined {
 		const session = this._resolveOwningSession(sessionOrChat);
 		if (session === undefined) {
 			return undefined;
 		}
-		return this._sessionStates.get(session)?.provenance;
+		const entry = this._sessionStates.get(session);
+		return entry && entry.use === SessionUse.UnusedDraft;
+	}
+
+	/** Permanently marks a session as used, so it is never auto-collected. */
+	private _markSessionUsed(session: URI): void {
+		const entry = this._sessionStates.get(session);
+		if (entry) {
+			entry.use = SessionUse.Used;
+		}
 	}
 
 	private _resolveOwningSession(sessionOrChat: URI): URI | undefined {
@@ -437,6 +451,9 @@ export class AgentHostStateManager extends Disposable {
 		const chatState = this._chatStates.get(buildDefaultChatUri(session));
 		if (chatState) {
 			chatState.turns = turns;
+		}
+		if (turns.length > 0) {
+			this._markSessionUsed(session);
 		}
 	}
 
@@ -587,7 +604,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		const state = createSessionState(summary);
-		this._sessionStates.set(key, this._newEntry(state, summary, SessionProvenance.Created));
+		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.UnusedDraft));
 		this._ensureDefaultChat(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
@@ -609,8 +626,8 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
-	private _newEntry(state: SessionState, summary: SessionSummary, provenance: SessionProvenance): ISessionEntry {
-		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, changes: summary.changes, provenance };
+	private _newEntry(state: SessionState, summary: SessionSummary, use: SessionUse): ISessionEntry {
+		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, changes: summary.changes, use };
 	}
 
 	/**
@@ -676,7 +693,7 @@ export class AgentHostStateManager extends Disposable {
 			...createSessionState(summary),
 			lifecycle: SessionLifecycle.Ready,
 		};
-		this._sessionStates.set(key, this._newEntry(state, summary, SessionProvenance.Restored));
+		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.Used));
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
 		this._summaryNotifier.announce(key, summary);
 
@@ -1348,6 +1365,11 @@ export class AgentHostStateManager extends Disposable {
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
+		// Any turn activity permanently retires the session's unused-draft
+		// status, so a later truncate-to-zero cannot make it look collectable.
+		if (next.turns.length > 0 || next.activeTurn) {
+			this._markSessionUsed(sessionKey);
+		}
 		// Active turn tracking — derive from the reducer's view of state,
 		// never from raw action turn-ids, so out-of-order lifecycle actions
 		// can't desync the count from reality. Track active turns per chat so a

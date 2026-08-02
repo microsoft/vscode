@@ -217,16 +217,10 @@ const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
 
 /**
  * Decide whether a Copilot SDK `resumeSession` failure should fall back to
- * `createSession({ sessionId })`, which starts a fresh session under the same
- * id and therefore presents the session as having no history.
- *
- * This is an **allowlist**: anything that doesn't positively state the session
- * is empty propagates. The inverse is unsafe because the fallback is the first
- * half of a data-loss sequence — the session comes back with zero turns, and
- * `AgentService`'s empty-session GC then deletes the SDK session, its data
- * directory, and its worktree. A transient `network fetch failed` is also a
- * `-32603`, so a denylist of corruption keywords turned "briefly offline" into
- * "session and worktree deleted".
+ * `createSession({ sessionId })`, which presents the session as having no
+ * history. Deliberately an allowlist: a fallback on an unrelated failure (a
+ * transient `network fetch failed` is also `-32603`) discards a live session's
+ * history and leaves it exposed to empty-session GC.
  */
 function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	if (getCopilotSdkErrorCode(err) !== -32603) {

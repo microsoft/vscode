@@ -31,7 +31,6 @@ import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind,
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { SessionProvenance } from '../../node/agentHostStateManager.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
@@ -5135,7 +5134,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a session restored during the grace window is not GC-disposed', () => {
 			// The rehydrated session is deliberately still empty, so that the
-			// turns check cannot be what saves it — only provenance can.
+			// turns check cannot be what saves it — only draft status can.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				service.registerProvider(copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
@@ -5146,11 +5145,34 @@ suite('AgentService (node dispatcher)', () => {
 				service.stateManager.deleteSession(sessionResource.toString());
 				copilotAgent.sessionMessages = [];
 				await service.restoreSession(sessionResource);
-				assert.strictEqual(service.stateManager.getSessionProvenance(sessionResource.toString()), SessionProvenance.Restored, 'precondition: session is now durable state');
+				assert.strictEqual(service.stateManager.isUnusedDraft(sessionResource.toString()), false, 'precondition: session is now durable state');
 
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a session restored mid-grace must not be GC-disposed');
+			});
+		});
+
+		test('a session truncated back to zero turns is not GC-disposed', () => {
+			// A session created in this process that has been used is durable
+			// data — its worktree holds real work — even though a truncate
+			// (checkpoint restore / first-message edit) empties its turns.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const chatUri = buildDefaultChatUri(sessionResource.toString());
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } }, 'client-1', 1);
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 }, 'client-1', 2);
+
+				// Truncate every turn away, then drop the last subscriber.
+				service.dispatchAction(chatUri, { type: ActionType.ChatTruncated }, 'client-1', 3);
+				assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString())?.turns.length, 0, 'precondition: session now looks empty');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a used session must not be GC-disposed after truncation');
 			});
 		});
 	});

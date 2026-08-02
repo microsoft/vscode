@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, type ChatState, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
-import { AgentHostStateManager, SessionProvenance } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
@@ -585,34 +585,75 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
 	});
 
-	suite('session provenance', () => {
+	suite('unused-draft tracking', () => {
 
-		test('reports how a session entered state, addressable by session or chat URI', () => {
+		test('reports draft status by origin, addressable by session or chat URI', () => {
 			const restoredUri = URI.from({ scheme: 'copilot', path: '/restored-session' }).toString();
 			manager.createSession(makeSessionSummary());
 			manager.restoreSession(makeSessionSummary(restoredUri), []);
 
 			assert.deepStrictEqual({
-				created: manager.getSessionProvenance(sessionUri),
-				createdViaChatUri: manager.getSessionProvenance(sessionChatUri),
-				restored: manager.getSessionProvenance(restoredUri),
-				restoredViaChatUri: manager.getSessionProvenance(buildDefaultChatUri(restoredUri)),
-				unknown: manager.getSessionProvenance(URI.from({ scheme: 'copilot', path: '/nope' }).toString()),
+				created: manager.isUnusedDraft(sessionUri),
+				createdViaChatUri: manager.isUnusedDraft(sessionChatUri),
+				restored: manager.isUnusedDraft(restoredUri),
+				restoredViaChatUri: manager.isUnusedDraft(buildDefaultChatUri(restoredUri)),
+				unknown: manager.isUnusedDraft(URI.from({ scheme: 'copilot', path: '/nope' }).toString()),
 			}, {
-				created: SessionProvenance.Created,
-				createdViaChatUri: SessionProvenance.Created,
-				restored: SessionProvenance.Restored,
-				restoredViaChatUri: SessionProvenance.Restored,
+				created: true,
+				createdViaChatUri: true,
+				restored: false,
+				restoredViaChatUri: false,
 				unknown: undefined,
 			});
 		});
 
-		test('a restored session that was first created keeps its Created provenance', () => {
+		test('a restored session that was first created is no longer a draft', () => {
 			// `restoreSession` short-circuits when the session is already in state.
 			manager.createSession(makeSessionSummary());
 			manager.restoreSession(makeSessionSummary(), []);
 
-			assert.strictEqual(manager.getSessionProvenance(sessionUri), SessionProvenance.Created);
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), true);
+		});
+
+		test('draft status is retired by a turn and does not come back on truncate', () => {
+			manager.createSession(makeSessionSummary());
+			const observed: (boolean | undefined)[] = [manager.isUnusedDraft(sessionUri)];
+
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			// Truncate-to-zero empties the chat but must not resurrect the draft.
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTruncated });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			assert.deepStrictEqual({
+				observed,
+				turnsAfterTruncate: manager.getDefaultChatState(sessionUri)?.turns.length,
+			}, {
+				observed: [true, false, false, false],
+				turnsAfterTruncate: 0,
+			});
+		});
+
+		test('seeding turns for a fork retires draft status', () => {
+			manager.createSession(makeSessionSummary());
+			manager.seedDefaultChatTurns(sessionUri, [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}]);
+
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), false);
 		});
 	});
 
