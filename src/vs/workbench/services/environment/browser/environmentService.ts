@@ -269,6 +269,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
+	get trustedFolders(): string[] { return []; }
+
+	@memoize
 	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
 
 	@memoize

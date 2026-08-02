@@ -261,6 +261,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
 	@memoize
+	get trustedFolders(): string[] { return this.args['trust-folder'] || []; }
+
+	@memoize
 	get useInMemorySecretStorage(): boolean { return !!this.args['use-inmemory-secretstorage']; }
 
 	@memoize

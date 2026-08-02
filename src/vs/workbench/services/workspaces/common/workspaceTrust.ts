@@ -156,7 +156,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				this._workspaceResolvedPromiseResolve();
 
 				if (!this.environmentService.remoteAuthority) {
-					this._workspaceTrustInitializedPromiseResolve();
+					// Persist folders passed via `--trust-folder` before signalling that
+					// trust is initialized, so they are already trusted at startup.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				}
 			});
 
@@ -169,7 +171,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					await this.updateWorkspaceTrust();
 				})
 				.finally(() => {
-					this._workspaceTrustInitializedPromiseResolve();
+					// The remote authority is now resolved, so `--trust-folder` values
+					// for remote folders can be canonicalized before signalling that
+					// trust is initialized.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				});
 		}
 
@@ -280,6 +285,32 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._onDidChangeTrustedFolders.fire();
 
 		await this.updateWorkspaceTrust();
+	}
+
+	private async addTrustedFoldersFromCli(): Promise<void> {
+		const folders = this.environmentService.trustedFolders;
+		if (!folders?.length) {
+			return;
+		}
+
+		const uris: URI[] = [];
+		for (const folder of folders) {
+			try {
+				// A value with a scheme (e.g. a remote `vscode-remote://` folder) is
+				// parsed as a Uri; otherwise it is treated as a local file path.
+				uris.push(folder.includes('://') ? URI.parse(folder) : URI.file(folder));
+			} catch {
+				// Ignore malformed --trust-folder arguments
+			}
+		}
+
+		if (uris.length) {
+			try {
+				await this.setUrisTrust(uris, true);
+			} catch {
+				// Never block workspace trust initialization on a bad --trust-folder value
+			}
+		}
 	}
 
 	private getWorkspaceUris(): URI[] {

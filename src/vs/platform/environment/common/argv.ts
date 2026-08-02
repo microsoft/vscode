@@ -121,6 +121,7 @@ export interface NativeParsedArgs {
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
+	'trust-folder'?: string[];
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
