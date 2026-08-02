@@ -31,6 +31,7 @@ import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind,
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { SessionProvenance } from '../../node/agentHostStateManager.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
@@ -5100,6 +5101,56 @@ suite('AgentService (node dispatcher)', () => {
 				// cancelled by createSession, dispose would have fired.
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+			});
+		});
+
+		test('a restored session that loaded zero turns is never GC-disposed', () => {
+			// Regression: GC used to key purely off "0 turns", but a restored
+			// session can present as empty because its history FAILED to load.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				await copilotAgent.createSession();
+				const sessions = await copilotAgent.listSessions();
+				const sessionResource = sessions[0].session;
+
+				// No messages => restores with zero turns, exactly as a failed
+				// history load would look.
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					disposed: copilotAgent.disposeSessionCalls.map(u => u.toString()),
+					released: copilotAgent.releaseSessionCalls.map(u => u.toString()),
+				}, {
+					// Nothing destroyed, but the non-destructive idle release still happens.
+					disposed: [],
+					released: [sessionResource.toString()],
+				});
+			});
+		});
+
+		test('a session restored during the grace window is not GC-disposed', () => {
+			// The rehydrated session is deliberately still empty, so that the
+			// turns check cannot be what saves it — only provenance can.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.stateManager.deleteSession(sessionResource.toString());
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				assert.strictEqual(service.stateManager.getSessionProvenance(sessionResource.toString()), SessionProvenance.Restored, 'precondition: session is now durable state');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a session restored mid-grace must not be GC-disposed');
 			});
 		});
 	});

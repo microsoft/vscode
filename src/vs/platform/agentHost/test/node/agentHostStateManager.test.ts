@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, type ChatState, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, SessionProvenance } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
@@ -583,6 +583,37 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	suite('session provenance', () => {
+
+		test('reports how a session entered state, addressable by session or chat URI', () => {
+			const restoredUri = URI.from({ scheme: 'copilot', path: '/restored-session' }).toString();
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(restoredUri), []);
+
+			assert.deepStrictEqual({
+				created: manager.getSessionProvenance(sessionUri),
+				createdViaChatUri: manager.getSessionProvenance(sessionChatUri),
+				restored: manager.getSessionProvenance(restoredUri),
+				restoredViaChatUri: manager.getSessionProvenance(buildDefaultChatUri(restoredUri)),
+				unknown: manager.getSessionProvenance(URI.from({ scheme: 'copilot', path: '/nope' }).toString()),
+			}, {
+				created: SessionProvenance.Created,
+				createdViaChatUri: SessionProvenance.Created,
+				restored: SessionProvenance.Restored,
+				restoredViaChatUri: SessionProvenance.Restored,
+				unknown: undefined,
+			});
+		});
+
+		test('a restored session that was first created keeps its Created provenance', () => {
+			// `restoreSession` short-circuits when the session is already in state.
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(), []);
+
+			assert.strictEqual(manager.getSessionProvenance(sessionUri), SessionProvenance.Created);
+		});
 	});
 
 	test('emits sessionSummaryChanged when summary changes', () => {

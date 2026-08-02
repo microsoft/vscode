@@ -34,6 +34,18 @@ export interface IAgentHostStateManagerOptions {
 }
 
 /**
+ * How a session's cached state came to exist in this process.
+ *
+ * This is about *origin*, not current contents: callers that are about to
+ * destroy user data must key off this rather than off observable emptiness,
+ * because an empty-looking state is also what a failed history load produces.
+ */
+export const enum SessionProvenance {
+	Created = 'created',
+	Restored = 'restored',
+}
+
+/**
  * Authoritative per-session record held by the state manager. Bundles the flat
  * {@link SessionState} with the {@link SessionSummary} catalog-only fields that
  * do not live on the state. The session URI (catalog `resource`) is the map
@@ -49,6 +61,8 @@ interface ISessionEntry {
 	modifiedAt: string;
 	/** Aggregate file-change counts for the session-wide changeset. Catalog-only. */
 	changes?: ChangesSummary;
+	/** How this entry came to exist. */
+	readonly provenance: SessionProvenance;
 }
 
 /**
@@ -306,7 +320,7 @@ export class AgentHostStateManager extends Disposable {
 		// chat URI is given the conversation contents are taken from that chat,
 		// while the session summary/config come from the owning session.
 		const isChat = isAhpChatChannel(sessionOrChat);
-		const session = isChat ? parseDefaultChatUri(sessionOrChat) : sessionOrChat;
+		const session = this._resolveOwningSession(sessionOrChat);
 		if (session === undefined) {
 			return undefined;
 		}
@@ -316,6 +330,23 @@ export class AgentHostStateManager extends Disposable {
 		}
 		const chatUri = isChat ? sessionOrChat : buildDefaultChatUri(session);
 		return mergeSessionWithDefaultChat(entry.state, this._chatStates.get(chatUri));
+	}
+
+	/**
+	 * Returns how the cached state for a session came to exist, or `undefined`
+	 * when the session is not currently in state. Accepts either a session URI
+	 * or one of its chat channel URIs.
+	 */
+	getSessionProvenance(sessionOrChat: URI): SessionProvenance | undefined {
+		const session = this._resolveOwningSession(sessionOrChat);
+		if (session === undefined) {
+			return undefined;
+		}
+		return this._sessionStates.get(session)?.provenance;
+	}
+
+	private _resolveOwningSession(sessionOrChat: URI): URI | undefined {
+		return isAhpChatChannel(sessionOrChat) ? parseDefaultChatUri(sessionOrChat) : sessionOrChat;
 	}
 
 	/**
@@ -556,7 +587,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		const state = createSessionState(summary);
-		this._sessionStates.set(key, this._newEntry(state, summary));
+		this._sessionStates.set(key, this._newEntry(state, summary, SessionProvenance.Created));
 		this._ensureDefaultChat(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
@@ -578,8 +609,8 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
-	private _newEntry(state: SessionState, summary: SessionSummary): ISessionEntry {
-		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, changes: summary.changes };
+	private _newEntry(state: SessionState, summary: SessionSummary, provenance: SessionProvenance): ISessionEntry {
+		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, changes: summary.changes, provenance };
 	}
 
 	/**
@@ -645,7 +676,7 @@ export class AgentHostStateManager extends Disposable {
 			...createSessionState(summary),
 			lifecycle: SessionLifecycle.Ready,
 		};
-		this._sessionStates.set(key, this._newEntry(state, summary));
+		this._sessionStates.set(key, this._newEntry(state, summary, SessionProvenance.Restored));
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
 		this._summaryNotifier.announce(key, summary);
 
