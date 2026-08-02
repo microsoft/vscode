@@ -1386,6 +1386,7 @@ export class CodeApplication extends Disposable {
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
 			unbufferedEvents: ['onDidBlurMainWindow']
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
