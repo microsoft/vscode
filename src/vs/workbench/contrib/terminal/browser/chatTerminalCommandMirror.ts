@@ -105,7 +105,7 @@ interface IDetachedTerminalCommandMirror {
 	getRowHeightPx(): number | undefined;
 	onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult>;
 	onDidInput: Event<string>;
-	onDidFirstRender: Event<void>;
+	onDidChangeRowHeight: Event<void>;
 }
 
 const enum ChatTerminalMirrorMetrics {
@@ -331,9 +331,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	public readonly onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult> = this._onDidUpdateEmitter.event;
 	private readonly _onDidInputEmitter = this._register(new Emitter<string>());
 	public readonly onDidInput: Event<string> = this._onDidInputEmitter.event;
-	private readonly _onDidFirstRenderEmitter = this._register(new Emitter<void>());
-	public readonly onDidFirstRender: Event<void> = this._onDidFirstRenderEmitter.event;
-	private _firstRenderListenerInstalled = false;
+	private readonly _onDidChangeRowHeightEmitter = this._register(new Emitter<void>());
+	public readonly onDidChangeRowHeight: Event<void> = this._onDidChangeRowHeightEmitter.event;
+	private _renderListenerInstalled = false;
+	private _lastObservedRowHeight: number | undefined;
 
 	private _lastVT = '';
 	private _lineCount = 0;
@@ -387,15 +388,30 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	 * rendered, so box-height math matches what xterm paints.
 	 */
 	getRowHeightPx(): number | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		return getMirrorRowHeightPx(this._detachedTerminal);
 	}
 
 	private _installFirstRenderListener(detached: IDetachedTerminalInstance): void {
-		if (this._firstRenderListenerInstalled) {
+		if (this._renderListenerInstalled) {
 			return;
 		}
-		this._firstRenderListenerInstalled = true;
-		this._register(Event.once(getMirrorRaw(detached).onRender)(() => this._onDidFirstRenderEmitter.fire()));
+		this._renderListenerInstalled = true;
+		// Renders can change the cell metrics: the first render replaces the measured font
+		// estimate with the renderer's actual dimensions, and later ones can reflect DPR
+		// changes (e.g. the window moving to a differently scaled monitor). Only the
+		// changes are announced, so the per-frame cost is one number comparison.
+		this._register(getMirrorRaw(detached).onRender(() => this._notifyRowHeightIfChanged()));
+	}
+
+	private _notifyRowHeightIfChanged(): void {
+		const rowHeight = this.getRowHeightPx();
+		if (rowHeight !== undefined && rowHeight !== this._lastObservedRowHeight) {
+			this._lastObservedRowHeight = rowHeight;
+			this._onDidChangeRowHeightEmitter.fire();
+		}
 	}
 
 	async renderCommand(): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
@@ -781,9 +797,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _lastRenderedLineCount: number | undefined;
 	private _lastRenderedMaxColumnWidth: number | undefined;
 	private _lastRenderedText = '';
-	private readonly _onDidFirstRenderEmitter = this._register(new Emitter<void>());
-	public readonly onDidFirstRender: Event<void> = this._onDidFirstRenderEmitter.event;
-	private _firstRenderListenerInstalled = false;
+	private readonly _onDidChangeRowHeightEmitter = this._register(new Emitter<void>());
+	public readonly onDidChangeRowHeight: Event<void> = this._onDidChangeRowHeightEmitter.event;
+	private _renderListenerInstalled = false;
+	private _lastObservedRowHeight: number | undefined;
 
 	constructor(
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -824,6 +841,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	 * rendered, so box-height math matches what xterm paints.
 	 */
 	public getRowHeightPx(): number | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		return getMirrorRowHeightPx(this._resolvedTerminal);
 	}
 
@@ -850,9 +870,19 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			terminal.attachToElement(container, { enableGpu: false });
 			this._attachedContainer = container;
 		}
-		if (!this._firstRenderListenerInstalled) {
-			this._firstRenderListenerInstalled = true;
-			this._register(Event.once(getMirrorRaw(terminal).onRender)(() => this._onDidFirstRenderEmitter.fire()));
+		if (!this._renderListenerInstalled) {
+			this._renderListenerInstalled = true;
+			// Renders can change the cell metrics: the first render replaces the measured font
+			// estimate with the renderer's actual dimensions, and later ones can reflect DPR
+			// changes (e.g. the window moving to a differently scaled monitor). Only the
+			// changes are announced, so the per-frame cost is one number comparison.
+			this._register(getMirrorRaw(terminal).onRender(() => {
+				const rowHeight = this.getRowHeightPx();
+				if (rowHeight !== undefined && rowHeight !== this._lastObservedRowHeight) {
+					this._lastObservedRowHeight = rowHeight;
+					this._onDidChangeRowHeightEmitter.fire();
+				}
+			}));
 		}
 
 		this._container = container;

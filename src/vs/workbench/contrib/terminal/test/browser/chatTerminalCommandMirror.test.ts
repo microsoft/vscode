@@ -6,7 +6,6 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
-import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -14,9 +13,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import type { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import type { ITerminalFont } from '../../common/terminal.js';
-import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXTermOptions } from '../../browser/terminal.js';
+import { ITerminalService, type IDetachedXTermOptions } from '../../browser/terminal.js';
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createFakeDetachedTerminal } from './chatTerminalMirrorTestUtils.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
 import { computeChatTerminalMirrorCols, computeMaxBufferColumnWidth, computeSnapshotLineCount, DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
 
@@ -30,37 +30,6 @@ const defaultTerminalConfig = {
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '6'
 };
-
-/**
- * Creates a fake detached terminal instance backed by a real raw xterm.js terminal so mirror
- * tests can inspect the resulting buffer and count resize/write calls. The fixed font metrics
- * (charWidth 10, letterSpacing 0) make width-to-cols math deterministic on any machine.
- */
-function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions, font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 }) {
-	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
-	const counters = { resizeCalls: 0, writeCalls: 0 };
-	const instance = {
-		xterm: {
-			raw,
-			get cols() { return raw.cols; },
-			get rows() { return raw.rows; },
-			get buffer() { return raw.buffer; },
-			getFont: () => font,
-			write: (data: string, callback?: () => void) => {
-				counters.writeCalls++;
-				raw.write(data, callback);
-			},
-			resize: (columns: number, rows: number) => {
-				counters.resizeCalls++;
-				raw.resize(columns, rows);
-			}
-		},
-		onData: Event.None,
-		attachToElement: () => { },
-		dispose: () => raw.dispose()
-	} as unknown as IDetachedTerminalInstance;
-	return { raw, counters, instance };
-}
 
 suite('Workbench - ChatTerminalCommandMirror', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
