@@ -33,11 +33,11 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -2831,6 +2831,104 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	suite('listSessions legacy-CLI surfacing (migration)', () => {
+
+		async function writeExtensionHostMarker(userHome: URI, sessionId: string): Promise<void> {
+			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+			await fs.mkdir(dir, { recursive: true });
+			await fs.writeFile(join(dir, 'vscode.metadata.json'), '{}', 'utf8');
+		}
+
+		test('surfaces an un-adopted extension-host CLI session as adoptable when migrate is ON', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/surface-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/surface-cwd-`);
+			const sessionId = 'ehcli-surface';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+				assert.deepStrictEqual(
+					(await agent.listSessions()).map(s => ({ id: AgentSession.id(s.session), adoptable: readSessionEhcliAdoptable(s._meta), cwd: s.workingDirectories?.map(d => d.fsPath) })),
+					[{ id: sessionId, adoptable: true, cwd: [URI.file(workingDirectory).fsPath] }],
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface the legacy CLI session when migrate is OFF', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/surface-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/surface-cwd-`);
+			const sessionId = 'ehcli-off';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				// migrate flag left at its default (OFF): the un-owned legacy session is not listed.
+
+				assert.deepStrictEqual(await agent.listSessions(), []);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface an un-owned SDK session without the extension-host marker', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/surface-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/surface-cwd-`);
+			const sessionId = 'no-marker';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				// No marker written: a standalone Copilot SDK session, not an EH CLI session.
+
+				assert.deepStrictEqual(await agent.listSessions(), []);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('lists an already-adopted (native) session normally, not as adoptable', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/surface-home-`));
+			const sessionId = 'native';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// A native / already-adopted session persists a working directory.
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId); // marker present but already adopted
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+				assert.deepStrictEqual(
+					(await agent.listSessions()).map(s => ({ id: AgentSession.id(s.session), adoptable: readSessionEhcliAdoptable(s._meta) })),
+					[{ id: sessionId, adoptable: false }],
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	suite('createSession activeClient eager-claim', () => {
 
 		class SpyingPluginManager extends TestAgentPluginManager {
@@ -5436,10 +5534,10 @@ suite('CopilotAgent', () => {
 
 	suite('ensureSessionAdopted (legacy Copilot CLI migration)', () => {
 
-		async function writeExtensionHostMarker(userHome: URI, sessionId: string): Promise<void> {
+		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = {}): Promise<void> {
 			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
 			await fs.mkdir(dir, { recursive: true });
-			await fs.writeFile(join(dir, 'vscode.metadata.json'), '{}', 'utf8');
+			await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 		}
 
 		test('adopts a legacy extension-host session in place and seeds folder isolation', async () => {
@@ -5466,6 +5564,35 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(
 					{ first, second, configValues },
 					{ first: true, second: false, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('carries over the legacy custom title on adoption', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-titled';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { customTitle: 'My Legacy Session' });
+
+				const adopted = await agent.ensureSessionAdopted(session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const customTitle = await db?.object.getMetadata('customTitle');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, customTitle },
+					{ adopted: true, customTitle: 'My Legacy Session' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

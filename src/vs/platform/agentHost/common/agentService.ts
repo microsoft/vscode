@@ -819,13 +819,6 @@ export interface IAgentCreateSessionResult {
 	 * has been persisted.
 	 */
 	readonly provisional?: boolean;
-	/**
-	 * `true` when this `createSession` newly adopted a legacy on-disk Copilot CLI
-	 * session (seeded its agent-host metadata for the first time). Lets the host
-	 * run the one-time checkpoint carry-over; `false`/absent for normal creates
-	 * and for re-opens of an already-adopted session.
-	 */
-	readonly adopted?: boolean;
 }
 
 /**
@@ -1010,17 +1003,6 @@ export interface IAgentCreateSessionConfig {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
 	};
-	/**
-	 * Adopt an existing on-disk legacy Copilot CLI session in place. The id is
-	 * carried by {@link session}; its SDK event log under
-	 * `~/.copilot/session-state/<id>/` is reused verbatim. The provider seeds the
-	 * agent-host VS Code-layer metadata (only for a genuine extension-host Copilot
-	 * CLI session) and the session is then populated via the normal restore flow.
-	 * Triggered explicitly on user reopen — never on reload auto-restore. Requires
-	 * {@link session}; the provider resolves the authoritative working directory
-	 * from the SDK session metadata, so {@link workingDirectories} is optional.
-	 */
-	readonly adoptExistingSession?: boolean;
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
 	 * set, the service reports any long-running session bring-up work — chiefly
@@ -1585,6 +1567,15 @@ export interface IAgent {
 	 * summary.
 	 */
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
+
+	/**
+	 * Fires (debounced) when the provider's on-disk session set may have changed
+	 * out of band (e.g. a legacy Copilot CLI session was created by the extension
+	 * host while the window is open). The {@link IAgentService} responds by
+	 * announcing any adoptable-legacy sessions not yet known to clients. Optional:
+	 * providers that cannot detect out-of-band changes omit it.
+	 */
+	readonly onDidChangeSessionList?: Event<void>;
 
 	/**
 	 * Provides the agent host's server-tool host so the provider can advertise

@@ -176,8 +176,6 @@ class MockSessionStore implements ISessionsManagementService {
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
-	async adoptLegacyCliSessionOnOpen(_session: ISession): Promise<URI | undefined> { return undefined; }
-
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
 		this._openedChatResource = undefined;

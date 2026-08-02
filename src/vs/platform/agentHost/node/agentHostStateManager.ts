@@ -629,6 +629,31 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Announce a legacy Copilot CLI session that the provider discovered on disk
+	 * (surfaced as adoptable) after startup, so clients add it to their list
+	 * without a manual reload. Does NOT create persistent state — the session is
+	 * materialized on demand when the user opens it (restore/adopt). No-ops if
+	 * the session is already in state or was already announced.
+	 */
+	announceSurfacedSession(summary: SessionSummary): void {
+		const key = summary.resource;
+		if (this._sessionStates.has(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
+			return;
+		}
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already announced ${key}`);
+			return;
+		}
+		this._summaryNotifier.announce(key, summary);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
+		});
+	}
+
+	/**
 	 * Restores a session from a previous server lifetime into the state manager
 	 * with pre-populated turns. The session is created in `ready` lifecycle
 	 * state since it already exists on the backend.

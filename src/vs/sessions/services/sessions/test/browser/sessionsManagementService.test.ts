@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -240,6 +242,7 @@ function createView(instantiationService: TestInstantiationService, service: ISe
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
 	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -2620,58 +2623,6 @@ suite('SessionsManagementService', () => {
 					resolved: service.getSession(legacy.resource)?.sessionId ?? null,
 				},
 				{ listed: false, resolved: legacy.sessionId },
-			);
-		});
-
-		test('adoptLegacyCliSessionOnOpen delegates to the local-agent-host provider and returns the migrated resource', async () => {
-			const legacy = legacyCliSession();
-			const migratedResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
-
-			let adoptedWith: ISession | undefined;
-			const agentHostProvider = new class extends TestSessionsProvider {
-				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-				constructor() { super(legacy); }
-				override getSessions(): ISession[] { return [legacy]; }
-				override async adoptLegacyCliSession(session: ISession): Promise<URI | undefined> {
-					adoptedWith = session;
-					return migratedResource;
-				}
-			};
-			const { service } = createSessionsManagementService(legacy, disposables, agentHostProvider);
-
-			let changeCount = 0;
-			disposables.add(service.onDidChangeSessions(() => changeCount++));
-
-			const result = await service.adoptLegacyCliSessionOnOpen(legacy);
-
-			assert.deepStrictEqual(
-				{
-					adoptedWith: adoptedWith?.sessionId ?? null,
-					result: result?.toString() ?? null,
-					changeCount,
-				},
-				{ adoptedWith: legacy.sessionId, result: migratedResource.toString(), changeCount: 1 },
-			);
-		});
-
-		test('adoptLegacyCliSessionOnOpen returns undefined and fires no change when the provider does not migrate', async () => {
-			const legacy = legacyCliSession();
-			const agentHostProvider = new class extends TestSessionsProvider {
-				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-				constructor() { super(legacy); }
-				override getSessions(): ISession[] { return [legacy]; }
-				override async adoptLegacyCliSession(): Promise<URI | undefined> { return undefined; }
-			};
-			const { service } = createSessionsManagementService(legacy, disposables, agentHostProvider);
-
-			let changeCount = 0;
-			disposables.add(service.onDidChangeSessions(() => changeCount++));
-
-			const result = await service.adoptLegacyCliSessionOnOpen(legacy);
-
-			assert.deepStrictEqual(
-				{ result: result ?? null, changeCount },
-				{ result: null, changeCount: 0 },
 			);
 		});
 	});

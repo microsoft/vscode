@@ -131,7 +131,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
-			if (agentHostEnablementService.enabled.read(reader)) {
+			const enabled = agentHostEnablementService.enabled.read(reader);
+			if (enabled) {
 				this._initialize();
 			}
 		}));

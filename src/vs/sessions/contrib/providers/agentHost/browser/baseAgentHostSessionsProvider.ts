@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -3409,46 +3409,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async adoptLegacyCliSession(session: ISession): Promise<URI | undefined> {
-		const connection = this.connection;
-		if (!connection) {
-			return undefined;
-		}
-		const rawId = session.resource.path.startsWith('/') ? session.resource.path.substring(1) : session.resource.path;
-		const workingDirectory = session.workspace.get()?.folders.at(0)?.root;
-		// Legacy Copilot CLI sessions map to the copilot agent-host provider. Adopt
-		// the on-disk event log in place, then return the agent-host chat resource so
-		// the caller can open the migrated session.
-		const agentProvider = CopilotCLISessionType.id;
-		const backendUri = AgentSession.uri(agentProvider, rawId);
-		const migratedResource = URI.from({ scheme: this.resourceSchemeForProvider(agentProvider), path: `/${rawId}` });
-		await connection.createSession({
-			provider: agentProvider,
-			session: backendUri,
-			adoptExistingSession: true,
-			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
-		});
-		// Surface the adopted session directly in the local cache instead of
-		// waiting for a `SessionAdded` notification: the backend may have already
-		// announced this session id (adopt reuses its metadata), so no fresh
-		// notification is emitted. Seeding the adapter from the source session's
-		// metadata makes it resolvable immediately, so the caller's open
-		// subscribes to it before the agent host's idle-eviction fires.
-		if (!this._sessionCache.has(rawId)) {
-			const meta: IAgentSessionMetadata = {
-				session: backendUri,
-				startTime: session.createdAt.getTime(),
-				modifiedTime: session.updatedAt.get().getTime(),
-				summary: session.title.get(),
-				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
-			};
-			const cached = this.createAdapter(meta);
-			this._sessionCache.set(rawId, cached);
-			this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
-		}
-		return migratedResource;
-	}
-
 	async renameChat(sessionId: string, chatUri: URI, title: string): Promise<void> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -4072,6 +4032,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		if (!rawId) {
+			return;
+		}
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be
+		// subscribed passively: subscribing its session/chat channel triggers an
+		// agent-host restore, which adopts (migrates) it. Migration must happen
+		// only when the user explicitly opens the session. It renders read-only
+		// from its summary until then; the marker clears once it is adopted.
+		if (readSessionEhcliAdoptable(this._metaByRawId.get(rawId)?._meta)) {
 			return;
 		}
 		const cached = this._sessionCache.get(rawId);

@@ -23,7 +23,6 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -222,7 +221,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!migratedRawIds) {
 			return sessions;
 		}
-		return sessions.filter(session => {
+		const result = sessions.filter(session => {
 			// Only the legacy extension-host scheme (`copilotcli:`) denotes a stale
 			// entry to drop. Remote agent-host Copilot sessions
 			// (`remote-<authority>-copilotcli:`) share the `copilotcli` session type but
@@ -236,6 +235,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			return true;
 		});
+		return result;
 	}
 
 	getSession(resource: URI): ISession | undefined {
@@ -504,19 +504,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
 		}
 		return session;
-	}
-
-	async adoptLegacyCliSessionOnOpen(session: ISession): Promise<URI | undefined> {
-		// Legacy Copilot CLI sessions migrate into the local agent-host provider,
-		// regardless of which (legacy) provider currently owns the entry.
-		const provider = this.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID);
-		const migrated = await provider?.adoptLegacyCliSession?.(session);
-		if (migrated) {
-			// Refresh the aggregated list so the now-duplicate legacy entry is
-			// dropped by `_dedupeMigratedCopilotCliSessions` right away.
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
-		}
-		return migrated;
 	}
 
 	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {

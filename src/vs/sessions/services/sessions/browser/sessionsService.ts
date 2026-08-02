@@ -20,7 +20,6 @@ import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { COPILOT_CLI_EH_SCHEME } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
@@ -707,31 +706,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
-
-		// Opening a legacy extension-host Copilot CLI session converts it in place:
-		// adopt its on-disk event log into the agent host and open the resulting
-		// agent-host session instead. Gated on the legacy EH resource scheme so only
-		// genuine extension-host entries qualify — the local agent-host provider's own
-		// sessions (`agent-host-copilotcli:`) and remote agent-host Copilot sessions
-		// (`remote-<authority>-copilotcli:`) both share the `copilotcli` session type
-		// but must not be migrated. Runs only on this explicit-open path — never on
-		// reload restore (`restoreVisibleSessions`).
-		if (sessionData.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-			try {
-				const migratedResource = await this.sessionsManagementService.adoptLegacyCliSessionOnOpen(sessionData);
-				if (migratedResource) {
-					const migrated = await this._waitForSession(migratedResource, token, RESTORE_SESSION_WAIT_TIMEOUT);
-					if (migrated) {
-						this.logService.trace(`[SessionsView] migrated legacy Copilot CLI ${sessionResource.toString()} -> ${migratedResource.toString()}`);
-						this._activate(migrated, options?.preserveFocus);
-						return;
-					}
-					this.logService.warn(`[SessionsView] migrated Copilot CLI session ${migratedResource.toString()} did not appear within timeout; opening legacy session`);
-				}
-			} catch (e) {
-				this.logService.warn(`[SessionsView] Legacy Copilot CLI migration failed for ${sessionResource.toString()}`, e);
-			}
-		}
 
 		this._activate(sessionData, options?.preserveFocus);
 		if (!await this._waitForSessionToLoad(sessionData, token)) {

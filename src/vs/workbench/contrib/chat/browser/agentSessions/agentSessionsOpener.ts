@@ -19,10 +19,7 @@ import { localize } from '../../../../../nls.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSession, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 
 //#region Session Opener Registry
 
@@ -114,16 +111,6 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	try {
 		session.setRead(true); // mark as read when opened
 
-		// Opening a legacy extension-host Copilot CLI session migrates it in place
-		// to the agent host and opens the resulting agent-host session instead.
-		// Guarded: any failure falls through to opening the legacy session as-is.
-		if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-			const migrated = await migrateCopilotCliSessionOnOpen(accessor, session, openOptions);
-			if (migrated.handled) {
-				return migrated.widget;
-			}
-		}
-
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {
 			sessionOptions = {};
@@ -157,37 +144,4 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
 		return undefined;
 	}
-}
-
-/**
- * Adopts a legacy extension-host Copilot CLI session (`copilotcli:/<id>`) into
- * the agent host in place and opens the resulting agent-host session
- * (`agent-host-copilotcli:/<id>`). Returns `handled: false` (so the caller opens
- * the legacy session as-is) when the id can't be parsed or adoption throws.
- */
-async function migrateCopilotCliSessionOnOpen(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<{ handled: boolean; widget?: IChatWidget }> {
-	const agentHostService = accessor.get(IAgentHostService);
-	const chatSessionsService = accessor.get(IChatSessionsService);
-	const chatWidgetService = accessor.get(IChatWidgetService);
-	const logService = accessor.get(ILogService);
-
-	const rawId = getCopilotCliSessionRawId(session.resource);
-	if (!rawId) {
-		return { handled: false };
-	}
-	const backendUri = AgentSession.uri(COPILOT_CLI_EH_SCHEME, rawId);
-	const migratedResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` });
-	try {
-		await agentHostService.createSession({ provider: COPILOT_CLI_EH_SCHEME, session: backendUri, adoptExistingSession: true });
-	} catch (err) {
-		logService.warn(`[AgentSessions] Legacy Copilot CLI migration failed for ${session.resource.toString()}; opening legacy session`, err);
-		return { handled: false };
-	}
-	await chatSessionsService.activateChatSessionItemProvider(getChatSessionType(migratedResource));
-	const target = openOptions?.sideBySide ? SIDE_GROUP : ChatViewPaneTarget;
-	const widget = await chatWidgetService.openSession(migratedResource, target, { revealIfOpened: true, ...openOptions?.editorOptions });
-	// Refresh the legacy `copilotcli` list so its agent-host dedup drops the
-	// now-migrated entry, avoiding a transient duplicate row in the editor list.
-	void chatSessionsService.refreshChatSessionItems([getChatSessionType(session.resource)], CancellationToken.None);
-	return { handled: true, widget };
 }
