@@ -181,7 +181,7 @@ function flushPendingPreflight(state: ICodexSessionMapState): (SessionAction | C
 }
 
 function deferResponseWhileToolCallIsOpen(state: ICodexSessionMapState, actions: (SessionAction | ChatAction)[]): (SessionAction | ChatAction)[] {
-	if (state.itemToToolCall.size === 0 && !state.pendingPreflight) {
+	if (!hasOpenCommandExecution(state) && !state.pendingPreflight) {
 		return actions;
 	}
 	state.deferredResponseActions.push(...actions);
@@ -189,10 +189,14 @@ function deferResponseWhileToolCallIsOpen(state: ICodexSessionMapState, actions:
 }
 
 function flushDeferredResponseActions(state: ICodexSessionMapState): (SessionAction | ChatAction)[] {
-	if (state.itemToToolCall.size > 0 || state.pendingPreflight || state.deferredResponseActions.length === 0) {
+	if (hasOpenCommandExecution(state) || state.pendingPreflight || state.deferredResponseActions.length === 0) {
 		return [];
 	}
 	return state.deferredResponseActions.splice(0);
+}
+
+function hasOpenCommandExecution(state: ICodexSessionMapState): boolean {
+	return [...state.itemToToolCall.values()].some(entry => entry.toolName === 'shell');
 }
 
 /**
@@ -473,11 +477,12 @@ export function mapItemStarted(
 	// Any other item supersedes a deferred pre-flight: finalize it first so a
 	// genuinely output-less command still renders promptly as a single box.
 	const flushed = flushPendingPreflight(state);
+	const deferredResponseActions = flushDeferredResponseActions(state);
 	const body = mapItemStartedBody(state, params);
 	const orderedBody = params.item.type === 'agentMessage'
 		? deferResponseWhileToolCallIsOpen(state, body)
 		: body;
-	return flushed.length === 0 ? orderedBody : [...flushed, ...orderedBody];
+	return [...flushed, ...deferredResponseActions, ...orderedBody];
 }
 
 function mapItemStartedBody(
@@ -1033,7 +1038,7 @@ export function mapTurnCompleted(
 	// Live notifications normally use `itemsView: 'notLoaded'` and empty items.
 	const recoveredToolCallActions: (SessionAction | ChatAction)[] = [];
 	for (const item of params.turn.items) {
-		if (state.itemToToolCall.has(item.id)) {
+		if (item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id)) {
 			recoveredToolCallActions.push(...mapItemCompleted(state, {
 				threadId: params.threadId,
 				turnId: params.turn.id,
@@ -1057,27 +1062,17 @@ export function mapTurnCompleted(
 			: typeof fallbackDuration === 'number' && Number.isFinite(fallbackDuration)
 				? Math.max(0, fallbackDuration)
 				: 0;
-	// A response produced after the tool proves Codex consumed the command result:
-	// the command was no longer running even if app-server dropped both its
-	// `item/completed` notification and its persisted turn item. On a normally
-	// completed turn, preserve that lifecycle fact instead of reporting a
-	// spurious stopped-tool failure. Known non-zero exits still take the regular
-	// item/completed path above and retain their exact failure result.
-	const completedBeforeResponse = status === 'completed' && state.deferredResponseActions.length > 0;
-	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => {
-		const inferredSuccess = completedBeforeResponse && entry.toolName === 'shell' && !state.declinedToolCalls.has(entry.toolCallId);
-		return {
-			type: ActionType.ChatToolCallComplete,
-			turnId: entry.turnId,
-			toolCallId: entry.toolCallId,
-			result: {
-				success: inferredSuccess,
-				pastTenseMessage: inferredSuccess ? `Ran ${entry.toolName}` : `Stopped ${entry.toolName}`,
-				content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
-				error: inferredSuccess ? undefined : { message: status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion' },
-			},
-		};
-	});
+	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
+		type: ActionType.ChatToolCallComplete,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		result: {
+			success: false,
+			pastTenseMessage: `Stopped ${entry.toolName}`,
+			content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
+			error: { message: status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion' },
+		},
+	}));
 	const deferredResponseActions = flushDeferredResponseActions(state);
 	if (status === 'failed' && params.turn.error) {
 		const errMessage = params.turn.error.message ?? 'Codex turn failed';

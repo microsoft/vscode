@@ -76,6 +76,7 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	readonly omitToolCallSuccessForToolNames?: readonly string[];
 }
 
 export interface IAhpSnapshotNormalization {
@@ -115,6 +116,7 @@ export class AhpSnapshotRecorder {
 		const channelCounts = new Map<string, number>();
 		const turns = new Map<string, string>();
 		const toolCalls = new Map<string, string>();
+		const toolCallNames = new Map<string, string>();
 		const responseParts = new Map<string, { content: string }>();
 		const roundStarts = this._roundStarts.length > 0 ? this._roundStarts : [0];
 		const rounds = roundStarts.map(() => ({ clientToServer: [] as object[], serverToClient: [] as object[] }));
@@ -153,7 +155,7 @@ export class AhpSnapshotRecorder {
 							continue;
 						}
 						const channel = typeof params?.channel === 'string' ? params.channel : '';
-						const projectedAction = projectAction(action, turns, toolCalls, responseParts, channel, profile);
+						const projectedAction = projectAction(action, turns, toolCalls, toolCallNames, responseParts, channel, profile, new Set(options.omitToolCallSuccessForToolNames));
 						if (!projectedAction) {
 							continue;
 						}
@@ -312,9 +314,11 @@ function projectAction(
 	action: StateAction,
 	turns: Map<string, string>,
 	toolCalls: Map<string, string>,
+	toolCallNames: Map<string, string>,
 	responseParts: Map<string, { content: string }>,
 	channel: string,
 	profile: NonNullable<IAhpSnapshotOptions['profile']>,
+	omitToolCallSuccessForToolNames: ReadonlySet<string>,
 ): object | undefined {
 	switch (action.type) {
 		case ActionType.SessionActiveClientSet:
@@ -368,17 +372,20 @@ function projectAction(
 				content: action.content,
 			};
 		}
-		case ActionType.ChatToolCallStart:
+		case ActionType.ChatToolCallStart: {
+			const toolName = normalizeShellToolName(action.toolName);
+			toolCallNames.set(action.toolCallId, toolName);
 			return {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				toolName: normalizeShellToolName(action.toolName),
+				toolName,
 				...(profile === 'protocol' ? {
 					displayName: action.displayName,
 					contributor: projectContributor(action.contributor),
 				} : {}),
 			};
+		}
 		case ActionType.ChatToolCallReady:
 			return {
 				type: action.type,
@@ -401,15 +408,17 @@ function projectAction(
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				result: {
-					success: action.result.success,
-					...(profile === 'protocol' ? {
-						pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
-						content: action.result.content?.map(content => content.type === ToolResultContentType.Text
-							? { type: content.type, text: content.text }
-							: { type: content.type }),
-					} : {}),
-				},
+				...(profile === 'protocol' || !omitToolCallSuccessForToolNames.has(toolCallNames.get(action.toolCallId) ?? '') ? {
+					result: {
+						success: action.result.success,
+						...(profile === 'protocol' ? {
+							pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
+							content: action.result.content?.map(content => content.type === ToolResultContentType.Text
+								? { type: content.type, text: content.text }
+								: { type: content.type }),
+						} : {}),
+					},
+				} : {}),
 			};
 		case ActionType.ChatError:
 			return profile === 'behavior' ? {
