@@ -83,8 +83,8 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsPlanMode: false,
 	supportsMultipleChats: true,
 	supportsChatFork: true,
-	// Claude cannot resolve a client-assigned AHP turn id to the SDK message
-	// anchor required to create the provider fork. See KNOWN_ISSUES.md.
+	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
+	// so a provider fork silently starts with fresh context.
 	supportsChatForkE2E: false,
 };
 
