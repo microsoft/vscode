@@ -171,3 +171,4 @@ export function computeVoiceMicGlowBoxShadow(voiceState: VoiceGlowState, intensi
 	const shadowAlpha = 0.2 + intensity * 0.45;
 	return `0 0 ${shadowSpread}px rgba(${r},${g},${b},${shadowAlpha})`;
 }
+
