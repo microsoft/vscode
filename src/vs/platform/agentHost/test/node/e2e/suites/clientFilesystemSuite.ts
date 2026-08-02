@@ -22,6 +22,7 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -36,7 +37,7 @@ import type {
 import { ContentEncoding, ResourceType, ResourceWriteMode } from '../../../../common/state/protocol/common/commands.js';
 import { ResourceChangeType, type ResourceChange, type ResourceWatchState } from '../../../../common/state/protocol/channels-resource-watch/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { AhpErrorCodes } from '../../../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, type AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -201,11 +202,16 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 				);
 			}, 30_000);
 
-			await context.client.call('resourceWrite', {
-				channel: ROOT_STATE_URI, uri: watchedFile, data: 'WATCHED', encoding: ContentEncoding.Utf8,
-			});
+			let changedNotification: AhpNotification | undefined;
+			// The OS watcher attaches asynchronously, so keep producing change edges until it is ready.
+			for (let attempt = 1; attempt <= 30 && !changedNotification; attempt++) {
+				await context.client.call('resourceWrite', {
+					channel: ROOT_STATE_URI, uri: watchedFile, data: `WATCHED-${attempt}`, encoding: ContentEncoding.Utf8,
+				});
+				changedNotification = await raceTimeout(changed, 1_000);
+			}
 
-			const action = getActionEnvelope(await changed).action as { readonly changes: { readonly items: readonly ResourceChange[] } };
+			const action = getActionEnvelope(changedNotification ?? await changed).action as { readonly changes: { readonly items: readonly ResourceChange[] } };
 			const observed = action.changes.items.find(change => change.uri === watchedFile);
 			assert.deepStrictEqual({
 				scheme: URI.parse(watch.channel).scheme,
