@@ -147,6 +147,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins,
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					isDisabledInProfile: () => false,
 					setEnabled: () => { },
 					remove: () => { },
 				},
@@ -593,6 +594,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins,
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					isDisabledInProfile: () => false,
 					setEnabled: () => { },
 					remove: () => { },
 				},
@@ -833,6 +835,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins: observableValue<readonly IAgentPlugin[]>('plugins', []),
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					isDisabledInProfile: () => false,
 					setEnabled: () => { },
 					remove: () => { },
 				},

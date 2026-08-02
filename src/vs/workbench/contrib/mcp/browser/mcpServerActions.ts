@@ -601,7 +601,7 @@ export class DisableMcpServerGloballyAction extends McpServerAction {
 			return;
 		}
 		const enablement = server.enablement.get();
-		this.enabled = isContributionEnabled(enablement);
+		this.enabled = isContributionEnabled(enablement) && !this.mcpService.enablementModel.isDisabledInProfile(this.mcpServer.id);
 	}
 
 	override async run(): Promise<void> {
