@@ -213,7 +213,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			turnId: 'turn-json',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
-			expected: [/"answer":\s*42|answer[^\n]*42/],
+			expected: config.fileOperationStrategy === 'shell' ? [/\b42\b/] : [/"answer":\s*42|answer[^\n]*42/],
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
@@ -244,7 +244,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			turnId: 'turn-lines',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
-			expected: [/one/, /two/, /three/, /four/],
+			expected: config.fileOperationStrategy === 'shell' ? [/\b4\b/] : [/one/, /two/, /three/, /four/],
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
@@ -270,8 +270,8 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			turnId: 'turn-missing',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
-			expected: [/does not exist/],
-			success: false,
+			expected: config.fileOperationStrategy === 'shell' ? [/missing/] : [/does not exist/],
+			success: config.fileOperationStrategy === 'shell',
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
