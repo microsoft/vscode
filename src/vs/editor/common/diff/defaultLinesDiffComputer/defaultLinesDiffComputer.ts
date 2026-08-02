@@ -29,6 +29,20 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			return new LinesDiff([], [], false);
 		}
 
+		const considerWhitespaceChanges = !options.ignoreTrimWhitespace && !options.ignoreAllSpaces;
+		const ignoreInteriorWhitespace = !!options.ignoreInteriorSpacing || !!options.ignoreAllSpaces;
+
+		// A single line consisting only of whitespace is indistinguishable from an empty line once
+		// leading/trailing whitespace is being ignored, so don't let the empty-document shortcut
+		// below report it as a full change.
+		if (
+			!considerWhitespaceChanges &&
+			originalLines.length === 1 && modifiedLines.length === 1 &&
+			originalLines[0].trim().length === 0 && modifiedLines[0].trim().length === 0
+		) {
+			return new LinesDiff([], [], false);
+		}
+
 		if (originalLines.length === 1 && originalLines[0].length === 0 || modifiedLines.length === 1 && modifiedLines[0].length === 0) {
 			return new LinesDiff([
 				new DetailedLineRangeMapping(
@@ -45,7 +59,6 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		}
 
 		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
-		const considerWhitespaceChanges = !options.ignoreTrimWhitespace && !options.ignoreAllSpaces;
 
 		const perfectHashes = new Map<string, number>();
 		function getOrCreateHash(text: string): number {
@@ -57,8 +70,17 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			return hash;
 		}
 
-		const originalLinesHashes = originalLines.map((l) => getOrCreateHash(l.trim()));
-		const modifiedLinesHashes = modifiedLines.map((l) => getOrCreateHash(l.trim()));
+		// Line hashes always ignore leading/trailing whitespace so lines survive re-indentation
+		// during coarse line alignment; when interior spacing is also being ignored, strip it here
+		// too so a file-wide interior-spacing-only rewrite still aligns lines as unchanged instead
+		// of looking like every line changed (which can exhaust the alignment timeout on large files).
+		function hashLineForAlignment(line: string): string {
+			const trimmed = line.trim();
+			return ignoreInteriorWhitespace ? trimmed.replace(/\s+/g, '') : trimmed;
+		}
+
+		const originalLinesHashes = originalLines.map((l) => getOrCreateHash(hashLineForAlignment(l)));
+		const modifiedLinesHashes = modifiedLines.map((l) => getOrCreateHash(hashLineForAlignment(l)));
 
 		const sequence1 = new LineSequence(originalLinesHashes, originalLines);
 		const sequence2 = new LineSequence(modifiedLinesHashes, modifiedLines);

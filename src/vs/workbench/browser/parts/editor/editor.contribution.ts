@@ -692,9 +692,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 	command: {
 		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+		title: localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace"),
 		precondition: TextCompareEditorActiveContext,
-		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreTrimWhitespace', false),
+		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreTrimWhitespace', true),
 	},
 	group: '1_whitespace',
 	order: 10,
@@ -703,9 +703,9 @@ MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 	command: {
 		id: TOGGLE_DIFF_IGNORE_INTERIOR_SPACING,
-		title: localize('ignoreInteriorSpacing.label', "Show Interior Whitespace Differences"),
+		title: localize('ignoreInteriorSpacing.label', "Ignore Interior Whitespace"),
 		precondition: TextCompareEditorActiveContext,
-		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreInteriorSpacing', false),
+		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreInteriorSpacing', true),
 	},
 	group: '1_whitespace',
 	order: 20,
@@ -714,9 +714,9 @@ MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 	command: {
 		id: TOGGLE_DIFF_IGNORE_ALL_SPACES,
-		title: localize('ignoreAllSpaces.label', "Show All Whitespace Differences"),
+		title: localize('ignoreAllSpaces.label', "Ignore All Whitespace"),
 		precondition: TextCompareEditorActiveContext,
-		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreAllSpaces', false),
+		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreAllSpaces', true),
 	},
 	group: '1_whitespace',
 	order: 30,

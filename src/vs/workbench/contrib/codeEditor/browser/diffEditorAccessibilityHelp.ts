@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { getCommentCommandInfo } from '../../accessibility/browser/editorAccessibilityHelp.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { TOGGLE_DIFF_IGNORE_ALL_SPACES, TOGGLE_DIFF_IGNORE_INTERIOR_SPACING } from '../../../browser/parts/editor/diffEditorCommands.js';
 
 export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
@@ -38,12 +39,16 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementatio
 
 		const switchSides = localize('msg3', "Run the command Diff Editor: Switch Side{0} to toggle between the original and modified editors.", '<keybinding:diffEditor.switchSide>');
 		const diffEditorActiveAnnouncement = localize('msg5', "The setting, accessibility.verbosity.diffEditorActive, controls if a diff editor announcement is made when it becomes the active editor.");
+		const ignoreInteriorSpacing = localize('msg6', "Run the command Ignore Interior Whitespace{0} to ignore whitespace changes within a line while still showing indentation changes.", '<keybinding:' + TOGGLE_DIFF_IGNORE_INTERIOR_SPACING + '>');
+		const ignoreAllSpaces = localize('msg7', "Run the command Ignore All Whitespace{0} to ignore all whitespace changes on a line, including indentation.", '<keybinding:' + TOGGLE_DIFF_IGNORE_ALL_SPACES + '>');
 
 		const keys = ['accessibility.signals.diffLineDeleted', 'accessibility.signals.diffLineInserted', 'accessibility.signals.diffLineModified'];
 		const content = [
 			localize('msg1', "You are in a diff editor."),
 			localize('msg2', "View the next{0} or previous{1} diff in diff review mode, which is optimized for screen readers.", '<keybinding:' + AccessibleDiffViewerNext.id + '>', '<keybinding:' + AccessibleDiffViewerPrev.id + '>'),
 			switchSides,
+			ignoreInteriorSpacing,
+			ignoreAllSpaces,
 			diffEditorActiveAnnouncement,
 			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
 		];

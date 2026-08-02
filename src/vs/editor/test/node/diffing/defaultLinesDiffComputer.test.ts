@@ -10,6 +10,8 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
 import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
 import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { ILinesDiffComputerOptions } from '../../../common/diff/linesDiffComputer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ArrayText } from '../../../common/core/text/abstractText.js';
 
@@ -208,5 +210,67 @@ suite('LinesSliceCharSequence with ignoreInteriorWhitespace', () => {
 		const s1 = new LinesSliceCharSequence(['  return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
 		const s2 = new LinesSliceCharSequence(['    return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
 		assert.notStrictEqual(textOf(s1), textOf(s2));
+	});
+});
+
+suite('DefaultLinesDiffComputer.computeDiff with ignoreInteriorSpacing/ignoreAllSpaces', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function computeDiff(originalLines: string[], modifiedLines: string[], options: Partial<ILinesDiffComputerOptions>) {
+		return new DefaultLinesDiffComputer().computeDiff(originalLines, modifiedLines, {
+			ignoreTrimWhitespace: false,
+			maxComputationTimeMs: Number.MAX_SAFE_INTEGER,
+			computeMoves: false,
+			...options,
+		});
+	}
+
+	test('ignoreInteriorSpacing alone hides an interior-only change across a whole file', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '  return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreInteriorSpacing: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreInteriorSpacing alone still surfaces an indentation-only change', () => {
+		const original = ['if (x == 1) {', '  return x + y;', '}'];
+		const modified = ['if (x == 1) {', '    return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreInteriorSpacing: true });
+		assert.notDeepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreAllSpaces hides both interior and indentation changes together', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '        return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreTrimWhitespace + ignoreInteriorSpacing together behave like ignoreAllSpaces alone', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '        return x + y;', '}'];
+		const combined = computeDiff(original, modified, { ignoreTrimWhitespace: true, ignoreInteriorSpacing: true });
+		const allSpaces = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.deepStrictEqual(combined.changes, []);
+		assert.deepStrictEqual(allSpaces.changes, []);
+	});
+
+	test('a real content change still surfaces when ignoreAllSpaces also hides unrelated whitespace-only lines', () => {
+		const original = ['function f() {', 'if ( x  ==  1 ) {', '  return   x+y;', '}', '}'];
+		const modified = ['function f() {', 'if(x==1){', '        return x + y + 1;', '}', '}'];
+		const diff = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.strictEqual(diff.changes.length, 1);
+		assert.strictEqual(diff.changes[0].original.startLineNumber, 3);
+		assert.strictEqual(diff.changes[0].modified.startLineNumber, 3);
+	});
+
+	test('empty document vs a whitespace-only document is not reported as a full change under ignoreAllSpaces', () => {
+		const diff = computeDiff([''], ['   '], { ignoreAllSpaces: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('empty document vs a whitespace-only document is still a full change when whitespace is not ignored', () => {
+		const diff = computeDiff([''], ['   '], {});
+		assert.notDeepStrictEqual(diff.changes, []);
 	});
 });

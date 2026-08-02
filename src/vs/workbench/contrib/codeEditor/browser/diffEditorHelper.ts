@@ -46,7 +46,10 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						null
 					));
 					store.add(helperWidget.onClick(() => {
-						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
+						const modifiedUri = this._diffEditor.getModel()!.modified.uri;
+						this._textResourceConfigurationService.updateValue(modifiedUri, 'diffEditor.ignoreTrimWhitespace', false);
+						this._textResourceConfigurationService.updateValue(modifiedUri, 'diffEditor.ignoreInteriorSpacing', false);
+						this._textResourceConfigurationService.updateValue(modifiedUri, 'diffEditor.ignoreAllSpaces', false);
 					}));
 					helperWidget.render();
 				}
