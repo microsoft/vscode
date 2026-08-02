@@ -679,46 +679,47 @@ appendEditorToolItem(
 	true
 );
 
-const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle leading/trailing whitespace action in the diff editor.'));
-const toggleInteriorSpacing = registerIcon('diff-editor-toggle-interior-spacing', Codicon.arrowBoth, localize('toggleInteriorSpacing', 'Icon for the toggle interior whitespace action in the diff editor.'));
-const toggleAllSpaces = registerIcon('diff-editor-toggle-all-spaces', Codicon.diffIgnored, localize('toggleAllSpaces', 'Icon for the toggle all whitespace action in the diff editor.'));
+const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		icon: toggleWhitespace,
-		precondition: TextCompareEditorActiveContext,
-		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreTrimWhitespace', false),
-	},
+	submenu: MenuId.DiffEditorIgnoreWhitespaceSubmenu,
+	title: localize('ignoreWhitespace.label', "Ignore Whitespace Differences"),
+	icon: toggleWhitespace,
 	group: 'navigation',
 	when: TextCompareEditorActiveContext,
 	order: 20,
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
+	command: {
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+		precondition: TextCompareEditorActiveContext,
+		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreTrimWhitespace', false),
+	},
+	group: '1_whitespace',
+	order: 10,
+});
+
+MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 	command: {
 		id: TOGGLE_DIFF_IGNORE_INTERIOR_SPACING,
 		title: localize('ignoreInteriorSpacing.label', "Show Interior Whitespace Differences"),
-		icon: toggleInteriorSpacing,
 		precondition: TextCompareEditorActiveContext,
 		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreInteriorSpacing', false),
 	},
-	group: 'navigation',
-	when: TextCompareEditorActiveContext,
-	order: 21,
+	group: '1_whitespace',
+	order: 20,
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(MenuId.DiffEditorIgnoreWhitespaceSubmenu, {
 	command: {
 		id: TOGGLE_DIFF_IGNORE_ALL_SPACES,
 		title: localize('ignoreAllSpaces.label', "Show All Whitespace Differences"),
-		icon: toggleAllSpaces,
 		precondition: TextCompareEditorActiveContext,
 		toggled: ContextKeyExpr.equals('config.diffEditor.ignoreAllSpaces', false),
 	},
-	group: 'navigation',
-	when: TextCompareEditorActiveContext,
-	order: 22,
+	group: '1_whitespace',
+	order: 30,
 });
 
 // Editor Commands for Command Palette
