@@ -59,6 +59,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
 	streamingFileCreateToolName: 'Write',
@@ -85,7 +86,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// Claude cannot resolve a client-assigned AHP turn id to the SDK message
 	// anchor required to create the provider fork. See KNOWN_ISSUES.md.
 	supportsChatForkE2E: false,
-	supportsFileTools: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

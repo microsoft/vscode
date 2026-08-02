@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Create result.txt containing exactly CREATED_VALUE.
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''result.txt'',''CREATED_VALUE'')"`. Then reply exactly "done".'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Create result.txt containing exactly CREATED_VALUE.
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''result.txt'',''CREATED_VALUE'')"`. Then reply exactly "done".'
             origin:
               kind: user
       - channel: ${session_0}
@@ -31,7 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Creating `result.txt` in the workspace now with the exact required content and no extra characters.
+            content: Running the exact command now and then I’ll return the exact requested reply.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -54,7 +54,7 @@ rounds:
             content: |-
 
 
-              Done. `result.txt` now contains exactly `CREATED_VALUE`.
+              done
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

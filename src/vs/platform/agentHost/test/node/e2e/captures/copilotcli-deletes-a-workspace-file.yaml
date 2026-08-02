@@ -1,8 +1,8 @@
 version: 1
-dialect: responses
+dialect: anthropic
 exchanges:
   - request:
-      model: gpt-5.3-codex
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -11,13 +11,13 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: exec_command
+          name: ${shell}
           input:
-            cmd: node -e "require('fs').unlinkSync('delete-me.txt')"
-            workdir: ${workdir}
+            command: node -e "require('fs').unlinkSync('delete-me.txt')"
+            description: Delete file delete-me.txt
       stopReason: tool_use
   - request:
-      model: gpt-5.3-codex
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -25,20 +25,15 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: exec_command
+              name: bash
               input:
-                cmd: node -e "require('fs').unlinkSync('delete-me.txt')"
-                workdir: ${workdir}
+                command: node -e "require('fs').unlinkSync('delete-me.txt')"
+                description: Delete file delete-me.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                Chunk ID: a444ab
-                Wall time: 0.0000 seconds
-                Process exited with code 0
-                Original token count: 0
-                Output:
+              content: '<shellId: 0 completed with exit code 0>'
     response:
       content: deleted
       stopReason: end_turn

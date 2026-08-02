@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
             origin:
               kind: user
       - channel: ${session_0}
@@ -27,17 +27,10 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: Running the exact command now and I’ll return only its raw output.
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: shell
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -51,10 +44,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: |-
-
-
-              NESTED_VALUE_42
+            content: deleted
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

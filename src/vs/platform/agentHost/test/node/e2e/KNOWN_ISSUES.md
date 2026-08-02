@@ -67,12 +67,12 @@ So the tool call runs to completion but the host-managed terminal never publishe
 
 Two techniques, and the choice is not stylistic:
 
-- **Steer** (`Use your file tools; do not run a shell command.`) where a file tool exists for the operation. Reads, edits, missing-file handling, and content creation all took the hint, and the resulting capture contains no shell command at all — the strongest possible outcome, since there is nothing left to be platform-specific.
+- **Steer** (`Use your file tools; do not run a shell command.`) where a file tool exists for the operation and the provider follows the instruction reliably. Reads and missing-file handling use this path for Claude and Copilot.
 - **Pin** (`Run exactly this shell command, with no modifications: …`) where no file tool exists. Rename, delete, directory creation, and listing have no file-tool equivalent, so every provider reaches for the shell and picks a POSIX command. Steering these harder made one provider skip the operation entirely rather than use a different tool.
 
 Pinning uses `node -e "…"`, which is guaranteed present because the suite runs under Node, and whose `"…"` / `'…'` quoting is read identically by `cmd` and POSIX shells. Prefer relative paths in a pinned command so no Windows path with backslashes has to be escaped into a JavaScript string literal.
 
-The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
+The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Codex uses pinned commands for all file operations because it only exposes `exec_command`. Copilot create/edit scenarios also pin commands because its native tools did not record portable, reliably completed turns; dedicated streaming-create coverage still exercises its native create tool. Pin only when steering has actually been tried and failed, and note which it was.
 
 ### Approve tool calls in a loop, not once
 
@@ -262,64 +262,6 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Temporarily enable `supportsChatForkE2E` to execute the disabled test.
 
-### Copilot file-operation turns that do not complete reliably
-
-- Scope: Copilot.
-- Tests and observed symptoms:
-  - `reads an existing text file`: the recorded turn did not complete.
-  - `reads a value from JSON`: the replayed turn did not complete.
-  - `creates a new text file`: tool completion is not emitted consistently.
-  - `edits an existing text file`: the replayed turn did not complete.
-  - `deletes a workspace file`: the replayed turn did not complete.
-- Expected: each turn reaches `chat/turnComplete` and the direct filesystem or response assertion succeeds.
-- Gate: provider-specific conditions in `fileOperationsSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "<exact test title>"
-  ```
-
-  Temporarily enable the selected Copilot variant. Re-record narrowly if the current capture does not exist.
-
-### Codex has no file tools
-
-- Scope: Codex.
-- Gate: `supportsFileTools: false` in the Codex provider config.
-
-Codex exposes no provider-native file tools; its provider-owned local execution surface is `exec_command`. Host-owned server tools such as `list_sessions` and `addComment` are separate and are covered by the shared server-tool suite.
-
-The shared file-operation scenarios steer the agent away from the shell (`Use your file tools; do not run a shell command.`) so that their captures stay platform-neutral. Codex cannot satisfy that instruction and does not fall back — it refuses, in its own words:
-
-```
-I can't access file contents without using a shell command in this environment,
-and you asked me not to run one.
-```
-
-`counts lines in a file` shows the sharper version of the same failure: Codex flails and answers `3` for a four-line file rather than refusing outright.
-
-This is a provider capability difference, not a bug to be fixed by re-recording. Making these scenarios run against Codex means giving them a provider-specific prompt that pins a portable shell command instead of steering to file tools — the "pin, don't steer" half of [Steering versus pinning](#steering-versus-pinning). That is worth doing and is the actionable next step here.
-
-Reproduce by temporarily enabling `supportsFileTools` for Codex and recording one scenario:
-
-```bash
-AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-  --grep "reads a file from a nested directory"
-```
-
-Recording is required rather than incidental: these scenarios have no Codex capture, so plain replay stops at fixture resolution and never reaches the provider. **Note that this rewrites captures and AHP snapshots**, so `git checkout` the artifacts afterwards unless the new recording is the intended result. The failure appears in the run output — Codex says it cannot read a file without a shell — rather than in the artifacts.
-
-### Codex file scenarios are unstable on a shared server
-
-- Scope: Codex.
-- Gate: `stableSharedServerFileScenarios: false`.
-
-Separate from the capability gap above, and tracked separately because the two need different work. The file-operation scenarios that pin a portable shell command need no file tools, so Codex can run them — but it performs each through `exec_command`, and several such turns on one long-lived server do not replay stably: the tool-call completion is reported inconsistently, and **the failing scenario moves between runs**.
-
-That signature is the [shared-server load ceiling](./README.md#server-lifecycle), not a fault in any single test; each replays cleanly in isolation via `--grep`. Enabling the family naively turns a green suite into one that fails roughly one run in four, so it needs the lifecycle understood first.
-
 ## Platform and deterministic-replay limitations
 
 ### Windows shell and filesystem behavior
@@ -351,10 +293,19 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Gate: `shellToolReplayUnstableOnLinux: true`.
 - Tests directly affected by this gate:
   - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
+  - `reads a file from a nested directory`
   - `lists workspace entries`
+  - `reads a value from JSON`
   - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `creates a new text file`
+  - `edits an existing text file`
+  - `creates a file in a new nested directory`
   - `renames a workspace file`
+  - `deletes a workspace file`
   - `runs a deterministic shell command`
+  - `reads a filename containing spaces`
   - `secondary workspace skill reaches the Codex model request`
 - Recording mode remains enabled so a future capture or provider update can be evaluated.
 
@@ -473,8 +424,7 @@ These pending tests do not currently indicate bugs. They are listed by capabilit
 | Multiple chats | `supportsMultipleChats` | Codex | All model-backed peer-chat scenarios in `multiChatSuite` skip. The negative test `provider without multiple chat capability rejects peer creation` runs *because* of the gate. Host-owned peer-catalog semantics are unaffected — they moved to the conformance tier and run once regardless of provider. |
 | Chat fork (E2E) | `supportsChatForkE2E` | Claude, Codex | `forkProviderTest` scenarios skip. For Claude this is **not** an expected skip — see [Claude provider-context fork](#claude-provider-context-fork). |
 | Subagents | `supportsSubagents` | Codex | `subagent tool calls are routed to the subagent session, not flat in the parent`, `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`. |
-| File tools | `supportsFileTools` | Codex | The `fileOperationsSuite` scenarios whose prompt steers to file tools. See [Codex has no file tools](#codex-has-no-file-tools). |
-| Shared-server file scenarios | `stableSharedServerFileScenarios` | Codex | The `fileOperationsSuite` scenarios that pin a shell command. See [Codex file scenarios are unstable on a shared server](#codex-file-scenarios-are-unstable-on-a-shared-server). |
+| Streaming file creation | `streamingFileCreateToolName` | Codex | `streams rich file creation progress without exposing partial input` requires a native file-creation tool with argument deltas; shell-backed file operations are covered separately. |
 | Plan mode | `supportsPlanMode` | Codex, Claude | `planning-mode session-state writes are auto-approved in default mode`. For Claude this is a prompt-portability problem — see [Claude plan-mode prompt](#claude-plan-mode-prompt). |
 | Host terminal tool | `supportsHostTerminalTool` | Claude, Codex | Worktree isolation is verified via the resolved working directory alone rather than terminal `pwd` output. |
 | Worktree isolation | `supportsWorktreeIsolation` | none | Now host-owned; enabled for all providers. |
@@ -490,7 +440,7 @@ The complete Claude or Codex deterministic suite is skipped when its bundled SDK
 Periodically:
 
 1. Run the full provider files and the conformance file, not only focused tests, because shared-process failures may depend on suite order.
-2. Reevaluate broad gates such as `supportsFileTools` one test at a time, and check first whether the capture exists. A gate that covers more than one distinct cause hides all but the loudest of them: prefer splitting it over flipping it.
+2. Reevaluate broad provider gates one test at a time, and check first whether the capture exists. A gate that covers more than one distinct cause hides all but the loudest of them: prefer splitting it over flipping it.
 3. Check whether new provider SDK/CLI versions changed tool selection or completion behavior.
 4. Re-record narrowly when wire behavior changed, then review every generated capture.
 5. Enable fixed variants and remove stale entries, comments, config flags, and orphaned captures together.
