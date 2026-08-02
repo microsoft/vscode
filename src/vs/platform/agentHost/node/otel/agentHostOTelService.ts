@@ -23,7 +23,7 @@ import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -100,9 +100,8 @@ function parseResourceAttributes(raw: string | undefined, serviceName: string | 
 			}
 		}
 	}
-	if (serviceName) {
-		attributes['service.name'] = serviceName;
-	}
+	attributes['service.namespace'] = AgentHostOTelServiceNamespace;
+	attributes['service.name'] = serviceName ?? attributes['service.name'] ?? AgentHostOTelServiceName;
 	return attributes;
 }
 
@@ -140,6 +139,15 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 		otlpProtocol: protocol,
 		resourceAttributes: parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME),
 	};
+}
+
+function upsertResourceAttribute(attributes: Array<{ key?: string; value?: { stringValue?: string } }>, key: string, value: string): void {
+	const existing = attributes.find(attribute => attribute.key === key);
+	if (existing) {
+		existing.value = { stringValue: value };
+	} else {
+		attributes.push({ key, value: { stringValue: value } });
+	}
 }
 
 export class AgentHostOTelService extends Disposable implements IAgentHostOTelService {
@@ -200,14 +208,18 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			protocol,
 			...(this._config.headers ? { headers: this._config.headers } : {}),
 		} as const : undefined;
+		const resourceAttributes = { ...this._config.resourceAttributes };
+		delete resourceAttributes['service.name'];
+		resourceAttributes['service.namespace'] = AgentHostOTelServiceNamespace;
 		if (!this._config.dbSpanExporter) {
-			return { traces: external, external, captureContent: this._config.captureContent === true };
+			return { traces: external, external, captureContent: this._config.captureContent === true, resourceAttributes };
 		}
 		await this._ensureStarted();
 		return {
 			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : external,
 			external,
 			captureContent: this._config.captureContent === true,
+			resourceAttributes,
 		};
 	}
 
@@ -351,6 +363,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		// 3. Loopback OTLP/HTTP receiver.
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
+				transformBody: body => this._normalizeNativeResourceIdentity(body),
 				onSpans: result => {
 					for (const span of result.spans) {
 						try {
@@ -405,6 +418,21 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		if (this._canForwardSyntheticSpan()) {
 			this._forwarder?.forwardRaw?.(this._encodeOtlpSpan(span), 'application/json');
 		}
+	}
+
+	private _normalizeNativeResourceIdentity(body: Buffer): Buffer {
+		const payload = JSON.parse(body.toString('utf8')) as { resourceSpans?: Array<{ resource?: { attributes?: Array<{ key?: string; value?: { stringValue?: string } }> } }> };
+		for (const resourceSpan of payload.resourceSpans ?? []) {
+			const attributes = resourceSpan.resource ??= {};
+			const values = attributes.attributes ??= [];
+			const serviceName = values.find(attribute => attribute.key === 'service.name')?.value?.stringValue;
+			const normalizedName = serviceName === 'claude-code' ? 'claude' : serviceName === 'codex-app-server' ? 'codex' : serviceName;
+			upsertResourceAttribute(values, 'service.namespace', AgentHostOTelServiceNamespace);
+			if (normalizedName) {
+				upsertResourceAttribute(values, 'service.name', normalizedName);
+			}
+		}
+		return Buffer.from(JSON.stringify(payload));
 	}
 
 	private _canForwardSyntheticSpan(): boolean {

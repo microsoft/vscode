@@ -164,7 +164,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		const cfg = readAgentHostOTelEnv({
 			COPILOT_OTEL_ENABLED: 'true',
 			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer xyz,x-tenant=acme',
-			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored',
+			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored,service.namespace=foreign',
 			OTEL_SERVICE_NAME: 'agent-host',
 		});
 		deepStrictEqual({ headers: cfg.headers, resourceAttributes: cfg.resourceAttributes }, {
@@ -173,6 +173,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				'deployment.environment.name': 'dev',
 				custom: 'value with spaces',
 				'service.name': 'agent-host',
+				'service.namespace': 'vscode.agent-host',
 			},
 		});
 	});
@@ -239,6 +240,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			ok(config?.traces?.endpoint.startsWith('http://127.0.0.1:'));
 			strictEqual(config?.traces?.protocol, 'http/json');
 			deepStrictEqual(config?.external, { endpoint: 'http://collector:4318', protocol: 'http/protobuf' });
+			deepStrictEqual(config?.resourceAttributes, { 'service.namespace': 'vscode.agent-host' });
 			const context = svc.getSessionTraceContext('conversation', 'claude:/conversation');
 			ok(context);
 			strictEqual(context.traceparent, `00-${context.traceId}-${context.spanId}-01`);
@@ -337,6 +339,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionTitleAttribute)?.length, 200);
 				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
 				strictEqual(reader.getSpanAttribute(titleSpan.span_id, 'service.name'), 'agent-host-test');
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, 'service.namespace'), 'vscode.agent-host');
 			} finally {
 				reader.close();
 			}

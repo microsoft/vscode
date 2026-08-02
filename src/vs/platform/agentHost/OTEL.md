@@ -66,6 +66,21 @@ In DB mode the private trace hop always uses OTLP/HTTP JSON, which all three run
 
 When Agent Host OTel is enabled, its launch configuration overrides standalone Claude/Codex exporter destinations for that Agent Host process. When it is disabled, standalone provider telemetry remains untouched. Authentication headers are supported through inherited standard OTel environment variables; managed-header delivery to provider subprocesses is not currently supported.
 
+## Resource Identity
+
+Agent Host is one logical system with several native OTel producers. Agent Host-owned launch and ingest boundaries assign the standard resource attribute `service.namespace=vscode.agent-host` while keeping component service names distinct:
+
+| Producer | `service.name` |
+|---|---|
+| Host session/title metadata | `vscode-agent-host` (unless the host has an explicit service-name override) |
+| Copilot runtime | `github-copilot` |
+| Claude runtime | `claude` |
+| Codex app-server | `codex` for traces normalized at the Agent Host receiver |
+
+Unrelated inherited resource attributes are preserved. A conflicting inherited `service.namespace` is replaced only inside Agent Host-owned telemetry and provider launch environments; no global VS Code namespace is set. Provider launch environments do not inherit a host `OTEL_SERVICE_NAME`.
+
+Claude honors these standard resource variables for traces, logs, and metrics. The current Codex app-server hardcodes `codex-app-server` and does not consume standard resource overrides for its direct logs/metrics; Agent Host therefore normalizes intercepted Codex traces, while direct Codex logs/metrics retain their upstream identity until Codex adds standard resource override support.
+
 ## Distributed Trace Context
 
 The host emits a zero-duration `vscode.agent_host.session` anchor and passes its W3C `traceparent`/`tracestate` to native runtimes. Copilot reads the context through `CopilotClientOptions.onGetTraceContext`, Claude receives it in its session subprocess environment, and Codex receives it on session-scoped JSON-RPC request envelopes. Provider-native traces can therefore share one trace id while retaining their provider conversation attributes.

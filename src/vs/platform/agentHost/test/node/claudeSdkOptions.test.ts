@@ -82,6 +82,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
 			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf' },
 			captureContent: false,
+			resourceAttributes: { 'service.namespace': 'vscode.agent-host', region: 'west us' },
 		}, {
 			traceId: '1'.repeat(32),
 			spanId: '2'.repeat(16),
@@ -90,6 +91,8 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
 		assert.deepStrictEqual(env, {
 			CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+			OTEL_SERVICE_NAME: 'claude',
+			OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=vscode.agent-host,region=west%20us',
 			CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
 			OTEL_TRACES_EXPORTER: 'otlp',
 			OTEL_LOGS_EXPORTER: 'otlp',

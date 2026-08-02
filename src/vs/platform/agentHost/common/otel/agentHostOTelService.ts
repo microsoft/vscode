@@ -21,6 +21,8 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
  * in other layers) can import it without pulling in the node-only concrete
  * implementation and its transitive native dependencies (`node:sqlite`).
  */
+export const AgentHostOTelServiceNamespace = 'vscode.agent-host';
+export const AgentHostOTelServiceName = 'vscode-agent-host';
 export const AgentHostSessionSpanName = 'vscode.agent_host.session';
 export const AgentHostSessionTitleSpanName = 'vscode.agent_host.session.title_changed';
 
@@ -44,6 +46,7 @@ export interface IAgentHostNativeOTelConfig {
 		readonly headers?: Readonly<Record<string, string>>;
 	};
 	readonly captureContent: boolean;
+	readonly resourceAttributes: Readonly<Record<string, string>>;
 }
 
 export interface IAgentHostOTelService {

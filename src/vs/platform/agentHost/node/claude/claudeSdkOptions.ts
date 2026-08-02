@@ -251,6 +251,8 @@ export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | und
 	}
 	const env: Record<string, string> = {
 		CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+		OTEL_SERVICE_NAME: 'claude',
+		OTEL_RESOURCE_ATTRIBUTES: serializeResourceAttributes(config.resourceAttributes),
 		CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: config.traces ? '1' : '0',
 		OTEL_TRACES_EXPORTER: config.traces ? 'otlp' : 'none',
 		OTEL_LOGS_EXPORTER: config.external ? 'otlp' : 'none',
@@ -280,6 +282,10 @@ export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | und
 		}
 	}
 	return env;
+}
+
+function serializeResourceAttributes(attributes: Readonly<Record<string, string>>): string {
+	return Object.entries(attributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
 }
 
 function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {

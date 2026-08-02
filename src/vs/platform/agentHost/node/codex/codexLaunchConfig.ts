@@ -47,6 +47,10 @@ export function buildCodexLaunchConfig(
 		throw new Error(`Codex ${usageSource} launch received an invalid proxy configuration`);
 	}
 	const env: NodeJS.ProcessEnv = { ...inheritedEnv, [AiAgentEnvVar]: AiAgentEnvValue };
+	if (telemetry) {
+		env.OTEL_SERVICE_NAME = 'codex';
+		env.OTEL_RESOURCE_ATTRIBUTES = serializeResourceAttributes(telemetry.resourceAttributes);
+	}
 	if (proxy) {
 		env.OPENAI_API_KEY = proxy.nonce;
 	}
@@ -95,6 +99,10 @@ function codexExporter(config: { endpoint: string; protocol: 'http/json' | 'http
 	}
 	const protocol = config.protocol === 'http/json' ? 'json' : 'binary';
 	return `{ otlp-http = { endpoint = ${JSON.stringify(config.endpoint)}, protocol = ${JSON.stringify(protocol)}${headers} } }`;
+}
+
+function serializeResourceAttributes(attributes: Readonly<Record<string, string>>): string {
+	return Object.entries(attributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
 }
 
 function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {
