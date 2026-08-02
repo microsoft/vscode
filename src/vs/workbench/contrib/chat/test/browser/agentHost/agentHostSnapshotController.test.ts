@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
@@ -52,40 +52,79 @@ function makeToolCall(opts: {
 	};
 }
 
-function makeMockFileService(contentMap: Map<string, string>): IFileService {
+function makeRenameToolCall(opts: {
+	toolCallId: string;
+	originalFile: URI;
+	renamedFile: URI;
+	beforeURI: string;
+	afterURI: string;
+}): ToolCallCompletedState {
+	return {
+		status: ToolCallStatus.Completed,
+		toolCallId: opts.toolCallId,
+		toolName: 'rename',
+		displayName: 'Rename File',
+		invocationMessage: 'Renaming file',
+		toolInput: '{}',
+		success: true,
+		pastTenseMessage: 'Renamed file',
+		confirmed: ToolCallConfirmationReason.NotNeeded,
+		content: [{
+			type: ToolResultContentType.FileEdit,
+			before: {
+				uri: opts.originalFile.toString(),
+				content: { uri: opts.beforeURI },
+			},
+			after: {
+				uri: opts.renamedFile.toString(),
+				content: { uri: opts.afterURI },
+			},
+		}],
+	};
+}
+
+function makeMockFileService(contentMap: Map<string, string>, beforeWrite?: () => void, comparisonKey: (uri: URI) => string = uri => uri.toString()): IFileService {
 	return new class extends mock<IFileService>() {
 		override async readFile(uri: URI) {
-			const data = contentMap.get(uri.toString());
+			const data = contentMap.get(comparisonKey(uri));
 			if (data === undefined) {
 				throw new Error(`Content not found: ${uri.toString()}`);
 			}
 			return { value: VSBuffer.fromString(data) } as IFileContent;
 		}
 		override async writeFile(uri: URI, content: VSBuffer): Promise<any> {
-			contentMap.set(uri.toString(), content.toString());
+			beforeWrite?.();
+			contentMap.set(comparisonKey(uri), content.toString());
 			return {};
 		}
 		override async del(uri: URI) {
-			contentMap.delete(uri.toString());
+			if (!contentMap.delete(comparisonKey(uri))) {
+				throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+			}
 		}
 		override async move(source: URI, target: URI): Promise<any> {
-			const data = contentMap.get(source.toString());
-			if (data !== undefined) {
-				contentMap.set(target.toString(), data);
-				contentMap.delete(source.toString());
+			const sourceKey = comparisonKey(source);
+			const targetKey = comparisonKey(target);
+			const data = contentMap.get(sourceKey);
+			if (data === undefined) {
+				throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+			}
+			contentMap.set(targetKey, data);
+			if (sourceKey !== targetKey) {
+				contentMap.delete(sourceKey);
 			}
 			return {};
 		}
 	};
 }
 
-function createController(store: DisposableStore, contentMap: Map<string, string>): AgentHostSnapshotController {
+function createController(store: DisposableStore, contentMap: Map<string, string>, fileService: IFileService = makeMockFileService(contentMap)): AgentHostSnapshotController {
 	const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/test-session' });
 	const controller = new AgentHostSnapshotController(
 		sessionResource,
 		'local',
 		new NullLogService(),
-		makeMockFileService(contentMap),
+		fileService,
 	);
 	store.add(controller);
 	return controller;
@@ -267,8 +306,7 @@ suite('AgentHostSnapshotController', () => {
 	test('multiple tool calls editing the same file collapse to one net edit', async () => {
 		// Two sequential edits to /file.ts within the same request: the
 		// second edit's after-content must win on redo, and the first
-		// edit's before-content must win on undo. Without merging, the
-		// two edits would race when applied in parallel.
+		// edit's before-content must win on undo.
 		const beforeA = URI.file('/snap/before-a').toString();
 		const afterA = URI.file('/snap/after-a').toString();
 		const beforeB = URI.file('/snap/before-b').toString();
@@ -290,6 +328,208 @@ suite('AgentHostSnapshotController', () => {
 		}));
 		await controller.restoreSnapshot('req-1', undefined);
 		assert.strictEqual(contentMap.get(file), 'v0');
+	});
+
+	test('partial restore failure does not advance the cursor and can be retried', async () => {
+		const editBefore = URI.file('/snap/edit-before').toString();
+		const editAfter = URI.file('/snap/edit-after').toString();
+		const firstRenameBefore = URI.file('/snap/first-rename-before').toString();
+		const firstRenameAfter = URI.file('/snap/first-rename-after').toString();
+		const secondRenameBefore = URI.file('/snap/second-rename-before').toString();
+		const secondRenameAfter = URI.file('/snap/second-rename-after').toString();
+		const originalFile = URI.file('/a.ts');
+		const firstRenamedFile = URI.file('/b.ts');
+		const secondRenamedFile = URI.file('/c.ts');
+		const contentMap = new Map([
+			[editBefore, 'v0'],
+			[editAfter, 'v1'],
+			[firstRenameBefore, 'v1'],
+			[firstRenameAfter, 'v1'],
+			[secondRenameBefore, 'v1'],
+			[secondRenameAfter, 'v1'],
+			[secondRenamedFile.toString(), 'v1'],
+		]);
+		let writeCount = 0;
+		const fileService = makeMockFileService(contentMap, () => {
+			if (++writeCount === 2) {
+				throw new Error('write failed');
+			}
+		});
+		const controller = createController(store, contentMap, fileService);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-edit',
+			filePath: originalFile.path,
+			beforeURI: editBefore,
+			afterURI: editAfter,
+		}));
+		controller.addToolCallEdits('req-1', makeRenameToolCall({
+			toolCallId: 'tc-rename',
+			originalFile,
+			renamedFile: firstRenamedFile,
+			beforeURI: firstRenameBefore,
+			afterURI: firstRenameAfter,
+		}));
+		controller.addToolCallEdits('req-1', makeRenameToolCall({
+			toolCallId: 'tc-second-rename',
+			originalFile: firstRenamedFile,
+			renamedFile: secondRenamedFile,
+			beforeURI: secondRenameBefore,
+			afterURI: secondRenameAfter,
+		}));
+
+		await assert.rejects(controller.restoreSnapshot('req-1', undefined), /write failed/);
+		assert.deepStrictEqual({
+			originalAfterFailure: contentMap.get(originalFile.toString()),
+			firstRenameAfterFailure: contentMap.get(firstRenamedFile.toString()),
+			secondRenameAfterFailure: contentMap.get(secondRenamedFile.toString()),
+			canUndo: controller.canUndo.get(),
+			canRedo: controller.canRedo.get(),
+			disabledRequests: controller.requestDisablement.get(),
+		}, {
+			originalAfterFailure: 'v1',
+			firstRenameAfterFailure: undefined,
+			secondRenameAfterFailure: undefined,
+			canUndo: true,
+			canRedo: false,
+			disabledRequests: [],
+		});
+
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.deepStrictEqual({
+			original: contentMap.get(originalFile.toString()),
+			firstRename: contentMap.get(firstRenamedFile.toString()),
+			secondRename: contentMap.get(secondRenamedFile.toString()),
+		}, {
+			original: 'v0',
+			firstRename: undefined,
+			secondRename: undefined,
+		});
+	});
+
+	test('undo replays an edit followed by a rename in reverse order', async () => {
+		const editBefore = URI.file('/snap/edit-before').toString();
+		const editAfter = URI.file('/snap/edit-after').toString();
+		const renameBefore = URI.file('/snap/rename-before').toString();
+		const renameAfter = URI.file('/snap/rename-after').toString();
+		const originalFile = URI.file('/a.ts');
+		const renamedFile = URI.file('/b.ts');
+		const contentMap = new Map([
+			[editBefore, 'v0'],
+			[editAfter, 'v1'],
+			[renameBefore, 'v1'],
+			[renameAfter, 'v1'],
+			[renamedFile.toString(), 'v1'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-edit',
+			filePath: originalFile.path,
+			beforeURI: editBefore,
+			afterURI: editAfter,
+		}));
+		controller.addToolCallEdits('req-1', makeRenameToolCall({
+			toolCallId: 'tc-rename',
+			originalFile,
+			renamedFile,
+			beforeURI: renameBefore,
+			afterURI: renameAfter,
+		}));
+
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.deepStrictEqual({
+			original: contentMap.get(originalFile.toString()),
+			renamed: contentMap.get(renamedFile.toString()),
+		}, {
+			original: 'v0',
+			renamed: undefined,
+		});
+	});
+
+	test('rename followed by an edit preserves the rename during undo and redo', async () => {
+		const renameBefore = URI.file('/snap/rename-before').toString();
+		const renameAfter = URI.file('/snap/rename-after').toString();
+		const editBefore = URI.file('/snap/edit-before').toString();
+		const editAfter = URI.file('/snap/edit-after').toString();
+		const originalFile = URI.file('/a.ts');
+		const renamedFile = URI.file('/b.ts');
+		const contentMap = new Map([
+			[renameBefore, 'v0'],
+			[renameAfter, 'v0'],
+			[editBefore, 'v0'],
+			[editAfter, 'v1'],
+			[renamedFile.toString(), 'v1'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeRenameToolCall({
+			toolCallId: 'tc-rename',
+			originalFile,
+			renamedFile,
+			beforeURI: renameBefore,
+			afterURI: renameAfter,
+		}));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-edit',
+			filePath: renamedFile.path,
+			beforeURI: editBefore,
+			afterURI: editAfter,
+		}));
+
+		await controller.restoreSnapshot('req-1', undefined);
+		const afterUndo = {
+			original: contentMap.get(originalFile.toString()),
+			renamed: contentMap.get(renamedFile.toString()),
+		};
+		await controller.redoInteraction();
+
+		assert.deepStrictEqual({
+			afterUndo,
+			afterRedo: {
+				original: contentMap.get(originalFile.toString()),
+				renamed: contentMap.get(renamedFile.toString()),
+			},
+		}, {
+			afterUndo: {
+				original: 'v0',
+				renamed: undefined,
+			},
+			afterRedo: {
+				original: undefined,
+				renamed: 'v1',
+			},
+		});
+	});
+
+	test('case-only rename restore preserves the file on a case-insensitive file system', async () => {
+		const before = URI.file('/snap/before');
+		const after = URI.file('/snap/after');
+		const originalFile = URI.file('/foo.ts');
+		const renamedFile = URI.file('/Foo.ts');
+		const comparisonKey = (uri: URI) => uri.toString().toLowerCase();
+		const contentMap = new Map([
+			[comparisonKey(before), 'v0'],
+			[comparisonKey(after), 'v1'],
+			[comparisonKey(renamedFile), 'v1'],
+		]);
+		const controller = createController(store, contentMap, makeMockFileService(contentMap, undefined, comparisonKey));
+		controller.addToolCallEdits('req-1', makeRenameToolCall({
+			toolCallId: 'tc-rename',
+			originalFile,
+			renamedFile,
+			beforeURI: before.toString(),
+			afterURI: after.toString(),
+		}));
+
+		await controller.restoreSnapshot('req-1', undefined);
+		const afterUndo = contentMap.get(comparisonKey(originalFile));
+		await controller.redoInteraction();
+
+		assert.deepStrictEqual({
+			afterUndo,
+			afterRedo: contentMap.get(comparisonKey(renamedFile)),
+		}, {
+			afterUndo: 'v0',
+			afterRedo: 'v1',
+		});
 	});
 
 	test('hasEditsInRequest reflects added tool call edits', () => {

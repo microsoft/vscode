@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
 import { ChatEditingSessionState, IChatEditingSession, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits } from '../../../common/editing/chatEditingService.js';
@@ -30,6 +30,13 @@ interface IAgentHostCheckpoint {
 	readonly edits: IToolCallFileEdit[];
 	/** Tool-call IDs whose edits have already been folded into `edits`. */
 	readonly seenToolCallIds: Set<string>;
+}
+
+interface IPendingCheckpointWrite {
+	readonly checkpoint: IAgentHostCheckpoint;
+	readonly direction: 'before' | 'after';
+	readonly edits: readonly IToolCallFileEdit[];
+	nextIndex: number;
 }
 
 /**
@@ -85,6 +92,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	private readonly _checkpoints: IAgentHostCheckpoint[] = [];
 	private readonly _currentCheckpointIndex = observableValue<number>(this, -1);
 	private readonly _undoRedoSequencer = new Sequencer();
+	private _pendingCheckpointWrite: IPendingCheckpointWrite | undefined;
 
 	constructor(
 		readonly chatSessionResource: URI,
@@ -167,11 +175,9 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			// Multiple tool calls in one request may touch the same file
 			// (e.g. create→edit, edit→delete). Fold each new edit into the
 			// prior one for the same resource so the checkpoint stores a
-			// single net before/after pair per file. Otherwise
-			// _writeCheckpointContent would apply duplicate writes in
-			// parallel and race to leave the file in an undefined state.
+			// single net before/after pair per file.
 			const existingIdx = cp.edits.findIndex(e => e.resource.toString() === resource.toString());
-			if (existingIdx < 0) {
+			if (existingIdx < 0 || entry.kind === FileEditKind.Rename || cp.edits[existingIdx].kind === FileEditKind.Rename) {
 				cp.edits.push(entry);
 			} else {
 				cp.edits[existingIdx] = mergeFileEdit(cp.edits[existingIdx], entry);
@@ -241,16 +247,20 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			// Undo forward checkpoints
 			for (let i = currentIdx; i > targetIdx; i--) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'before');
+				this._setCheckpointIndex(i - 1);
 			}
 		} else if (targetIdx > currentIdx) {
 			// Redo to reach the target
 			for (let i = currentIdx + 1; i <= targetIdx; i++) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'after');
+				this._setCheckpointIndex(i);
 			}
 		}
+	}
 
+	private _setCheckpointIndex(index: number): void {
 		transaction(tx => {
-			this._currentCheckpointIndex.set(targetIdx, tx);
+			this._currentCheckpointIndex.set(index, tx);
 		});
 	}
 
@@ -349,13 +359,29 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	// ---- Private helpers ----------------------------------------------------
 
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const ops = checkpoint.edits.map(async edit => {
+		let progress = this._pendingCheckpointWrite;
+		if (progress) {
+			if (progress.checkpoint !== checkpoint || progress.direction !== direction) {
+				throw new Error(`Cannot change checkpoints while ${progress.direction === 'before' ? 'undoing' : 'redoing'} request '${progress.checkpoint.requestId}'`);
+			}
+		} else {
+			progress = {
+				checkpoint,
+				direction,
+				edits: direction === 'before' ? checkpoint.edits.slice().reverse() : checkpoint.edits.slice(),
+				nextIndex: 0,
+			};
+			this._pendingCheckpointWrite = progress;
+		}
+
+		for (; progress.nextIndex < progress.edits.length; progress.nextIndex++) {
+			const edit = progress.edits[progress.nextIndex];
 			try {
 				if (direction === 'before') {
 					// Undoing this edit
 					switch (edit.kind) {
 						case FileEditKind.Create:
-							await this._fileService.del(edit.resource);
+							await this._deleteIfExists(edit.resource);
 							break;
 						case FileEditKind.Delete:
 							if (edit.beforeContentUri) {
@@ -364,11 +390,9 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 							}
 							break;
 						case FileEditKind.Rename:
-							if (edit.originalResource) {
-								await this._fileService.move(edit.resource, edit.originalResource, true);
-							}
 							if (edit.beforeContentUri && edit.originalResource) {
 								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._moveIfNeeded(edit.resource, edit.originalResource);
 								await this._fileService.writeFile(edit.originalResource, content.value);
 							}
 							break;
@@ -389,14 +413,12 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 							}
 							break;
 						case FileEditKind.Delete:
-							await this._fileService.del(edit.resource);
+							await this._deleteIfExists(edit.resource);
 							break;
 						case FileEditKind.Rename:
-							if (edit.originalResource) {
-								await this._fileService.move(edit.originalResource, edit.resource, true);
-							}
-							if (edit.afterContentUri) {
+							if (edit.afterContentUri && edit.originalResource) {
 								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._moveIfNeeded(edit.originalResource, edit.resource);
 								await this._fileService.writeFile(edit.resource, content.value);
 							}
 							break;
@@ -410,9 +432,31 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostSnapshotController] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
+				throw err;
 			}
-		});
-		await Promise.all(ops);
+		}
+		this._pendingCheckpointWrite = undefined;
+	}
+
+	private async _moveIfNeeded(source: URI, target: URI): Promise<void> {
+		try {
+			await this._fileService.move(source, target, true);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+			await this._fileService.readFile(target);
+		}
+	}
+
+	private async _deleteIfExists(resource: URI): Promise<void> {
+		try {
+			await this._fileService.del(resource);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+		}
 	}
 }
 
