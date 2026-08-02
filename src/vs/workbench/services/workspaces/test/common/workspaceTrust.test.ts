@@ -261,6 +261,32 @@ suite('Workspace Trust', () => {
 			assert.strictEqual(true, (await testObject.getUriTrustInfo(remoteFolder)).trusted);
 		});
 
+		test('a --trust-folder value that fails to resolve does not discard the others', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const remoteAuthority = 'test+auth';
+			const good = URI.file('/good-cli');
+			environmentService.remoteAuthority = remoteAuthority;
+			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/bad`, good.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			// The resolver is reachable but rejects canonicalization of the remote Uri,
+			// so trusting that one entry throws; the valid file entry must still be kept.
+			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
+				override async resolveAuthority(authority: string): Promise<ResolverResult> {
+					return { authority: { authority } } as unknown as ResolverResult;
+				}
+				override async getCanonicalURI(): Promise<URI> {
+					throw new Error('cannot resolve');
+				}
+			});
+
+			workspaceService.setWorkspace(testWorkspace(good));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(good)).trusted);
+		});
+
 		test('folders passed via --trust-folder persist across reloads', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 

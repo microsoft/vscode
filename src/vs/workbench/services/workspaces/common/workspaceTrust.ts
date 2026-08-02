@@ -293,20 +293,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return;
 		}
 
-		const uris: URI[] = [];
 		for (const folder of folders) {
+			let uri: URI;
 			try {
 				// A value with a scheme (e.g. a remote `vscode-remote://` folder) is
 				// parsed as a Uri; otherwise it is treated as a local file path.
-				uris.push(folder.includes('://') ? URI.parse(folder) : URI.file(folder));
+				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
 			} catch {
-				// Ignore malformed --trust-folder arguments
+				continue; // ignore a malformed --trust-folder value
 			}
-		}
 
-		if (uris.length) {
 			try {
-				await this.setUrisTrust(uris, true);
+				// Trust each folder independently so one value that cannot be resolved
+				// (e.g. a remote Uri the resolver rejects) does not discard the other,
+				// valid --trust-folder entries.
+				await this.setUrisTrust([uri], true);
 			} catch {
 				// Never block workspace trust initialization on a bad --trust-folder value
 			}
