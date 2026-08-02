@@ -6,6 +6,8 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -941,7 +943,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 	});
 
-	suite('getRowHeightPx', () => {
+	suite('row height metrics', () => {
 		let instantiationService: TestInstantiationService;
 		let XTermBaseCtor: typeof Terminal;
 		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
@@ -1017,6 +1019,87 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		test('command mirror reports the mirror cell height', async () => {
 			const mirror = await createLaidOutCommandMirror();
 			strictEqual(mirror.getRowHeightPx(), 14);
+		});
+
+		function createHost(): HTMLElement {
+			const host = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(host);
+			store.add(toDisposable(() => host.remove()));
+			return host;
+		}
+
+		function nextRender(raw: Terminal): Promise<void> {
+			return new Promise<void>(resolve => {
+				const listener = raw.onRender(() => {
+					listener.dispose();
+					resolve();
+				});
+			});
+		}
+
+		function write(raw: Terminal, data: string): Promise<void> {
+			return new Promise<void>(resolve => raw.write(data, resolve));
+		}
+
+		test('snapshot mirror onDidChangeRowHeight fires once per metrics change, only after attach', async () => {
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			let fires = 0;
+			store.add(mirror.onDidChangeRowHeight(() => fires++));
+			await mirror.render();
+			strictEqual(fires, 0, 'rendering content alone must not fire before attach');
+
+			const host = createHost();
+			await mirror.attach(host);
+			strictEqual(fires, 0, 'attach alone must not fire without a render');
+
+			const raw = fakes[0].raw;
+			let rendered = nextRender(raw);
+			raw.open(host);
+			await rendered;
+			strictEqual(fires, 1, 'the first real render announces the metrics');
+
+			rendered = nextRender(raw);
+			await write(raw, 'more');
+			await rendered;
+			strictEqual(fires, 1, 'renders with unchanged metrics must not re-fire');
+
+			nextFont.charHeight = 21;
+			rendered = nextRender(raw);
+			await write(raw, '!');
+			await rendered;
+			strictEqual(fires, 2, 'a metrics change fires exactly once more');
+		});
+
+		test('command mirror onDidChangeRowHeight fires once per metrics change, only after attach', async () => {
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
+			const mirror = await createLaidOutCommandMirror();
+			let fires = 0;
+			store.add(mirror.onDidChangeRowHeight(() => fires++));
+
+			const host = createHost();
+			const raw = fakes[0].raw;
+			let rendered = nextRender(raw);
+			raw.open(host);
+			await rendered;
+			strictEqual(fires, 0, 'renders before attach must not fire');
+
+			await mirror.attach(host);
+			rendered = nextRender(raw);
+			await write(raw, 'output');
+			await rendered;
+			strictEqual(fires, 1, 'the first render after attach announces the metrics');
+
+			rendered = nextRender(raw);
+			await write(raw, 'more');
+			await rendered;
+			strictEqual(fires, 1, 'renders with unchanged metrics must not re-fire');
+
+			nextFont.charHeight = 21;
+			rendered = nextRender(raw);
+			await write(raw, '!');
+			await rendered;
+			strictEqual(fires, 2, 'a metrics change fires exactly once more');
 		});
 	});
 });
