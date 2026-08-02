@@ -1515,7 +1515,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostToolSearchEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.toolSearch.enabled', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
-			default: false,
+			default: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostToolSearchDeferThresholdSettingId]: {
