@@ -2992,7 +2992,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 /*
  * Isolation + branch group: parented into the chat input's
  * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
- * input, sharing a row with `Copilot CLI | Default Approvals`.
+ * input, sharing a row with `Copilot CLI | Default Permissions`.
  * `margin-left: auto` pushes the group to the right edge within that
  * flex row.
  *
