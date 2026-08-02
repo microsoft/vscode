@@ -746,7 +746,7 @@ accessible name) keeps its configured `aria-label` untouched across
 placeholder changes.
 
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
-turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
+turn: Default permissions uses `off`, Allow all uses `on`, and Assisted permissions
 uses `auto`. Assisted permissions only skips a prompt when the SDK's
 model recommendation is `approve`; every other recommendation follows the normal
 confirmation flow. Judge rationale can arrive asynchronously: the confirmation
