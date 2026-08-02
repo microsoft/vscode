@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -37,6 +37,7 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { getChatChangesDiffEditorLabel } from './chatDiffEditorLabel.js';
 
 const CHANGES_SUMMARY_ELEMENT_HEIGHT = 22;
 const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
@@ -91,9 +92,11 @@ export function renderChangesSummaryFileList(
 			// fall back to the diff editor.
 		}
 
+		const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
 		editorService.openEditor({
 			original: { resource: diff.originalURI },
 			modified: { resource: diff.modifiedURI },
+			label: getChatChangesDiffEditorLabel(basename(fileURI ?? diff.modifiedURI)),
 			options: { preserveFocus: true }
 		});
 	}));

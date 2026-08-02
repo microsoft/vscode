@@ -62,6 +62,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
+import { getChatChangesDiffEditorLabel } from './chatDiffEditorLabel.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
@@ -896,9 +897,11 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 				this.editorService.openEditor({ resource: this.uri, options }, group);
 				return;
 			}
+			const labelUri = this.uri ?? this.currentDiff.modifiedURI;
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
+				label: getChatChangesDiffEditorLabel(this.labelService.getUriBasenameLabel(labelUri)),
 				options
 			}, group);
 		} else if (this.uri) {

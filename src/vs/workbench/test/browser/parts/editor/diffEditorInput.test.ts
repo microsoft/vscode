@@ -7,7 +7,7 @@ import assert from 'assert';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorResourceAccessor, EditorInputCapabilities, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -113,6 +113,31 @@ suite('Diff editor input', () => {
 
 		otherInput.dispose();
 		assert.strictEqual(counter, 2);
+	});
+
+	test('preferred name avoids forced description when both sides share a name', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		class NamedEditorInput extends MyEditorInput {
+			constructor(resource: URI, private readonly name: string) {
+				super(resource);
+			}
+
+			override getName(): string {
+				return this.name;
+			}
+		}
+
+		const original = disposables.add(new NamedEditorInput(URI.file('/tmp/agent-host/snapshots/before/very/long/path/file.ts'), 'file.ts'));
+		const modified = disposables.add(new NamedEditorInput(URI.file('/tmp/agent-host/snapshots/after/very/long/path/file.ts'), 'file.ts'));
+
+		const unlabeled = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, original, modified, undefined));
+		assert.strictEqual(unlabeled.getName(), 'file.ts ↔ file.ts');
+		assert.ok(unlabeled.capabilities & EditorInputCapabilities.ForceDescription);
+
+		const labeled = disposables.add(instantiationService.createInstance(DiffEditorInput, 'file.ts (changes from chat)', undefined, original, modified, undefined));
+		assert.strictEqual(labeled.getName(), 'file.ts (changes from chat)');
+		assert.strictEqual(labeled.capabilities & EditorInputCapabilities.ForceDescription, 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

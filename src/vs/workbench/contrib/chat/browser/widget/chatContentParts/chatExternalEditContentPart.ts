@@ -20,6 +20,7 @@ import { IEditSessionDiffStats } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
+import { getChatChangesDiffEditorLabel } from './chatDiffEditorLabel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -120,12 +121,17 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 			this.editorService.openEditor({
 				original: { resource: this.edit.beforeContentUri },
 				modified: { resource: this.edit.afterContentUri },
+				label: getChatChangesDiffEditorLabel(this.labelService.getUriBasenameLabel(this.edit.uri)),
 				options,
 			}, group);
 		} else if (this.edit.editKind === 'delete' && this.edit.beforeContentUri) {
 			// The file no longer exists on disk; show the pre-deletion
 			// content from the snapshot instead of opening the missing URI.
-			this.editorService.openEditor({ resource: this.edit.beforeContentUri, options }, group);
+			this.editorService.openEditor({
+				resource: this.edit.beforeContentUri,
+				label: this.labelService.getUriBasenameLabel(this.edit.uri),
+				options,
+			}, group);
 		} else if (this.edit.editKind !== 'delete') {
 			this.editorService.openEditor({ resource: this.edit.uri, options }, group);
 		}
