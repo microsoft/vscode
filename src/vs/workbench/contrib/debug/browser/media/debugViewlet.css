@@ -147,6 +147,10 @@
 	margin: 0px 10px;
 }
 
+.debug-pane .pane.horizontal:not(.expanded) .pane-header .call-stack-state-message {
+	display: none;
+}
+
 .debug-pane .call-stack-state-message > .label {
 	border-radius: 3px;
 	padding: 1px 2px;
