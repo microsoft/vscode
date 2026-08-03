@@ -4737,6 +4737,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleSessionMetaChanged(e.channel, e.action._meta);
 			}
 		}));
+
+		if (isAutoApprovePolicyRestricted(this._baseConfigurationService)) {
+			this._reconcileSessionAutoApprovePolicy();
+		}
 	}
 
 	private _handleSessionAdded(summary: SessionSummary): void {

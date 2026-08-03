@@ -1269,6 +1269,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('startup policy restriction reconciles a cached unhydrated session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('cached-policy', { summary: 'Cached Policy Session' })]);
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, {
+			configurationService: createPolicyRestrictedConfigurationService(),
+			storageService,
+		});
+		const action = nextHost.dispatchedActions.find(candidate => candidate.channel === AgentSession.uri('copilotcli', 'cached-policy').toString())?.action;
+		const session = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			config: provider.getSessionConfig(session.sessionId),
+			action,
+		}, {
+			config: undefined,
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+		});
+	}));
+
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Storage-key literals of the pre-`.v2` cache schema, whose entries
 		// carried a stale `isRead: true` written by the old always-read adapter.
