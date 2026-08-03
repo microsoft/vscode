@@ -734,6 +734,15 @@ class VirtualizedViewItem extends Disposable {
 
 	public hide(): void {
 		this._isHidden.set(true, undefined);
+
+		// Hide immediately to avoid stale DOM while focused-template recycling remains deferred.
+		const ref = this._templateRef.get();
+		if (ref) {
+			ref.object.hide();
+			if (!ref.object.isFocused.get()) {
+				this._clear();
+			}
+		}
 	}
 
 	public render(verticalSpace: OffsetRange, offset: number, width: number, viewPort: OffsetRange): void {

@@ -21,7 +21,9 @@ export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData
 			this._itemData.set(obj, data);
 		} else {
 			const values = [...this._unused.values()];
-			obj = values.find(obj => this._itemData.get(obj)!.getId() === data.getId()) ?? values[0];
+			// Prefer a pooled object that previously rendered this id so setData can no-op
+			// expensive editor rebinds when the same resource scrolls back into view.
+			obj = values.find(candidate => this._itemData.get(candidate)?.getId() === data.getId()) ?? values[0];
 			this._unused.delete(obj);
 			this._itemData.set(obj, data);
 			obj.setData(data);
@@ -32,6 +34,7 @@ export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData
 			dispose: () => {
 				this._used.delete(obj);
 				if (this._unused.size > 5) {
+					this._itemData.delete(obj);
 					obj.dispose();
 				} else {
 					this._unused.add(obj);
@@ -49,6 +52,7 @@ export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData
 		}
 		this._used.clear();
 		this._unused.clear();
+		this._itemData.clear();
 	}
 }
 
