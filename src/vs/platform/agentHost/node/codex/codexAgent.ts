@@ -3599,10 +3599,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session) {
-			return;
+		if (session) {
+			await this._teardownSessionInMemory(session, sessionId);
 		}
-		await this._teardownSessionInMemory(session, sessionId);
+		this._otelService.releaseSessionTraceContext(sessionUri.toString());
 	}
 
 	/**

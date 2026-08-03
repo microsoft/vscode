@@ -274,7 +274,10 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
  */
 export class CopilotSessionEntry extends AgentSessionEntry<CopilotAgentSession> { }
 
-function resolveOtlpMetricsEndpoint(endpoint: string): string {
+export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'http/json' | 'http/protobuf' | 'grpc'): string {
+	if (protocol === 'grpc') {
+		return endpoint;
+	}
 	try {
 		const url = new URL(endpoint);
 		if (url.pathname === '' || url.pathname === '/') {
@@ -1348,7 +1351,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_EXPORTER_OTLP_TRACES_PROTOCOL'] = nativeTelemetry.traces.protocol;
 			}
 			if (nativeTelemetry?.external) {
-				env['OTEL_EXPORTER_OTLP_METRICS_ENDPOINT'] = resolveOtlpMetricsEndpoint(nativeTelemetry.external.endpoint);
+				env['OTEL_EXPORTER_OTLP_METRICS_ENDPOINT'] = resolveCopilotOtlpMetricsEndpoint(nativeTelemetry.external.endpoint, nativeTelemetry.external.protocol);
 				env['OTEL_EXPORTER_OTLP_METRICS_PROTOCOL'] = nativeTelemetry.external.protocol;
 			} else if (nativeTelemetry) {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
@@ -2501,6 +2504,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 			}
 		});
+		this._otelService.releaseSessionTraceContext(session.toString());
 	}
 
 	/**

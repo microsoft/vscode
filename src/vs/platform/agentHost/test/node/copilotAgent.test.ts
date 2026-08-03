@@ -47,7 +47,7 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
@@ -472,6 +472,7 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
+	releaseSessionTraceContext() { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext() { return undefined; }
 	getSpansDbPath() {
@@ -622,6 +623,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		getSdkTelemetryConfig: async () => undefined,
 		getNativeSdkTelemetryConfig: async () => undefined,
 		getSessionTraceContext: () => undefined,
+		releaseSessionTraceContext: () => { },
 		withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 		getCurrentTraceContext: () => undefined,
 		getSpansDbPath: () => undefined,
@@ -5133,6 +5135,12 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('customization anchoring', () => {
+
+		test('uses signal paths only for Copilot OTLP/HTTP metrics endpoints', () => {
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('http://collector:4318', 'http/protobuf'), 'http://collector:4318/v1/metrics');
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('http://collector:4318/custom', 'http/json'), 'http://collector:4318/custom');
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('https://collector:4317', 'grpc'), 'https://collector:4317');
+		});
 
 		test('rebaseUnder rebases paths under the source dir and leaves others untouched', () => {
 			const original = URI.file('/Users/me/src/vscode');

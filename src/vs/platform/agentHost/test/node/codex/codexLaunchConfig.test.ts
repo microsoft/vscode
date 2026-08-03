@@ -43,6 +43,18 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(config.args.includes('otel.metrics_exporter={ otlp-http = { endpoint = "http://collector:4318/v1/metrics", protocol = "binary", headers = { "authorization" = "Bearer test" } } }'));
 	});
 
+	test('keeps gRPC signal endpoints unchanged and uses decoded headers', () => {
+		const config = buildCodexLaunchConfig('openai', {}, undefined, [], {
+			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			external: { endpoint: 'https://collector:4317', protocol: 'grpc', headers: { authorization: 'Bearer test/token' } },
+			captureContent: false,
+			resourceAttributes: {},
+		});
+		const expected = '{ otlp-grpc = { endpoint = "https://collector:4317", headers = { "authorization" = "Bearer test/token" } } }';
+		assert.ok(config.args.includes(`otel.exporter=${expected}`));
+		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
+	});
+
 	test('identifies provider-compatible threads', () => {
 		assert.deepStrictEqual({
 			copilotProxy: isCodexThreadProviderCompatible('copilot', 'vscode-proxy'),

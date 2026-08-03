@@ -80,7 +80,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 	test('maps Agent Host traces to loopback and logs/metrics to the external sink', () => {
 		const env = buildClaudeTelemetryEnv({
 			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
-			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf' },
+			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf', headers: { authorization: 'Bearer test/token' } },
 			captureContent: false,
 			resourceAttributes: { 'service.namespace': 'vscode.agent-host', region: 'west us' },
 		}, {
@@ -107,7 +107,26 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/protobuf',
 			OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: 'http://collector:4318/v1/metrics',
 			OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: 'http/protobuf',
+			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer%20test%2Ftoken',
 			TRACEPARENT: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+		});
+	});
+
+	test('keeps gRPC signal endpoints unchanged', () => {
+		const env = buildClaudeTelemetryEnv({
+			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			external: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			captureContent: false,
+			resourceAttributes: {},
+		});
+		assert.deepStrictEqual({
+			trace: env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+			logs: env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+			metrics: env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+		}, {
+			trace: 'https://collector:4317',
+			logs: 'https://collector:4317',
+			metrics: 'https://collector:4317',
 		});
 	});
 

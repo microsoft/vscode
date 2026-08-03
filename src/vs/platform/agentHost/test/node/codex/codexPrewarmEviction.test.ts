@@ -180,6 +180,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 		_serviceBrand: undefined,
 		getNativeSdkTelemetryConfig: async () => undefined,
 		getSessionTraceContext: () => undefined,
+		releaseSessionTraceContext: () => { },
 	});
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });

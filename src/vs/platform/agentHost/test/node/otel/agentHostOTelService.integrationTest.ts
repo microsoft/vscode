@@ -151,24 +151,26 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		strictEqual(cfg.dbSpanExporter, true);
 	});
 
-	test('readAgentHostOTelEnv: protocol=grpc downgrades to otlp-grpc exporter type', () => {
-		const cfg = readAgentHostOTelEnv({
-			COPILOT_OTEL_ENABLED: 'true',
-			COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
-			OTEL_EXPORTER_OTLP_PROTOCOL: 'grpc',
-		});
-		strictEqual(cfg.exporterType, 'otlp-grpc');
+	test('readAgentHostOTelEnv: grpc aliases select the gRPC exporter type', () => {
+		for (const protocol of ['grpc', 'http/grpc']) {
+			const cfg = readAgentHostOTelEnv({
+				COPILOT_OTEL_ENABLED: 'true',
+				COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
+				OTEL_EXPORTER_OTLP_PROTOCOL: protocol,
+			});
+			strictEqual(cfg.exporterType, 'otlp-grpc');
+		}
 	});
 
 	test('readAgentHostOTelEnv: parses headers and resource attributes', () => {
 		const cfg = readAgentHostOTelEnv({
 			COPILOT_OTEL_ENABLED: 'true',
-			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer xyz,x-tenant=acme',
+			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer%20xyz,x-tenant=acme%2Fprod',
 			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored,service.namespace=foreign',
 			OTEL_SERVICE_NAME: 'agent-host',
 		});
 		deepStrictEqual({ headers: cfg.headers, resourceAttributes: cfg.resourceAttributes }, {
-			headers: { authorization: 'Bearer xyz', 'x-tenant': 'acme' },
+			headers: { authorization: 'Bearer xyz', 'x-tenant': 'acme/prod' },
 			resourceAttributes: {
 				'deployment.environment.name': 'dev',
 				custom: 'value with spaces',
@@ -261,6 +263,46 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual(cfg!.sourceName, 'agent-host');
 			strictEqual(cfg!.captureContent, true);
 			strictEqual(svc.getSpansDbPath(), undefined);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('external-only unsupported synthetic protocols do not propagate a missing anchor', async () => {
+		const saved = saveEnv();
+		try {
+			for (const protocol of ['http/protobuf', 'grpc', 'http/grpc']) {
+				process.env.COPILOT_OTEL_ENABLED = 'true';
+				process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+				store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmp));
+				const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+				const config = await svc.getNativeSdkTelemetryConfig();
+				strictEqual(config?.external?.protocol, protocol === 'http/grpc' ? 'grpc' : protocol);
+				strictEqual(svc.getSessionTraceContext('conversation', `claude:/${protocol}`), undefined);
+			}
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('session trace contexts are stable until permanent release', () => {
+		const saved = saveEnv();
+		try {
+			process.env.COPILOT_OTEL_ENABLED = 'true';
+			process.env.COPILOT_OTEL_EXPORTER_TYPE = 'console';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmpdir()));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+			const first = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			strictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
+			svc.releaseSessionTraceContext('claude:/conversation');
+			notStrictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
 		} finally {
 			restoreEnv(saved);
 		}
@@ -388,6 +430,35 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		} finally {
 			restoreEnv(saved);
 			await cleanup();
+		}
+	});
+
+	test('DB mode keeps protobuf and gRPC traces local instead of HTTP-posting the wrong wire format', async () => {
+		const saved = saveEnv();
+		try {
+			for (const protocol of ['http/protobuf', 'grpc']) {
+				process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+				process.env.COPILOT_OTEL_EXPORTER_TYPE = protocol === 'grpc' ? 'otlp-grpc' : 'otlp-http';
+				process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				let fetchCalls = 0;
+				const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+				store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmp));
+				const svc = store.add(di.createInstance(AgentHostOTelService, async () => {
+					fetchCalls++;
+					return new Response(null, { status: 200 });
+				}));
+				const config = await svc.getSdkTelemetryConfig();
+				const res = await postOtlp(config!.otlpEndpoint!, makeOtlpRequest('ffeeddccbbaa99887766554433221100', '00000000000000aa'));
+				strictEqual(res.statusCode, 200);
+				await svc.flush();
+				strictEqual(fetchCalls, 0);
+			}
+		} finally {
+			restoreEnv(saved);
 		}
 	});
 

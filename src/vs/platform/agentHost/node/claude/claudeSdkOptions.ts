@@ -267,12 +267,12 @@ export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | und
 		env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL = config.traces.protocol;
 	}
 	if (config.external) {
-		env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'logs');
+		env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol);
 		env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL = config.external.protocol;
-		env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'metrics');
+		env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol);
 		env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL = config.external.protocol;
 		if (config.external.headers && Object.keys(config.external.headers).length > 0) {
-			env.OTEL_EXPORTER_OTLP_HEADERS = Object.entries(config.external.headers).map(([key, value]) => `${key}=${value}`).join(',');
+			env.OTEL_EXPORTER_OTLP_HEADERS = Object.entries(config.external.headers).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join(',');
 		}
 	}
 	if (traceContext) {
@@ -288,7 +288,10 @@ function serializeResourceAttributes(attributes: Readonly<Record<string, string>
 	return Object.entries(attributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
 }
 
-function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {
+function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics', protocol: 'http/json' | 'http/protobuf' | 'grpc'): string {
+	if (protocol === 'grpc') {
+		return endpoint;
+	}
 	try {
 		const url = new URL(endpoint);
 		if (url.pathname === '' || url.pathname === '/') {

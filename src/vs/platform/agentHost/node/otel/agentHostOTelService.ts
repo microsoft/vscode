@@ -75,10 +75,14 @@ function parseOtlpHeaders(raw: string | undefined): Record<string, string> | und
 		if (eq <= 0) {
 			continue;
 		}
-		const key = pair.slice(0, eq).trim();
-		const value = pair.slice(eq + 1).trim();
-		if (key) {
-			out[key] = value;
+		const rawKey = pair.slice(0, eq).trim();
+		const rawValue = pair.slice(eq + 1).trim();
+		if (rawKey) {
+			try {
+				out[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue);
+			} catch {
+				out[rawKey] = rawValue;
+			}
 		}
 	}
 	return Object.keys(out).length ? out : undefined;
@@ -266,7 +270,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		if (!this._config.enabled) {
 			return undefined;
 		}
-		const protocol = this._config.otlpProtocol === 'grpc'
+		const protocol = this._config.otlpProtocol === 'grpc' || this._config.otlpProtocol === 'http/grpc'
 			? 'grpc'
 			: this._config.otlpProtocol === 'http/protobuf' ? 'http/protobuf' : 'http/json';
 		const external = this._config.otlpEndpoint ? {
@@ -290,7 +294,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined {
-		if (!this._config.enabled || !conversationId || !sessionUri) {
+		if (!this._config.enabled || !conversationId || !sessionUri || (!this._config.dbSpanExporter && !this._canForwardSyntheticSpan())) {
 			return undefined;
 		}
 		const existing = this._sessionContexts.get(sessionUri);
@@ -317,6 +321,10 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			events: [],
 		});
 		return context;
+	}
+
+	releaseSessionTraceContext(sessionUri: string): void {
+		this._sessionContexts.delete(sessionUri);
 	}
 
 	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T {
@@ -553,8 +561,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const children: IOutboundForwarder[] = [];
 		switch (this._config.exporterType) {
 			case 'otlp-http':
-			case 'otlp-grpc':
-				if (this._config.otlpEndpoint) {
+				if (this._config.otlpEndpoint && this._config.otlpProtocol !== 'http/protobuf') {
 					children.push(new OtlpHttpForwarder(
 						{
 							endpoint: this._config.otlpEndpoint,
@@ -563,6 +570,13 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 						this._logService,
 						this._fetchFn,
 					));
+				} else if (this._config.otlpEndpoint) {
+					this._logService.warn('[agentHost.otel] DB trace fan-out is unavailable for OTLP/HTTP protobuf; traces remain in the local DB while provider logs and metrics export directly');
+				}
+				break;
+			case 'otlp-grpc':
+				if (this._config.otlpEndpoint) {
+					this._logService.warn('[agentHost.otel] DB trace fan-out is unavailable for OTLP/gRPC; traces remain in the local DB while provider logs and metrics export directly');
 				}
 				break;
 			case 'file':

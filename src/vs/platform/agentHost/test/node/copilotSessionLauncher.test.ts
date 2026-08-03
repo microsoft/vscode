@@ -54,6 +54,7 @@ function createTestLauncher(): CopilotSessionLauncher {
 		{
 			_serviceBrand: undefined,
 			getSessionTraceContext: () => undefined,
+			releaseSessionTraceContext: () => { },
 			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 		} as unknown as IAgentHostOTelService,
 	);

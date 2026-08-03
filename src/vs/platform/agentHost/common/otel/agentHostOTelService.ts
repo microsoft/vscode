@@ -66,6 +66,9 @@ export interface IAgentHostOTelService {
 	/** Return a stable W3C parent for a provider session and emit its anchor span. */
 	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined;
 
+	/** Release a permanent session's retained W3C context. Idle eviction must not call this. */
+	releaseSessionTraceContext(sessionUri: string): void;
+
 	/** Scope a provider SDK operation so callback-based propagation can read its parent. */
 	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T;
 	getCurrentTraceContext(): IAgentHostTraceContext | undefined;

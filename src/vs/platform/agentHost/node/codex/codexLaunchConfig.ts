@@ -85,8 +85,8 @@ export function codexTelemetryOverrides(config: IAgentHostNativeOTelConfig | und
 	return [
 		`otel.log_user_prompt=${config.captureContent}`,
 		config.traces ? `otel.trace_exporter=${codexExporter(config.traces)}` : 'otel.trace_exporter="none"',
-		config.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs') })}` : 'otel.exporter="none"',
-		config.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics') })}` : 'otel.metrics_exporter="none"',
+		config.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol) })}` : 'otel.exporter="none"',
+		config.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol) })}` : 'otel.metrics_exporter="none"',
 	];
 }
 
@@ -105,7 +105,10 @@ function serializeResourceAttributes(attributes: Readonly<Record<string, string>
 	return Object.entries(attributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
 }
 
-function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {
+function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics', protocol: 'http/json' | 'http/protobuf' | 'grpc'): string {
+	if (protocol === 'grpc') {
+		return endpoint;
+	}
 	try {
 		const url = new URL(endpoint);
 		if (url.pathname === '' || url.pathname === '/') {
