@@ -187,8 +187,10 @@ class FakeDialogService extends mock<IDialogService>() {
 
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+	runCalls = 0;
 
 	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
 }
@@ -346,8 +348,8 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('clicking the card opens edit without intercepting card actions', async () => {
-		const { automationDialogService, automationService, widget } = setup();
+	test('clicking the card opens edit without intercepting action clicks', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
 		const item = automation();
 		automationService.setAutomations([item]);
 
@@ -357,17 +359,46 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(actionButton);
 		actionButton.click();
 		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
+		}, {
+			showCalls: 1,
+			existing: item,
+			runCalls: 1,
+		});
+	});
+
+	test('tapping the card opens edit without intercepting action taps', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+		const card = widget.element.querySelector<HTMLElement>('.automations-card');
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(card);
+		assert.ok(actionButton);
+
 		const tapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
 		tapEvent.initialTarget = actionButton;
-		widget.element.querySelector<HTMLElement>('.automations-card')?.dispatchEvent(tapEvent);
+		actionButton.dispatchEvent(tapEvent);
+		card.dispatchEvent(tapEvent);
+		await Promise.resolve();
+
+		const cardTapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		cardTapEvent.initialTarget = card;
+		card.dispatchEvent(cardTapEvent);
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			showCalls: automationDialogService.showCalls,
 			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
 		}, {
 			showCalls: 1,
 			existing: item,
+			runCalls: 1,
 		});
 	});
 
