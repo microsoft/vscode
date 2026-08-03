@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -20,7 +21,8 @@ import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/c
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel } from '../../browser/modePicker.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -36,9 +38,10 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reports chat.modeChange when selecting a custom agent', () => {
+	test('reports chat.modeChange for the scoped active chat', () => {
 		const telemetryService = new TestTelemetryService();
 		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
+		const chatResource = sessionResource.with({ fragment: 'peer-chat' });
 		const customAgent = new CustomChatMode({
 			id: 'reviewer',
 			uri: URI.parse('file:///workspace/.github/agents/reviewer.agent.md'),
@@ -71,11 +74,22 @@ suite('ModePicker', () => {
 				}
 			}(),
 		));
-		model.setSession({ resource: sessionResource } as ISession, undefined);
+		model.setSession(new class extends mock<ISession>() {
+			override readonly resource = sessionResource;
+		}(), customAgent.id);
+		const activeChat = new class extends mock<IChat>() {
+			override readonly resource = chatResource;
+			override readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: ChatMode.Agent.id, kind: ChatMode.Agent.kind });
+		}();
+		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
+		}());
 
 		let selectCustomAgent: (() => void) | undefined;
+		const requestedChatResources: string[] = [];
 		const picker = store.add(new ModePicker(
 			model,
+			scopedSession,
 			new class extends mock<IActionWidgetService>() {
 				override readonly isVisible = false;
 				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
@@ -95,7 +109,8 @@ suite('ModePicker', () => {
 			new class extends mock<ICommandService>() { }(),
 			telemetryService,
 			new class extends mock<IChatService>() {
-				override getSession(): IChatModel {
+				override getSession(resource: URI): IChatModel {
+					requestedChatResources.push(resource.toString());
 					return new class extends mock<IChatModel>() {
 						override getRequests(): IChatRequestModel[] {
 							return [
@@ -114,18 +129,24 @@ suite('ModePicker', () => {
 		assert.ok(selectCustomAgent);
 		selectCustomAgent();
 
-		assert.deepStrictEqual(telemetryService.events.filter(event => event.name === 'chat.modeChange'), [{
-			name: 'chat.modeChange',
-			data: {
-				fromMode: 'agent',
-				mode: String(hash(customAgent.name.get())),
-				requestCount: 3,
-				storage: 'local',
-				extensionId: undefined,
-				toolsCount: 1,
-				handoffsCount: 0,
-				isClaudeAgent: false,
-			},
-		}]);
+		assert.deepStrictEqual({
+			events: telemetryService.events.filter(event => event.name === 'chat.modeChange'),
+			requestedChatResources,
+		}, {
+			events: [{
+				name: 'chat.modeChange',
+				data: {
+					fromMode: 'agent',
+					mode: String(hash(customAgent.name.get())),
+					requestCount: 3,
+					storage: 'local',
+					extensionId: undefined,
+					toolsCount: 1,
+					handoffsCount: 0,
+					isClaudeAgent: false,
+				},
+			}],
+			requestedChatResources: [chatResource.toString()],
+		});
 	});
 });

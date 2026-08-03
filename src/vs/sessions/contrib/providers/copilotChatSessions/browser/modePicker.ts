@@ -8,6 +8,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -23,6 +24,7 @@ import { Target } from '../../../../../workbench/contrib/chat/common/promptSynta
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
+import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -59,10 +61,6 @@ export class ModePickerModel extends Disposable {
 
 	get selectedModeId(): string | undefined {
 		return this._selectedModeId;
-	}
-
-	get sessionResource(): URI | undefined {
-		return this._sessionResource;
 	}
 
 	constructor(
@@ -166,6 +164,7 @@ export class ModePicker extends Disposable {
 
 	constructor(
 		modePickerModel: ModePickerModel,
+		private readonly session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -233,11 +232,13 @@ export class ModePicker extends Disposable {
 		const items = this._buildItems(modes);
 
 		const triggerElement = this._triggerElement;
-		const previousMode = this._modePickerModel.selectedMode;
 		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
 				if (item.kind === 'mode') {
+					const activeChat = this.session.get()?.activeChat.get();
+					const previousModeId = activeChat?.mode.get()?.id;
+					const previousMode = modes.find(mode => mode.id === previousModeId) ?? ChatMode.Agent;
 					reportNewChatPickerClosed(this.telemetryService, {
 						id: 'NewChatModePicker',
 						optionIdBefore: previousMode.id,
@@ -246,8 +247,7 @@ export class ModePicker extends Disposable {
 						optionLabelAfter: item.mode.label.get(),
 						isPII: true,
 					});
-					const sessionResource = this._modePickerModel.sessionResource;
-					const requestCount = sessionResource ? this.chatService.getSession(sessionResource)?.getRequests().length ?? 0 : 0;
+					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
 					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount);
 					this._selectMode(item.mode);
 				} else {
