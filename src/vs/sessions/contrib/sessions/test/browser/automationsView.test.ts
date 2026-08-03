@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -156,8 +157,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	result: IAutomationDialogResult | undefined;
 	beforeReturn: (() => void) | undefined;
+	showCalls = 0;
+	lastOptions: IShowAutomationDialogOptions | undefined;
 
-	override async showAutomationDialog(_options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+		this.showCalls++;
+		this.lastOptions = options;
 		this.beforeReturn?.();
 		return this.result;
 	}
@@ -182,8 +187,10 @@ class FakeDialogService extends mock<IDialogService>() {
 
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+	runCalls = 0;
 
 	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
 }
@@ -338,6 +345,60 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			activeElement: widget.element,
 			cardFocused: false,
+		});
+	});
+
+	test('clicking the card opens edit without intercepting action clicks', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+
+		widget.element.querySelector<HTMLElement>('.automations-card')?.click();
+		await Promise.resolve();
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(actionButton);
+		actionButton.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
+		}, {
+			showCalls: 1,
+			existing: item,
+			runCalls: 1,
+		});
+	});
+
+	test('tapping the card opens edit without intercepting action taps', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+		const card = widget.element.querySelector<HTMLElement>('.automations-card');
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(card);
+		assert.ok(actionButton);
+
+		const tapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		tapEvent.initialTarget = actionButton;
+		actionButton.dispatchEvent(tapEvent);
+		card.dispatchEvent(tapEvent);
+		await Promise.resolve();
+
+		const cardTapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		cardTapEvent.initialTarget = card;
+		card.dispatchEvent(cardTapEvent);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
+		}, {
+			showCalls: 1,
+			existing: item,
+			runCalls: 1,
 		});
 	});
 
