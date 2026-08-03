@@ -7,7 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
@@ -555,6 +555,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	get agents(): IObservable<readonly IAgent[]> {
 		return this._agents;
+	}
+
+	/**
+	 * Fires with the provider id whenever a turn starts. Exposed alongside
+	 * {@link agents} so {@link AgentModelRefreshScheduler} can gate its periodic
+	 * refresh on real agent usage rather than polling an idle host.
+	 */
+	get onDidStartTurn(): Event<string> {
+		return this._sideEffects.onDidStartTurn;
 	}
 
 	// ---- provider registration ----------------------------------------------
