@@ -48,14 +48,21 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/packagelockhash'
+      key: '"node_modules-root-v1" | .build/packagelockhash'
+      path: node_modules
+      cacheHitVar: ROOT_NODE_MODULES_RESTORED
+    displayName: Restore root node_modules cache
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules-rest-v1" | .build/packagelockhash'
       path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+      cacheHitVar: REMAINING_NODE_MODULES_RESTORED
+    displayName: Restore remaining node_modules cache
 
   - script: tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+    condition: and(succeeded(), eq(variables.REMAINING_NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract remaining node_modules cache
 
   - script: |
       set -e
@@ -103,19 +110,19 @@ steps:
       # on macOS.
       GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')))
 
   - script: node build/azure-pipelines/distro/mixin-npm.ts
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')))
     displayName: Mixin distro node modules
 
   - script: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt node_modules
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+    condition: and(succeeded(), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true'))
+    displayName: Create remaining node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS CLI (${{ upper(parameters.VSCODE_ARCH) }})" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
