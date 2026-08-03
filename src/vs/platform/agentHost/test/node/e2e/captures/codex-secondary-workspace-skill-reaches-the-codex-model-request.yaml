@@ -1,0 +1,52 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the secondary-root-marker skill, then reply with exactly done.
+    response:
+      content:
+        - type: text
+          text: Using `secondary-root-marker` now because you explicitly requested it; I’ll read its `SKILL.md` and then return the exact required response.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: cat ${workdir}/b/.agents/skills/secondary-root-marker/SKILL.md
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the secondary-root-marker skill, then reply with exactly done.
+        - role: assistant
+          content: Using `secondary-root-marker` now because you explicitly requested it; I’ll read its `SKILL.md` and then return the exact required response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: cat ${workdir}/b/.agents/skills/secondary-root-marker/SKILL.md
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 7b643f
+                Wall time: 0.0002 seconds
+                Process exited with code 0
+                Original token count: 50
+                Output:
+                ---
+                name: secondary-root-marker
+                description: Confirms that Codex loaded a skill from a secondary workspace root.
+                ---
+
+                When invoked, follow this marker instruction: CODEX_SECONDARY_ROOT_SKILL_MARKER_73
+    response:
+      content: done
+      stopReason: end_turn

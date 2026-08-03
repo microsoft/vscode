@@ -358,6 +358,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+	/** Whether secondary workspace skill roots are selected when multi-root is enabled. */
+	readonly supportsMultiRootSkillCapabilityRoots?: boolean;
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
 	readonly supportsChatFork: boolean;
