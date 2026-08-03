@@ -324,7 +324,7 @@ suite('Workspace Trust', () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 
 			const valid = URI.file('/valid-cli');
-			// The first value has an illegal Uri scheme (URI.parse throws) and is skipped.
+			// The first value has an illegal URI scheme (URI.parse throws) and is skipped.
 			environmentService.trustedFolders = ['bad scheme://x', valid.fsPath];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
