@@ -44,7 +44,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -6675,6 +6675,23 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: { model: 'openrouter/amazon/nova-micro-v1' },
 				}],
+				activeTurn: {
+					id: 'child-turn-active',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'continue review', origin: { kind: MessageKind.User } },
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: 'tc-child-running',
+							toolName: 'read_file',
+							displayName: 'Read File',
+							invocationMessage: 'Reading agentHostSessionHandler.ts',
+							status: ToolCallStatus.Running,
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+						},
+					}],
+					usage: { model: 'openrouter/amazon/nova-micro-v1' },
+				},
 			} as SessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/subagent-history' });
@@ -6682,18 +6699,110 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			const response = chatSession.history[1];
 			assert.strictEqual(response.type, 'response');
-			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocationSerialized : undefined;
+			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocation : undefined;
+			const activeToolPart = response.type === 'response' ? response.parts[1] as IChatToolInvocation : undefined;
+			assert.ok(toolPart);
 
 			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				partKind: toolPart.kind,
 				kind: toolPart.toolSpecificData.kind,
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
 				modelName: toolPart.toolSpecificData.modelName,
+				isActive: toolPart.toolSpecificData.isActive,
 			} : undefined, {
+				partKind: 'toolInvocation',
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
 				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				isActive: true,
+			});
+			assert.deepStrictEqual(activeToolPart && {
+				kind: activeToolPart.kind,
+				toolCallId: activeToolPart.toolCallId,
+				subAgentInvocationId: activeToolPart.subAgentInvocationId,
+				invocationMessage: activeToolPart.invocationMessage,
+			}, {
+				kind: 'toolInvocation',
+				toolCallId: 'tc-child-running',
+				subAgentInvocationId: 'tc-subagent',
+				invocationMessage: 'Reading agentHostSessionHandler.ts',
+			});
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/toolCallComplete',
+					session: childChatUri,
+					turnId: 'child-turn-active',
+					toolCallId: 'tc-child-running',
+					result: { success: true, pastTenseMessage: 'Read agentHostSessionHandler.ts' },
+				} as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/turnComplete',
+					turnId: 'child-turn-active',
+					endedAt: '2025-01-01T00:00:05.000Z',
+				} as ChatAction,
+				serverSeq: 2,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				isActive: toolPart.toolSpecificData?.kind === 'subagent' ? toolPart.toolSpecificData.isActive : undefined,
+				activeToolState: activeToolPart?.state.get().type,
+			}, {
+				isActive: false,
+				activeToolState: IChatToolInvocation.StateKind.Completed,
+			});
+		});
+
+		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'direct-subagent');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-direct');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [],
+			} as SessionState);
+			agentHostService.sessionStates.set(childChatUri, {
+				...createSessionState({ ...summary, resource: childChatUri, title: 'Direct subagent' }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'child-turn',
+					message: { text: 'Review changes', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'child-markdown', content: 'Review complete' }],
+					usage: undefined,
+				}],
+			} as SessionState);
+			const query = new URLSearchParams();
+			query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChatUri);
+			const sessionResource = URI.from({
+				scheme: 'agent-host-copilot',
+				path: '/direct-subagent',
+				fragment: 'subagent/tc-direct',
+				query: query.toString(),
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual({
+				sessionResource: chatSession.sessionResource.toString(),
+				history: chatSession.history.map(item => item.type),
+			}, {
+				sessionResource: sessionResource.toString(),
+				history: ['request', 'response'],
 			});
 		});
 

@@ -204,6 +204,15 @@
 	padding-inline-start: 20px;
 }
 
+.interactive-session .chat-plan-review-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .chat-plan-review-container .rendered-markdown a:hover,
+.interactive-session .chat-plan-review-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 /* ---------- Feedback section (fixed; outside scroll) ---------- */
 .interactive-session .chat-plan-review-container .chat-plan-review-feedback {
 	display: flex;
