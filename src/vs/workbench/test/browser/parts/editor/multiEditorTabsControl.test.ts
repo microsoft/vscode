@@ -42,7 +42,7 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 	test('closes every other non-sticky tab when the setting is enabled', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,
-			partOptions: { closeOtherEditorsOnAltClick: true },
+			partOptions: { closeOtherTabsOnAltClick: true },
 		}, disposables);
 
 		// Don't assume which resource ends up rendered at index 1 (the model's
@@ -69,7 +69,7 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		// survives whenever the clicked tab happens to be of the same loosely-matching type.
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,
-			partOptions: { closeOtherEditorsOnAltClick: true },
+			partOptions: { closeOtherTabsOnAltClick: true },
 		}, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
@@ -96,7 +96,7 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 	test('does nothing when the setting is disabled (default)', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,
-			// closeOtherEditorsOnAltClick left at its default (false).
+			// closeOtherTabsOnAltClick left at its default (false).
 		}, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);

@@ -930,7 +930,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Alt+Click to close other tabs
 		// Closes every other non-sticky tab, leaving the current tab open
 		const tabActionsAltClickListener = addDisposableListener(tabActionsContainer, EventType.MOUSE_DOWN, e => {
-			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey || !this.groupsView.partOptions.closeOtherEditorsOnAltClick) {
+			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey || !this.groupsView.partOptions.closeOtherTabsOnAltClick) {
 				return;
 			}
 
