@@ -185,7 +185,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private readonly _showElapsedOnly: boolean;
 	private _resolvedTitle: string | undefined;
 	private _trackedEnabled: boolean | undefined;
-	private _modelName: string | undefined;
 	private _reportedModelName: string | undefined;
 	private _renderedStatus: SubagentChatStatus | undefined;
 	private _confirmationCount = 0;
@@ -287,7 +286,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (resource !== previousResource) {
 			this._trackedEnabled = undefined;
 			this._resolvedTitle = undefined;
-			this._modelName = undefined;
 			this._reportedModelName = undefined;
 			this._restartEnabledTracker();
 		}
@@ -345,7 +343,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _setModelName(modelName: string | undefined): void {
-		this._modelName = modelName;
 		if (this._modelElement) {
 			this._modelElement.textContent = modelName ?? '';
 			this._modelElement.classList.toggle('hidden', !modelName);
@@ -353,7 +350,13 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _updateStatus(context: IOpenSubagentChatContext | undefined): void {
-		const status = (context?.confirmationCount ?? 0) > 0 ? 'waiting' : context?.isActive ? 'running' : 'completed';
+		const status = (context?.confirmationCount ?? 0) > 0
+			? 'waiting'
+			: context?.isActive === true
+				? 'running'
+				: context?.isActive === false
+					? 'completed'
+					: undefined;
 		if (status === this._renderedStatus) {
 			return;
 		}
@@ -399,6 +402,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				: durationValue === undefined
 					? localize('chat.subagent.workingDuration', "Working for {0}", duration)
 					: localize('chat.subagent.workedDuration', "Worked for {0}", duration);
+			this.updateAriaLabel();
 		};
 		update();
 		this._durationElement.classList.remove('hidden');
@@ -600,8 +604,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 					? localize('chat.subagent.status.completed', "Subagent completed")
 					: undefined;
 		const model = this._reportedModelName ? localize('chat.subagent.modelAria', "Model {0}", this._reportedModelName) : undefined;
+		const activeTool = this._displayedToolAccessibleLabel
+			? localize('chat.subagent.activeToolAria', "Active tool {0}", this._displayedToolAccessibleLabel)
+			: undefined;
 		const duration = this._durationElement?.textContent;
-		this.element.setAttribute('aria-label', [label, status, model, this._displayedToolAccessibleLabel, duration].filter(Boolean).join('. '));
+		this.element.setAttribute('aria-label', [label, status, model, activeTool, duration].filter(Boolean).join('. '));
 	}
 }
 

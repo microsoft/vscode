@@ -6699,16 +6699,19 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			const response = chatSession.history[1];
 			assert.strictEqual(response.type, 'response');
-			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocationSerialized : undefined;
+			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocation : undefined;
 			const activeToolPart = response.type === 'response' ? response.parts[1] as IChatToolInvocation : undefined;
+			assert.ok(toolPart);
 
 			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				partKind: toolPart.kind,
 				kind: toolPart.toolSpecificData.kind,
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
 				modelName: toolPart.toolSpecificData.modelName,
 				isActive: toolPart.toolSpecificData.isActive,
 			} : undefined, {
+				partKind: 'toolInvocation',
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
@@ -6725,6 +6728,37 @@ suite('AgentHostChatContribution', () => {
 				toolCallId: 'tc-child-running',
 				subAgentInvocationId: 'tc-subagent',
 				invocationMessage: 'Reading agentHostSessionHandler.ts',
+			});
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/toolCallComplete',
+					session: childChatUri,
+					turnId: 'child-turn-active',
+					toolCallId: 'tc-child-running',
+					result: { success: true, pastTenseMessage: 'Read agentHostSessionHandler.ts' },
+				} as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/turnComplete',
+					turnId: 'child-turn-active',
+					endedAt: '2025-01-01T00:00:05.000Z',
+				} as ChatAction,
+				serverSeq: 2,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				isActive: toolPart.toolSpecificData?.kind === 'subagent' ? toolPart.toolSpecificData.isActive : undefined,
+				activeToolState: activeToolPart?.state.get().type,
+			}, {
+				isActive: false,
+				activeToolState: IChatToolInvocation.StateKind.Completed,
 			});
 		});
 

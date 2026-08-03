@@ -2141,10 +2141,13 @@ suite('ChatSubagentContentPart', () => {
 
 			assert.deepStrictEqual(getOpenChatContext(part), {
 				chatResource: 'ahp-chat://subagent/test/tool-call',
+				parentSessionResource: 'chat-session://test/session1',
+				title: 'Working on task',
 				confirmationCount: 0,
 				confirmationActive: false,
 				startedAt: 1000,
 				duration: 5000,
+				isActive: false,
 			});
 		});
 

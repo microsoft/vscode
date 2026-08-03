@@ -355,7 +355,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (chatResource && this._openChatToolbar) {
 			const data = this._subagentToolInvocation.toolSpecificData;
 			const response = isResponseVM(this.context.element) ? this.context.element : undefined;
-			const selectedModel = response?.session.model.inputModel.state.get()?.selectedModel;
+			const selectedModel = response?.session?.model.inputModel.state.get()?.selectedModel;
 			const parentModelId = response?.model.request?.modelId ?? selectedModel?.identifier;
 			const parentModelName = selectedModel?.metadata.name;
 			const resolvedModel = response?.model.result?.metadata?.resolvedModel;
