@@ -15,6 +15,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -83,6 +84,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
 		@IAutomationService private readonly automationService: IAutomationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -180,16 +182,25 @@ export class AICustomizationOverviewView extends ViewPane {
 			countElement.textContent = `${section.count}`;
 			this.countElements.set(section.id, countElement);
 
-			// Click handler to open the management editor overview
+			// Click handler — Automations opens the dedicated custom view,
+			// all other sections open the management editor.
 			this._register(DOM.addDisposableListener(sectionElement, 'click', () => {
-				this.openOverview();
+				if (section.id === AICustomizationManagementSection.Automations) {
+					this.commandService.executeCommand('sessionsView.manageAutomations');
+				} else {
+					this.openOverview();
+				}
 			}));
 
 			// Keyboard support
 			this._register(DOM.addDisposableListener(sectionElement, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
-					this.openOverview();
+					if (section.id === AICustomizationManagementSection.Automations) {
+						this.commandService.executeCommand('sessionsView.manageAutomations');
+					} else {
+						this.openOverview();
+					}
 				}
 			}));
 
