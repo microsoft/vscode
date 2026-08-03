@@ -70,7 +70,11 @@ export function getProviderGroupForModel(
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
 	if (model.metadata.modelGroup) {
-		return { vendor: model.metadata.vendor, groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+		const byokGroup = model.metadata.byokModelIdentifier ? modelToGroup.get(model.metadata.byokModelIdentifier) : undefined;
+		return {
+			vendor: model.metadata.vendor,
+			groupName: byokGroup?.groupName ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+		};
 	}
 	return modelToGroup.get(model.identifier) ?? {
 		vendor: model.metadata.vendor,

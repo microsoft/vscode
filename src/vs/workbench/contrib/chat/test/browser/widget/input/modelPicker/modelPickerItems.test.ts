@@ -944,6 +944,26 @@ suite('buildModelPickerItems', () => {
 		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
 	});
 
+	test('Other Models respects the configured BYOK group name for agent-host models', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const googleModelIdentifier = 'google/GoogleBYOK/gemini-2.5-pro';
+		const google = createAgentHostModel('google/gemini-2.5-pro', 'Gemini 2.5 Pro', { id: 'google' });
+		const googleWithByokIdentifier = {
+			...google,
+			metadata: { ...google.metadata, byokModelIdentifier: googleModelIdentifier },
+		};
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'google', displayName: 'Google', groups: [{ name: 'GoogleBYOK', modelIdentifiers: [googleModelIdentifier] }] },
+		]);
+
+		const items = callBuild([auto, cli, googleWithByokIdentifier], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'GoogleBYOK']);
+	});
+
 	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
 		const auto = createAutoModel();
 		const a = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
