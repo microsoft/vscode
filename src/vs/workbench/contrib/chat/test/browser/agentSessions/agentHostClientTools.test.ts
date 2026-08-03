@@ -569,6 +569,7 @@ suite('AgentHostClientTools', () => {
 				onDidChange: Event.None,
 				get: () => undefined,
 				getInitialSessionConfig: () => undefined,
+				getSessionConfig: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
 				applyConfigChange: async () => undefined,

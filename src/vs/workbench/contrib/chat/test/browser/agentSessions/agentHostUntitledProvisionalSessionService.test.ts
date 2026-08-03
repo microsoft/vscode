@@ -21,7 +21,7 @@ import type { ConfigSchema } from '../../../../../../platform/agentHost/common/s
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -138,6 +138,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let agentHost: MockAgentHostService;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
+	let importStore: AgentHostImportConversationStore;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
 	let untrustedFolders: Set<string>;
@@ -165,7 +166,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
-		insta.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
+		importStore = new AgentHostImportConversationStore();
+		insta.stub(IAgentHostImportConversationStore, importStore);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
 	});
@@ -488,6 +490,61 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				URI.from({ scheme: 'copilot', path: '/real-dispose-race' }).toString(),
 			].sort(),
 		});
+	});
+
+	test('tryRebind does not create an untrusted rebound and preserves logical config', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('rebind-untrusted');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-untrusted' });
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		await provisional.applyConfigChange(ui, 'copilot', folderA, { isolation: 'worktree' });
+		const oldBackend = provisional.get(ui);
+		assert.ok(oldBackend);
+		untrustedFolders.add(folderB.toString());
+		folderService.setFolder(ui, folderB);
+		await flush();
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot', folderB);
+
+		assert.deepStrictEqual({
+			rebound,
+			createCount: agentHost.createCalls.length,
+			oldConfig: provisional.getSessionConfig(ui),
+			realConfig: provisional.getSessionConfig(realUi),
+			realBackend: provisional.get(realUi),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: undefined,
+			createCount: 1,
+			oldConfig: undefined,
+			realConfig: { isolation: 'worktree' },
+			realBackend: undefined,
+			disposed: [oldBackend.toString()],
+		});
+	});
+
+	test('tryRebind restores an import when the target becomes untrusted during creation', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('rebind-import-race');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-import-race' });
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		const turn: Turn = { id: 'turn', message: { text: 'hello', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+		const imported = { turns: [turn], model: { id: 'test-model' } };
+		importStore.set(realUi, imported);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', folderA);
+		await timeout(0);
+		untrustedFolders.add(folderB.toString());
+		folderService.setFolder(ui, folderB);
+		gate.complete();
+		await rebind;
+
+		assert.deepStrictEqual(importStore.take(realUi), imported);
 	});
 
 	test('disposeSession drops the entry and its overlay', async () => {
