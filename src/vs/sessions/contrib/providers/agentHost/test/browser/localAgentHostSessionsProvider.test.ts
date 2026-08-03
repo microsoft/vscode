@@ -1344,19 +1344,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await persistCachedSessions(disposables, storageService, [
 			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
 		]);
-		const snapshot = JSON.parse(storageService.get('localAgentHost.cachedSessions.v2', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
 		const nextHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => nextHost.dispose()));
 		nextHost.setAuthenticationPending(true);
 
 		const session = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+		nextHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'multi-root-cached').toString(),
+			action: { type: ActionType.SessionTitleChanged, title: 'Updated after hydration' },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await storageService.flush();
+		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v2', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
 
 		assert.deepStrictEqual({
-			persisted: snapshot[0].multiRoot,
+			repersisted: repersisted[0].multiRoot,
 			hydratedTitle: session.title.get(),
 		}, {
-			persisted: multiRoot,
-			hydratedTitle: 'Multi Root',
+			repersisted: multiRoot,
+			hydratedTitle: 'Updated after hydration',
 		});
 	}));
 

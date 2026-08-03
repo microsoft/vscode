@@ -371,13 +371,13 @@ export class AgentHostSessionListStore extends Disposable {
 		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
-		if (folders.length === 0) {
-			return true;
-		}
 		const multiRoot = readSessionMultiRootMetadata(entry.summary._meta);
-		if (folders.length > 1 && multiRoot) {
+		if (multiRoot) {
 			return URI.isUri(workspace.configuration)
 				&& extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), workspace.configuration);
+		}
+		if (folders.length === 0) {
+			return true;
 		}
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))

@@ -1452,6 +1452,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
 		});
 
+		test('listSessions strips provider multi-root metadata when no session database exists', async () => {
+			const sessionId = 'test-session-provider-multi-root';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.strictEqual(readSessionMultiRootMetadata(sessions[0]._meta), undefined);
+		});
+
 		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
 			const db = disposables.add(new TestSessionDatabase());
 			const primaryRoot = URI.file('/workspace/vscode');

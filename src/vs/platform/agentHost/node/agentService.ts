@@ -889,10 +889,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Overlay persisted custom titles from per-session databases.
 		const overlaid = await Promise.all(flat.map(async (s): Promise<IAgentSessionMetadata | undefined> => {
+			const sanitized = { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
 			try {
 				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
 				if (!ref) {
-					return s;
+					return sanitized;
 				}
 				try {
 					// Batch the always-required keys (title / read / archive
@@ -915,7 +916,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[PEER_CHAT_BACKING_METADATA_KEY]) {
 						return undefined;
 					}
-					let updated = { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
+					let updated = sanitized;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
 					}
@@ -968,7 +969,7 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (e) {
 				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
-			return s;
+			return sanitized;
 		}));
 		const result = overlaid.filter((s): s is IAgentSessionMetadata => s !== undefined);
 

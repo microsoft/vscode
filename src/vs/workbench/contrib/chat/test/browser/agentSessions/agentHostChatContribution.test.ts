@@ -3170,6 +3170,14 @@ suite('AgentHostChatContribution', () => {
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
 			const foldersChanged = listController.items.map(item => item.label);
+			folders = [c];
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+			const oneFolderRemaining = listController.items.map(item => item.label);
+			folders = [];
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+			const noFoldersRemaining = listController.items.map(item => item.label);
 			configuration = secondWorkspaceFile;
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
@@ -3177,11 +3185,15 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				initial,
 				foldersChanged,
+				oneFolderRemaining,
+				noFoldersRemaining,
 				workspaceFileChanged: listController.items.map(item => item.label),
 			}, {
 				initial: ['Matching workspace', 'Metadata-less'],
 				foldersChanged: ['Matching workspace'],
-				workspaceFileChanged: ['Different workspace'],
+				oneFolderRemaining: ['Matching workspace'],
+				noFoldersRemaining: ['Matching workspace', 'Metadata-less'],
+				workspaceFileChanged: ['Different workspace', 'Metadata-less'],
 			});
 		});
 
