@@ -827,7 +827,7 @@ suite('CopilotAgentSession', () => {
 		await disconnectStarted.p;
 		try {
 			mockSession.fire('session.shutdown', {
-				shutdownType: 'normal',
+				shutdownType: 'routine',
 				totalApiDurationMs: 0,
 				codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
 				modelMetrics: {},
