@@ -22,6 +22,7 @@ vi.mock('@google/genai', () => {
 	class MockGoogleGenAI {
 		public static createdWithApiKeys: string[] = [];
 		public static streamChunks: any[] = [];
+		public static generateContentParams: unknown[] = [];
 		public static listModelsResult: AsyncIterable<any> = (async function* () { })();
 
 		public readonly apiKey: string;
@@ -35,17 +36,21 @@ vi.mock('@google/genai', () => {
 			MockGoogleGenAI.createdWithApiKeys.push(opts.apiKey);
 			this.models = {
 				list: async () => MockGoogleGenAI.listModelsResult,
-				generateContentStream: async () => (async function* () {
-					for (const c of MockGoogleGenAI.streamChunks) {
-						yield c;
-					}
-				})()
+				generateContentStream: async params => {
+					MockGoogleGenAI.generateContentParams.push(params);
+					return (async function* () {
+						for (const c of MockGoogleGenAI.streamChunks) {
+							yield c;
+						}
+					})();
+				}
 			};
 		}
 	}
 
 	return {
 		GoogleGenAI: MockGoogleGenAI,
+		ThinkingLevel: { LOW: 'LOW', HIGH: 'HIGH' },
 		Type: { OBJECT: 'object' },
 	};
 });
@@ -244,6 +249,72 @@ describe('GeminiNativeBYOKLMProvider', () => {
 		expect(responseSuccessEvent).toBeDefined();
 		expect(responseSuccessEvent?.measurements?.turn).toBe(3);
 	}, 30_000);
+
+	it('advertises and forwards supported reasoning effort levels', async () => {
+		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
+		const genai = await import('@google/genai');
+		const MockGoogleGenAI = genai.GoogleGenAI as unknown as {
+			generateContentParams: Array<{ config?: { thinkingConfig?: { thinkingLevel?: string } } }>;
+			listModelsResult: AsyncIterable<{ name: string }>;
+			streamChunks: any[];
+		};
+		MockGoogleGenAI.generateContentParams.length = 0;
+		MockGoogleGenAI.listModelsResult = (async function* () {
+			yield { name: 'gemini-reasoning' };
+		})();
+		MockGoogleGenAI.streamChunks.length = 0;
+		MockGoogleGenAI.streamChunks.push({
+			candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+			usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 7, totalTokenCount: 18 }
+		});
+
+		const provider = new GeminiNativeBYOKLMProvider(
+			{
+				'gemini-reasoning': {
+					name: 'Gemini Reasoning',
+					maxInputTokens: 1000,
+					maxOutputTokens: 1000,
+					toolCalling: true,
+					vision: true,
+					supportsReasoningEffort: ['low', 'high'],
+				}
+			},
+			createStorageService(),
+			new TestLogService(),
+			createRequestLogger(),
+			new NullTelemetryService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			const [model] = await provider.provideLanguageModelChatInformation(
+				{ silent: false, configuration: { apiKey: 'k_test' } },
+				tokenSource.token
+			);
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelConfiguration: { reasoningEffort: 'high' } } as any,
+				new TestProgress(),
+				tokenSource.token
+			);
+
+			const reasoningEffortSchema = model.configurationSchema?.properties?.reasoningEffort;
+			expect({
+				reasoningEffortLevels: reasoningEffortSchema?.enum,
+				reasoningEffortLabels: reasoningEffortSchema?.enumItemLabels,
+				defaultReasoningEffort: reasoningEffortSchema?.default,
+				thinkingLevel: MockGoogleGenAI.generateContentParams[0]?.config?.thinkingConfig?.thinkingLevel,
+			}).toEqual({
+				reasoningEffortLevels: ['low', 'high'],
+				reasoningEffortLabels: ['Low', 'High'],
+				defaultReasoningEffort: 'low',
+				thinkingLevel: 'HIGH',
+			});
+		} finally {
+			tokenSource.dispose();
+		}
+	});
 
 	it.skip('throws a clear error when no API key is configured (no silent return)', async () => {
 		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
