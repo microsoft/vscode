@@ -30,7 +30,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswe
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -4215,6 +4215,73 @@ suite('AgentSideEffects', () => {
 
 			const persisted = await waitForMetadata('configValues');
 			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
+		});
+
+		test('SessionConfigChanged emits chat.modeChange for effective mode transitions without duplicate echoes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
+			});
+
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'autopilot' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {},
+				replace: true,
+			});
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.modeChange'), [{
+				eventName: 'chat.modeChange',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					fromMode: 'interactive',
+					mode: 'plan',
+					requestCount: 1,
+					storage: 'builtin',
+				},
+			}, {
+				eventName: 'chat.modeChange',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					fromMode: 'plan',
+					mode: 'autopilot',
+					requestCount: 1,
+					storage: 'builtin',
+				},
+			}, {
+				eventName: 'chat.modeChange',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					fromMode: 'autopilot',
+					mode: 'interactive',
+					requestCount: 1,
+					storage: 'builtin',
+				},
+			}]);
 		});
 
 		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
