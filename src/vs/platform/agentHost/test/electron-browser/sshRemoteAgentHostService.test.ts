@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IShellEnvironmentService } from '../../../environment/common/shellEnvironmentService.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
@@ -66,7 +67,7 @@ class MockSSHMainService {
 
 	readonly disconnectCalls: string[] = [];
 	readonly connectCalls: ISSHAgentHostConfig[] = [];
-	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string }> = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string; remoteAgentHostCommand: string | undefined; agentForward: boolean | undefined; agentSocket: string | undefined }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
@@ -84,8 +85,8 @@ class MockSSHMainService {
 		};
 	}
 
-	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
-		this.reconnectCalls.push({ sshConfigHost, name });
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, agentSocket?: string): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, name, remoteAgentHostCommand, agentForward, agentSocket });
 		return {
 			connectionId: this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`,
 			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
@@ -218,9 +219,18 @@ class MockProtocolClient extends Disposable {
 
 class TestConfigurationService {
 	readonly onDidChangeConfiguration = Event.None;
-	constructor(private _remoteAgentHostsEnabled = true) { }
-	getValue(key?: string): unknown { return key === RemoteAgentHostsEnabledSettingId ? this._remoteAgentHostsEnabled : undefined; }
+	constructor(private _remoteAgentHostsEnabled = true, private _forwardSSHAgent = false) { }
+	getValue(key?: string): unknown {
+		if (key === RemoteAgentHostsEnabledSettingId) {
+			return this._remoteAgentHostsEnabled;
+		}
+		if (key === 'chat.agentHost.forwardSSHAgent') {
+			return this._forwardSSHAgent;
+		}
+		return undefined;
+	}
 	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
+	setForwardSSHAgent(enabled: boolean): void { this._forwardSSHAgent = enabled; }
 }
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
@@ -250,6 +260,9 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
+		instantiationService.stub(IShellEnvironmentService, {
+			getShellEnv: async () => ({ SSH_AUTH_SOCK: '/tmp/shell-agent.sock' }),
+		});
 
 		const clientWaiters: DeferredPromise<MockProtocolClient>[] = [];
 		waitForClient = (index: number): Promise<MockProtocolClient> => {
@@ -301,6 +314,50 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('connect forwards the SSH agent from the shell environment when both opt-ins are enabled', async () => {
+		configurationService.setForwardSSHAgent(true);
+		const connectPromise = service.connect({ ...sampleConfig, agentForward: true });
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		assert.deepStrictEqual({
+			agentForward: mainService.connectCalls[0].agentForward,
+			agentSocket: mainService.connectCalls[0].agentSocket,
+		}, {
+			agentForward: true,
+			agentSocket: '/tmp/shell-agent.sock',
+		});
+	});
+
+	test('connect strips agent forwarding when the global opt-in is disabled', async () => {
+		const connectPromise = service.connect({ ...sampleConfig, agentForward: true, agentSocket: '/tmp/caller-agent.sock' });
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		assert.deepStrictEqual({
+			agentForward: mainService.connectCalls[0].agentForward,
+			agentSocket: mainService.connectCalls[0].agentSocket,
+		}, {
+			agentForward: undefined,
+			agentSocket: undefined,
+		});
+	});
+
+	test('reconnect forwards the SSH agent from the shell environment', async () => {
+		configurationService.setForwardSSHAgent(true);
+		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
+		await awaitClientThenResolve(0);
+		await reconnectPromise;
+
+		assert.deepStrictEqual(mainService.reconnectCalls, [{
+			sshConfigHost: 'remote.example',
+			name: 'My Remote',
+			remoteAgentHostCommand: undefined,
+			agentForward: true,
+			agentSocket: '/tmp/shell-agent.sock',
+		}]);
 	});
 
 	test('incompatible handshake keeps SSH tunnel registered for server upgrade', async () => {

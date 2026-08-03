@@ -11,6 +11,7 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IShellEnvironmentService } from '../../environment/common/shellEnvironmentService.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
@@ -85,6 +86,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 	) {
 		super();
 
@@ -140,7 +142,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const augmentedConfig = this._augmentConfig(config);
+		const augmentedConfig = await this._augmentConfig(config);
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
@@ -174,8 +176,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
+		const agentSocket = agentForward ? await this._getSSHAgentSocket() : undefined;
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, agentSocket);
 		return this._setupConnection(result);
 	}
 
@@ -303,7 +306,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		return this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address);
 	}
 
-	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
+	private async _augmentConfig(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConfig> {
 		const result = { ...config };
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
@@ -311,9 +314,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		}
 		// Agent forwarding requires both the global setting (security opt-in)
 		// and the per-host SSH config `ForwardAgent yes` to be enabled.
-		if (this._isSSHAgentForwardingEnabled() && config.agentForward) {
-			result.agentForward = true;
-		}
+		result.agentForward = this._isSSHAgentForwardingEnabled() && config.agentForward ? true : undefined;
+		result.agentSocket = result.agentForward ? await this._getSSHAgentSocket() : undefined;
 		return result;
 	}
 
@@ -321,8 +323,12 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		return this._configurationService.getValue<string>('chat.sshRemoteAgentHostCommand') || undefined;
 	}
 
-	private _isSSHAgentForwardingEnabled(): boolean | undefined {
-		return this._configurationService.getValue<boolean>('chat.agentHost.forwardSSHAgent') || undefined;
+	private _isSSHAgentForwardingEnabled(): boolean {
+		return !!this._configurationService.getValue<boolean>('chat.agentHost.forwardSSHAgent');
+	}
+
+	private async _getSSHAgentSocket(): Promise<string | undefined> {
+		return (await this._shellEnvironmentService.getShellEnv())['SSH_AUTH_SOCK'];
 	}
 
 	/**
