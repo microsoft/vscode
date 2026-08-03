@@ -252,6 +252,7 @@ export interface IChatInputPartOptions {
 	 */
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
 export interface IWorkingSetEntry {
@@ -2678,6 +2679,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				sessionResource: this._currentSessionResourceObservable,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				onDidChangeVisibility: visible => this.options.onDidChangeInputNotificationVisible?.(visible),
 			});
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
