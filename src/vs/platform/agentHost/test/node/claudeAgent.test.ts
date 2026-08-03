@@ -51,7 +51,7 @@ import { ActionType, type AuthRequiredParams } from '../../common/state/sessionA
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -5393,6 +5393,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
+		assert.strictEqual(inputRequest.purpose, ChatInputRequestPurpose.AskUser);
 		ctx.agent.respondToUserInputRequest('tu_ask', ChatInputResponseKind.Accept, {
 			q1: {
 				state: ChatInputAnswerState.Submitted,
@@ -5691,6 +5692,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
+		assert.strictEqual(inputRequest.purpose, ChatInputRequestPurpose.Elicitation);
 		ctx.agent.respondToUserInputRequest(inputRequest.id, ChatInputResponseKind.Accept, {
 			side: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'left' } },
 		});

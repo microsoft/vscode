@@ -58,6 +58,7 @@ export {
 	ChatInputAnswerState as SessionInputAnswerState,
 	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
 	ChatInputQuestionKind as SessionInputQuestionKind,
+	ChatInputRequestPurpose,
 	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
