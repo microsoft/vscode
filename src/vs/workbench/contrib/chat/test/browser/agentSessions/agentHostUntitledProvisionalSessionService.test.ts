@@ -424,6 +424,72 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(reboundCreate!.config?.['isolation'], 'worktree');
 	});
 
+	test('tryRebind retries when config changes during final session creation', async () => {
+		const ui = untitledChatUri('rebind-config-race');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-config-race' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const oldBackend = provisional.get(ui);
+		assert.ok(oldBackend);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		await timeout(0);
+		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+		gate.complete();
+		const [rebound] = await Promise.all([rebind, configChange]);
+
+		const finalCreates = agentHost.createCalls.filter(call => call.session?.path === '/real-config-race');
+		assert.deepStrictEqual({
+			finalCreateCount: finalCreates.length,
+			firstCandidateDisposed: agentHost.disposed.filter(uri => uri.path === '/real-config-race').length,
+			oldBackendDisposed: agentHost.disposed.some(uri => uri.toString() === oldBackend.toString()),
+			rebound: rebound?.toString(),
+			current: provisional.get(realUi)?.toString(),
+			finalConfig: finalCreates.at(-1)?.config,
+		}, {
+			finalCreateCount: 2,
+			firstCandidateDisposed: 1,
+			oldBackendDisposed: true,
+			rebound: URI.from({ scheme: 'copilot', path: '/real-config-race' }).toString(),
+			current: URI.from({ scheme: 'copilot', path: '/real-config-race' }).toString(),
+			finalConfig: { isolation: 'worktree' },
+		});
+	});
+
+	test('tryRebind disposes its candidate when the old entry is retired during creation', async () => {
+		const ui = untitledChatUri('rebind-dispose-race');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-race' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const oldBackend = provisional.get(ui);
+		assert.ok(oldBackend);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		await timeout(0);
+		const disposal = provisional.disposeSession(ui);
+		gate.complete();
+		const [rebound] = await Promise.all([rebind, disposal]);
+
+		assert.deepStrictEqual({
+			rebound,
+			oldMapping: provisional.get(ui),
+			newMapping: provisional.get(realUi),
+			disposed: agentHost.disposed.map(uri => uri.toString()).sort(),
+		}, {
+			rebound: undefined,
+			oldMapping: undefined,
+			newMapping: undefined,
+			disposed: [
+				oldBackend.toString(),
+				URI.from({ scheme: 'copilot', path: '/real-dispose-race' }).toString(),
+			].sort(),
+		});
+	});
+
 	test('disposeSession drops the entry and its overlay', async () => {
 		const ui = untitledChatUri('h');
 		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];

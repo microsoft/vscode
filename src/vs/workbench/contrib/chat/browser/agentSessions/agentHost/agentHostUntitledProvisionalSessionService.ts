@@ -474,46 +474,60 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				return undefined;
 			}
 
-			const config = { ...oldEntry.config };
 			const newBackendSession = this._toBackendUri(newSessionResource, provider);
 			const imported = this._importConversationStore.take(newSessionResource);
 
-			let created: URI;
-			try {
-				created = await this._agentHostService.createSession({
+			while (this._entries.get(oldSessionResource) === oldEntry && !oldEntry.disposed) {
+				const config = { ...oldEntry.config };
+				const configVersion = oldEntry.configVersion;
+				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				let created: URI;
+				try {
+					created = await this._agentHostService.createSession({
+						provider,
+						session: newBackendSession,
+						workingDirectories: this._computeWorkingDirectories(targetWorkingDirectory, provider),
+						config,
+						...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+						progressToken: generateUuid(),
+					});
+				} catch (err) {
+					this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
+					return undefined;
+				}
+
+				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
+					await this._disposeBackend(created, 'retired rebound candidate');
+					return undefined;
+				}
+				if (oldEntry.configVersion !== configVersion || !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)) {
+					await this._disposeBackend(created, 'obsolete rebound candidate');
+					continue;
+				}
+
+				const oldGeneration = oldEntry.generation;
+				this._entries.set(newSessionResource, {
 					provider,
-					session: newBackendSession,
-					workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
+					generation: { backendSession: created, workingDirectory: targetWorkingDirectory },
 					config,
-					...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
-					progressToken: generateUuid(),
+					configVersion,
+					workingDirectory: targetWorkingDirectory,
+					resolvedConfig: oldEntry.resolvedConfig,
+					disposed: false,
 				});
-			} catch (err) {
-				this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
-				return undefined;
-			}
+				this._entries.delete(oldSessionResource);
+				oldEntry.disposed = true;
+				this._resolvedConfigs.delete(oldSessionResource);
+				this._resolvedConfigRequestSeq.delete(oldSessionResource);
+				this._rebound.add(oldSessionResource);
+				this._onDidChange.fire(newSessionResource);
 
-			const oldGeneration = oldEntry.generation;
-			this._entries.set(newSessionResource, {
-				provider,
-				generation: { backendSession: created, workingDirectory },
-				config,
-				configVersion: oldEntry.configVersion,
-				workingDirectory,
-				resolvedConfig: oldEntry.resolvedConfig,
-				disposed: false,
-			});
-			this._entries.delete(oldSessionResource);
-			oldEntry.disposed = true;
-			this._resolvedConfigs.delete(oldSessionResource);
-			this._resolvedConfigRequestSeq.delete(oldSessionResource);
-			this._rebound.add(oldSessionResource);
-			this._onDidChange.fire(newSessionResource);
-
-			if (oldGeneration) {
-				await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
+				if (oldGeneration) {
+					await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
+				}
+				return created;
 			}
-			return created;
+			return undefined;
 		});
 	}
 
