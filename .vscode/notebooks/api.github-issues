@@ -8,6 +8,7 @@
     "kind": 2,
     "language": "github-issues",
     "value": "$REPO=repo:microsoft/vscode\n$MILESTONE=milestone:\"1.126.0\""
+    // Milestone 1.126.0 → June sprint goals
   },
   {
     "kind": 1,
@@ -18,6 +19,7 @@
     "kind": 2,
     "language": "github-issues",
     "value": "$REPO $MILESTONE label:api-finalization"
+    // Tracks issues marked for API finalization
   },
   {
     "kind": 1,
@@ -28,5 +30,6 @@
     "kind": 2,
     "language": "github-issues",
     "value": "$REPO $MILESTONE is:open label:api-proposal sort:created-asc"
+    // Lists open API proposals sorted by creation date
   }
 ]
