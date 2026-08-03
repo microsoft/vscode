@@ -314,12 +314,6 @@ export class TerminalVoiceSession extends Disposable {
 			this._finalizeBuiltinThenStop();
 			return;
 		}
-		// A built-in finalize is already in flight (awaiting the engine's final
-		// transcript). A concurrent teardown (send=false) — e.g. the active
-		// terminal instance changing as the command palette closes when the Stop
-		// Dictation command runs — must not cancel the engine mid-transcribe and
-		// wipe the staged text, which would drop the dictation. Let the finalize
-		// complete and commit the text itself.
 		if (this._builtinFinalizing && !send) {
 			return;
 		}
