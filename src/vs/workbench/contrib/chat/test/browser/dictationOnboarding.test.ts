@@ -194,9 +194,6 @@ suite('Dictation onboarding', () => {
 
 	test('keeps the picker hidden until a microphone reports a real label', async () => {
 		const host = createHost(disposables);
-		// Two microphones are present, but their labels stay blank until
-		// permission has been granted. The picker must not appear with blank or
-		// "Unknown device" rows; it should only render once a real label lands.
 		let labelled = false;
 		const mediaDevices = Object.assign(new EventTarget(), {
 			enumerateDevices: async () => labelled
