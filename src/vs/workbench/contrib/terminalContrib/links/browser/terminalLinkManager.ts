@@ -119,9 +119,7 @@ export class TerminalLinkManager extends DisposableStore {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
-				// Stop the mouse event from reaching xterm's mouse tracking handler
-				// which would send a malformed SGR mouse report with NaN coordinates
-				// to the pty when the terminal loses focus during link activation
+				// Prevent xterm from reporting invalid coordinates after link activation.
 				event.stopImmediatePropagation();
 				const colonIndex = text.indexOf(':');
 				if (colonIndex === -1) {
@@ -210,9 +208,7 @@ export class TerminalLinkManager extends DisposableStore {
 			if (e.event && !(e.event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(e.event)) {
 				return;
 			}
-			// Stop the mouse event from reaching xterm's mouse tracking handler
-			// which would send a malformed SGR mouse report with NaN coordinates
-			// to the pty when the terminal loses focus during link activation
+			// Prevent xterm from reporting invalid coordinates after link activation.
 			e.event?.stopImmediatePropagation();
 			// Just call the handler if there is no before listener
 			if (e.link.activate) {
