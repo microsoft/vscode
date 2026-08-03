@@ -2216,6 +2216,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * existing {@link _maybeEvictIdleSession} path which only drops cached
 	 * state and lets the session be restored from disk later.
 	 *
+	 * GC is restricted to sessions that are still unused drafts. A session that
+	 * was restored from durable storage, or that has ever had a turn, is never
+	 * a candidate however empty it looks now — an empty state is also what a
+	 * failed history load and a truncate-to-zero leave behind.
+	 *
 	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
 	 * (or createSession on the same URI) cancels the timer via
@@ -2238,6 +2243,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (state.turns.length > 0 || state.activeTurn !== undefined) {
 			return false;
 		}
+		if (this._stateManager.isUnusedDraft(key) !== true) {
+			this._logService.trace(`[AgentService] Skipping GC for session that is not an unused draft: ${key}`);
+			return false;
+		}
 		this._pendingSessionGc.set(resource, disposableTimeout(() => {
 			this._pendingSessionGc.deleteAndDispose(resource);
 			this._runSessionGc(resource).catch(err => {
@@ -2253,9 +2262,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
-	 * subscriber while empty. Re-checks both invariants (still no subscribers,
-	 * still empty) before tearing the session down via {@link disposeSession}.
-	 * The cached state may already have been evicted by
+	 * subscriber while empty. Re-checks the invariants (still no subscribers,
+	 * still empty, still an unused draft) before tearing the session down via
+	 * {@link disposeSession}. The cached state may already have been evicted by
 	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
 	 * "evicted + no resubscribe" implies no client is observing the session.
 	 */
@@ -2266,6 +2275,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const state = this._stateManager.getSessionState(key);
 		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+			return;
+		}
+		// The session may have been rehydrated or used during the grace window.
+		// An *absent* entry means it was evicted and never came back, which is
+		// still a valid target — so only an explicit non-draft aborts.
+		if (this._stateManager.isUnusedDraft(key) === false) {
+			this._logService.trace(`[AgentService] GC aborted, session is no longer an unused draft: ${key}`);
 			return;
 		}
 		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);
