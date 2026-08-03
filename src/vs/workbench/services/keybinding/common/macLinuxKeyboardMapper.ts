@@ -7,6 +7,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils, isModifierKey } from '../../../../base/common/keyCodes.js';
 import { ResolvedKeybinding, KeyCodeChord, SingleModifierChord, ScanCodeChord, Keybinding, Chord } from '../../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
 import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
 import { BaseResolvedKeybinding } from '../../../../platform/keybinding/common/baseResolvedKeybinding.js';
@@ -19,6 +20,11 @@ import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from '../../../../platf
  *  - '?' => { keyCode: KeyCode.US_SLASH, shiftKey: true }
  */
 const CHAR_CODE_TO_KEY_CODE: ({ keyCode: KeyCode; shiftKey: boolean } | null)[] = [];
+const ELECTRON_SHIFTED_ACCELERATOR_CHARACTERS = '!"#$%&()*+:<>?@^_{|}~';
+const ELECTRON_NAMED_ACCELERATOR_CHARACTERS = new Map<number, string>([
+	[CharCode.Space, 'Space'],
+	[CharCode.Plus, 'Plus'],
+]);
 
 export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeChord> {
 
@@ -909,7 +915,32 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
 
+		if (this._OS === OperatingSystem.Macintosh) {
+			return this._getElectronAcceleratorLabelForUnstableScanCode(chord);
+		}
+
 		return null;
+	}
+
+	private _getElectronAcceleratorLabelForUnstableScanCode(chord: ScanCodeChord): string | null {
+		const mapping = this._codeInfo[chord.scanCode];
+		if (!mapping) {
+			return null;
+		}
+
+		if (hasKey(mapping, { valueIsDeadKey: true }) && mapping.valueIsDeadKey) {
+			return null;
+		}
+
+		const charCode = MacLinuxKeyboardMapper._redirectCharCode(MacLinuxKeyboardMapper.getCharCode(mapping.value));
+		const character = String.fromCharCode(charCode);
+		const isPrintableAscii = charCode >= CharCode.Space && charCode <= CharCode.Tilde;
+		const isUppercaseLetter = charCode >= CharCode.A && charCode <= CharCode.Z;
+		if (!isPrintableAscii || isUppercaseLetter || (chord.shiftKey && ELECTRON_SHIFTED_ACCELERATOR_CHARACTERS.includes(character))) {
+			return null;
+		}
+
+		return ELECTRON_NAMED_ACCELERATOR_CHARACTERS.get(charCode) ?? character;
 	}
 
 	private _toResolvedKeybinding(chordParts: ScanCodeChord[][]): NativeResolvedKeybinding[] {
