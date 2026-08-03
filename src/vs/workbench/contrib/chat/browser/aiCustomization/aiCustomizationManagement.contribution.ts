@@ -778,9 +778,6 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
-					if (section === AICustomizationManagementSection.Automations && automationId) {
-						pane.focusAutomation(automationId);
-					}
 				}
 			}
 		}));
