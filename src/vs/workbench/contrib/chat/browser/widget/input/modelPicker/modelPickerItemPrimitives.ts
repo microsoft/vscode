@@ -71,9 +71,9 @@ export function getProviderGroupForModel(
 ): IProviderGroupInfo {
 	if (model.metadata.modelGroup) {
 		const byokGroup = model.metadata.byokModelIdentifier ? modelToGroup.get(model.metadata.byokModelIdentifier) : undefined;
-		return {
+		return byokGroup ?? {
 			vendor: model.metadata.vendor,
-			groupName: byokGroup?.groupName ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+			groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
 		};
 	}
 	return modelToGroup.get(model.identifier) ?? {
