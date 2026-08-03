@@ -310,7 +310,7 @@ impl CodeServerOrigin {
 	}
 }
 
-/// Ensures the given list of extensions are installed on the running server.
+/// Builds the platform-specific command used to install extensions on a running server.
 fn new_extension_install_command(start_script_path: &Path, extensions: &[String]) -> Command {
 	let mut command = new_script_command(start_script_path);
 	command.stdin(std::process::Stdio::null()).args(
@@ -321,6 +321,7 @@ fn new_extension_install_command(start_script_path: &Path, extensions: &[String]
 	command
 }
 
+/// Ensures the given list of extensions are installed on the running server.
 async fn do_extension_install_on_running_server(
 	start_script_path: &Path,
 	extensions: &[String],
@@ -862,54 +863,6 @@ fn parse_port_from(text: &str) -> Option<u16> {
 	})
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use std::ffi::OsString;
-
-	#[test]
-	fn extension_install_command_uses_platform_script_runner() {
-		let script = Path::new("path with spaces/code-server.cmd");
-		let extensions = vec![
-			"publisher.first".to_string(),
-			"publisher.second".to_string(),
-		];
-		let command = new_extension_install_command(script, &extensions);
-		let command = command.as_std();
-		let args = command
-			.get_args()
-			.map(OsString::from)
-			.collect::<Vec<OsString>>();
-
-		#[cfg(windows)]
-		{
-			assert_eq!(command.get_program(), "cmd");
-			assert_eq!(
-				args,
-				vec![
-					OsString::from("/Q"),
-					OsString::from("/C"),
-					script.as_os_str().to_owned(),
-					OsString::from("--install-extension=publisher.first"),
-					OsString::from("--install-extension=publisher.second"),
-				]
-			);
-		}
-
-		#[cfg(not(windows))]
-		{
-			assert_eq!(command.get_program(), script.as_os_str());
-			assert_eq!(
-				args,
-				vec![
-					OsString::from("--install-extension=publisher.first"),
-					OsString::from("--install-extension=publisher.second"),
-				]
-			);
-		}
-	}
-}
-
 pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 	use crate::commands::output;
 	use console::style;
@@ -1011,4 +964,52 @@ async fn get_should_use_breakaway_from_job() -> bool {
 	);
 
 	cmd.args(["/C", "echo ok"]).output().await.is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::ffi::OsString;
+
+	#[test]
+	fn extension_install_command_uses_platform_script_runner() {
+		let script = Path::new("path with spaces/code-server.cmd");
+		let extensions = vec![
+			"publisher.first".to_string(),
+			"publisher.second".to_string(),
+		];
+		let command = new_extension_install_command(script, &extensions);
+		let command = command.as_std();
+		let args = command
+			.get_args()
+			.map(OsString::from)
+			.collect::<Vec<OsString>>();
+
+		#[cfg(windows)]
+		{
+			assert_eq!(command.get_program(), "cmd");
+			assert_eq!(
+				args,
+				vec![
+					OsString::from("/Q"),
+					OsString::from("/C"),
+					script.as_os_str().to_owned(),
+					OsString::from("--install-extension=publisher.first"),
+					OsString::from("--install-extension=publisher.second"),
+				]
+			);
+		}
+
+		#[cfg(not(windows))]
+		{
+			assert_eq!(command.get_program(), script.as_os_str());
+			assert_eq!(
+				args,
+				vec![
+					OsString::from("--install-extension=publisher.first"),
+					OsString::from("--install-extension=publisher.second"),
+				]
+			);
+		}
+	}
 }
