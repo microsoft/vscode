@@ -11,7 +11,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -23,6 +23,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -167,7 +168,10 @@ class RestartToUpdateAction extends Action2 {
 			title: localize2('restartToUpdate', 'Restart to Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+			precondition: ContextKeyExpr.and(
+				CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+				CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.negate()
+			)
 		});
 	}
 
