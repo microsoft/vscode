@@ -72,6 +72,26 @@ interface WebviewActionContext {
 	readonly [key: string]: unknown;
 }
 
+// --- Start FusionIDE ---
+/**
+ * Extensions whose webviews may request the microphone.
+ *
+ * FusionVoice captures inside the chat webview, and an iframe cannot obtain a
+ * device its permissions policy never granted — there is no extension API to
+ * widen that policy, which is why this is a patch. It is an allowlist rather
+ * than a blanket grant so a third-party extension installed from the gallery
+ * cannot silently reach the microphone; the desktop still owns the OS-level
+ * permission prompt for the session.
+ */
+const FUSIONIDE_MICROPHONE_EXTENSIONS: ReadonlySet<string> = new Set([
+	'fusionclaw.fusionide-bridge',
+]);
+
+function fusionideAllowsMicrophone(extensionId: string | undefined): boolean {
+	return extensionId !== undefined && FUSIONIDE_MICROPHONE_EXTENSIONS.has(extensionId.toLowerCase());
+}
+// --- End FusionIDE ---
+
 const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
@@ -424,6 +444,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		if (!isFirefox) {
 			allowRules.push('clipboard-read', 'clipboard-write');
 		}
+		// --- Start FusionIDE ---
+		// FusionVoice records inside the chat webview, and an iframe cannot ask
+		// for a device its permissions policy never granted. The grant is scoped
+		// to FusionClaw's own extensions rather than opened for every webview,
+		// and the desktop still arbitrates the OS-level prompt for the session.
+		if (fusionideAllowsMicrophone(this.extension?.id.value)) {
+			allowRules.push('microphone');
+		}
+		// --- End FusionIDE ---
 		element.setAttribute('allow', allowRules.join('; '));
 
 		element.style.border = 'none';
@@ -684,6 +713,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+				// --- Start FusionIDE ---
+				fusionideAllowMicrophone: fusionideAllowsMicrophone(this.extension?.id.value),
+				// --- End FusionIDE ---
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

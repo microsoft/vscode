@@ -1035,6 +1035,15 @@
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
+				/* --- Start FusionIDE ---
+				 * Mirrors the allowlist in webviewElement.ts: the inner frame
+				 * carries its own permissions policy, so granting only on the
+				 * outer element would leave FusionVoice without a microphone.
+				 */
+				if (options.fusionideAllowMicrophone) {
+					allowRules.push('microphone;');
+				}
+				/* --- End FusionIDE --- */
 				newFrame.setAttribute('allow', allowRules.join(' '));
 				// We should just be able to use srcdoc, but I wasn't
 				// seeing the service worker applying properly.
