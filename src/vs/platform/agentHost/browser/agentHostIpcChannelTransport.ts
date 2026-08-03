@@ -12,6 +12,8 @@
 // upstream to the local agent host process and pipes raw JSON frames over
 // the IPC channel.
 
+import { timeout } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -21,6 +23,33 @@ import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 const REDACTED_TOKEN = '<redacted>';
+
+/** Total wall-clock budget for retrying the upstream `connect` while the agent host registers its IPC channel. */
+const DEFAULT_CONNECT_RETRY_BUDGET_MS = 20_000;
+/** Initial backoff between `connect` retries; doubles up to {@link DEFAULT_CONNECT_RETRY_MAX_DELAY_MS}. */
+const DEFAULT_CONNECT_RETRY_INITIAL_DELAY_MS = 250;
+/** Upper bound on the backoff between `connect` retries. */
+const DEFAULT_CONNECT_RETRY_MAX_DELAY_MS = 2_000;
+
+/** Connect-retry tunables for {@link AgentHostIpcChannelTransport}; overridable in tests. */
+export interface IAgentHostIpcChannelTransportOptions {
+	readonly connectRetryBudgetMs?: number;
+	readonly connectRetryInitialDelayMs?: number;
+	readonly connectRetryMaxDelayMs?: number;
+	/** Delay primitive between retries; defaults to a real timer. */
+	readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * The IPC `ChannelServer` rejects calls to a channel it hasn't registered yet
+ * with an error named `'Unknown channel'` once its timeout elapses. For the
+ * agent host that means the host process is still booting and hasn't registered
+ * `agentHostProtocol` — a transient, retryable condition rather than a hard
+ * failure.
+ */
+function isUnknownChannelError(error: unknown): boolean {
+	return error instanceof Error && error.name === 'Unknown channel';
+}
 
 /**
  * Wraps an {@link IChannel} as an {@link IClientTransport} for the agent
@@ -45,11 +74,24 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private _closeFired = false;
 	private _malformedFrames = 0;
 
+	private readonly _connectRetryBudgetMs: number;
+	private readonly _connectRetryInitialDelayMs: number;
+	private readonly _connectRetryMaxDelayMs: number;
+	private readonly _sleep: (ms: number) => Promise<void>;
+
+	/** Cancels an in-flight connect-retry backoff when the transport is disposed. */
+	private readonly _connectCts = new CancellationTokenSource();
+
 	constructor(
 		private readonly _channel: IChannel,
 		private readonly _ahpLogger?: AhpJsonlLogger,
+		options?: IAgentHostIpcChannelTransportOptions,
 	) {
 		super();
+		this._connectRetryBudgetMs = options?.connectRetryBudgetMs ?? DEFAULT_CONNECT_RETRY_BUDGET_MS;
+		this._connectRetryInitialDelayMs = options?.connectRetryInitialDelayMs ?? DEFAULT_CONNECT_RETRY_INITIAL_DELAY_MS;
+		this._connectRetryMaxDelayMs = options?.connectRetryMaxDelayMs ?? DEFAULT_CONNECT_RETRY_MAX_DELAY_MS;
+		this._sleep = options?.sleep ?? (ms => timeout(ms, this._connectCts.token));
 	}
 
 	get isOpen(): boolean {
@@ -61,11 +103,45 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 			throw new Error('Transport is disposed');
 		}
 		// Subscribe before connecting so we don't miss any frames the upstream
-		// host emits between open and our listener attaching.
+		// host emits between open and our listener attaching. Event listens to a
+		// not-yet-registered IPC channel are buffered by the ChannelServer and
+		// flushed once it registers, so subscribing once — before any connect
+		// retry — is correct even while the host is still booting.
 		this._register(this._channel.listen<string>('frame')(text => this._handleFrame(text)));
 		this._register(this._channel.listen<void>('close')(() => this._fireClose()));
-		await this._channel.call('connect');
+		await this._connectWithRetry();
 		this._isOpen = true;
+	}
+
+	/**
+	 * Opens the upstream connection, retrying while the agent host is still
+	 * registering its `agentHostProtocol` IPC channel. On a slow host boot the
+	 * channel can be registered only after the IPC ChannelServer's unknown-channel
+	 * timeout, which rejects `call('connect')` with a transient "Unknown channel"
+	 * error even though the channel appears moments later. The local transport
+	 * cannot reconnect once the protocol client gives up, so treating that
+	 * transient timeout as fatal is what leaves the agent host missing from the
+	 * picker until a window reload — retry with backoff up to a bounded budget
+	 * instead, and surface any other error (or budget exhaustion) unchanged.
+	 */
+	private async _connectWithRetry(): Promise<void> {
+		const deadline = Date.now() + this._connectRetryBudgetMs;
+		let delay = this._connectRetryInitialDelayMs;
+		for (; ;) {
+			try {
+				await this._channel.call('connect');
+				return;
+			} catch (error) {
+				if (this._store.isDisposed || !isUnknownChannelError(error) || Date.now() >= deadline) {
+					throw error;
+				}
+			}
+			await this._sleep(delay);
+			if (this._store.isDisposed) {
+				throw new Error('Transport is disposed');
+			}
+			delay = Math.min(delay * 2, this._connectRetryMaxDelayMs);
+		}
 	}
 
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
@@ -82,6 +158,8 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	}
 
 	override dispose(): void {
+		// Cancel any in-flight connect-retry backoff so teardown doesn't wait it out.
+		this._connectCts.dispose(true);
 		if (this._isOpen && !this._closeFired) {
 			// Best-effort close — ignore any rejection since we're tearing down.
 			this._channel.call('close').catch(() => { });
