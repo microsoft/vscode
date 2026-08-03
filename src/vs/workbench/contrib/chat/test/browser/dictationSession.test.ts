@@ -55,7 +55,10 @@ suite('DictationSession', () => {
 				onDidChangeState.fire(state);
 				return finalTranscript;
 			},
-			cancel() { },
+			cancel() {
+				state = ChatSpeechToTextState.Idle;
+				onDidChangeState.fire(state);
+			},
 			logDictationAccuracy() { },
 		};
 		return { service, onDidUpdateTranscript, setTranscript: text => { finalTranscript = text; } };
@@ -149,5 +152,29 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([afterMore, editor.getValue()], ['one twox three', 'one twox three']);
+	});
+
+	test('starting dictation in another editor takes over the shared session', async () => {
+		const { service, onDidUpdateTranscript, setTranscript } = createService('hello', true);
+		const model1 = store.add(createTextModel(''));
+		const editor1 = store.add(createTestCodeEditor(model1));
+		const model2 = store.add(createTextModel(''));
+		const editor2 = store.add(createTestCodeEditor(model2));
+
+		await startDictation(service, editor1, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'hello', finalizedText: '' });
+		const editor1WhileDictating = editor1.getValue();
+		// Starting dictation in a second editor cancels the first session (keeping
+		// its already-inserted text) and takes over the shared engine.
+		await startDictation(service, editor2, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'world', finalizedText: '' });
+		const editor2WhileDictating = editor2.getValue();
+		setTranscript('world');
+		await stopDictation();
+
+		assert.deepStrictEqual(
+			[editor1WhileDictating, editor1.getValue(), editor2WhileDictating, editor2.getValue()],
+			['hello', 'hello', 'world', 'world'],
+		);
 	});
 });

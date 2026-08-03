@@ -214,9 +214,14 @@ export class TerminalVoiceSession extends Disposable {
 
 		// Only one dictation can run at a time (the on-device engine is a shared
 		// singleton). If it is already recording elsewhere (chat input or an
-		// editor), `service.start()` would no-op while these listeners stayed
-		// attached and streamed that other surface's transcript into the
-		// terminal. Reject a non-idle engine before subscribing.
+		// editor), cancel that session so the terminal can take over — the other
+		// surface clears its own state and UI when it observes the engine go Idle.
+		// This runs before we attach our own listeners below, so it cannot tear
+		// down this new terminal session.
+		if (service.state !== ChatSpeechToTextState.Idle) {
+			service.cancel();
+		}
+		// If the engine somehow stayed busy, bail rather than subscribing to it.
 		if (service.state !== ChatSpeechToTextState.Idle) {
 			this.stop();
 			return;
