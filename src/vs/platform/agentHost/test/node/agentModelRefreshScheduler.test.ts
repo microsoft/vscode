@@ -230,10 +230,19 @@ suite('AgentModelRefreshScheduler', () => {
 				startTurn('failing');
 				startTurn('legacy');
 				startTurn('healthy');
+				startTurn('failing');
+				startTurn('legacy');
+				startTurn('healthy');
 				await advanceIntervals(1);
 			}
 
-			assert.ok(healthy.refreshCount >= 3, `expected refreshes to continue past a rejecting agent, got ${healthy.refreshCount}`);
+			assert.deepStrictEqual({
+				failing: failing.refreshCount,
+				healthy: healthy.refreshCount,
+			}, {
+				failing: 5,
+				healthy: 5,
+			});
 		});
 	});
 });
