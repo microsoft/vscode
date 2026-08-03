@@ -7,7 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
@@ -50,7 +50,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -557,6 +557,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._agents;
 	}
 
+	/**
+	 * Fires with the provider id whenever a turn starts. Exposed alongside
+	 * {@link agents} so {@link AgentModelRefreshScheduler} can gate its periodic
+	 * refresh on real agent usage rather than polling an idle host.
+	 */
+	get onDidStartTurn(): Event<string> {
+		return this._sideEffects.onDidStartTurn;
+	}
+
 	// ---- provider registration ----------------------------------------------
 
 	/**
@@ -638,7 +647,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Creates the session's isolated worktree on the first send (deferred so the
 	 * user's prompt can name the branch), reports creation progress as the chat's
 	 * activity, surfaces the "Created isolated worktree" announcement as the first
-	 * markdown response part of the turn, and returns the created worktree URI.
+	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
 	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
 	 * worktree creation failed. Only invoked for sessions whose worktree is still
 	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
@@ -650,6 +659,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		let reportedActivity = false;
+		let failureDiagnostic: string | undefined;
 		try {
 			await worktree.resolveOnFirstSend({
 				sessionUri: URI.parse(params.session),
@@ -667,12 +677,27 @@ export class AgentService extends Disposable implements IAgentService {
 				},
 			});
 		} catch (err) {
-			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${toErrorMessage(err)}`);
+			failureDiagnostic = toErrorMessage(err);
+			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
 		}
 		// Clear on every exit path so a failed creation can't strand the chat
 		// on a stale "Creating isolated worktree" activity.
 		if (reportedActivity) {
 			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
+		}
+		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
+		if (!resolvedWorktree) {
+			try {
+				await worktree.persistCreationFailure(URI.parse(params.session), sessionId, failureDiagnostic);
+			} catch (err) {
+				this._logService.warn(`[AgentService] failed to persist worktree creation failure for ${params.session}: ${toErrorMessage(err)}`);
+			}
+			this._stateManager.dispatchServerAction(params.chat, {
+				type: ActionType.ChatResponsePart,
+				turnId: params.turnId,
+				part: buildWorktreeFailureNotification(failureDiagnostic),
+			});
+			return undefined;
 		}
 		const announcement = worktree.takePendingAnnouncement(sessionId);
 		if (announcement !== undefined) {
@@ -682,7 +707,7 @@ export class AgentService extends Disposable implements IAgentService {
 				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
 			});
 		}
-		return worktree.getResolvedWorktree(sessionId);
+		return resolvedWorktree;
 	}
 
 	registerProvider(provider: IAgent): void {
@@ -2013,6 +2038,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}
+		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
@@ -2200,6 +2226,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * existing {@link _maybeEvictIdleSession} path which only drops cached
 	 * state and lets the session be restored from disk later.
 	 *
+	 * GC is restricted to sessions that are still unused drafts. A session that
+	 * was restored from durable storage, or that has ever had a turn, is never
+	 * a candidate however empty it looks now — an empty state is also what a
+	 * failed history load and a truncate-to-zero leave behind.
+	 *
 	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
 	 * (or createSession on the same URI) cancels the timer via
@@ -2222,6 +2253,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (state.turns.length > 0 || state.activeTurn !== undefined) {
 			return false;
 		}
+		if (this._stateManager.isUnusedDraft(key) !== true) {
+			this._logService.trace(`[AgentService] Skipping GC for session that is not an unused draft: ${key}`);
+			return false;
+		}
 		this._pendingSessionGc.set(resource, disposableTimeout(() => {
 			this._pendingSessionGc.deleteAndDispose(resource);
 			this._runSessionGc(resource).catch(err => {
@@ -2237,9 +2272,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
-	 * subscriber while empty. Re-checks both invariants (still no subscribers,
-	 * still empty) before tearing the session down via {@link disposeSession}.
-	 * The cached state may already have been evicted by
+	 * subscriber while empty. Re-checks the invariants (still no subscribers,
+	 * still empty, still an unused draft) before tearing the session down via
+	 * {@link disposeSession}. The cached state may already have been evicted by
 	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
 	 * "evicted + no resubscribe" implies no client is observing the session.
 	 */
@@ -2250,6 +2285,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const state = this._stateManager.getSessionState(key);
 		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+			return;
+		}
+		// The session may have been rehydrated or used during the grace window.
+		// An *absent* entry means it was evicted and never came back, which is
+		// still a valid target — so only an explicit non-draft aborts.
+		if (this._stateManager.isUnusedDraft(key) === false) {
+			this._logService.trace(`[AgentService] GC aborted, session is no longer an unused draft: ${key}`);
 			return;
 		}
 		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);

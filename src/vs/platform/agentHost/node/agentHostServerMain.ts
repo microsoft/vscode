@@ -376,7 +376,7 @@ async function main(): Promise<void> {
 	// lifetime, rather than inside `AgentHostService`: a service that arms a
 	// recurring timer in its constructor is one that no faked-timer unit test
 	// can ever drain.
-	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({

@@ -946,7 +946,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	/**
 	 * Whether the session was configured with the sandbox enabled. The sandbox
-	 * only actually applies to requests that run with default approvals — see
+	 * only actually applies to requests that run with default permissions — see
 	 * {@link _applyEffectiveSandboxConfig}.
 	 */
 	private get _sandboxEnabled(): boolean {
@@ -955,7 +955,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	/**
 	 * Apply the sandbox policy for the request that is about to be sent. The
-	 * sandbox enable setting only applies under default approvals; the sandbox
+	 * sandbox enable setting only applies under default permissions; the sandbox
 	 * is explicitly disabled when the request runs with bypass approvals
 	 * (autopilot / autoApprove) or when no sandbox is configured for the
 	 * session. Pushing `{ enabled: false }` (rather than skipping the update)
@@ -1889,7 +1889,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
-			// The sandbox only applies under default approvals — disable it for
+			// The sandbox only applies under default permissions — disable it for
 			// this request when running in a bypass-approvals mode.
 			const bypassApprovals = remoteMode
 				? remoteMode === 'autopilot'
@@ -1932,7 +1932,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
-			// The sandbox only applies under default approvals — disable it when
+			// The sandbox only applies under default permissions — disable it when
 			// fleet runs in autopilot (a bypass-approvals mode).
 			this._applyEffectiveSandboxConfig(this._permissionLevel === 'autopilot');
 			const result = await this._sdkSession.fleet.start({ prompt });

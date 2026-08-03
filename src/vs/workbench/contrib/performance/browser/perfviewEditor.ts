@@ -99,7 +99,7 @@ export class PerfviewInput extends TextResourceEditorInput {
 	}
 }
 
-class PerfModelContentProvider implements ITextModelContentProvider {
+export class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _model: ITextModel | undefined;
 	private _modelDisposables: IDisposable[] = [];
@@ -119,7 +119,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	provideTextContent(resource: URI): Promise<ITextModel> {
 
 		if (!this._model || this._model.isDisposed()) {
-			dispose(this._modelDisposables);
+			this._modelDisposables = dispose(this._modelDisposables);
 			const langId = this._languageService.createById('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 

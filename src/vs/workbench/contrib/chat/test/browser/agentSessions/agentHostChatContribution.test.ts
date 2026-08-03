@@ -27,6 +27,7 @@ import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -44,7 +45,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -3558,6 +3559,43 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'existing-session-42');
 		}));
 
+		test('waits for provisional replacement before resolving first-send backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-replacement' });
+			const oldBackend = AgentSession.uri('copilot', 'old-provisional');
+			const newBackend = AgentSession.uri('copilot', 'new-provisional');
+			const pending = new DeferredPromise<void>();
+			disposables.add({ dispose: () => pending.cancel() });
+			let currentBackend = oldBackend;
+			const { agentHostService, chatAgentService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? currentBackend : undefined,
+					waitForPending: async () => {
+						await pending.p;
+						return currentBackend;
+					},
+				},
+			});
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Use new backend', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(0);
+			assert.strictEqual(agentHostService.turnActions.length, 0);
+
+			currentBackend = newBackend;
+			pending.complete();
+			await timeout(10);
+
+			const dispatch = agentHostService.turnActions[0];
+			const action = dispatch.action as ITurnStartedAction;
+			const parentSession = parseDefaultChatUri(dispatch.channel.toString());
+			assert.strictEqual(parentSession, newBackend.toString());
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+		}));
+
 		test('recovers from stale failed subscription before first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-subscribe-retry' });
 			const backendSession = AgentSession.uri('copilot', 'existing-subscribe-retry');
@@ -3870,6 +3908,30 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(notifications.map(part => part.content.value), ['Background command completed']);
 		}));
 
+		test('worktree failure response parts become live warnings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/responsePart',
+				session,
+				turnId,
+				part: {
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Worktree creation failed',
+					_meta: toAgentSystemNotificationMeta({
+						kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+						severity: AgentSystemNotificationSeverity.Warning,
+					}),
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const warnings = collected.flat().filter(part => part.kind === 'warning');
+			assert.deepStrictEqual(warnings.map(part => part.content.value), ['Worktree creation failed']);
+		}));
+
 		test('Auto model routing metadata becomes a live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
@@ -3942,7 +4004,7 @@ suite('AgentHostChatContribution', () => {
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1) • 1.5 credits');
+			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 • 1.5 credits');
 		}));
 
 		test('live BYOK turn includes a configured group between provider and model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4127,7 +4189,7 @@ suite('AgentHostChatContribution', () => {
 				modelName: subagentData.modelName,
 			}, {
 				credits: 5.0,
-				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
 			});
 		}));
 
@@ -6675,6 +6737,23 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: { model: 'openrouter/amazon/nova-micro-v1' },
 				}],
+				activeTurn: {
+					id: 'child-turn-active',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'continue review', origin: { kind: MessageKind.User } },
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: 'tc-child-running',
+							toolName: 'read_file',
+							displayName: 'Read File',
+							invocationMessage: 'Reading agentHostSessionHandler.ts',
+							status: ToolCallStatus.Running,
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+						},
+					}],
+					usage: { model: 'openrouter/amazon/nova-micro-v1' },
+				},
 			} as SessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/subagent-history' });
@@ -6682,18 +6761,110 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			const response = chatSession.history[1];
 			assert.strictEqual(response.type, 'response');
-			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocationSerialized : undefined;
+			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocation : undefined;
+			const activeToolPart = response.type === 'response' ? response.parts[1] as IChatToolInvocation : undefined;
+			assert.ok(toolPart);
 
 			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				partKind: toolPart.kind,
 				kind: toolPart.toolSpecificData.kind,
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
 				modelName: toolPart.toolSpecificData.modelName,
+				isActive: toolPart.toolSpecificData.isActive,
 			} : undefined, {
+				partKind: 'toolInvocation',
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
-				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+				isActive: true,
+			});
+			assert.deepStrictEqual(activeToolPart && {
+				kind: activeToolPart.kind,
+				toolCallId: activeToolPart.toolCallId,
+				subAgentInvocationId: activeToolPart.subAgentInvocationId,
+				invocationMessage: activeToolPart.invocationMessage,
+			}, {
+				kind: 'toolInvocation',
+				toolCallId: 'tc-child-running',
+				subAgentInvocationId: 'tc-subagent',
+				invocationMessage: 'Reading agentHostSessionHandler.ts',
+			});
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/toolCallComplete',
+					session: childChatUri,
+					turnId: 'child-turn-active',
+					toolCallId: 'tc-child-running',
+					result: { success: true, pastTenseMessage: 'Read agentHostSessionHandler.ts' },
+				} as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/turnComplete',
+					turnId: 'child-turn-active',
+					endedAt: '2025-01-01T00:00:05.000Z',
+				} as ChatAction,
+				serverSeq: 2,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				isActive: toolPart.toolSpecificData?.kind === 'subagent' ? toolPart.toolSpecificData.isActive : undefined,
+				activeToolState: activeToolPart?.state.get().type,
+			}, {
+				isActive: false,
+				activeToolState: IChatToolInvocation.StateKind.Completed,
+			});
+		});
+
+		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'direct-subagent');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-direct');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [],
+			} as SessionState);
+			agentHostService.sessionStates.set(childChatUri, {
+				...createSessionState({ ...summary, resource: childChatUri, title: 'Direct subagent' }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'child-turn',
+					message: { text: 'Review changes', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'child-markdown', content: 'Review complete' }],
+					usage: undefined,
+				}],
+			} as SessionState);
+			const query = new URLSearchParams();
+			query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChatUri);
+			const sessionResource = URI.from({
+				scheme: 'agent-host-copilot',
+				path: '/direct-subagent',
+				fragment: 'subagent/tc-direct',
+				query: query.toString(),
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual({
+				sessionResource: chatSession.sessionResource.toString(),
+				history: chatSession.history.map(item => item.type),
+			}, {
+				sessionResource: sessionResource.toString(),
+				history: ['request', 'response'],
 			});
 		});
 
@@ -11060,6 +11231,78 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(result?.items[0].label, '/yolo on');
 			assert.strictEqual(result?.items[0].insertText, '');
+		});
+
+		test('routes untitled completions to the current opaque provisional backend', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-completions' });
+			const backendSession = AgentSession.uri('copilot', 'opaque-provisional');
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+					waitForPending: async () => backendSession,
+				},
+			});
+			let request: CompletionsParams | undefined;
+			(agentHostService as unknown as { completions: (params: CompletionsParams) => Promise<CompletionsResult> }).completions = async params => {
+				request = params;
+				return { items: [] };
+			};
+
+			await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/', offset: 1 },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(request?.channel, backendSession.toString());
+		});
+
+		test('waits for a pending provisional before requesting untitled completions', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-pending-completions' });
+			const backendSession = AgentSession.uri('copilot', 'replacement-provisional');
+			const pending = new DeferredPromise<void>();
+			disposables.add({ dispose: () => pending.cancel() });
+			const currentBackend: { value: URI | undefined } = { value: undefined };
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: () => currentBackend.value,
+					waitForPending: async () => {
+						await pending.p;
+						return currentBackend.value;
+					},
+				},
+			});
+			const requests: CompletionsParams[] = [];
+			(agentHostService as unknown as { completions: (params: CompletionsParams) => Promise<CompletionsResult> }).completions = async params => {
+				requests.push(params);
+				return { items: [] };
+			};
+
+			const completions = sessionHandler.provideChatInputCompletions(sessionResource, { text: '/', offset: 1 }, CancellationToken.None);
+			await timeout(0);
+			assert.strictEqual(requests.length, 0);
+			currentBackend.value = backendSession;
+			pending.complete();
+			await completions;
+
+			assert.strictEqual(requests[0]?.channel, backendSession.toString());
+		});
+
+		test('returns no untitled completions when there is no current generation', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			let requests = 0;
+			(agentHostService as unknown as { completions: (_params: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => {
+				requests++;
+				return { items: [] };
+			};
+
+			const result = await sessionHandler.provideChatInputCompletions(
+				URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-generation' }),
+				{ text: '/', offset: 1 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({ result, requests }, { result: undefined, requests: 0 });
 		});
 
 		test('surfaces a chat completion backend URI verbatim on the completion attachment', async () => {

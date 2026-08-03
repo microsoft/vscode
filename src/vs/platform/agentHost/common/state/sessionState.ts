@@ -58,6 +58,7 @@ export {
 	ChatInputAnswerState as SessionInputAnswerState,
 	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
 	ChatInputQuestionKind as SessionInputQuestionKind,
+	ChatInputRequestPurpose,
 	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
@@ -1169,7 +1170,6 @@ export interface ISessionGitHubState {
 	/** The URL of the GitHub pull request. */
 	readonly pullRequestUrl?: string;
 	/**
-<<<<<<< HEAD
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
 	 */
