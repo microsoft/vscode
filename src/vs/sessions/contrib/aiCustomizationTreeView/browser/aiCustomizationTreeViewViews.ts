@@ -16,6 +16,7 @@ import { localize } from '../../../../nls.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -647,6 +648,7 @@ export class AICustomizationViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -742,10 +744,14 @@ export class AICustomizationViewPane extends ViewPane {
 					resource: e.element.uri,
 				});
 			} else if (e.element && e.element.type === 'link') {
-				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const editor = await this.editorService.openEditor(input, { pinned: true });
-				if (editor instanceof AICustomizationManagementEditor) {
-					editor.selectSectionById(e.element.section);
+				if (e.element.section === AICustomizationManagementSection.Automations) {
+					this.commandService.executeCommand('sessionsView.manageAutomations');
+				} else {
+					const input = AICustomizationManagementEditorInput.getOrCreate();
+					const editor = await this.editorService.openEditor(input, { pinned: true });
+					if (editor instanceof AICustomizationManagementEditor) {
+						editor.selectSectionById(e.element.section);
+					}
 				}
 			}
 		}));
