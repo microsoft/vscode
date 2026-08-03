@@ -119,6 +119,10 @@ export class TerminalLinkManager extends DisposableStore {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
+				// Stop the mouse event from reaching xterm's mouse tracking handler
+				// which would send a malformed SGR mouse report with NaN coordinates
+				// to the pty when the terminal loses focus during link activation
+				event.stopImmediatePropagation();
 				const colonIndex = text.indexOf(':');
 				if (colonIndex === -1) {
 					throw new Error(`Could not find scheme in link "${text}"`);
@@ -206,6 +210,10 @@ export class TerminalLinkManager extends DisposableStore {
 			if (e.event && !(e.event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(e.event)) {
 				return;
 			}
+			// Stop the mouse event from reaching xterm's mouse tracking handler
+			// which would send a malformed SGR mouse report with NaN coordinates
+			// to the pty when the terminal loses focus during link activation
+			e.event?.stopImmediatePropagation();
 			// Just call the handler if there is no before listener
 			if (e.link.activate) {
 				// Custom activate call (external links only)
