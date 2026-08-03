@@ -31,7 +31,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -336,6 +336,30 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 			return base;
 		}
 	}();
+}
+
+class MutableAutoApprovePolicyConfigurationService extends TestConfigurationService {
+	private policyValue: boolean | undefined;
+
+	override inspect<T>(key: string) {
+		const base = super.inspect<T>(key);
+		return key === ChatConfiguration.GlobalAutoApprove
+			? { ...base, policyValue: this.policyValue as T | undefined }
+			: base;
+	}
+
+	setPolicyValue(value: boolean | undefined): void {
+		this.policyValue = value;
+		this.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === ChatConfiguration.GlobalAutoApprove,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.GlobalAutoApprove]),
+			change: {
+				keys: [ChatConfiguration.GlobalAutoApprove],
+				overrides: [],
+			},
+		});
+	}
 }
 
 /**
@@ -1242,6 +1266,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			listSessionsCalls: 0,
 			cachedTitles: ['Cached One'],
+		});
+	}));
+
+	test('startup policy restriction reconciles a cached unhydrated session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('cached-policy', { summary: 'Cached Policy Session' })]);
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, {
+			configurationService: createPolicyRestrictedConfigurationService(),
+			storageService,
+		});
+		const action = nextHost.dispatchedActions.find(candidate => candidate.channel === AgentSession.uri('copilotcli', 'cached-policy').toString())?.action;
+		const session = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			config: provider.getSessionConfig(session.sessionId),
+			action,
+		}, {
+			config: undefined,
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
 		});
 	}));
 
@@ -4609,6 +4659,160 @@ suite('LocalAgentHostSessionsProvider', () => {
 				replace: true,
 			},
 			latestValues: { autoApprove: 'default', isolation: 'folder' },
+		});
+	}));
+
+	test('restored running session config clamps autoApprove and reconciles the agent host when policy is restricted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('policy-restore', { summary: 'Policy Restore Session' }));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Policy Restore Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'autoApprove' },
+		};
+		agentHost.resolveSessionConfigResult = { schema: config.schema, values: { autoApprove: 'default' } };
+		agentHost.setSessionState('policy-restore', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Policy Restore Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config,
+		});
+
+		await waitForSessionConfig(provider, session!.sessionId, value => value?.values.autoApprove === 'default');
+		const action = agentHost.dispatchedActions.find(candidate => candidate.action.type === ActionType.SessionConfigChanged);
+
+		assert.deepStrictEqual({
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+			action: action?.action,
+		}, {
+			values: { autoApprove: 'default' },
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+		});
+	}));
+
+	test('late policy restriction reconciles running autoApprove without overwriting the remembered preference', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('policy-change', { summary: 'Policy Change Session' }));
+		const configurationService = new MutableAutoApprovePolicyConfigurationService();
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Policy Change Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'autoApprove' },
+		};
+		agentHost.resolveSessionConfigResult = { schema: config.schema, values: { autoApprove: 'default' } };
+		agentHost.setSessionState('policy-change', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Policy Change Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config,
+		});
+		await waitForSessionConfig(provider, session!.sessionId, value => value?.values.autoApprove === 'autoApprove');
+
+		configurationService.setPolicyValue(false);
+		await timeout(0);
+		const action = agentHost.dispatchedActions.find(candidate => candidate.action.type === ActionType.SessionConfigChanged);
+		configurationService.setPolicyValue(undefined);
+
+		assert.deepStrictEqual({
+			valuesAfterRelaxingPolicy: provider.getSessionConfig(session!.sessionId)?.values,
+			action: action?.action,
+			rememberedValues: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			valuesAfterRelaxingPolicy: { autoApprove: 'default' },
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+			rememberedValues: { autoApprove: 'autoApprove' },
+		});
+	}));
+
+	test('late policy restriction reconciles an unhydrated restored session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('policy-unhydrated', { summary: 'Unhydrated Policy Session' }));
+		const configurationService = new MutableAutoApprovePolicyConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Unhydrated Policy Session');
+		assert.ok(session);
+		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
+
+		configurationService.setPolicyValue(false);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.dispatchedActions.find(candidate => candidate.channel === 'copilotcli:/policy-unhydrated')?.action, {
+			type: ActionType.SessionConfigChanged,
+			config: { autoApprove: 'default' },
+		});
+	}));
+
+	test('late policy restriction reconciles an eagerly created draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const configurationService = new MutableAutoApprovePolicyConfigurationService();
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'autoApprove' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.autoApprove === 'autoApprove');
+		await timeout(0);
+		const backendUri = agentHost.createdSessionUris.at(-1);
+		assert.ok(backendUri);
+
+		configurationService.setPolicyValue(false);
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.autoApprove === 'default');
+
+		assert.deepStrictEqual({
+			config: provider.getSessionConfig(session.sessionId)?.values,
+			action: agentHost.dispatchedActions.find(candidate => candidate.channel === backendUri.toString())?.action,
+			rememberedValues: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			config: { autoApprove: 'default' },
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+			rememberedValues: { autoApprove: 'autoApprove' },
 		});
 	}));
 
