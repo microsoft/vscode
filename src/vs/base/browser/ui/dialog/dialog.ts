@@ -387,7 +387,7 @@ export class Dialog extends Disposable {
 
 				// Focus: Next / Previous
 				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
-				const isEditableTarget = isHTMLElement(e.target) && isEditableElement(e.target);
+				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
 				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
 
 					// Build a list of focusable elements in their visual order

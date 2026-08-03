@@ -38,9 +38,12 @@ suite('Dialog', () => {
 		const container = append(document.body, $('.test-dialog-container'));
 		disposables.add(toDisposable(() => container.remove()));
 		let textarea!: HTMLTextAreaElement;
+		let contentEditable!: HTMLDivElement;
 		const dialog = disposables.add(new Dialog(container, 'Message', ['Save', 'Cancel'], {
 			renderBody: body => {
 				textarea = append(body, $('textarea'));
+				contentEditable = append(body, $('div'));
+				contentEditable.contentEditable = 'true';
 			},
 			buttonStyles: unthemedButtonStyles,
 			checkboxStyles: unthemedCheckboxStyles,
@@ -48,17 +51,23 @@ suite('Dialog', () => {
 			dialogStyles: unthemedDialogStyles,
 		}));
 		const result = dialog.show();
-		textarea.focus();
 
-		const event = new (getWindow(textarea).KeyboardEvent)('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
-		textarea.dispatchEvent(event);
+		const dispatchArrowRight = (target: HTMLElement) => {
+			target.focus();
+			const event = new (getWindow(target).KeyboardEvent)('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			return {
+				activeElement: getWindow(target).document.activeElement,
+				defaultPrevented: event.defaultPrevented,
+			};
+		};
 
 		assert.deepStrictEqual({
-			activeElement: getWindow(textarea).document.activeElement,
-			defaultPrevented: event.defaultPrevented,
+			textarea: dispatchArrowRight(textarea),
+			contentEditable: dispatchArrowRight(contentEditable),
 		}, {
-			activeElement: textarea,
-			defaultPrevented: false,
+			textarea: { activeElement: textarea, defaultPrevented: false },
+			contentEditable: { activeElement: contentEditable, defaultPrevented: false },
 		});
 
 		dialog.dispose();
