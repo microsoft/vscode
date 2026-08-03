@@ -846,7 +846,7 @@ configurationRegistry.registerConfiguration({
 			default: 'archive',
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions."),
+			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions, as well as the label of the archived sessions section."),
 		},
 		[ChatConfiguration.AgentsHandoffTipMode]: {
 			type: 'string',
