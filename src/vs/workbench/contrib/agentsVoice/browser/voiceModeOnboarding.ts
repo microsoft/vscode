@@ -788,7 +788,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 
 		const options = buildMicrophoneOptions(devices);
-		if (this.microphoneOptions.length > 1 && !options.some(option => option.deviceId && option.label)) {
+		// Wait for a real microphone label before rendering a multi-microphone picker.
+		if (options.length > 1 && !devices.some(device => device.kind === 'audioinput' && device.label)) {
 			return;
 		}
 		this.microphoneOptions = options;
