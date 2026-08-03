@@ -82,6 +82,38 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['node', GeneralShellType.Node],
 	['xonsh', GeneralShellType.Xonsh],
 ]);
+
+// --- Start FusionIDE ---
+/**
+ * Strip FusionClaw's control variables from every terminal environment.
+ *
+ * FusionClaw already starts this server with an allowlisted environment, so no
+ * provider credential reaches the process tree at all. What remains is the
+ * bridge handle it must pass us — the path to a 0600 file holding the loopback
+ * bridge URL and its token. The extension host needs it; a shell does not, and
+ * a shell that could read it could drive the desktop's bridge as though it were
+ * the IDE.
+ *
+ * No extension API can do this: `EnvironmentVariableCollection` only appends,
+ * replaces, or prepends *named* variables — it cannot remove one, and it cannot
+ * see a variable a user re-injected through `terminal.integrated.env.*`. This
+ * is the one choke point every PTY passes through, which is why it is a patch.
+ */
+function fusionideFilterTerminalEnv<T extends { [key: string]: string | undefined } | undefined>(env: T): T {
+	if (!env) {
+		return env;
+	}
+	const filtered: { [key: string]: string | undefined } = {};
+	for (const key of Object.keys(env)) {
+		if (key.toUpperCase().startsWith('FUSIONCLAW_')) {
+			continue;
+		}
+		filtered[key] = env[key];
+	}
+	return filtered as T;
+}
+// --- End FusionIDE ---
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -162,7 +194,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string },
+			// --- Start FusionIDE ---
+			env: fusionideFilterTerminalEnv(env) as { [key: string]: string },
+			// --- End FusionIDE ---
 			cols,
 			rows,
 			useConpty,
