@@ -292,6 +292,24 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 	});
 
+	test('tokenizeLineToHTML preserves consecutive spaces when useNbsp is false', () => {
+		const text = 'hello  world';
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
+				text.length,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			)
+		]);
+		const colorMap = [null!, '#000000'];
+
+		assert.strictEqual(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, text.length, 4, false),
+			'<div><span style="color: #000000;">hello  world</span></div>'
+		);
+	});
+
 	test('tokenizeLineToHTML with tabs and non-zero startOffset #263387', () => {
 		// This test demonstrates the issue where tab padding is calculated incorrectly
 		// when startOffset is non-zero and there are tabs AFTER the start position.
