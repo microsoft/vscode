@@ -280,6 +280,15 @@ export interface IAgentHostAutoModeRouterDecisionReport {
 	confidence: number | undefined;
 	candidateModels: readonly string[] | undefined;
 	categoryScores: Readonly<Record<string, number | undefined>> | undefined;
+	routingMethod: string | undefined;
+	availableModels: readonly string[] | undefined;
+	fallback: boolean | undefined;
+	fallbackReason: string | undefined;
+	stickyOverride: boolean | undefined;
+	routerLatencyMs: number | undefined;
+	endToEndLatencyMs: number | undefined;
+	chosenShortfall: number | undefined;
+	hasImage: boolean | undefined;
 }
 
 export interface IAgentHostSkillContentReadReport {
@@ -592,11 +601,7 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
-	/**
-	 * Emits the subset of the extension's restricted `automode.routerDecisionRestricted` event
-	 * available from the SDK's `session.auto_mode_resolved` event. Router-only fields that the SDK
-	 * does not expose are omitted rather than synthesized.
-	 */
+	/** Emits the extension's restricted `automode.routerDecisionRestricted` event from authoritative SDK fields. */
 	autoModeRouterDecision(report: IAgentHostAutoModeRouterDecisionReport): void {
 		const restricted = this._restricted;
 		if (!restricted) {
@@ -612,15 +617,25 @@ export class AgentHostTelemetryReporter {
 			vscodeRequestId: report.turnId,
 			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
+			...(report.routingMethod !== undefined ? { routingMethod: report.routingMethod } : {}),
+			...(report.fallback !== undefined ? { fallback: String(report.fallback) } : {}),
+			...(report.fallbackReason !== undefined ? { fallbackReason: report.fallbackReason } : {}),
 			candidateModel: candidateModels[0] ?? '',
 			chosenModel: report.chosenModel,
 			candidateModels: JSON.stringify(candidateModels),
+			...(report.availableModels !== undefined ? { availableModels: JSON.stringify(report.availableModels) } : {}),
+			...(report.stickyOverride !== undefined ? { stickyOverrideStr: String(report.stickyOverride) } : {}),
+			...(report.hasImage !== undefined ? { hasImage: String(report.hasImage) } : {}),
 			...(scoreKeys.length > 0 ? {
 				[isBinary ? 'binaryScores' : 'hydraScores']: JSON.stringify(categoryScores),
 			} : {}),
 		};
 		const measurements = {
 			...(report.confidence !== undefined ? { confidence: report.confidence } : {}),
+			...(report.routerLatencyMs !== undefined ? { latencyMs: report.routerLatencyMs } : {}),
+			...(report.endToEndLatencyMs !== undefined ? { e2eLatencyMs: report.endToEndLatencyMs } : {}),
+			...(report.stickyOverride !== undefined ? { stickyOverride: report.stickyOverride ? 1 : 0 } : {}),
+			...(report.chosenShortfall !== undefined ? { chosenShortfall: report.chosenShortfall } : {}),
 			...(categoryScores.needs_reasoning !== undefined ? { scoreNeedsReasoning: categoryScores.needs_reasoning } : {}),
 			...(categoryScores.no_reasoning !== undefined ? { scoreNoReasoning: categoryScores.no_reasoning } : {}),
 		};
