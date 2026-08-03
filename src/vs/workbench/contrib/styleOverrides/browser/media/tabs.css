@@ -140,7 +140,7 @@
 /* Move the bottom gutter into the scrollable element so the horizontal
  * scrollbar sits below the tab pills without increasing total height. */
 .style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
-	padding-bottom: 4px;
+	padding-bottom: var(--vscode-spacing-size40);
 }
 
 .style-override .part.editor .tabs-container > .tab.active {
