@@ -105,6 +105,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
+						category: pricing.category,
 						promo: pricing.promo,
 						targetChatSessionType: this._sessionType,
 						// Group agent-host models in the picker by their upstream provider

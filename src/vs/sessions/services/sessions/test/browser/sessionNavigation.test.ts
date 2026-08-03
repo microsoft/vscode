@@ -102,6 +102,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
+	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);

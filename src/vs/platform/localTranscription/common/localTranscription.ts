@@ -67,7 +67,7 @@ export interface ILocalTranscriptionResult {
  * native runtime), which handles decoding, VAD and endpointing internally; the
  * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
  * (the model the GitHub Copilot app ships for dictation). The model is chosen by
- * the `chat.speechToText.model` setting. Runs in a utility process. A single
+ * the `dictation.model` setting. Runs in a utility process. A single
  * transcription session is active at a time (dictation is a singleton in the
  * renderer).
  *

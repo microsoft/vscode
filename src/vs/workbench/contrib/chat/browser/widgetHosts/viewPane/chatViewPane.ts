@@ -75,7 +75,8 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
+import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -148,6 +149,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IChatWidgetService _chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
@@ -452,19 +454,35 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// of the session voice is actually bound to, so it never lingers on a
 		// background/last-focused session in another split or window (#8514).
 		let voiceUiOwner: URI | undefined;
+		// Merge the real voice session with any dev/preview simulation so the walkthrough
+		// commands drive the input-box glow exactly as a live session would.
+		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
+			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.get();
+			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
+				return { connected: true, voiceState: sim, simulating: true };
+			}
+			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
+				return { connected: false, voiceState: 'idle', simulating: true };
+			}
+			return {
+				connected: this.voiceSessionController.isConnected.get(),
+				voiceState: this.voiceSessionController.voiceState.get() as VoiceGlowState,
+				simulating: false,
+			};
+		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
-				const connected = this.voiceSessionController.isConnected.get();
-				const voiceState = this.voiceSessionController.voiceState.get();
+				const { connected, voiceState, simulating } = getEffectiveVoice();
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
-				// pane and never on a different split/window (#8514).
+				// pane and never on a different split/window (#8514). A dev/preview
+				// simulation bypasses ownership so the walkthrough can light up here.
 				const currentSession = this._currentSessionResource.get();
 				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
-				const glowActive = connected && isGlowingVoiceState(voiceState) && isOwner;
+				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
 				const target = inputContainerEl;
 
 				// If the target changed, clear styling on the old one
@@ -486,7 +504,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
-				const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+				let intensity: number;
+				if (!analyser && simulating) {
+					// No live audio (a simulation): synthesize a lively pulsing intensity
+					// so the walkthrough glow behaves like real speech instead of sitting flat.
+					const t = Date.now() / 1000;
+					intensity = Math.min(1, 0.28 + 0.34 * Math.abs(Math.sin(t * 6.1)) + 0.22 * Math.abs(Math.sin(t * 11.3 + 1)));
+				} else {
+					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+				}
 
 				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -515,8 +541,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
-			// requestAnimationFrame callback every frame for nothing.
-			if (connected && isGlowingVoiceState(voiceState)) {
+			// requestAnimationFrame callback every frame for nothing. React to
+			// simulated states too, so the walkthrough commands light up the glow.
+			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const simGlow = sim === 'listening' || sim === 'speaking';
+			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -535,6 +564,43 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let listeningSession: URI | undefined;
 		let ownerSession: URI | undefined;
 		this._register(autorun(reader => {
+			// Dev/preview: when a walkthrough is simulating, drive the overlay hint from the
+			// simulated state + version so each design shows its own instruction.
+			const simState = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const simVersion = this.voiceInputModeService.simulatedVersion.read(reader);
+			if (simState !== undefined) {
+				if (simState === 'idle' && simVersion) {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					switch (simVersion) {
+						case 'handsFree':
+							hint.textContent = localize('voiceMode.simHint.handsFree', "Hands-free \u2014 just start talking");
+							break;
+						case 'keyboardHold': {
+							const kbLabel = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')?.getLabel();
+							hint.textContent = kbLabel
+								? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
+								: localize('voiceMode.simHint.keyboardHold', "Hold Space to talk");
+							break;
+						}
+						case 'buttonHold':
+							hint.textContent = localize('voiceMode.simHint.buttonHold', "Hold the button to talk, tap to turn off");
+							break;
+						case 'clickToggle':
+							hint.textContent = localize('voiceMode.simHint.clickToggle', "Tap the button to start listening");
+							break;
+					}
+					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
+				} else {
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
+				}
+				return;
+			}
+
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
@@ -610,7 +676,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
-					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
+						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
