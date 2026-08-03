@@ -91,8 +91,12 @@ export class ModelPickerConfiguration {
 		}
 
 		if (!labelParts.length) {
-			button.style.display = 'none';
-			return;
+			// First-party producers always supply a default, but configuration schemas can also come
+			// from third-party extensions via the LM API. Fall back to a generic label rather than
+			// hiding the button, so the configuration stays reachable.
+			const fallbackLabel = effortConfig?.schema.title ?? tokensConfig?.schema.title ?? localize('chat.modelPicker.configureLabel', "Configure");
+			labelParts.push(fallbackLabel);
+			ariaParts.push(fallbackLabel);
 		}
 
 		dom.reset(button, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));

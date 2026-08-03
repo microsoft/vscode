@@ -2155,16 +2155,22 @@ suite('CopilotAgent', () => {
 				name: 'No Preferred',
 				capabilities: { limits: { max_context_window_tokens: 128000 } },
 				supportedReasoningEfforts: ['minimal', 'xhigh'],
+			}, {
+				id: 'unsupported-only',
+				name: 'Unsupported Only',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['minimal', 'none'],
 			}]),
 		});
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			const models = await waitForState(agent.models, models => models.length === 3);
+			const models = await waitForState(agent.models, models => models.length === 4);
 
-			assert.deepStrictEqual(models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.default]), [
-				['gpt-5.6-terra', 'medium'],
-				['claude-opus-5', 'high'],
-				['no-preferred', 'minimal'],
+			assert.deepStrictEqual(models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.enum, model.configSchema?.properties.thinkingLevel?.default]), [
+				['gpt-5.6-terra', ['low', 'medium', 'high', 'xhigh'], 'medium'],
+				['claude-opus-5', ['low', 'medium', 'high', 'xhigh'], 'high'],
+				['no-preferred', ['xhigh'], 'xhigh'],
+				['unsupported-only', undefined, undefined],
 			]);
 		} finally {
 			await disposeAgent(agent);

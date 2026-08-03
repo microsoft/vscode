@@ -1092,9 +1092,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
-			const supportedReasoningEfforts = m.supportedReasoningEfforts?.filter(isCopilotReasoningEffort);
-			const defaultReasoningEffort = supportedReasoningEfforts?.find(effort => effort === m.defaultReasoningEffort) ?? supportedReasoningEfforts?.[0];
-			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts, defaultReasoningEffort, m.id);
+			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 			return {
 				provider: this.id,
 				id: `${m.vendor}/${m.id}`,
@@ -1360,7 +1358,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- session management -------------------------------------------------
 
-	private _createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined, modelId: string | undefined): ConfigPropertySchema | undefined {
+	private _createThinkingLevelConfigSchemaProperty(reasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined, modelId: string | undefined): ConfigPropertySchema | undefined {
+		// Only advertise efforts the Copilot launcher actually accepts, otherwise the picker would
+		// surface a level that is silently dropped when the session is launched.
+		const supportedReasoningEfforts = reasoningEfforts?.filter(isCopilotReasoningEffort);
 		if (!supportedReasoningEfforts?.length) {
 			return undefined;
 		}
