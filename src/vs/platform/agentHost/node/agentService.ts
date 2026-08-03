@@ -50,7 +50,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -638,7 +638,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Creates the session's isolated worktree on the first send (deferred so the
 	 * user's prompt can name the branch), reports creation progress as the chat's
 	 * activity, surfaces the "Created isolated worktree" announcement as the first
-	 * markdown response part of the turn, and returns the created worktree URI.
+	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
 	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
 	 * worktree creation failed. Only invoked for sessions whose worktree is still
 	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
@@ -650,6 +650,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		let reportedActivity = false;
+		let failureDiagnostic: string | undefined;
 		try {
 			await worktree.resolveOnFirstSend({
 				sessionUri: URI.parse(params.session),
@@ -667,12 +668,27 @@ export class AgentService extends Disposable implements IAgentService {
 				},
 			});
 		} catch (err) {
-			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${toErrorMessage(err)}`);
+			failureDiagnostic = toErrorMessage(err);
+			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
 		}
 		// Clear on every exit path so a failed creation can't strand the chat
 		// on a stale "Creating isolated worktree" activity.
 		if (reportedActivity) {
 			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
+		}
+		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
+		if (!resolvedWorktree) {
+			try {
+				await worktree.persistCreationFailure(URI.parse(params.session), sessionId, failureDiagnostic);
+			} catch (err) {
+				this._logService.warn(`[AgentService] failed to persist worktree creation failure for ${params.session}: ${toErrorMessage(err)}`);
+			}
+			this._stateManager.dispatchServerAction(params.chat, {
+				type: ActionType.ChatResponsePart,
+				turnId: params.turnId,
+				part: buildWorktreeFailureNotification(failureDiagnostic),
+			});
+			return undefined;
 		}
 		const announcement = worktree.takePendingAnnouncement(sessionId);
 		if (announcement !== undefined) {
@@ -682,7 +698,7 @@ export class AgentService extends Disposable implements IAgentService {
 				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
 			});
 		}
-		return worktree.getResolvedWorktree(sessionId);
+		return resolvedWorktree;
 	}
 
 	registerProvider(provider: IAgent): void {

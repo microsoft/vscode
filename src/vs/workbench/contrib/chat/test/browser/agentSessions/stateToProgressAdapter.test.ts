@@ -7,9 +7,10 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -258,6 +259,28 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('worktree failure notification restores as warning', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Worktree creation failed',
+					_meta: toAgentSystemNotificationMeta({
+						kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+						severity: AgentSystemNotificationSeverity.Warning,
+					}),
+				}],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(response.parts[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
 		});
 
 		test('reasoning response part restores as thinking progress carrying its id', () => {
@@ -1898,6 +1921,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result[0].kind, 'systemNotification');
 			if (result[0].kind !== 'systemNotification') { return; }
 			assert.strictEqual(result[0].content.value, 'Shell command completed');
+		});
+
+		test('produces warning for active worktree failure notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Worktree creation failed',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
 		});
 
 		test('produces thinking progress for reasoning', () => {
