@@ -2726,7 +2726,7 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
-	test('cross-session substantive audio preempts active checkpoint playback', async () => {
+	test('cross-session substantive audio stays deferred while another session owns voice', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const controller = createController(voiceClientService, ttsPlaybackService);
@@ -2764,7 +2764,7 @@ suite('VoiceSessionController', () => {
 			playedAudio: ttsPlaybackService.playedAudio,
 		}, {
 			stopCount: 1,
-			playedAudio: ['checkpoint', 'substantive-response'],
+			playedAudio: ['checkpoint'],
 		});
 	});
 
@@ -2814,7 +2814,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['editing', 'validating']);
 	});
 
-	test('cross-session checkpoint replaces active checkpoint', async () => {
+	test('cross-session checkpoint stays deferred while another session owns voice', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const controller = createController(voiceClientService, ttsPlaybackService);
@@ -2857,7 +2857,7 @@ suite('VoiceSessionController', () => {
 			playedAudio: ttsPlaybackService.playedAudio,
 		}, {
 			stopCount: 1,
-			playedAudio: ['first-checkpoint', 'second-checkpoint'],
+			playedAudio: ['first-checkpoint'],
 		});
 	});
 
@@ -3382,6 +3382,7 @@ suite('VoiceSessionController', () => {
 		const shouldDeferForSession = Reflect.get(controller, '_shouldDeferForSession') as (sessionId: string) => boolean;
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
 
 		controller.setActiveSessionShown(voiceSession);
 		controller.setActiveSessionShown(null);
@@ -3453,6 +3454,7 @@ suite('VoiceSessionController', () => {
 		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -3485,6 +3487,7 @@ suite('VoiceSessionController', () => {
 		const createdDraft = URI.parse('agent-host-copilot:/created-draft');
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
 
 		controller.setActiveSessionShown(null);
 		controller.setActiveSessionShown(otherSession);
@@ -3520,6 +3523,7 @@ suite('VoiceSessionController', () => {
 			: undefined);
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
 		controller.setActiveSessionShown(firstSession);
 		assert.strictEqual(narrate.call(controller, firstSession.toString(), 'response', 'The first task is complete.'), true);
 		const firstNarrationId = voiceClientService.requests[0].narrationId;
@@ -3561,6 +3565,7 @@ suite('VoiceSessionController', () => {
 		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -3598,6 +3603,9 @@ suite('VoiceSessionController', () => {
 		});
 
 		controller.setActiveSessionShown(voiceSession);
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['currently playing', 'first queued response']);
+		ttsPlaybackService.stopPlayback();
+		(Reflect.get(controller, '_processQueue') as () => void).call(controller);
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['currently playing', 'first queued response', 'second queued response']);
 	});
 
@@ -4100,6 +4108,9 @@ suite('VoiceSessionController', () => {
 		const sessionId = 'agent-host-copilot:/session-1';
 		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
 		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setActiveSessionShown(URI.parse(sessionId));
 
 		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'Done'), true);
 		voiceClientService.fireAudioResponse({
@@ -4108,13 +4119,12 @@ suite('VoiceSessionController', () => {
 			isFinal: false,
 			responseId: 'narration-1',
 		});
-		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireSpeechStarted(Reflect.get(controller, '_activePassiveTurnId'));
 		voiceClientService.fireNarrationInterrupted({
 			narrationId: 'narration-1',
 			codingSessionId: sessionId,
 		});
 		Reflect.set(controller, '_currentNarratable', () => ({ kind: 'response', text: 'Done' }));
-		controller.setActiveSessionShown(URI.parse(sessionId));
 		voiceClientService.fireNarrationUnblocked({
 			narrationId: 'narration-1',
 			codingSessionId: sessionId,
