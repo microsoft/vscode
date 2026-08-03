@@ -6657,7 +6657,7 @@ suite('CopilotAgentSession', () => {
 
 			const unsupported = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-haiku-4.5',
+				modelId: 'claude-3-opus',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
