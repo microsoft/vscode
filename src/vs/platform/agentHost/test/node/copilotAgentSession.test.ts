@@ -3265,7 +3265,7 @@ suite('CopilotAgentSession', () => {
 
 		test('syncs permission mode when the session approval level changes', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
 			await session.syncPermissionMode('turn-start');
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
@@ -3273,7 +3273,7 @@ suite('CopilotAgentSession', () => {
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['on', 'off']);
 		});
 
 		test('ignores approval changes for other sessions', async () => {

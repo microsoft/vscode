@@ -34,7 +34,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from './managedSettings.js';
 
-interface IDefaultAccountConfig {
+export interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
 	readonly authenticationProvider: {
 		readonly default: {
@@ -261,7 +261,7 @@ type ManagedSettingsFetchTelemetryClassification = {
 	rateLimitBackoffActive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'True when the request was short-circuited because a prior rate-limit Retry-After window was still active.' };
 };
 
-class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
+export class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
 	private _defaultAccount: IDefaultAccountData | null = null;
 	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount?.defaultAccount ?? null; }
@@ -870,7 +870,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData>; fetchedAt: number } | undefined> {
 		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			// Seed status so Policy Diagnostics reflects "applied" rather than
@@ -885,7 +885,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			};
 		}
 		const data = await this.requestManagedSettings(sessions);
-		return { data, fetchedAt: Date.now() };
+		return data ? { data, fetchedAt: Date.now() } : undefined;
 	}
 
 	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {

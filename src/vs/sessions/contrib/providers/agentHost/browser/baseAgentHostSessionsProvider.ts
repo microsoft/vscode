@@ -2158,6 +2158,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._cacheDirty = false;
 			}
 		}));
+		this._register(this._baseConfigurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) && isAutoApprovePolicyRestricted(this._baseConfigurationService)) {
+				this._reconcileRunningSessionAutoApprovePolicy();
+			}
+		}));
 	}
 
 	// -- Subclass hooks -------------------------------------------------------
@@ -2937,11 +2942,53 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this._runningSessionConfigResolveSeq.get(sessionId) !== seq) {
 				return;
 			}
-			this._runningSessionConfigs.set(sessionId, resolved);
-			this._onDidChangeSessionConfig.fire(sessionId);
+			this._setRunningSessionConfig(sessionId, resolved, false);
 		} catch (err) {
 			this._logService.warn(`[${this.id}] Failed to re-resolve session config for ${sessionId}: ${err}`);
 		}
+	}
+
+	private _reconcileRunningSessionAutoApprovePolicy(): void {
+		for (const [sessionId, config] of this._runningSessionConfigs) {
+			this._setRunningSessionConfig(sessionId, config, true);
+		}
+	}
+
+	private _setRunningSessionConfig(sessionId: string, config: ResolveSessionConfigResult, reconcileBackend: boolean): void {
+		const existing = this._runningSessionConfigs.get(sessionId);
+		const autoApprove = config.values[SessionConfigKey.AutoApprove];
+		const normalizedAutoApprove = normalizeSessionConfigValue(
+			SessionConfigKey.AutoApprove,
+			autoApprove,
+			isAutoApprovePolicyRestricted(this._baseConfigurationService),
+		);
+		const didClampAutoApprove = normalizedAutoApprove !== autoApprove;
+		const normalized = didClampAutoApprove
+			? { ...config, values: { ...config.values, [SessionConfigKey.AutoApprove]: normalizedAutoApprove } }
+			: config;
+
+		if (!existing || !resolvedConfigsEqual(existing, normalized)) {
+			this._runningSessionConfigs.set(sessionId, normalized);
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
+
+		if (!didClampAutoApprove || !reconcileBackend) {
+			return;
+		}
+
+		const schema = normalized.schema.properties[SessionConfigKey.AutoApprove];
+		const connection = this.connection;
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (schema?.sessionMutable !== true || schema.readOnly === true || !connection || !cached) {
+			return;
+		}
+
+		connection.dispatch(cached.backendUri.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AutoApprove]: ChatPermissionLevel.Default },
+		});
+		void this._resolveRunningSessionConfig(sessionId, cached, normalized.values);
 	}
 
 	async getSessionConfigCompletions(sessionId: string, property: string, query?: string) {
@@ -4276,12 +4323,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				},
 			};
 		}
-		if (existing && resolvedConfigsEqual(existing, seeded)) {
-			return;
-		}
-		this._runningSessionConfigs.set(sessionId, seeded);
+		this._setRunningSessionConfig(sessionId, seeded, true);
 		this._applyWorktreeIsolation(sessionId, seeded.values);
-		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
 	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
@@ -4786,21 +4829,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionId = cached.sessionId;
 		const existing = this._runningSessionConfigs.get(sessionId);
+		let updated: ResolveSessionConfigResult;
 		if (existing) {
-			this._runningSessionConfigs.set(sessionId, {
+			updated = {
 				...existing,
 				values: replace ? { ...config } : { ...existing.values, ...config },
-			});
+			};
 		} else {
 			// Session was restored (e.g. after reload) — create a minimal
 			// config entry from the changed values so the picker can render.
 			// `replace` vs merge is moot here (no existing values to merge with).
-			this._runningSessionConfigs.set(sessionId, {
+			updated = {
 				schema: { type: 'object', properties: buildMutableConfigSchema(config) },
 				values: config,
-			});
+			};
 		}
-		this._onDidChangeSessionConfig.fire(sessionId);
+		this._setRunningSessionConfig(sessionId, updated, true);
 	}
 
 	private _handleChangesetsChanged(session: string, changesets: readonly Changeset[] | undefined): void {
