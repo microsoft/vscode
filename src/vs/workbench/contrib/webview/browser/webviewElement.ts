@@ -12,7 +12,7 @@ import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { listenStream } from '../../../../base/common/stream.js';
@@ -75,8 +75,12 @@ interface WebviewActionContext {
 const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
+	private readonly _directMessageHandler = this._register(new MutableDisposable<IDisposable>());
 
 	protected readonly id = generateUuid();
+	private _resourceId: string | undefined;
+	public get resourceId(): string | undefined { return this._resourceId; }
+	public set resourceId(value: string | undefined) { this._resourceId = value; this.onWebviewRouteChanged(); }
 
 	/**
 	 * The provided identifier of this webview.
@@ -89,6 +93,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	public readonly origin: string;
 
 	private _windowId: number | undefined = undefined;
+	protected get windowId(): number | undefined { return this._windowId; }
 	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
 
 	private _encodedWebviewOriginPromise?: Promise<string>;
@@ -135,6 +140,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
 	private _content: WebviewContent;
+	protected get content(): WebviewContent { return this._content; }
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
@@ -161,7 +167,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _disposed = false;
 
 
-	public extension: WebviewExtensionDescription | undefined;
+	private _extension: WebviewExtensionDescription | undefined;
+	public get extension(): WebviewExtensionDescription | undefined { return this._extension; }
+	public set extension(value: WebviewExtensionDescription | undefined) { this._extension = value; this.onWebviewRouteChanged(); }
+	protected get useSingleIframe(): boolean { return this.platform === 'electron' && this.extension?.useSingleIframe === true; }
+	protected onWebviewRouteChanged(): void { }
 	private readonly _options: WebviewOptions;
 
 	constructor(
@@ -412,13 +422,23 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
-	private _createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
+	private _createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
 		// Do not start loading the webview yet.
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
 		element.name = this.id;
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
+		if (this.useSingleIframe) {
+			element.sandbox.add('allow-scripts', 'allow-pointer-lock');
+			if (contentOptions.allowForms ?? contentOptions.allowScripts) {
+				element.sandbox.add('allow-forms');
+			}
+			if (contentOptions.allowScripts) {
+				element.sandbox.add('allow-downloads');
+			}
+		} else {
+			element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
+		}
 
 		const allowRules = ['cross-origin-isolated', 'autoplay', 'local-network-access'];
 		if (!isFirefox) {
@@ -437,7 +457,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		return element;
 	}
 
-	private _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions, targetWindow: CodeWindow) {
+	protected _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions, targetWindow: CodeWindow) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.id,
@@ -507,18 +527,24 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.appendChild(this.element);
 	}
 
-	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+	protected _registerMessageHandler(targetWindow: CodeWindow) {
+		const subscription = addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
 
-			if (e.origin !== this._webviewContentOrigin(this._encodedWebviewOrigin)) {
+			const validOrigin = this.useSingleIframe
+				? e.origin === 'null' && e.source === this.element?.contentWindow
+				: e.origin === this._webviewContentOrigin(this._encodedWebviewOrigin);
+			if (!validOrigin) {
 				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this._webviewContentOrigin}`);
 				return;
 			}
 
 			if (e.data.channel === 'webview-ready') {
+				if (!this.isValidWebviewReady(e.data.data)) {
+					return;
+				}
 				if (this._messagePort) {
 					return;
 				}
@@ -545,7 +571,21 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 				subscription.dispose();
 			}
-		}));
+		});
+		if (this.useSingleIframe) {
+			this._directMessageHandler.value = subscription;
+		} else {
+			this._register(subscription);
+		}
+	}
+
+	protected isValidWebviewReady(_data: unknown): boolean { return true; }
+
+	protected prepareForDirectNavigation(targetWindow: CodeWindow): void {
+		this._messagePort = undefined;
+		const pending = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
+		this._state = new WebviewState.Initializing(pending);
+		this._registerMessageHandler(targetWindow);
 	}
 
 	private perfMark(name: string) {
@@ -608,7 +648,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private _hasAlertedAboutMissingCsp = false;
-	private handleNoCspFound(): void {
+	protected handleNoCspFound(): void {
 		if (this._hasAlertedAboutMissingCsp) {
 			return;
 		}
@@ -660,6 +700,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			...this._content,
 			options: { ...this._content.options, localResourceRoots: resources }
 		};
+		this.onContentDidChange();
 	}
 
 	public set state(state: string | undefined) {
@@ -674,6 +715,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this._logService.debug(`Webview(${this.id}): will update content`);
 
 		this._content = newContent;
+		this.onContentDidChange();
 
 		const allowScripts = !!this._content.options.allowScripts;
 		this.perfMark('set-content');
@@ -690,6 +732,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			confirmBeforeClose: this._confirmBeforeClose,
 		});
 	}
+
+	protected onContentDidChange(): void { }
 
 	protected style(): void {
 		let { styles, activeTheme, themeLabel, themeId } = this.webviewThemeDataProvider.getWebviewThemeData();
@@ -936,15 +980,27 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		});
 	}
 
+	protected loadDirectResource(uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken): Promise<WebviewResourceResponse.StreamResponse> {
+		return this._instantiationService.invokeFunction(loadLocalResource, uri, {
+			ifNoneMatch: options.ifNoneMatch,
+			roots: this._content.options.localResourceRoots || [],
+			range: options.range,
+		}, token);
+	}
+
 	private async localLocalhost(id: string, origin: string) {
-		const authority = this._environmentService.remoteAuthority;
-		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
+		const redirect = await this.getDirectLocalhostRedirect(origin);
 		return this._send('did-load-localhost', {
 			id,
 			origin,
 			location: redirect
 		});
+	}
+
+	protected async getDirectLocalhostRedirect(origin: string): Promise<string | undefined> {
+		const authority = this._environmentService.remoteAuthority;
+		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
+		return resolveAuthority ? this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 	}
 
 	public focus(): void {

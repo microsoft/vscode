@@ -17,6 +17,8 @@ import { deserializeWebviewMessage, serializeWebviewMessage } from './extHostWeb
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { WebviewRemoteInfo, asWebviewUri, webviewGenericCspSource } from '../../contrib/webview/common/webview.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol.js';
 
@@ -29,6 +31,7 @@ export class ExtHostWebview implements vscode.Webview {
 	readonly #remoteInfo: WebviewRemoteInfo;
 	readonly #workspace: IExtHostWorkspace | undefined;
 	readonly #extension: IExtensionDescription;
+	readonly #useSingleIframe: boolean;
 
 	#html: string = '';
 	#options: vscode.WebviewOptions;
@@ -45,6 +48,7 @@ export class ExtHostWebview implements vscode.Webview {
 		remoteInfo: WebviewRemoteInfo,
 		workspace: IExtHostWorkspace | undefined,
 		extension: IExtensionDescription,
+		useSingleIframe: boolean,
 		deprecationService: IExtHostApiDeprecationService,
 	) {
 		this.#handle = handle;
@@ -53,6 +57,7 @@ export class ExtHostWebview implements vscode.Webview {
 		this.#remoteInfo = remoteInfo;
 		this.#workspace = workspace;
 		this.#extension = extension;
+		this.#useSingleIframe = useSingleIframe;
 		this.#serializeBuffersForPostMessage = shouldSerializeBuffersForPostMessage(extension);
 		this.#shouldRewriteOldResourceUris = shouldTryRewritingOldResourceUris(extension);
 		this.#deprecationService = deprecationService;
@@ -75,10 +80,16 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
 		this.#hasCalledAsWebviewUri = true;
-		return asWebviewUri(resource, this.#remoteInfo);
+		return asWebviewUri(resource, this.#remoteInfo, this.#useSingleIframe ? {
+			extensionId: this.#extension.identifier.value,
+			webviewId: this.#handle,
+		} : undefined);
 	}
 
 	public get cspSource(): string {
+		if (this.#useSingleIframe) {
+			return `${Schemas.vscodeWebview}://${this.#extension.identifier.value.toLowerCase()}`;
+		}
 		const extensionLocation = this.#extension.extensionLocation;
 		if (extensionLocation.scheme === Schemas.https || extensionLocation.scheme === Schemas.http) {
 			// The extension is being served up from a CDN.
@@ -198,6 +209,7 @@ export class ExtHostWebviews extends Disposable implements extHostProtocol.ExtHo
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
 		private readonly remoteInfo: WebviewRemoteInfo,
+		private readonly uiKind: UIKind,
 		private readonly workspace: IExtHostWorkspace | undefined,
 		private readonly _logService: ILogService,
 		private readonly _deprecationService: IExtHostApiDeprecationService,
@@ -235,7 +247,8 @@ export class ExtHostWebviews extends Disposable implements extHostProtocol.ExtHo
 	}
 
 	public createNewWebview(handle: string, options: extHostProtocol.IWebviewContentOptions, extension: IExtensionDescription): ExtHostWebview {
-		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.remoteInfo, this.workspace, extension, this._deprecationService);
+		const useSingleIframe = this.uiKind === UIKind.Desktop && isProposedApiEnabled(extension, 'webviewNoServiceWorker');
+		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.remoteInfo, this.workspace, extension, useSingleIframe, this._deprecationService);
 		this._webviews.set(handle, webview);
 
 		const sub = webview._onDidDispose(() => {
@@ -276,7 +289,11 @@ export class ExtHostWebviews extends Disposable implements extHostProtocol.ExtHo
 }
 
 export function toExtensionData(extension: IExtensionDescription): extHostProtocol.WebviewExtensionDescription {
-	return { id: extension.identifier, location: extension.extensionLocation };
+	return {
+		id: extension.identifier,
+		location: extension.extensionLocation,
+		useSingleIframe: isProposedApiEnabled(extension, 'webviewNoServiceWorker'),
+	};
 }
 
 export function serializeWebviewOptions(

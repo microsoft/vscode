@@ -96,6 +96,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
+import { WebviewProtocolProvider } from '../../platform/webview/electron-main/webviewProtocolProvider.js';
 import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
@@ -388,6 +389,22 @@ export class CodeApplication extends Disposable {
 		};
 
 		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
+			const directDocument = WebviewProtocolProvider.getWebviewDocument(uri);
+			if (directDocument) {
+				const frame = details.frame;
+				const owner = this.windowsMainService?.getWindowById(directDocument.windowId)?.win;
+				if (!frame || !owner) {
+					return false;
+				}
+				if (frame.frameTreeNodeId !== directDocument.frameTreeNodeId) {
+					return false;
+				}
+				const route = `${Schemas.vscodeWebview}://${directDocument.extensionId.toLowerCase()}/${encodeURIComponent(directDocument.webviewId)}/`;
+				const isInitialNavigation = frame.url === ''
+					|| frame.url === 'about:blank'
+					|| frame.url.startsWith(`${Schemas.vscodeFileResource}://`);
+				return isInitialNavigation || frame.url.startsWith(route);
+			}
 			if (uri.path !== '/index.html') {
 				return true; // Only restrict top level page of webviews: index.html
 			}
@@ -411,6 +428,13 @@ export class CodeApplication extends Disposable {
 
 		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+			if ((uri.scheme === Schemas.http || uri.scheme === Schemas.https) && details.frame) {
+				const portMapping = WebviewProtocolProvider.getWebviewPortMapping(details.frame.url, details.url);
+				if (portMapping) {
+					void portMapping.then(redirectURL => callback(redirectURL ? { redirectURL } : { cancel: false }));
+					return;
+				}
+			}
 			if (uri.scheme === Schemas.vscodeWebview) {
 				if (!isAllowedWebviewRequest(uri, details)) {
 					this.logService.error('Blocked vscode-webview request', details.url);

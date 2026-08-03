@@ -13,7 +13,8 @@
     "documentDiff",
     "documentSyntaxHighlighting",
     "textEditorDiffInformation",
-    "customEditorPriority"
+    "customEditorPriority",
+    "webviewNoServiceWorker"
   ],
   "engines": {
     "vscode": "^1.70.0"
