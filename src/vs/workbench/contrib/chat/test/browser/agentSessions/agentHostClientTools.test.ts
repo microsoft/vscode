@@ -48,6 +48,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -564,6 +565,18 @@ suite('AgentHostClientTools', () => {
 				resolve: () => undefined,
 				isNewSession: () => false,
 			});
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				getInitialSessionConfig: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				applyConfigChange: async () => undefined,
+				tryRebind: async () => undefined,
+				disposeSession: async () => { },
+				getResolvedConfig: () => undefined,
+				refreshResolvedConfig: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 			instantiationService.stub(IAgentHostToolSetEnablementService, {
 				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),

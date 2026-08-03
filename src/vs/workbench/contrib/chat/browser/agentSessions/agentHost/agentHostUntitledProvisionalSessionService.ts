@@ -186,6 +186,8 @@ interface IProvisionalGeneration {
 	readonly workingDirectory: URI | undefined;
 }
 
+type ProvisionalOperationResult = URI | void;
+
 interface IEntry {
 	readonly provider: string;
 	generation: IProvisionalGeneration | undefined;
@@ -197,6 +199,10 @@ interface IEntry {
 	 * `state.config.values`.
 	 */
 	config: Record<string, unknown>;
+	/**
+	 * Monotonic revision of {@link config}. Async generation creation snapshots
+	 * this value, discarding and recreating its candidate after a newer edit.
+	 */
 	configVersion: number;
 	/**
 	 * Working directory the provisional backend session was created with. A
@@ -218,7 +224,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new ResourceMap<IEntry>();
-	private readonly _pending = new ResourceMap<Promise<unknown>>();
+	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
@@ -353,7 +359,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return entry;
 	}
 
-	private _queue<T>(sessionResource: URI, task: () => Promise<T>): Promise<T> {
+	/**
+	 * Serializes lifecycle work for one logical draft and records its latest tail
+	 * so external callers can wait for a stable current generation.
+	 */
+	private _queue<T extends ProvisionalOperationResult>(sessionResource: URI, task: () => Promise<T>): Promise<T> {
 		const work = this._sequencer.queue(sessionResource.toString(), task);
 		this._pending.set(sessionResource, work);
 		void work.finally(() => {
@@ -463,6 +473,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		provider: string,
 		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
+		// Graduation must run after any queued folder or config reconciliation.
 		return this._queue(oldSessionResource, async () => {
 			const alreadyBound = this.get(newSessionResource);
 			if (alreadyBound) {

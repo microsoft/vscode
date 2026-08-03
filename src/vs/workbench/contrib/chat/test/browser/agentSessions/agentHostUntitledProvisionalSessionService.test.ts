@@ -228,7 +228,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {
+	test('applyConfigChange dispatches SessionConfigChanged before schema re-resolution completes', async () => {
 		const ui = untitledChatUri('b');
 		// Resolve never returns — proves mutate+dispatch happen before the
 		// re-resolve await.
@@ -395,7 +395,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(changeFires, 0, 'no onDidChange fire when overlay is unchanged');
 	});
 
-	test('tryRebind sees latest entry.config from a synchronously-completed applyConfigChange', async () => {
+	test('tryRebind waits for pending config reconciliation', async () => {
 		const ui = untitledChatUri('g');
 		// Block the re-resolve so it does NOT run before tryRebind's read.
 		const blocked = new DeferredPromise<ResolveSessionConfigResult>();
@@ -410,9 +410,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await Promise.resolve();
 		await timeout(0);
 
-		// Now perform a rebind. The new backend session must be created with the
-		// up-to-date config the user just set — proving entry.config was mutated
-		// synchronously, not deferred behind the (still-blocked) re-resolve.
+		// Rebind must wait behind the config operation rather than graduating
+		// with a partially reconciled draft.
 		const newUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-g' });
 		const rebind = provisional.tryRebind(ui, newUi, 'copilot', undefined);
 		assert.strictEqual(agentHost.createCalls.some(c => c.session?.path === '/real-g'), false);
@@ -597,13 +596,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual({
 			createCount: agentHost.createCalls.length,
 			current: provisional.get(ui)?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
 			disposed: agentHost.disposed.map(uri => uri.toString()),
 		}, {
 			createCount: 2,
 			current: agentHost.createCalls.at(-1)?.session?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: folderC.toString(),
 			disposed: [original.toString()],
 		});
@@ -635,11 +632,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const retried = await provisional.getOrCreate(ui, 'copilot', folderB);
 		assert.deepStrictEqual({
 			retried: retried?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
 		}, {
 			retried: agentHost.createCalls.at(-1)?.session?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: folderB.toString(),
 		});
 	});
@@ -669,11 +664,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const retried = await provisional.getOrCreate(ui, 'copilot', folderB);
 		assert.deepStrictEqual({
 			retried: retried?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
 		}, {
 			retried: agentHost.createCalls.at(-1)?.session?.toString(),
-			latestCreated: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: folderB.toString(),
 		});
 	});
