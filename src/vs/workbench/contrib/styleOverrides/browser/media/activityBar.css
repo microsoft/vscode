@@ -361,6 +361,7 @@
 .style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
+	width: 16px;
 }
 
 .style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
