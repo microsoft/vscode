@@ -130,6 +130,15 @@
 	transition: border-color 100ms ease-out;
 }
 
+/*
+ * A single microphone is no choice, so the row hides itself. The `display: flex`
+ * above outweighs the `[hidden]` attribute's own rule, so it has to be undone
+ * here - otherwise an empty bordered box is left where the picker would be.
+ */
+.dictation-onboarding-picker[hidden] {
+	display: none;
+}
+
 .dictation-onboarding-picker:hover {
 	border-color: var(--vscode-focusBorder);
 }

@@ -192,6 +192,52 @@ suite('Dictation onboarding', () => {
 			});
 	});
 
+	test('omits the microphone picker entirely when there is only one microphone', async () => {
+		const host = createHost(disposables);
+		const mediaDevices = Object.assign(new EventTarget(), {
+			enumerateDevices: async () => [
+				// One physical microphone, reported alongside the virtual default
+				// entry that duplicates it - so after normalization there is a
+				// single choice and the row has no picking to do.
+				device('audioinput', 'default', 'Default - Studio Mic'),
+				device('audioinput', 'studio', 'Studio Mic'),
+			],
+			getUserMedia: async (): Promise<MediaStream> => {
+				throw new Error('Automatic onboarding must not acquire a stream');
+			},
+		});
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(DictationOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => { },
+			previewMicrophone: false,
+			source: 'automatic',
+		}, mediaDevices));
+
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+			override getByteTimeDomainData(array: Uint8Array): void {
+				array.fill(128);
+			}
+		};
+		await banner.refreshMicrophones(analyser, async () => analyser);
+
+		assert.deepStrictEqual(
+			{
+				pickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				// Neither a dropdown nor the microphone's name is shown.
+				selects: host.container.querySelectorAll('.dictation-onboarding-picker select').length,
+				pickerText: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.textContent,
+				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
+			},
+			{
+				pickerHidden: true,
+				selects: 0,
+				pickerText: '',
+				hasWaveform: true,
+			});
+	});
+
 	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
