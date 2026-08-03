@@ -126,10 +126,8 @@ export function sortCellChanges(changes: ICellDiffInfo[]): ICellDiffInfo[] {
 		}
 
 		// Mixed types: compare based on available indices
-		const aIndex = a.type === 'delete' ? a.originalCellIndex :
-			(a.type === 'insert' ? a.modifiedCellIndex : a.modifiedCellIndex);
-		const bIndex = b.type === 'delete' ? b.originalCellIndex :
-			(b.type === 'insert' ? b.modifiedCellIndex : b.modifiedCellIndex);
+		const aIndex = a.type === 'delete' ? a.originalCellIndex : a.modifiedCellIndex;
+		const bIndex = b.type === 'delete' ? b.originalCellIndex : b.modifiedCellIndex;
 
 		return aIndex - bIndex;
 	});
