@@ -260,6 +260,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
 
+	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }>());
+	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }> = this._onDidChangeSessionConfig.event;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		options: IAgentHostStateManagerOptions = {},
@@ -1248,6 +1251,9 @@ export class AgentHostStateManager extends Disposable {
 
 				if (previousState.title !== newState.title) {
 					this._onDidChangeSessionTitle.fire({ session: key, title: newState.title });
+				}
+				if (sessionAction.type === ActionType.SessionConfigChanged) {
+					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config });
 				}
 
 				// When the reducer touched a summary-relevant field, notify
