@@ -758,7 +758,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection, automationId?: string): Promise<void> {
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
