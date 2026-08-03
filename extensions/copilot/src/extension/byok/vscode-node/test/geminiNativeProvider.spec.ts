@@ -277,6 +277,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 					toolCalling: true,
 					vision: true,
 					supportsReasoningEffort: ['low', 'high'],
+					defaultReasoningEffort: 'high',
 				}
 			},
 			createStorageService(),
@@ -308,7 +309,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 			}).toEqual({
 				reasoningEffortLevels: ['low', 'high'],
 				reasoningEffortLabels: ['Low', 'High'],
-				defaultReasoningEffort: 'low',
+				defaultReasoningEffort: 'high',
 				thinkingLevel: 'HIGH',
 			});
 		} finally {
