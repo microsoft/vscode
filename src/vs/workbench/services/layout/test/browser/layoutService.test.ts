@@ -4,9 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeHidden, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+
+suite('LayoutService - isFloatingTopEdgeHidden', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class VisibilityLayoutService extends TestLayoutService {
+		visibleParts = new Set<Parts>();
+		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
+	}
+
+	function topEdgeHidden(visible: Parts[]): boolean {
+		const service = new VisibilityLayoutService();
+		service.visibleParts = new Set(visible);
+		return isFloatingTopEdgeHidden(service, mainWindow);
+	}
+
+	test('hidden only when both title bar and banner are hidden', () => {
+		const actual = {
+			bothHidden: topEdgeHidden([]),
+			titleBarVisible: topEdgeHidden([Parts.TITLEBAR_PART]),
+			bannerVisible: topEdgeHidden([Parts.BANNER_PART]),
+			bothVisible: topEdgeHidden([Parts.TITLEBAR_PART, Parts.BANNER_PART]),
+		};
+
+		assert.deepStrictEqual(actual, {
+			bothHidden: true,
+			// A visible banner still gives the floating cards a top edge to sit against,
+			// same as a visible title bar — neither case should double the outer gutter.
+			titleBarVisible: false,
+			bannerVisible: false,
+			bothVisible: false,
+		});
+	});
+});
 
 suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 

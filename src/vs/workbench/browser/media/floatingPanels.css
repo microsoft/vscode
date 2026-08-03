@@ -353,10 +353,6 @@
 	top: calc(var(--vscode-spacing-size40) * 2);
 }
 
-.monaco-workbench.floating-panels.notitlebar.panel-position-top:not(.nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
-	top: calc(var(--vscode-spacing-size40) * 2);
-}
-
 /*
  * When the status bar is hidden the cards sit against the window bottom edge and take
  * the doubled outer gutter (`--vscode-spacing-size40` * 2) instead of the 2px inter-card

@@ -12,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeHidden } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -1886,6 +1886,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setBannerHidden(hidden: boolean): void {
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
+		this.updateTitleBarHiddenClass();
 	}
 
 	private setEditorHidden(hidden: boolean): void {
@@ -1920,7 +1921,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			!this.isVisible(Parts.TITLEBAR_PART, mainWindow) ? LayoutClasses.TITLEBAR_HIDDEN : undefined,
+			isFloatingTopEdgeHidden(this, mainWindow) ? LayoutClasses.TITLEBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
@@ -2377,7 +2378,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateTitleBarHiddenClass(): void {
-		this.mainContainer.classList.toggle(LayoutClasses.TITLEBAR_HIDDEN, !this.isVisible(Parts.TITLEBAR_PART, mainWindow));
+		this.mainContainer.classList.toggle(LayoutClasses.TITLEBAR_HIDDEN, isFloatingTopEdgeHidden(this, mainWindow));
 	}
 
 	toggleMenuBar(): void {

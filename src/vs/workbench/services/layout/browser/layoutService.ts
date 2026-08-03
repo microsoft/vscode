@@ -120,6 +120,21 @@ export function positionToString(position: Position): string {
 }
 
 /**
+ * Whether the top of the floating cards faces the window edge directly and should
+ * receive the doubled outer gutter (mirrors the doubled bottom gutter used when the
+ * status bar is hidden). The title bar and the banner are the two grid rows that can
+ * sit above the middle section, so the cards are only flush with the window edge when
+ * *both* are hidden — a visible banner still gives them a top edge to sit against,
+ * same as a visible title bar.
+ *
+ * Consumed by `Layout` (the `.notitlebar` class), `EditorPart`, `AbstractPaneCompositePart`
+ * and `ActivitybarPart` so the doubled-gutter decision stays in sync between them.
+ */
+export function isFloatingTopEdgeHidden(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return !layoutService.isVisible(Parts.TITLEBAR_PART, targetWindow) && !layoutService.isVisible(Parts.BANNER_PART);
+}
+
+/**
  * Determines which window edge (left/right) is owned by the outermost floating card
  * when the Modern UI Update experiment is enabled, and which {@link Parts} owns it.
  * The owning part receives a doubled outer gutter so its contents do not hug the

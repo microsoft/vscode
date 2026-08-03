@@ -344,5 +344,81 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual(part.toJSON(), { type: Parts.ACTIVITYBAR_PART });
 	});
 
+	// --- layout: floating panels content-height reservation -----------------
+	// Regression coverage for the hidden-title-bar transition: `.floating-panels.notitlebar
+	// .part.activitybar` (floatingPanels.css) adds a doubled top margin when the title bar
+	// (and banner) are hidden, so `layout()` must reserve that same space in `contentHeight`
+	// or the composite bar is laid out too tall and its content clips/overlaps at the bottom.
+
+	function attachStubCompositeBar(part: ActivitybarPart): { calls: { width: number; height: number }[] } {
+		const calls: { width: number; height: number }[] = [];
+		// eslint-disable-next-line local/code-no-any-casts
+		(part as any).compositeBar.value = {
+			layout: (width: number, height: number) => calls.push({ width, height }),
+			dispose: () => { },
+		};
+		return { calls };
+	}
+
+	function setVisibleParts(layoutService: TestFloatingPanelsLayoutService, visible: Parts[]): void {
+		const visibleSet = new Set(visible);
+		layoutService.isVisible = (part: Parts) => visibleSet.has(part);
+	}
+
+	test('reserves only the bottom gutter when the title bar is visible', () => {
+		const { part, layoutService } = createActivitybarPart(false, true);
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		const { calls } = attachStubCompositeBar(part);
+
+		setVisibleParts(layoutService, [Parts.TITLEBAR_PART]);
+		part.layout(100, 300);
+
+		assert.deepStrictEqual(calls.at(-1), { width: 100 - ActivitybarPart.FLOATING_MARGIN, height: 300 - ActivitybarPart.FLOATING_MARGIN });
+	});
+
+	test('reserves a doubled top gutter when the title bar and banner are both hidden', () => {
+		const { part, layoutService } = createActivitybarPart(false, true);
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		const { calls } = attachStubCompositeBar(part);
+
+		setVisibleParts(layoutService, []);
+		part.layout(100, 300);
+
+		const bottomGutter = ActivitybarPart.FLOATING_MARGIN;
+		const topGutter = ActivitybarPart.FLOATING_MARGIN * 2;
+		assert.deepStrictEqual(calls.at(-1), { width: 100 - ActivitybarPart.FLOATING_MARGIN, height: 300 - bottomGutter - topGutter });
+	});
+
+	test('a visible banner still counts as a top edge — no doubled gutter', () => {
+		const { part, layoutService } = createActivitybarPart(false, true);
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		const { calls } = attachStubCompositeBar(part);
+
+		// Title bar hidden (fullscreen) but the banner is showing above the middle section.
+		setVisibleParts(layoutService, [Parts.BANNER_PART]);
+		part.layout(100, 300);
+
+		assert.deepStrictEqual(calls.at(-1), { width: 100 - ActivitybarPart.FLOATING_MARGIN, height: 300 - ActivitybarPart.FLOATING_MARGIN });
+	});
+
+	test('reserves no gutters when floating panels is disabled, regardless of title bar visibility', () => {
+		const { part, layoutService } = createActivitybarPart(false, false);
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		const { calls } = attachStubCompositeBar(part);
+
+		setVisibleParts(layoutService, []);
+		part.layout(100, 300);
+
+		assert.deepStrictEqual(calls.at(-1), { width: 100, height: 300 });
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

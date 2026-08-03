@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, isFloatingTopEdgeHidden } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1481,12 +1481,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
 			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
-		// When the title bar is hidden (fullscreen), the editor top faces the window edge;
-		// use a doubled outer gutter. When a top panel is visible the editor faces the panel
-		// card instead (inter-card gap).
-		const titleBarHidden = !this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
+		// A top panel keeps the editor's normal inter-card gap even when the title bar is hidden.
+		const topEdgeHidden = isFloatingTopEdgeHidden(this.layoutService, mainWindow);
 		const topMargin = panelAtTop ? FLOATING_PANEL_MARGIN
-			: titleBarHidden ? FLOATING_PANEL_MARGIN * 2 : 0;
+			: topEdgeHidden ? FLOATING_PANEL_MARGIN * 2 : 0;
 		return { topMargin, bottomMargin };
 	}
 

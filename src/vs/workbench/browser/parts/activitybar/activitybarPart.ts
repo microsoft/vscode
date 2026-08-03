@@ -8,7 +8,8 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeHidden } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -269,14 +270,11 @@ export class ActivitybarPart extends Part {
 			return;
 		}
 
-		// When the floating panels experiment is enabled, reserve a gutter on the
-		// left and bottom so the activity bar lines up with the floating cards (it
-		// stays flush with the title bar, so no top gutter). The grid column is grown
-		// by the same amount (see minimum/maximumWidth) and the matching margins are
-		// applied in CSS (`.floating-panels .part.activitybar`).
+		// Reserve the floating-panels gutter (left/bottom, plus a doubled top gutter when the title bar and banner are both hidden) to match the CSS margins in `.floating-panels .part.activitybar`.
 		const gutter = this.floatingGutter;
+		const topGutter = gutter > 0 && isFloatingTopEdgeHidden(this.layoutService, mainWindow) ? gutter * 2 : 0;
 		const contentWidth = Math.max(0, width - gutter);
-		const contentHeight = Math.max(0, height - gutter);
+		const contentHeight = Math.max(0, height - gutter - topGutter);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
