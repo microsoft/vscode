@@ -14,6 +14,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { reportChatModeChange } from '../../../../../workbench/contrib/chat/common/chatModeTelemetry.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -57,6 +59,10 @@ export class ModePickerModel extends Disposable {
 
 	get selectedModeId(): string | undefined {
 		return this._selectedModeId;
+	}
+
+	get sessionResource(): URI | undefined {
+		return this._sessionResource;
 	}
 
 	constructor(
@@ -163,6 +169,7 @@ export class ModePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -239,6 +246,9 @@ export class ModePicker extends Disposable {
 						optionLabelAfter: item.mode.label.get(),
 						isPII: true,
 					});
+					const sessionResource = this._modePickerModel.sessionResource;
+					const requestCount = sessionResource ? this.chatService.getSession(sessionResource)?.getRequests().length ?? 0 : 0;
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount);
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
