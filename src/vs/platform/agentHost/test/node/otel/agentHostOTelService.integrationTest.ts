@@ -269,6 +269,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 	test('native SDK config splits DB traces from direct external signals', async () => {
 		const saved = saveEnv();
 		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
 		try {
 			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
 			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
@@ -290,7 +291,6 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual(svc.getCurrentTraceContext(), undefined);
 		} finally {
 			restoreEnv(saved);
-			await rm(tmp, { recursive: true, force: true });
 		}
 	});
 
