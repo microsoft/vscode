@@ -2382,7 +2382,7 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
-		await this._wrapper.session.disconnect();
+		await this._wrapper.disconnect();
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
@@ -2448,16 +2448,13 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Cannot start unknown MCP server customization ${id}`);
 			return;
 		}
-		// stopServer leaves inline session MCP servers not_configured; disable->enable is the validated restart path.
-		await this._disableMcpServer(serverName);
 		try {
-			await this._wrapper.session.rpc.mcp.enable({ serverName });
-			await this._wrapper.session.rpc.mcp.listTools({ serverName });
+			await this._wrapper.session.rpc.mcp.startServer({ serverName });
 		} finally {
 			// Reconcile against the SDK's real state. The live
 			// `session.mcp_server_status_changed` stream already reports the
 			// connect (`pending` -> `connected`/`failed`); this covers the case
-			// where the enable rejects before any status is emitted.
+			// where the start rejects before any status is emitted.
 			this._seedMcpServersFromRpc();
 		}
 	}
