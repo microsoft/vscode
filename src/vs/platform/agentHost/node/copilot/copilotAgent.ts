@@ -53,6 +53,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { getByokLmSelectionModelId } from '../../common/agentHostByokLm.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -1082,7 +1083,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * connect-time retry) and caches the serving window's models, so this is a
 	 * cheap synchronous read of that cache.
 	 *
-	 * Each model is surfaced under the provider-qualified id `vendor/id` so a
+	 * Each model is surfaced under the provider-qualified id `vendor/[group/]id` so a
 	 * selection round-trips to the per-session provider config synthesized by
 	 * `resolveByokSessionConfig`.
 	 */
@@ -1095,7 +1096,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 			return {
 				provider: this.id,
-				id: `${m.vendor}/${m.id}`,
+				id: `${m.vendor}/${getByokLmSelectionModelId(m)}`,
 				name: m.name ?? m.id,
 				maxContextWindow: m.maxContextWindowTokens,
 				supportsVision: m.supportsVision ?? false,

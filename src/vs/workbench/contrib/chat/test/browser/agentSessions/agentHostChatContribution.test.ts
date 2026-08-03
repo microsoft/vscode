@@ -4004,7 +4004,7 @@ suite('AgentHostChatContribution', () => {
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1) • 1.5 credits');
+			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 • 1.5 credits');
 		}));
 
 		test('live BYOK turn includes a configured group between provider and model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4189,7 +4189,7 @@ suite('AgentHostChatContribution', () => {
 				modelName: subagentData.modelName,
 			}, {
 				credits: 5.0,
-				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
 			});
 		}));
 
@@ -6777,7 +6777,7 @@ suite('AgentHostChatContribution', () => {
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
-				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
 				isActive: true,
 			});
 			assert.deepStrictEqual(activeToolPart && {

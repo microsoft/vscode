@@ -35,6 +35,11 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
  */
 export const NEW_CHAT_VOICE_SENTINEL = URI.from({ scheme: 'sessions-voice', authority: 'new-chat', path: '/composer' });
 
+/** Whether the shared voice transport belongs to the new-session composer. */
+export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean): boolean {
+	return (connected || connecting) && targetSession === undefined && hasDraftTarget;
+}
+
 /** New-session composer APIs used by voice mode. */
 export interface INewChatVoiceComposer {
 	/** Fires when the composer input gains focus. */
@@ -251,7 +256,12 @@ export class NewChatVoiceController extends Disposable {
 			return (options.composer.routesWhileSessionActive || !hasCreatedSession) && isActiveComposer;
 		});
 		const isVoiceTarget = derived(reader => {
-			const voiceActive = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const voiceActive = isNewChatVoiceSessionActive(
+				voiceSessionController.isConnected.read(reader),
+				voiceSessionController.isConnecting.read(reader),
+				voiceSessionController.targetSession.read(reader),
+				voiceSessionController.hasDraftTarget.read(reader),
+			);
 			return voiceActive && isVoiceSurface.read(reader);
 		});
 		this._register(autorun(reader => {
