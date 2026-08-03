@@ -581,12 +581,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (viewIndexInfo.remainder !== 0) {
 			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
 				// it's already after the last hidden range
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+				return this._clampViewIndexToRendered(modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount()));
 			}
 			return undefined;
 		} else {
 			return viewIndexInfo.index;
 		}
+	}
+
+	// The hidden-range prefix sum can momentarily lag the model (cells were spliced but
+	// the list/prefix-sum has not been resynced yet), making the "after the last hidden
+	// range" mapping resolve past the rendered list. Clamp to the last rendered row so the
+	// position resolvers stay total and never produce an out-of-bounds view index.
+	private _clampViewIndexToRendered(viewIndex: number): number {
+		return Math.min(viewIndex, Math.max(0, this.length - 1));
 	}
 
 	convertModelIndexToViewIndex(modelIndex: number): number {
@@ -703,7 +711,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (viewIndexInfo.remainder !== 0) {
 			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+				return this._clampViewIndexToRendered(modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount()));
 			}
 		}
 
@@ -719,7 +727,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (viewIndexInfo.remainder !== 0) {
 			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+				return this._clampViewIndexToRendered(modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount()));
 			}
 		}
 
