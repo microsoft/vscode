@@ -5473,11 +5473,11 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
-				config: {
-					schema: { type: 'object', properties: {} },
-					values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
-				},
 			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
 			localService.stateManager.dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
@@ -5540,11 +5540,11 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
-				config: {
-					schema: { type: 'object', properties: {} },
-					values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
-				},
 			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
 			localService.stateManager.dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
