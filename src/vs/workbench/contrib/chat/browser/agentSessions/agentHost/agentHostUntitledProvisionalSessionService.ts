@@ -386,6 +386,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return URI.from({ scheme: provider, path: `/${generateUuid()}` });
 	}
 
+	/**
+	 * Ensures the published generation realizes the draft's current folder and config.
+	 * It discards stale unpublished candidates, then publishes the valid candidate and retires the previous generation.
+	 */
 	private async _reconcileGeneration(sessionResource: URI, entry: IEntry): Promise<URI | undefined> {
 		while (this._entries.get(sessionResource) === entry && !entry.disposed) {
 			if (this._generationMatchesDesiredState(entry)) {
