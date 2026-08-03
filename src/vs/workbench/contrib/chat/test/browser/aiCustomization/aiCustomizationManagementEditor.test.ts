@@ -48,7 +48,6 @@ suite('aiCustomizationManagementEditor', () => {
 		welcomePage: { setPromptMigrationInfo(info: unknown): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
-		automationsContentContainer: HTMLElement | undefined;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
@@ -110,7 +109,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'list';
 		editor.dimension = undefined;
 		editor.selectedSection = undefined;
-		editor.automationsContentContainer = undefined;
 		editor.setVisible(false);
 		return editor;
 	}
