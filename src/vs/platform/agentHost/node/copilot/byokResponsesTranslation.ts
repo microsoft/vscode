@@ -5,6 +5,7 @@
 
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import {
+	ByokLmImageMimeType,
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
@@ -22,6 +23,19 @@ interface IResponsesContentPart {
 interface IResponsesSummaryPart {
 	readonly type?: string;
 	readonly text?: string;
+}
+
+function isSupportedImageMimeType(mimeType: string): mimeType is ByokLmImageMimeType {
+	switch (mimeType) {
+		case 'image/png':
+		case 'image/jpeg':
+		case 'image/gif':
+		case 'image/webp':
+		case 'image/bmp':
+			return true;
+		default:
+			return false;
+	}
 }
 
 interface IResponsesInputItem {
@@ -88,6 +102,9 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 		if (part.type === 'input_image' && typeof part.image_url === 'string') {
 			const match = /^data:(?<mimeType>image\/[^;,]+)(?:;[^,]*)?;base64,(?<data>.*)$/.exec(part.image_url);
 			if (match?.groups) {
+				if (!isSupportedImageMimeType(match.groups.mimeType)) {
+					throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}].image_url MIME type '${match.groups.mimeType}'`);
+				}
 				try {
 					decodeBase64(match.groups.data);
 				} catch {

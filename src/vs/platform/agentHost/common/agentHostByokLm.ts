@@ -25,9 +25,11 @@ export interface IByokLmTextPart {
 	readonly text: string;
 }
 
+export type ByokLmImageMimeType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/bmp';
+
 export interface IByokLmImagePart {
 	readonly type: 'image';
-	readonly mimeType: string;
+	readonly mimeType: ByokLmImageMimeType;
 	readonly data: string;
 }
 

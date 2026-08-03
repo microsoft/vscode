@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
+	ByokLmImageMimeType,
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
@@ -269,10 +270,25 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					result.push({ type: 'text', value: part.text });
 				}
 			} else {
-				result.push({ type: 'image_url', value: { mimeType: part.mimeType as ChatImageMimeType, data: decodeBase64(part.data) } });
+				result.push({ type: 'image_url', value: { mimeType: this._toChatImageMimeType(part.mimeType), data: decodeBase64(part.data) } });
 			}
 		}
 		return result.length ? result : [{ type: 'text', value: '' }];
+	}
+
+	private _toChatImageMimeType(mimeType: ByokLmImageMimeType): ChatImageMimeType {
+		switch (mimeType) {
+			case 'image/png':
+				return ChatImageMimeType.PNG;
+			case 'image/jpeg':
+				return ChatImageMimeType.JPEG;
+			case 'image/gif':
+				return ChatImageMimeType.GIF;
+			case 'image/webp':
+				return ChatImageMimeType.WEBP;
+			case 'image/bmp':
+				return ChatImageMimeType.BMP;
+		}
 	}
 
 	private _appendTextOutput(output: IByokLmOutputItem[], value: string): void {

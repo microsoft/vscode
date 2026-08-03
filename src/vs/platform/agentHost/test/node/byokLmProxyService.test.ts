@@ -210,7 +210,7 @@ suite('ByokLmProxyService', () => {
 			async () => ({ output: [] }),
 			async handle => {
 				const responses: Array<{ status: number; body: unknown }> = [];
-				for (const imageUrl of ['https://example.com/image.png', 'data:image/png;base64,not valid']) {
+				for (const imageUrl of ['https://example.com/image.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,not valid']) {
 					const response = await fetch(responsesUrl(handle, 'gemini'), {
 						method: 'POST',
 						headers: authHeaders(handle),
@@ -232,6 +232,15 @@ suite('ByokLmProxyService', () => {
 						body: {
 							error: {
 								message: 'Unsupported input[0].content[0].image_url',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Unsupported input[0].content[0].image_url MIME type \'image/svg+xml\'',
 								type: 'invalid_request_error',
 							},
 						},
