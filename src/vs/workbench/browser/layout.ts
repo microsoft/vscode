@@ -102,6 +102,7 @@ enum LayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
+	TITLEBAR_HIDDEN = 'notitlebar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
@@ -527,6 +528,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
+			this.updateTitleBarHiddenClass();
+
 			// Move layout call to any time the menubar
 			// is toggled to update consumers of offset
 			// see issue #115267
@@ -578,6 +581,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Indicate active window border
 			this.updateWindowBorder(true);
 		}
+
+		this.updateTitleBarHiddenClass();
 	}
 
 	private onActiveWindowChanged(): void {
@@ -1915,6 +1920,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.TITLEBAR_PART, mainWindow) ? LayoutClasses.TITLEBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
@@ -2358,6 +2364,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
+		this.updateTitleBarHiddenClass();
 	}
 
 	updateCustomTitleBarVisibility(): void {
@@ -2366,6 +2373,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
+		this.updateTitleBarHiddenClass();
+	}
+
+	private updateTitleBarHiddenClass(): void {
+		this.mainContainer.classList.toggle(LayoutClasses.TITLEBAR_HIDDEN, !this.isVisible(Parts.TITLEBAR_PART, mainWindow));
 	}
 
 	toggleMenuBar(): void {
@@ -2530,6 +2542,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
+		this.updateTitleBarHiddenClass();
 	}
 
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {

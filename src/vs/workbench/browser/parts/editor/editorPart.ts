@@ -1481,7 +1481,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
 			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
-		return { topMargin: panelAtTop ? FLOATING_PANEL_MARGIN : 0, bottomMargin };
+		// When the title bar is hidden (fullscreen), the editor top faces the window edge;
+		// use a doubled outer gutter. When a top panel is visible the editor faces the panel
+		// card instead (inter-card gap).
+		const titleBarHidden = !this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
+		const topMargin = panelAtTop ? FLOATING_PANEL_MARGIN
+			: titleBarHidden ? FLOATING_PANEL_MARGIN * 2 : 0;
+		return { topMargin, bottomMargin };
 	}
 
 	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {

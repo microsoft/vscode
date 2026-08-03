@@ -67,6 +67,14 @@
 	margin-top: 0;
 }
 
+/* When the title bar is hidden (.notitlebar, e.g. native fullscreen on macOS) the top
+ * becomes a window edge; double the top margin to match the outer gutter on other
+ * window edges. Mirrors the .nostatusbar pattern for the bottom edge. */
+.monaco-workbench.floating-panels.notitlebar .part.sidebar,
+.monaco-workbench.floating-panels.notitlebar .part.auxiliarybar {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
+}
+
 /*
  * When panel is at TOP and sidebars are in the same grid row as the editor (sibling),
  * give them a top margin matching the editor's gap from the panel. Alignment determines
@@ -90,10 +98,20 @@
 	margin-top: 0;
 }
 
+.monaco-workbench.floating-panels.notitlebar .part.panel.top,
+.monaco-workbench.floating-panels.notitlebar .part.panel.left,
+.monaco-workbench.floating-panels.notitlebar .part.panel.right {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
+}
+
 /* When the bottom panel is maximized (editor hidden) it spans the full content height
  * and is flush with the title bar — remove the inter-card top margin. */
 .monaco-workbench.floating-panels.nomaineditorarea .part.panel.bottom {
 	margin-top: 0;
+}
+
+.monaco-workbench.floating-panels.notitlebar.nomaineditorarea .part.panel.bottom {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /*
@@ -113,6 +131,10 @@
 /* Main editor: float like the other cards, but stay flush with the title bar. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.notitlebar > .monaco-grid-view .part.editor {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /* When the panel is at the top and visible the editor sits below it — give it a top margin
@@ -160,6 +182,10 @@
 .monaco-workbench.floating-panels .part.activitybar {
 	margin-left: var(--vscode-spacing-size40);
 	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.notitlebar .part.activitybar {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
@@ -319,6 +345,16 @@
  */
 .monaco-workbench.floating-panels.panel-position-top:not(.nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	top: var(--vscode-spacing-size40);
+}
+
+/* When the title bar is hidden the cards take a doubled top gutter.
+ * Inset the sash highlight to match so it doesn't overshoot above the cards. */
+.monaco-workbench.floating-panels.notitlebar .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	top: calc(var(--vscode-spacing-size40) * 2);
+}
+
+.monaco-workbench.floating-panels.notitlebar.panel-position-top:not(.nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /*
