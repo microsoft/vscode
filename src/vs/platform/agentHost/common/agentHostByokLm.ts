@@ -159,6 +159,18 @@ export interface IByokLmModelInfo {
 	readonly defaultReasoningEffort?: string;
 }
 
+/**
+ * Returns the provider-local selection id used by the agent host. Configured
+ * provider groups remain part of the id so models with the same vendor and
+ * provider-local id do not collide.
+ */
+export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
+	const vendorPrefix = `${model.vendor}/`;
+	return model.modelIdentifier?.startsWith(vendorPrefix)
+		? model.modelIdentifier.slice(vendorPrefix.length)
+		: model.id;
+}
+
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');
 
 /**

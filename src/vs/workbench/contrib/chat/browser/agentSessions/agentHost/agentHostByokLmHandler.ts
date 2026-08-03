@@ -163,6 +163,11 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	 * provider-local id (the `provider/id` selection id the picker surfaced).
 	 */
 	private _resolveModelIdentifier(vendor: string, modelId: string): string | undefined {
+		const exactIdentifier = `${vendor}/${modelId}`;
+		const exactMetadata = this._languageModelsService.lookupLanguageModel(exactIdentifier);
+		if (exactMetadata?.isBYOK && exactMetadata.vendor === vendor) {
+			return exactIdentifier;
+		}
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			if (metadata?.isBYOK && metadata.vendor === vendor && metadata.id === modelId) {

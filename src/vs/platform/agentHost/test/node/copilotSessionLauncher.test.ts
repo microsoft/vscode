@@ -158,6 +158,23 @@ suite('resolveByokSessionConfig', () => {
 		});
 	});
 
+	test('preserves provider groups when models share a vendor and id', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro' },
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Work/gemini-2.5-pro' },
+		]));
+		const proxy = countingProxy();
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [
+			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
+			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+		]);
+	});
+
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		let captured: IByokLmChatRequest | undefined;
