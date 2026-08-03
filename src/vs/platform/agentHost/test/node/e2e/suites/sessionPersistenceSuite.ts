@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mkdtempSync, realpathSync } from 'fs';
+import { tmpdir } from 'os';
+import { timeout } from '../../../../../../base/common/async.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ActionType } from '../../../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
+import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+
+const PROVIDER_RELEASE_SETTLE_MS = 2_500;
+
+export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext): void {
+	if (context.tier !== 'parity') {
+		return;
+	}
+	const { config, createdSessions, tempDirs } = context;
+
+	async function restartAndInitialize(clientId: string, workspace: string): Promise<void> {
+		await context.restartServer();
+		context.client.setWorkingDirectory(workspace);
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+		await context.client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: config.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+	}
+
+	test('session metadata history and provider context survive release and reconnect', async function () {
+		this.timeout(240_000);
+		const workspace = mkdtempSync(`${tmpdir()}/ahp-persistence-`);
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, `persistence-${config.provider}`, createdSessions, URI.file(workspace));
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-memory', 'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".', 10);
+
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		context.client.notify('unsubscribe', { channel: sessionUri });
+		await timeout(PROVIDER_RELEASE_SETTLE_MS);
+		await restartAndInitialize(`persistence-reconnect-${config.provider}`, workspace);
+
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const reopened = await fetchSessionWithChat(context.client, sessionUri);
+		const followup = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-persistence-followup',
+			'Reply with only the exact code word I asked you to remember.',
+			20,
+		);
+
+		assert.deepStrictEqual({
+			title: reopened.title,
+			workingDirectory: reopened.workingDirectories?.[0] ? realpathSync(URI.parse(reopened.workingDirectories[0]).fsPath) : undefined,
+			messages: reopened.turns.map(turn => turn.message.text),
+			followupRemembersCodeWord: /VIOLET_REHYDRATE/i.test(followup.responseText),
+		}, {
+			title: 'Persisted Session',
+			workingDirectory: realpathSync(workspace),
+			messages: [
+				'/rename Persisted Session',
+				'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".',
+			],
+			followupRemembersCodeWord: true,
+		});
+	});
+
+	(config.supportsMultipleChats ? test : test.skip)('peer chat catalog and transcript survive release and reconnect', async function () {
+		this.timeout(240_000);
+		const workspace = mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, `peer-persistence-${config.provider}`, createdSessions, URI.file(workspace));
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-peer-persistence-seed', 'Reply exactly "READY".', 1);
+		const peerUri = buildChatUri(sessionUri, generateUuid());
+		await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Persisted Peer' }, 30_000);
+		await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: peerUri,
+			clientSeq: 10,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer-local',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
+			},
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === peerUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-peer-local',
+			60_000,
+		);
+
+		context.client.notify('unsubscribe', { channel: peerUri });
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.notify('unsubscribe', { channel: sessionUri });
+		await timeout(PROVIDER_RELEASE_SETTLE_MS);
+		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
+
+		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const reopenedPeer = await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
+		const sessionState = reopenedSession.snapshot!.state as SessionState;
+		const peerState = reopenedPeer.snapshot!.state as ChatState;
+
+		assert.deepStrictEqual({
+			catalogEntry: sessionState.chats.find(chat => chat.resource === peerUri)
+				? {
+					resource: sessionState.chats.find(chat => chat.resource === peerUri)!.resource,
+					title: sessionState.chats.find(chat => chat.resource === peerUri)!.title,
+					status: sessionState.chats.find(chat => chat.resource === peerUri)!.status,
+					modifiedAt: sessionState.chats.find(chat => chat.resource === peerUri)!.modifiedAt,
+				}
+				: undefined,
+			peerTitle: peerState.title,
+			peerMessages: peerState.turns.map(turn => turn.message.text),
+		}, {
+			catalogEntry: {
+				resource: peerUri,
+				title: 'Rehydrated Peer',
+				status: peerState.status,
+				modifiedAt: peerState.modifiedAt,
+			},
+			peerTitle: 'Rehydrated Peer',
+			peerMessages: ['/rename Rehydrated Peer'],
+		});
+	});
+}

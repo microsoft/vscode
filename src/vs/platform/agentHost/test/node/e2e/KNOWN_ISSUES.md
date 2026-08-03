@@ -29,10 +29,10 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
-Two tests remain scoped, both at their call site with the reason:
+The following tests remain scoped at their call sites:
 
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
-- `worktree session uses the resolved worktree as working directory` — its shell half was enabled and then reverted after Windows CI failed it for two reasons unrelated to command portability, described below. Its non-shell half still asserts worktree resolution on Windows.
+- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows after CI exposed two blockers unrelated to command portability, described below.
 
 ### Path shape differs between the test and the shell
 
@@ -137,6 +137,77 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
 ## Suspected product bugs
 
+### Checkpoint-backed per-turn changesets omit host-local filesystem edits
+
+- Tests:
+  - `a per-turn changeset reports a file created in that turn`
+  - `a per-turn changeset reports an edit to a committed file`
+  - `a per-turn changeset reports a file deleted in that turn`
+  - `a per-turn changeset for an unknown turn reports an error`
+  - `comparing a turn with itself produces an empty ready changeset`
+  - `comparing two turns reports the changes between their checkpoints`
+  - `a materialized git session advertises turn and compare changeset templates`
+- Scope: conformance reference provider, real worktree-isolated sessions.
+- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized git sessions advertise the turn/compare templates.
+- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the session catalog does not advertise turn/compare templates.
+- Gate: each affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "per-turn changeset reports a file created"
+  ```
+
+### `create_session` resolves Claude and Codex models to the Copilot provider
+
+- Test: `server tool: create_session materializes a selected-model child session and starts its prompt`.
+- Scope: Claude and Codex.
+- Expected: passing a model advertised by the calling agent creates a child session for that model's provider.
+- Observed: both providers create the child session with provider `copilotcli`. The selected model id is present in more than one provider's global model list, and the session tool does not carry a provider-qualified model selection. Codex also executes `create_session` without surfacing its required pending confirmation.
+- Gate: `supportsProviderModelSessionCreation` in `serverToolsSuite.ts`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "server tool: create_session materializes"
+  ```
+
+  Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
+
+### Claude `create_chat` server-tool turns do not complete
+
+- Tests:
+  - `server tool: create_chat defaults to the invoking session and starts its local prompt`
+  - `server tool: create_chat applies an explicit peer title`
+- Scope: Claude.
+- Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
+- Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
+- Gate: `supportsServerToolCreateChat` in `serverToolsSuite.ts`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "server tool: create_chat defaults"
+  ```
+
+### Codex does not surface feedback server-tool confirmation
+
+- Test: `server tool: viewUnreviewedComments returns selected feedback and clears pending reveal state`.
+- Scope: Codex.
+- Expected: `viewUnreviewedComments` reaches `chat/toolCallReady` with an unconfirmed tool call so the client can choose which comments to reveal.
+- Observed: the server tool executes and returns the selected comment, but no pending confirmation is emitted.
+- Gate: the Codex variant is skipped by `supportsViewUnreviewedComments` in `serverToolsSuite.ts`. Its recorded fixture remains because the harness resolves the capture before Mocha applies the provider gate.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "server tool: viewUnreviewedComments"
+  ```
+
 ### Claude provider-context fork
 
 - Tests:
@@ -207,7 +278,7 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 - Scope: Codex.
 - Gate: `supportsFileTools: false` in the Codex provider config.
 
-Codex exposes a single tool, `exec_command`. Every committed `captures/codex-*.yaml` confirms it: the only tool name that appears is `exec_command`, where Claude's captures contain `Read`, `Write` and `Bash`.
+Codex exposes no provider-native file tools; its provider-owned local execution surface is `exec_command`. Host-owned server tools such as `list_sessions` and `addComment` are separate and are covered by the shared server-tool suite.
 
 The shared file-operation scenarios steer the agent away from the shell (`Use your file tools; do not run a shell command.`) so that their captures stay platform-neutral. Codex cannot satisfy that instruction and does not fall back — it refuses, in its own words:
 
@@ -245,7 +316,7 @@ That signature is the [shared-server load ceiling](./README.md#server-lifecycle)
 
 Most of this section is resolved — see [What is still Windows-scoped, and why](#what-is-still-windows-scoped-and-why). Thirteen tests that were disabled on Windows because their capture contained a POSIX-only command now run there.
 
-One row remains, and it is not about command portability:
+Three rows remain, and they are not about command portability:
 
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
@@ -268,12 +339,9 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
 - Scope: Codex on Linux in deterministic replay.
 - Gate: `shellToolReplayUnstableOnLinux: true`.
-- Tests directly affected by this gate:
+- Test directly disabled by this gate:
   - `worktree session uses the resolved worktree as working directory`
-  - `lists workspace entries`
-  - `counts lines in a file`
-  - `renames a workspace file`
-  - `runs a deterministic shell command`
+- Some file-operation scenarios also consult this gate, but Codex currently skips them on every platform through the separate file-tool capability or shared-server stability gates documented above.
 - Recording mode remains enabled so a future capture or provider update can be evaluated.
 
 ### Claude subagent replay on Windows
@@ -292,6 +360,31 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Expected: the behavior snapshot contains stable semantic tool traffic.
 - Observed: customization and changeset notifications occur at nondeterministic points in the snapshot.
 - Gate: enabled only for Copilot, subject to shell-platform gates.
+
+### Server-tool session references cannot replay across UUID-only providers
+
+- Tests:
+  - `server tool: list_sessions direct lookup accepts an open-session link`
+  - `server tool: get_session_context summary includes a completed prior turn`
+  - `server tool: get_session_context full includes prior server-tool input`
+  - `server tool: get_session_context transcriptLimit keeps only the newest turn`
+  - `server tool: send_message starts a turn in another session`
+  - `server tool: delete_session removes a non-current session`
+  - `server tool: send_message refuses to target the invoking chat`
+  - `server tool: delete_session refuses to delete the invoking session`
+- Scope: Claude and Codex deterministic E2E replay.
+- Expected: the model can pass a session URI returned by the host back into a later server-tool invocation.
+- Observed: Claude requires UUID-shaped session resources. The capture normalizer rewrites those UUIDs to `${uuid_N}`, but replay cannot map that placeholder to the fresh run's session URI when it appears in a later tool argument. Copilot accepts stable non-UUID test resources, so these scenarios replay there.
+- Gate: `supportsReplayableSessionReferences` in `serverToolsSuite.ts`.
+- Reproduce: temporarily enable the selected provider and record one test, then replay it:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "server tool: get_session_context summary"
+  ```
+
+The remaining server-tool scenarios use no session URI in model-generated tool arguments and remain enabled for every provider.
 
 ### Mid-turn abort is record-only
 
