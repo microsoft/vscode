@@ -1410,6 +1410,8 @@ export interface IChatPlanReview {
 	data?: IChatPlanReviewResult;
 	/** Whether the widget has been responded to. */
 	isUsed?: boolean;
+	/** Whether the backing plan file changed after this summary was generated. */
+	isOutdated?: boolean;
 	/** Source attribution. */
 	source?: ToolDataSource;
 }
