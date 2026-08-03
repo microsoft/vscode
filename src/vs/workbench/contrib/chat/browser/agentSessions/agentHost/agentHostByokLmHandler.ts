@@ -6,11 +6,12 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmContentPart,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
@@ -18,6 +19,7 @@ import {
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import {
+	ChatImageMimeType,
 	ChatMessageRole,
 	IChatMessage,
 	IChatMessagePart,
@@ -207,7 +209,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			case 'message':
 				return {
 					role: this._toChatRole(item.role),
-					content: [{ type: 'text', value: item.content.map(part => part.text).join('') }],
+					content: this._toChatMessageParts(item.content),
 				};
 			case 'reasoning': {
 				return {
@@ -254,6 +256,23 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					}],
 				};
 		}
+	}
+
+	private _toChatMessageParts(parts: IByokLmContentPart[]): IChatMessagePart[] {
+		const result: IChatMessagePart[] = [];
+		for (const part of parts) {
+			if (part.type === 'text') {
+				const previous = result.at(-1);
+				if (previous?.type === 'text') {
+					previous.value += part.text;
+				} else {
+					result.push({ type: 'text', value: part.text });
+				}
+			} else {
+				result.push({ type: 'image_url', value: { mimeType: part.mimeType as ChatImageMimeType, data: decodeBase64(part.data) } });
+			}
+		}
+		return result.length ? result : [{ type: 'text', value: '' }];
 	}
 
 	private _appendTextOutput(output: IByokLmOutputItem[], value: string): void {

@@ -25,10 +25,18 @@ export interface IByokLmTextPart {
 	readonly text: string;
 }
 
+export interface IByokLmImagePart {
+	readonly type: 'image';
+	readonly mimeType: string;
+	readonly data: string;
+}
+
+export type IByokLmContentPart = IByokLmTextPart | IByokLmImagePart;
+
 export interface IByokLmMessageItem {
 	readonly type: 'message';
 	readonly role: 'system' | 'developer' | 'user' | 'assistant';
-	readonly content: IByokLmTextPart[];
+	readonly content: IByokLmContentPart[];
 }
 
 export interface IByokLmReasoningItem {
