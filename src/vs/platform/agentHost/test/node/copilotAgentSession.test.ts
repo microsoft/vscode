@@ -829,7 +829,10 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.shutdown', {
 				shutdownType: 'normal',
 				totalApiDurationMs: 0,
-			} as SessionEventPayload<'session.shutdown'>['data']);
+				codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+				modelMetrics: {},
+				sessionStartTime: 0,
+			} satisfies SessionEventPayload<'session.shutdown'>['data']);
 			await destroy;
 			session.dispose();
 
