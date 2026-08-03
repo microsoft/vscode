@@ -13,6 +13,7 @@ import { Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 
 interface IViewSize { width: number; height: number }
@@ -49,11 +50,19 @@ suite('Sessions - Workbench', () => {
 	const savePartSizes = Reflect.get(Workbench.prototype, '_savePartSizes') as (this: ISavePartSizesTestHarness) => void;
 	const isEditorPaneVisible = Workbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
 	const isSinglePaneEditorPaneVisible = SinglePaneWorkbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
+	const toggleSecondarySideBarSinglePane = SinglePaneWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
+	const isSecondarySideBarVisibleSinglePane = SinglePaneWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
+	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
+	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
+	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
+	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
+	const isVisible = Workbench.prototype.isVisible as (this: ITestWorkbench, part: Parts) => boolean;
+	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 
 	// --- Harness ------------------------------------------------------------
 
 	interface ITestWorkbench {
-		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean };
+		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean; customViewGrid: boolean };
 		auxiliaryBarPartView: object;
 		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; editor?: number; sessions?: number; panel?: number };
 		_editorMaximized: boolean;
@@ -70,6 +79,16 @@ suite('Sessions - Workbench', () => {
 		readonly classToggles: { name: string; force: boolean }[];
 		readonly counts: { save: number; layout: number };
 		readonly sidePaneReveals: boolean[];
+		readonly focusedParts: Parts[];
+		readonly renderedCustomViews: (object | undefined)[];
+		readonly gridVisibility: Map<object, boolean>;
+		readonly mobileNavLayers: string[];
+		readonly focusedSessions: number;
+		layoutPolicy: { viewportClass: { get(): string } };
+		sessionsPartView: object;
+		panelPartView: object;
+		customViewGridPartView: object;
+		editorPartView: object;
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		setAuxiliaryBarHidden(hidden: boolean): void;
 	}
@@ -110,7 +129,10 @@ suite('Sessions - Workbench', () => {
 		sideBarWidth?: number;
 		dockedWidth?: number;
 		hasAppliedInitialEditorSplit?: boolean;
+		/** Use the real `setEditorMaximized` instead of the no-op stub. */
+		editorMaximize?: boolean;
 		suppressionCount?: number;
+		focusedPart?: Parts;
 		editorGroupService?: { mainPart: { groups: readonly { isEmpty: boolean }[] } };
 		viewDescriptorService?: {
 			getDefaultViewContainer(...args: unknown[]): { id: string } | undefined;
@@ -124,12 +146,20 @@ suite('Sessions - Workbench', () => {
 		const sessionsPartView = {};
 		const sideBarPartView = {};
 		const auxiliaryBarPartView = {};
+		const panelPartView = {};
+		const customViewGridPartView = {};
 		const resizes: IViewSize[] = [];
 		const visibilityChanges: boolean[] = [];
 		const events: IPartVisibilityChangeEvent[] = [];
 		const classToggles: { name: string; force: boolean }[] = [];
 		const counts = { save: 0, layout: 0 };
 		const sidePaneReveals: boolean[] = [];
+		const focusedParts: Parts[] = [];
+		const renderedCustomViews: (object | undefined)[] = [];
+		const gridVisibility = new Map<object, boolean>();
+		const mobileNavLayers: string[] = [];
+		let focusedSessions = 0;
+		const notifyPartVisibility = (view: object, visible: boolean) => notifyPartVisibilityOn(host as unknown as ITestWorkbench, view, visible);
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
 		const viewSizes = new Map<object, IViewSize>([
 			[editorPartView, { width: options.editorWidth ?? 0, height: 800 }],
@@ -138,12 +168,14 @@ suite('Sessions - Workbench', () => {
 			[auxiliaryBarPartView, { width: 300, height: 800 }],
 		]);
 
-		const partVisibility = { sidebar: true, auxiliaryBar: true, editor: false, panel: false, sessions: true, ...options.partVisibility };
+		const partVisibility = { sidebar: true, auxiliaryBar: true, editor: false, panel: false, sessions: true, customViewGrid: false, ...options.partVisibility };
 		const host = {
 			editorPartView,
 			sessionsPartView,
 			sideBarPartView,
 			auxiliaryBarPartView,
+			panelPartView,
+			customViewGridPartView,
 			_editorPartContainer: undefined,
 			mainContainer: { classList: { toggle: (name: string, force: boolean) => { classToggles.push({ name, force }); } } },
 			partVisibility,
@@ -152,11 +184,15 @@ suite('Sessions - Workbench', () => {
 				layout: () => { },
 				getViewSize: (view: object) => viewSizes.get(view) ?? { width: 0, height: 0 },
 				isViewVisible: (view: object) => view === editorPartView ? editorNodeVisible : true,
+				hasMaximizedView: () => false,
+				exitMaximizedView: () => { },
 				setViewVisible: (view: object, visible: boolean) => {
 					if (view === editorPartView) {
 						editorNodeVisible = visible;
 					}
+					gridVisibility.set(view, visible);
 					visibilityChanges.push(visible);
+					notifyPartVisibility(view, visible);
 				},
 				resizeView: (view: object, size: IViewSize) => { resizes.push(size); viewSizes.set(view, size); },
 			},
@@ -185,10 +221,23 @@ suite('Sessions - Workbench', () => {
 			_savePartVisibility: () => { counts.save++; },
 			_fireDidChangePartVisibility: (partId: Parts, visible: boolean, source?: 'resize') => { events.push({ partId, visible, ...(source ? { source } : {}) }); },
 			_onDidRevealSidePane: { fire: () => { sidePaneReveals.push(true); } },
+			_onDidChangeEditorMaximized: { fire: () => { } },
 			_notifyContainerDidLayout: () => { },
 			_layoutDockedAuxBar: () => { counts.layout++; },
 			layoutMobileSidebar: () => { },
-			setEditorMaximized: () => { },
+			...(options.editorMaximize ? {} : { setEditorMaximized: () => { } }),
+			hasFocus: (part: Parts) => options.focusedPart === part,
+			focusPart: (part: Parts) => { focusedParts.push(part); },
+			layout: () => { },
+			mobileNavStack: {
+				has: (layer: string) => mobileNavLayers.includes(layer),
+				push: (layer: string) => { mobileNavLayers.push(layer); },
+				popSilently: (layer: string) => { mobileNavLayers.splice(mobileNavLayers.indexOf(layer), 1); },
+			},
+			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
+			_customViewVisibleKey: { set: () => { } },
+			sessionsPartService: { focusSession: () => { focusedSessions++; } },
+			sessionsService: { activeSession: { get: () => undefined } },
 			// captures
 			resizes,
 			visibilityChanges,
@@ -196,10 +245,31 @@ suite('Sessions - Workbench', () => {
 			classToggles,
 			counts,
 			sidePaneReveals,
+			focusedParts,
+			renderedCustomViews,
+			gridVisibility,
+			mobileNavLayers,
+			get focusedSessions() { return focusedSessions; },
 		};
 
 		Object.setPrototypeOf(host, options.single ? SinglePaneWorkbench.prototype : Workbench.prototype);
 		return host as unknown as ITestWorkbench;
+	}
+
+	// The real SplitView calls `Part.setVisible` when a view's grid visibility
+	// changes, which the workbench maps back onto the desired part visibility.
+	// Reproduce that feedback so tests catch state being overwritten by it.
+	function notifyPartVisibilityOn(host: ITestWorkbench, view: object, visible: boolean): void {
+		if ((host as unknown as { _applyingCustomViewGridVisibility: boolean })._applyingCustomViewGridVisibility) {
+			return;
+		}
+		if (view === host.sessionsPartView) {
+			setSessionsHidden.call(host, !visible);
+		} else if (view === host.panelPartView) {
+			setPanelHidden.call(host, !visible);
+		} else if (view === host.auxiliaryBarPartView) {
+			host.setAuxiliaryBarHidden(!visible);
+		}
 	}
 
 	// --- Editor split / reveal ---------------------------------------------
@@ -238,6 +308,24 @@ suite('Sessions - Workbench', () => {
 		host.workbenchGrid.isViewVisible = () => false;
 
 		assert.strictEqual(isSinglePaneEditorPaneVisible.call(host), false);
+	});
+
+	test('single-pane secondary sidebar toggle controls the editor pane', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true }, focusedPart: Parts.EDITOR_PART });
+
+		toggleSecondarySideBarSinglePane.call(host);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			secondarySideBarVisible: isSecondarySideBarVisibleSinglePane.call(host),
+			focusedParts: host.focusedParts,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: true,
+			secondarySideBarVisible: false,
+			focusedParts: [Parts.AUXILIARYBAR_PART],
+		});
 	});
 
 	test('updates the single-pane editor pane class after the grid node visibility changes', () => {
@@ -764,6 +852,20 @@ suite('Sessions - Workbench', () => {
 		revealEditorOnOpen.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
 
 		assert.deepStrictEqual(setEditorHiddenCalls, []);
+	});
+
+	test('docked editors are excluded from the editor limit (prevents managed-tab open/close loop)', () => {
+		// The managed Changes/Files tabs are pinned but not sticky, so a per-group
+		// editor limit of 1 would otherwise evict them and the managed-tab
+		// reconciliation would reopen them, hanging the renderer. Docked inputs opt
+		// out of the limit so they are never auto-closed.
+		const dockedEditor = new TestDockedEditorInput();
+
+		try {
+			assert.strictEqual(dockedEditor.hasCapability(EditorInputCapabilities.ExcludeFromEditorLimit), true);
+		} finally {
+			dockedEditor.dispose();
+		}
 	});
 
 	test('[Scenario 5] single-pane does not reveal a docked editor while the detail panel is open and the editor is closed', () => {
@@ -1444,6 +1546,7 @@ suite('Sessions - Workbench', () => {
 				editor: false,
 				panel: false,
 				sessions: true,
+				customViewGrid: false,
 			},
 			suppression: 0,
 		});
@@ -1701,6 +1804,165 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBarVisible: false,
 			sidebarVisible: true,
 			sessionsVisible: true,
+		});
+	});
+
+	// --- Custom view grid ---------------------------------------------------
+
+	test('showing a custom view hides the sessions grid, editor, side panel and panel', () => {
+		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, panel: true, sessions: true } });
+		const descriptor = {};
+
+		applyCustomViewGridVisibility.call(host, descriptor);
+
+		assert.deepStrictEqual({
+			renderedCustomViews: host.renderedCustomViews,
+			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			editor: isVisible.call(host, Parts.EDITOR_PART),
+			auxiliaryBar: isVisible.call(host, Parts.AUXILIARYBAR_PART),
+			panel: isVisible.call(host, Parts.PANEL_PART),
+			sideBar: isVisible.call(host, Parts.SIDEBAR_PART),
+			gridNodes: {
+				customViewGrid: host.gridVisibility.get(host.customViewGridPartView),
+				sessions: host.gridVisibility.get(host.sessionsPartView),
+				editor: host.gridVisibility.get(host.editorPartView),
+				panel: host.gridVisibility.get(host.panelPartView),
+			},
+			events: host.events,
+			focusedParts: host.focusedParts,
+		}, {
+			renderedCustomViews: [descriptor],
+			customViewGridVisible: true,
+			sessions: false,
+			editor: false,
+			auxiliaryBar: false,
+			panel: false,
+			sideBar: true,
+			gridNodes: {
+				customViewGrid: true,
+				sessions: false,
+				editor: false,
+				panel: false,
+			},
+			events: [
+				{ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true },
+				{ partId: Parts.SESSIONS_PART, visible: false },
+				{ partId: Parts.EDITOR_PART, visible: false },
+				{ partId: Parts.AUXILIARYBAR_PART, visible: false },
+				{ partId: Parts.PANEL_PART, visible: false },
+			],
+			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART],
+		});
+	});
+
+	test('hiding the custom view restores the desired part visibility, including changes made while it was shown', () => {
+		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, panel: false, sessions: true } });
+
+		applyCustomViewGridVisibility.call(host, {});
+
+		// The layout controller reacts to a session switch while the custom view is
+		// up: the desired state changes but nothing is rendered.
+		setEditorHidden.call(host, true);
+		const whileShown = {
+			editor: isVisible.call(host, Parts.EDITOR_PART),
+			editorNode: host.gridVisibility.get(host.editorPartView),
+		};
+
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			whileShown,
+			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+			renderedCustomViewCount: host.renderedCustomViews.length,
+			lastRenderedCustomView: host.renderedCustomViews[host.renderedCustomViews.length - 1],
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			editor: isVisible.call(host, Parts.EDITOR_PART),
+			auxiliaryBar: isVisible.call(host, Parts.AUXILIARYBAR_PART),
+			panel: isVisible.call(host, Parts.PANEL_PART),
+			focusedSessions: host.focusedSessions,
+		}, {
+			whileShown: { editor: false, editorNode: false },
+			customViewGridVisible: false,
+			renderedCustomViewCount: 2,
+			lastRenderedCustomView: undefined,
+			sessions: true,
+			editor: false,
+			auxiliaryBar: true,
+			panel: false,
+			focusedSessions: 1,
+		});
+	});
+
+	test('swapping to another custom view re-renders it without touching the layout', () => {
+		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, sessions: true } });
+		const first = {};
+		const second = {};
+
+		applyCustomViewGridVisibility.call(host, first);
+		const eventsAfterShow = host.events.length;
+		applyCustomViewGridVisibility.call(host, second);
+
+		assert.deepStrictEqual({
+			renderedCustomViews: host.renderedCustomViews,
+			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			eventsAfterSwap: host.events.length - eventsAfterShow,
+		}, {
+			renderedCustomViews: [first, second],
+			customViewGridVisible: true,
+			sessions: false,
+			eventsAfterSwap: 0,
+		});
+	});
+
+	test('tracks the custom view in the phone navigation stack and drops it when leaving phone layout', () => {
+		const host = createHost();
+		host.layoutPolicy.viewportClass.get = () => 'phone';
+
+		applyCustomViewGridVisibility.call(host, {});
+		const onPhone = [...host.mobileNavLayers];
+
+		// Rotating back to a desktop-class viewport must not leave a stale entry behind.
+		host.layoutPolicy.viewportClass.get = () => 'desktop';
+		updateMobileCustomViewNavigation.call(host);
+
+		assert.deepStrictEqual({ onPhone, afterLeavingPhone: host.mobileNavLayers }, {
+			onPhone: ['customView'],
+			afterLeavingPhone: [],
+		});
+	});
+
+	test('the secondary side bar toggle is inert while a custom view is shown', () => {
+		const host = createHost({ partVisibility: { auxiliaryBar: true } });
+
+		applyCustomViewGridVisibility.call(host, {});
+		toggleSecondarySideBar.call(host);
+
+		assert.strictEqual(host.partVisibility.auxiliaryBar, true);
+	});
+
+	test('showing a custom view un-maximizes the editor so the sessions grid owns the row again on hide', () => {
+		const host = createHost({ editorMaximize: true, partVisibility: { editor: true, auxiliaryBar: true, sessions: true } });
+		setEditorMaximized.call(host as unknown as IMaximizeTestHarness, true);
+
+		applyCustomViewGridVisibility.call(host, {});
+		const whileShown = {
+			editorMaximized: host._editorMaximized,
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			customViewGrid: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+		};
+
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			whileShown,
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			customViewGrid: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+		}, {
+			whileShown: { editorMaximized: false, sessions: false, customViewGrid: true },
+			sessions: true,
+			customViewGrid: false,
 		});
 	});
 

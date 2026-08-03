@@ -6,21 +6,26 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { SegmentedVoiceInputModePillInactive } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
@@ -56,6 +61,8 @@ export interface INewChatVoiceTargetService {
 	readonly _serviceBrand: undefined;
 	/** The most recent focused/registered mounted composer. */
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined>;
+	/** The input resource currently selected for voice decorations. */
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 	/** Register a composer as a voice target; dispose to remove it. */
 	registerComposer(composer: INewChatVoiceComposer): IDisposable;
 	/** Promote `composer` to the active voice target. */
@@ -68,6 +75,37 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	private readonly _composers = new Set<INewChatVoiceComposer>();
 	private readonly _activeComposer = observableValue<INewChatVoiceComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined> = this._activeComposer;
+
+	/** Session resource of the last-focused chat widget (the last-focused input). */
+	private readonly _focusedSessionResource: IObservable<URI | undefined>;
+
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
+
+	constructor(
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+	) {
+		super();
+
+		this._focusedSessionResource = observableFromEvent(this,
+			this.chatWidgetService.onDidChangeFocusedSession,
+			() => this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
+
+		this.currentVoiceInputResource = derivedOpts({ owner: this, equalsFn: isEqual }, reader => {
+			const composer = this._activeComposer.read(reader);
+			const active = this.sessionsService.activeSession.read(reader);
+			const created = active?.isCreated.read(reader) ? active.activeChat.read(reader)?.resource : undefined;
+			// The composer wins while it opts in (or before a session exists),
+			// matching `_chat.voice.getCurrentSession` routing.
+			if (composer && (composer.routesWhileSessionActive || !created)) {
+				return NEW_CHAT_VOICE_SENTINEL;
+			}
+			if (created) {
+				return created;
+			}
+			return this._focusedSessionResource.read(reader);
+		});
+	}
 
 	registerComposer(composer: INewChatVoiceComposer): IDisposable {
 		this._composers.add(composer);
@@ -103,38 +141,48 @@ const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
 const WHEN_CONNECTED = ContextKeyExpr.equals('agentsVoiceConnected', true);
 const WHEN_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
 const WHEN_VOICE_SURFACE = ContextKeyExpr.equals('newChatVoiceSurface', true);
+// Hide Voice Mode while dictation is active (recording or the model is loading)
+// so the two mic affordances never compete, mirroring `MenuId.ChatExecute`.
+const WHEN_NOT_DICTATING = ContextKeyExpr.and(
+	ContextKeyExpr.has('chatSpeechToTextRecording').negate(),
+	ContextKeyExpr.has('chatSpeechToTextPreparing').negate(),
+);
+
+// Hide the standalone voice controls when the segmented voice/dictation pill applies
+// on this composer — the pill supersedes them.
+const WHEN_NO_SEGMENTED_PILL = SegmentedVoiceInputModePillInactive;
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loading },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTING, WHEN_INITIATED_HERE),
+	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loadingCompact },
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceMode },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate()),
+	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceModeCompact },
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.pttStopInChat', title: localize('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"), icon: Codicon.voiceMode },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_LISTENING, WHEN_INITIATED_HERE),
+	command: { id: 'agentsVoice.pttStopInChat', title: localize('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"), icon: Codicon.voiceModeCompact },
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_LISTENING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.openSettings', title: localize('agentsVoice.openSettings', "Voice Mode Settings"), icon: Codicon.settingsGear },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9.5,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.disconnect', title: localize('agentsVoice.disconnect', "Disconnect Voice Mode"), icon: Codicon.debugDisconnect },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE),
+	command: { id: 'agentsVoice.disconnect', title: localize('agentsVoice.disconnect', "Disconnect Voice Mode"), icon: Codicon.debugDisconnectCompact },
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9,
 });
@@ -165,6 +213,7 @@ export class NewChatVoiceController extends Disposable {
 		@IMicCaptureService micCaptureService: IMicCaptureService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
@@ -182,6 +231,15 @@ export class NewChatVoiceController extends Disposable {
 
 		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			actionViewItemProvider: (action, itemOptions) => {
+				// While listening the menu swaps the start action for the
+				// push-to-talk stop action; cover both so the context menu
+				// (Select Microphone / Disable Voice Mode) stays available.
+				if ((action.id === 'agentsVoice.startVoiceInChat' || action.id === 'agentsVoice.pttStopInChat') && action instanceof MenuItemAction) {
+					return scopedInstantiationService.createInstance(VoiceModeActionViewItem, action, itemOptions);
+				}
+				return undefined;
+			},
 		}));
 
 		// Target the active composer before a session exists, or when it opts in
@@ -207,11 +265,13 @@ export class NewChatVoiceController extends Disposable {
 			micCaptureService,
 			configurationService,
 			keybindingService,
+			themeService,
 			accessibilityService,
 		}, {
 			inputContainer: options.inputContainer,
 			isActive: isVoiceTarget,
 			getCurrentResource: () => NEW_CHAT_VOICE_SENTINEL,
+			currentVoiceInputResource: targetService.currentVoiceInputResource,
 		}));
 	}
 }

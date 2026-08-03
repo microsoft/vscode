@@ -529,14 +529,18 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		postOptions: { temperature: 0, top_p: 1 }
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(1);
 		expect(body.top_p).toBe(0.95);
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should normalize tool call IDs for %s', family => {
+	it.each([
+		{ family: 'kimi-k2.6', prefix: 'functions.' },
+		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
+		{ family: 'kimi-k3', prefix: '' },
+	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createTestOptions(history));
@@ -548,11 +552,11 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
 		}).toEqual({
 			body: [
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.read_file:0', 'functions.replace_string_in_file:1'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.read_file:0' },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.replace_string_in_file:1' },
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.run_in_terminal:2'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.run_in_terminal:2' },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}read_file:0`, `${prefix}replace_string_in_file:1`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}read_file:0` },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}replace_string_in_file:1` },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}run_in_terminal:2`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}run_in_terminal:2` },
 				{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
 			],
 			history: [

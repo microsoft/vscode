@@ -99,6 +99,24 @@
 	height: calc(var(--activity-bar-action-height, 28px) - 4px);
 }
 
+:is(.hc-black, .hc-light).style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator {
+	display: block;
+}
+
+:is(.hc-black, .hc-light).style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /*
  * Horizontal Activity Bar — top / bottom position on the primary sidebar, panel
  * (bottom) and auxiliary bar. When the activity bar is moved to the top or
@@ -145,15 +163,16 @@
 }
 
 /* Active item: inset, rounded background box behind the icon. */
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
+.style-override .pane-composite-part > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator {
 	z-index: 0;
-	top: 4px;
+	top: 50%;
 	left: 0;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+	transform: translateY(-50%);
 }
 
 /*
@@ -161,15 +180,16 @@
  * shows the box) and while dragging (the action-item `::before`/`::after` are
  * reused for the drop-line indicators).
  */
-.style-override .pane-composite-part > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
+.style-override .pane-composite-part > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator {
 	z-index: 0;
-	top: 4px;
+	top: 50%;
 	left: 0;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-list-hoverBackground);
+	transform: translateY(-50%);
 }
 
 /*
@@ -264,6 +284,7 @@
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
 	padding: 0 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -282,13 +303,9 @@
 
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before {
+	position: relative;
 	left: 0px;
 	top: 0px;
-}
-
-.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
-.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
-	position: relative;
 }
 
 /*
@@ -310,7 +327,7 @@
 
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon,
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /* Space the composite items apart with a small gap in the auxiliary bar and base panel. */

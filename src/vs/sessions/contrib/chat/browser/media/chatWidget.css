@@ -45,6 +45,7 @@
 	max-width: 800px;
 	padding: 0;
 	box-sizing: border-box;
+	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .new-chat-widget-container.revealed .new-session-workspace-picker-container {
@@ -161,7 +162,7 @@
  * threshold below because its label ("Autopilot (Preview)" etc.) carries
  * important state that is worth preserving as long as there is room. */
 @container (max-width: 330px) {
-	/* Bottom-row pickers (Copilot CLI, Default Approvals, Worktree, branch): icon-only */
+	/* Bottom-row pickers (Copilot CLI, Default Permissions, Worktree, branch): icon-only */
 	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-dropdown-label {
 		display: none;
 	}
@@ -239,7 +240,7 @@
 	justify-content: center;
 }
 
-/* Pickers row - two equal halves */
+/* Pickers row */
 .session-workspace-picker {
 	display: flex;
 	flex-direction: row;
@@ -250,6 +251,15 @@
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
+}
+
+.new-chat-widget-container .new-session-workspace-picker-container .sessions-chat-workspace-picker {
+	max-width: 400px;
+}
+
+.new-chat-widget-container .sessions-chat-session-type-picker,
+.new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: 200px;
 }
 
 .session-workspace-picker:empty {

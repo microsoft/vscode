@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -58,6 +58,23 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/**
+	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
+	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
+	 * The provider derives both directions from this pair, so they cannot drift apart.
+	 */
+	readonly sessionSchemeAlias?: ISessionSchemeAlias;
+}
+
+/**
+ * The two names a session goes by when the host's session scheme differs from its agent provider.
+ * The raw session id is shared, so only the scheme is translated.
+ */
+export interface ISessionSchemeAlias {
+	/** Scheme the UI routes by — the agent provider (e.g. `copilot`). */
+	readonly ui: string;
+	/** Scheme the host's session registry is keyed by (e.g. `ahp-session`). */
+	readonly backend: string;
 }
 
 /**
@@ -117,6 +134,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
+	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -154,6 +172,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
@@ -194,11 +213,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected _adapterOptions() {
 		const web = this.isWebPlatform;
 		return {
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
-				const uriForDescription = project?.uri ?? workingDirectory;
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
+				const primary = workingDirectories?.[0];
+				const uriForDescription = project?.uri ?? primary;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
-				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, web ? undefined : this.label, gitHubInfo, gitState, description, branchProtectionPatterns);
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, primary ?? project?.uri);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, web ? undefined : this.label, gitHubInfo, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
@@ -273,6 +293,53 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionStatus.set(status, undefined);
 	}
 
+	/**
+	 * Seed discovered session summaries into the cache so they surface in the
+	 * sessions list **before** a connection is established (lazy discovery). Each
+	 * summary becomes a cached adapter keyed by its raw session id; entries that
+	 * already exist (e.g. from a prior live `listSessions()` or persistence) are
+	 * left untouched so the live refresh stays authoritative. Opening a seeded
+	 * session triggers `connectOnDemand` via the async activation registry, after
+	 * which `_refreshSessions` reconciles the seed with the host's real state.
+	 */
+	seedSessions(metas: readonly IAgentSessionMetadata[]): void {
+		const added: ISession[] = [];
+		for (const rawMeta of metas) {
+			const meta = this._adoptSessionMeta(rawMeta);
+			const rawId = AgentSession.id(meta.session);
+			if (this._sessionCache.has(rawId)) {
+				continue;
+			}
+			const adapter = this.createAdapter(meta);
+			this._sessionCache.set(rawId, adapter);
+			added.push(adapter);
+		}
+		if (added.length > 0) {
+			this._onDidChangeSessions.fire({ added, removed: [], changed: [] });
+		}
+	}
+
+	/**
+	 * Map a host-reported session URI onto the UI scheme, so the session routes to the agent's
+	 * content provider. The raw id is preserved, so cache keys are unaffected.
+	 */
+	protected override _adoptSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		const alias = this._sessionSchemeAlias;
+		if (!alias || meta.session.scheme !== alias.backend) {
+			return meta;
+		}
+		return { ...meta, session: meta.session.with({ scheme: alias.ui }) };
+	}
+
+	/**
+	 * Inverse of {@link _adoptSessionMeta}: map the UI scheme back to the one the host's session
+	 * registry is keyed by, so backend calls address the URI the host knows.
+	 */
+	protected override _backendSessionScheme(agentProvider: string): string {
+		const alias = this._sessionSchemeAlias;
+		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
+	}
+
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.
@@ -303,16 +370,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
 
-		// Dynamically discover session types from the host's advertised agents.
-		const rootStateValue = connection.rootState.value;
-		if (rootStateValue && !(rootStateValue instanceof Error)) {
-			this._syncSessionTypesFromRootState(rootStateValue);
-			this._syncRootConfigFromRootState(rootStateValue);
-		}
-		this._connectionListeners.add(connection.rootState.onDidChange(rootState => {
-			this._syncSessionTypesFromRootState(rootState);
-			this._syncRootConfigFromRootState(rootState);
+		this._syncRootState(connection.rootState.value);
+		this._connectionListeners.add(connection.rootState.onDidChange(() => {
+			this._syncRootState(connection.rootState.value);
 		}));
+		if (connection.rootState.onDidError) {
+			this._connectionListeners.add(connection.rootState.onDidError(error => {
+				this._syncRootState(error);
+			}));
+		}
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
@@ -336,11 +402,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
 		this._disposeAllNewSessions();
-
-		if (this._sessionTypes.length > 0) {
-			this._sessionTypes = [];
-			this._onDidChangeSessionTypes.fire();
-		}
+		this._syncRootState(undefined);
 
 		// Drop only the transient pending/draft session; keep the persisted
 		// cache so the workspace picker keeps showing offline sessions.
@@ -390,8 +452,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {

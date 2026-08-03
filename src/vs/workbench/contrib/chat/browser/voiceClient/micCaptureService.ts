@@ -13,8 +13,16 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
+import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
+
+/** Number of samples buffered per 32 ms voice capture chunk at 16 kHz, matching one Silero VAD frame. */
+export const MIC_CAPTURE_CHUNK_SIZE = 512;
+
+export function isMicrophonePermissionDeniedError(error: unknown): boolean {
+	return (error instanceof DOMException || error instanceof Error) && error.name === 'NotAllowedError';
+}
 
 /**
  * Per-PTT-press diagnostic emitted after `pttUp` once the diagnostic
@@ -83,8 +91,11 @@ export interface IMicCaptureService {
 
 	readonly isCapturing: boolean;
 
-	/** Fired when a PTT segment begins (mic ready). */
-	readonly onPttStart: Event<void>;
+	/**
+	 * Fired when a PTT segment begins (mic ready). The boolean payload is the
+	 * `passive` flag captured at the corresponding `pttDown` call (see there).
+	 */
+	readonly onPttStart: Event<boolean>;
 
 	/** Fired during PTT hold with base64-encoded raw PCM16 chunks. */
 	readonly onPttAudioChunk: Event<string>;
@@ -112,8 +123,14 @@ export interface IMicCaptureService {
 	 * `turnId` is an opaque per-press identifier propagated into the
 	 * eventual `onPttDiagnostic` payload for correlation with backend logs.
 	 * Pass empty string when no correlation is needed.
+	 *
+	 * `passive` marks this press as a hands-free barge-in listen (mic opened
+	 * during assistant playback, not a real user press). It is captured
+	 * immutably at call time and carried on the `onPttStart` emission. This
+	 * stays correct even if the caller's own state changes during the async
+	 * mic acquire.
 	 */
-	pttDown(turnId: string): Promise<void>;
+	pttDown(turnId: string, passive?: boolean): Promise<void>;
 
 	/**
 	 * End a PTT segment. Sends any remaining audio chunks, then fires pttEnd.
@@ -150,9 +167,12 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	private _window: (Window & typeof globalThis) | undefined;
 	private _micStream: MediaStream | null = null;
 	private _micCtx: AudioContext | undefined;
-	private _scriptNode: ScriptProcessorNode | undefined;
+	private _workletNode: AudioWorkletNode | undefined;
 	private _analyserNode: AnalyserNode | undefined;
 	private _isCapturing = false;
+	private _captureGeneration = 0;
+	private _capturePromise: Promise<void> | undefined;
+	private _pttGeneration = 0;
 	private _pttHeld = false;
 	private _pttStreaming = false;
 	private _isMuted = false;
@@ -199,8 +219,8 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	private _diagPttUpWithoutCapture = false;
 	private _diagFireTimer: ReturnType<typeof setTimeout> | undefined;
 
-	private readonly _onPttStart = this._register(new Emitter<void>());
-	readonly onPttStart: Event<void> = this._onPttStart.event;
+	private readonly _onPttStart = this._register(new Emitter<boolean>());
+	readonly onPttStart: Event<boolean> = this._onPttStart.event;
 
 	private readonly _onPttAudioChunk = this._register(new Emitter<string>());
 	readonly onPttAudioChunk: Event<string> = this._onPttAudioChunk.event;
@@ -225,12 +245,21 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._window = window;
 	}
 
-	async pttDown(turnId: string): Promise<void> {
+	async pttDown(turnId: string, passive: boolean = false): Promise<void> {
 		if (this._pttHeld) { return; }
+		const pttGeneration = ++this._pttGeneration;
 		// If a previous press is still in its drain window, finish it
 		// now: cancel the fallback timer, mark streaming closed, fire
 		// `_onPttEnd`. Otherwise the backend would keep the prior turn
 		// open and our new turn would race against it.
+		//
+		// This is also a required ordering guarantee: flushing the
+		// drain (and its `_onPttEnd`) before this turn's `_onPttStart`
+		// fires below keeps the wire order `ptt_end`(prev) then
+		// `ptt_start`(next). `ptt_end` carries no turn_id, so the backend
+		// relies on that order to end the correct turn and never the
+		// freshly opened one. Keep `_finishDrain()` ahead of every
+		// `_onPttStart.fire()` path if this method is refactored.
 		this._finishDrain();
 		// If a previous press's diagnostic hasn't fired yet (back-to-back
 		// presses inside the diagnostic window), emit it now so it
@@ -243,7 +272,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._isMuted = false;
 
 		if (this._isCapturing) {
-			this._onPttStart.fire();
+			this._onPttStart.fire(passive);
 			return;
 		}
 		if (!this._window) { return; }
@@ -253,14 +282,23 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		try {
 			await this.startCapture(this._window);
 		} catch (err) {
+			if (pttGeneration !== this._pttGeneration) {
+				return;
+			}
 			this._pttHeld = false;
 			this._pttStreaming = false;
-			this._pttAcquiring = false;
 			this._pttReleasedDuringAcquire = false;
 			throw err;
+		} finally {
+			if (pttGeneration === this._pttGeneration) {
+				this._pttAcquiring = false;
+			}
 		}
-		this._pttAcquiring = false;
-		this._onPttStart.fire();
+		if (pttGeneration !== this._pttGeneration || !this._isCapturing || !this._pttHeld) {
+			this._pttReleasedDuringAcquire = false;
+			return;
+		}
+		this._onPttStart.fire(passive);
 
 		if (this._pttReleasedDuringAcquire) {
 			this._pttReleasedDuringAcquire = false;
@@ -323,6 +361,8 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		}
 		this._pttDrainTargetSamples = 0;
 		this._pttDrainSamplesSent = 0;
+		this._pttGeneration++;
+		this._pttAcquiring = false;
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;
@@ -334,6 +374,22 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	async startCapture(window: Window & typeof globalThis): Promise<void> {
 		this._window = window;
 		if (this._isCapturing) { return; }
+		if (this._capturePromise) {
+			return this._capturePromise;
+		}
+		const capturePromise = this._startCapture(window);
+		this._capturePromise = capturePromise;
+		try {
+			await capturePromise;
+		} finally {
+			if (this._capturePromise === capturePromise) {
+				this._capturePromise = undefined;
+			}
+		}
+	}
+
+	private async _startCapture(window: Window & typeof globalThis): Promise<void> {
+		const captureGeneration = this._captureGeneration;
 		const deviceId = this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
 		const audioConstraints: MediaTrackConstraints = {
 			channelCount: 1,
@@ -371,37 +427,53 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 				throw err;
 			}
 		}
+		if (captureGeneration !== this._captureGeneration) {
+			micStream.getTracks().forEach(track => track.stop());
+			return;
+		}
 		this._micStream = micStream;
 
-		// Detect a hardware-muted microphone (e.g. a physical kill switch).
-		// `getUserMedia` succeeds in this case but the track produces silence,
-		// so without this check PTT would appear to work while capturing nothing.
-		this._micTrackListeners.clear();
-		this._micMutedNotified = false;
-		const audioTrack = micStream.getAudioTracks()[0];
-		if (audioTrack) {
-			if (audioTrack.muted) {
-				this._notifyMicrophoneMuted();
+		const cleanupFailedCapture = () => {
+			if (this._micStream === micStream) {
+				this._stopCaptureResources();
+			} else {
+				micStream.getTracks().forEach(track => track.stop());
 			}
-			this._micTrackListeners.add(addDisposableListener(audioTrack, 'mute', () => this._notifyMicrophoneMuted()));
-			this._micTrackListeners.add(addDisposableListener(audioTrack, 'unmute', () => { this._micMutedNotified = false; }));
+		};
+
+		let ctx: AudioContext;
+		let source: MediaStreamAudioSourceNode;
+		try {
+			// Detect a hardware-muted microphone (e.g. a physical kill switch).
+			// `getUserMedia` succeeds in this case but the track produces silence,
+			// so without this check PTT would appear to work while capturing nothing.
+			this._micTrackListeners.clear();
+			this._micMutedNotified = false;
+			const audioTrack = micStream.getAudioTracks()[0];
+			if (audioTrack) {
+				if (audioTrack.muted) {
+					this._notifyMicrophoneMuted();
+				}
+				this._micTrackListeners.add(addDisposableListener(audioTrack, 'mute', () => this._notifyMicrophoneMuted()));
+				this._micTrackListeners.add(addDisposableListener(audioTrack, 'unmute', () => { this._micMutedNotified = false; }));
+			}
+
+			if (!this._micCtx) {
+				this._micCtx = new window.AudioContext({ sampleRate: 16000 });
+			}
+			ctx = this._micCtx;
+			source = ctx.createMediaStreamSource(micStream);
+
+			const analyser = ctx.createAnalyser();
+			analyser.fftSize = 256;
+			source.connect(analyser);
+			this._analyserNode = analyser;
+		} catch (err) {
+			cleanupFailedCapture();
+			throw err;
 		}
 
-		if (!this._micCtx) {
-			this._micCtx = new window.AudioContext({ sampleRate: 16000 });
-		}
-		const ctx = this._micCtx;
-		const source = ctx.createMediaStreamSource(micStream);
-
-		const analyser = ctx.createAnalyser();
-		analyser.fftSize = 256;
-		source.connect(analyser);
-		this._analyserNode = analyser;
-
-		const processor = ctx.createScriptProcessor(2048, 1, 1);
-		this._scriptNode = processor;
-
-		processor.onaudioprocess = (e: AudioProcessingEvent) => {
+		const captureNodePromise = createPcmCaptureNode(window, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
 			const nowTs = Date.now();
 			const ptUpTs = this._diagPttUpTs;
 			// A callback is a "drain" callback while we're still in the
@@ -434,13 +506,11 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			if (!this._pttStreaming) {
 				if (isPostReleaseCallback) {
 					this._diagPostReleaseCallbacks++;
-					this._diagPostReleaseSamples += e.inputBuffer.length;
+					this._diagPostReleaseSamples += samples.length;
 				}
 				return;
 			}
 
-			const channelData = e.inputBuffer.getChannelData(0);
-			const samples = new Float32Array(channelData);
 			const b64 = encodeRawPcm16Base64(samples, this._window!);
 			this._diagChunksSent++;
 			this._diagSamplesSent += samples.length;
@@ -458,15 +528,35 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			if (isDrainCallback && this._pttDrainSamplesSent >= this._pttDrainTargetSamples) {
 				this._finishDrain();
 			}
-		};
+		});
 
-		source.connect(processor);
-		processor.connect(ctx.destination);
-		this._isCapturing = true;
+		let node: AudioWorkletNode;
+		try {
+			node = (await captureNodePromise).node;
+		} catch (err) {
+			cleanupFailedCapture();
+			throw err;
+		}
+
+		// stopCapture() may have run while the worklet module was loading.
+		if (this._micCtx !== ctx) {
+			try { node.disconnect(); } catch { /* ignore */ }
+			return;
+		}
+
+		try {
+			this._workletNode = node;
+			source.connect(node);
+			node.connect(ctx.destination);
+			this._isCapturing = true;
+		} catch (err) {
+			cleanupFailedCapture();
+			throw err;
+		}
 	}
 
 	private _notifyMicPermissionDenied(err: unknown): void {
-		if (err instanceof DOMException && err.name === 'NotAllowedError') {
+		if (isMicrophonePermissionDeniedError(err)) {
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('mic.permissionDenied', "Microphone access was denied. Grant microphone permission in your system settings to use Voice Mode."),
@@ -486,20 +576,13 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		});
 	}
 
-	stopCapture(): void {
-		// Cancel any in-flight drain; do NOT fire `_onPttEnd` here
-		// because callers (reconnect / disconnect / dispose) have
-		// already torn down or are about to tear down the backend
-		// connection.
-		if (this._pttDrainFallbackTimer) {
-			clearTimeout(this._pttDrainFallbackTimer);
-			this._pttDrainFallbackTimer = undefined;
-		}
-		this._pttDrainTargetSamples = 0;
-		this._pttDrainSamplesSent = 0;
-		if (this._scriptNode) {
-			this._scriptNode.disconnect();
-			this._scriptNode = undefined;
+	private _stopCaptureResources(): void {
+		this._captureGeneration++;
+		this._capturePromise = undefined;
+		if (this._workletNode) {
+			this._workletNode.port.onmessage = null;
+			try { this._workletNode.disconnect(); } catch { /* ignore */ }
+			this._workletNode = undefined;
 		}
 		this._analyserNode = undefined;
 		this._micCtx?.close();
@@ -511,6 +594,22 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._micTrackListeners.clear();
 		this._micMutedNotified = false;
 		this._isCapturing = false;
+	}
+
+	stopCapture(): void {
+		this._stopCaptureResources();
+		this._pttGeneration++;
+		this._pttAcquiring = false;
+		// Cancel any in-flight drain; do NOT fire `_onPttEnd` here
+		// because callers (reconnect / disconnect / dispose) have
+		// already torn down or are about to tear down the backend
+		// connection.
+		if (this._pttDrainFallbackTimer) {
+			clearTimeout(this._pttDrainFallbackTimer);
+			this._pttDrainFallbackTimer = undefined;
+		}
+		this._pttDrainTargetSamples = 0;
+		this._pttDrainSamplesSent = 0;
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;

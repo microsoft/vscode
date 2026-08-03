@@ -866,9 +866,9 @@ suite('appendLanguageContextSnippets', () => {
 
 suite('appendNeighborFileSnippets', () => {
 
-	function makeNeighbor(uri: string, snippet: string, startLine: number, score = 0.5): INeighborFileSnippet {
+	function makeNeighbor(uri: string, snippet: string, startLine: number, score = 0.5, isFromRelatedFile = false): INeighborFileSnippet {
 		const lineCount = snippet.split(/\r?\n/).length;
-		return { uri, relativePath: uri, snippet, lineRange: new LineRange0Based(startLine, startLine + lineCount), score };
+		return { uri, relativePath: uri, snippet, lineRange: new LineRange0Based(startLine, startLine + lineCount), score, isFromRelatedFile };
 	}
 
 	test('uses the original source line range when adding line numbers', () => {
@@ -910,6 +910,27 @@ suite('appendNeighborFileSnippets', () => {
 			code_snippet_file_path: /src/n1.ts
 			12|a
 			13|b
+			<|/recently_viewed_code_snippet|>",
+			]
+		`);
+	});
+
+	test('omits line numbers for related-file snippets even when line numbers are requested', () => {
+		const snippets: string[] = [];
+		appendNeighborFileSnippets(
+			[makeNeighbor('file:///src/related.ts', 'a\nb', 5, /*score*/ 0.5, /*isFromRelatedFile*/ true)],
+			snippets,
+			new Set<DocumentId>(),
+			/*tokenBudget*/ 100,
+			computeTokens,
+			IncludeLineNumbersOption.WithSpaceAfter,
+		);
+		expect(snippets).toMatchInlineSnapshot(`
+			[
+			  "<|recently_viewed_code_snippet|>
+			code_snippet_file_path: /src/related.ts
+			a
+			b
 			<|/recently_viewed_code_snippet|>",
 			]
 		`);
