@@ -2138,6 +2138,39 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema falls back to a default thinkingLevel when the model advertises no default', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'gpt-5.6-terra',
+				name: 'GPT-5.6 Terra',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+			}, {
+				id: 'claude-opus-5',
+				name: 'Claude Opus 5',
+				capabilities: { limits: { max_context_window_tokens: 200000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+			}, {
+				id: 'no-preferred',
+				name: 'No Preferred',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['minimal', 'xhigh'],
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length === 3);
+
+			assert.deepStrictEqual(models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.default]), [
+				['gpt-5.6-terra', 'medium'],
+				['claude-opus-5', 'high'],
+				['no-preferred', 'minimal'],
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK model configSchema exposes only Copilot-supported reasoning efforts', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });

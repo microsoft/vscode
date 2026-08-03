@@ -73,7 +73,7 @@ export class ModelPickerConfiguration {
 
 		const labelParts: string[] = [];
 		const ariaParts: string[] = [];
-		if (effortConfig) {
+		if (effortConfig && effortConfig.value !== undefined) {
 			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
 			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
 				? effortConfig.schema.enumItemLabels[enumIndex]
@@ -81,13 +81,18 @@ export class ModelPickerConfiguration {
 			labelParts.push(effortLabel);
 			ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
 		}
-		if (tokensConfig) {
+		if (tokensConfig && tokensConfig.value !== undefined) {
 			const enumIndex = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
 			const tokensLabel = enumIndex >= 0 && tokensConfig.schema.enumItemLabels?.[enumIndex]
 				? tokensConfig.schema.enumItemLabels[enumIndex]
 				: formatTokenCount(Number(tokensConfig.value));
 			labelParts.push(tokensLabel);
 			ariaParts.push(localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel));
+		}
+
+		if (!labelParts.length) {
+			button.style.display = 'none';
+			return;
 		}
 
 		dom.reset(button, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));

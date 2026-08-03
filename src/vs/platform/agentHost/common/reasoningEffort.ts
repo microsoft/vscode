@@ -56,3 +56,27 @@ export function getReasoningEffortDescription(level: string): string | undefined
 		default: return undefined;
 	}
 }
+
+/**
+ * Resolve the default reasoning effort for a model so the picker never renders an
+ * `undefined` selection. Uses the provider-declared default when it's supported,
+ * else mirrors `pickDefaultReasoningEffort` in the extension's
+ * `conversation/common/languageModelAccess.ts`: `'high'` for Claude/Kimi K3,
+ * `'medium'` otherwise, falling back to the first advertised level.
+ *
+ * Matches on `modelId` rather than family (as the extension does) because the
+ * Copilot SDK exposes no family field; ids are family-prefixed (`claude-opus-5`).
+ * CAPI models no longer declare a default at all — the CLI dropped
+ * `defaultReasoningEffort` from `models.list` in 1.0.77.
+ */
+export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[] | undefined, declaredDefault?: string, modelId?: string): string | undefined {
+	if (!supportedEfforts?.length) {
+		return undefined;
+	}
+	if (declaredDefault && supportedEfforts.includes(declaredDefault)) {
+		return declaredDefault;
+	}
+	const lowerId = modelId?.toLowerCase() ?? '';
+	const preferred = lowerId.startsWith('claude') || lowerId.includes('kimi-k3') ? 'high' : 'medium';
+	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
+}
