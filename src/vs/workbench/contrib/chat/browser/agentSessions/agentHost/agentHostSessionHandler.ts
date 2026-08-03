@@ -75,7 +75,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -1722,6 +1722,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _resolveChatUriFromState(sessionResource: URI, state: SessionState): string {
 		if (sessionResource.fragment) {
+			const explicitChatUri = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
+			if (explicitChatUri) {
+				const parsed = parseChatUri(explicitChatUri);
+				if (!parsed || parsed.chatId !== sessionResource.fragment) {
+					throw new Error(`Subagent chat URI does not match editor chat '${sessionResource.fragment}'`);
+				}
+				const owningSession = URI.parse(parsed.session);
+				const expectedSession = this._resolveSessionUri(sessionResource);
+				if (!isEqual(owningSession, expectedSession)) {
+					throw new Error(`Subagent chat belongs to ${owningSession.toString()}, expected ${expectedSession.toString()}`);
+				}
+				return explicitChatUri;
+			}
 			const match = state.chats.find(summary => parseChatUri(summary.resource)?.chatId === sessionResource.fragment);
 			if (!match) {
 				throw new Error(`Cannot resolve chat '${sessionResource.fragment}' from session state for ${sessionResource.toString()}`);
@@ -2866,9 +2879,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					invocation.setAuthenticationResolved();
 				}
 				this._ensureLeftStreaming(invocation, tc, opts);
-				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
+				const invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
+				const previousInvocationMessage = typeof invocation.invocationMessage === 'string' ? invocation.invocationMessage : invocation.invocationMessage.value;
+				const nextInvocationMessage = typeof invocationMessage === 'string' ? invocationMessage : invocationMessage?.value;
+				const invocationMessageChanged = nextInvocationMessage !== undefined && nextInvocationMessage !== previousInvocationMessage;
+				if (invocationMessage !== undefined) {
+					invocation.invocationMessage = invocationMessage;
+				}
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);
+				if (invocationMessageChanged) {
+					invocation.notifyToolSpecificDataChanged();
+				}
 			}
 
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
@@ -3716,7 +3738,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		let credits = 0;
 		let modelName: string | undefined;
-		for (const turn of childState.turns) {
+		const turns = childState.activeTurn && !childState.turns.some(turn => turn.id === childState.activeTurn?.id)
+			? [...childState.turns, childState.activeTurn]
+			: childState.turns;
+		for (const turn of turns) {
 			const turnCredits = usageInfoToChatUsage(turn.usage)?.copilotCredits;
 			if (typeof turnCredits === 'number') {
 				credits += turnCredits;
@@ -3734,13 +3759,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			part.toolSpecificData.modelName = modelName;
 		}
 		const timing = getSubagentTiming(childState);
+		part.toolSpecificData.isActive = !!childState.activeTurn;
 		part.toolSpecificData.startedAt = timing.startedAt;
 		part.toolSpecificData.duration = timing.duration;
 	}
 
 	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
 		const innerParts: IChatProgress[] = [];
-		for (const turn of childState.turns) {
+		const turns = childState.activeTurn && !childState.turns.some(turn => turn.id === childState.activeTurn?.id)
+			? [...childState.turns, childState.activeTurn]
+			: childState.turns;
+		for (const turn of turns) {
 			for (const rp of turn.responseParts) {
 				if (rp.kind === ResponsePartKind.ToolCall) {
 					const tc = rp.toolCall;
@@ -3753,6 +3782,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}
 						innerParts.push(serialized);
 						innerParts.push(...fileEditParts);
+					} else {
+						innerParts.push(toolCallStateToInvocation(tc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority));
 					}
 				}
 			}

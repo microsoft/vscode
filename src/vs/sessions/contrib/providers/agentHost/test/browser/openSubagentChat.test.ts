@@ -55,6 +55,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{ chatResource: 'ahp-chat://subagent/session/tool-call' },
 			action,
 			{},
+			false,
 		));
 		const container = document.createElement('div');
 
@@ -91,6 +92,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{ chatResource: 'ahp-chat://subagent/session/tool-call', activeToolLabel: 'Reading files' },
 			action,
 			{},
+			false,
 		));
 		const container = document.createElement('div');
 		viewItem.render(container);
@@ -116,6 +118,43 @@ suite('OpenSubagentChatActionViewItem', () => {
 				tooltip: 'Open Subagent',
 				ariaLabel: 'Open Subagent',
 			},
+		});
+	});
+
+	test('keeps matching model metadata in the hover while hiding it inline', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ISessionsService, {
+			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+		});
+		instantiationService.stub(ILanguageModelsService, {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: () => undefined,
+		});
+		const action = store.add(new Action('openSubagent', 'Open Subagent'));
+		const viewItem = store.add(instantiationService.createInstance(
+			TestOpenSubagentChatActionViewItem,
+			{
+				chatResource: 'ahp-chat://subagent/session/tool-call',
+				modelName: 'GPT-5.6 Sol',
+				parentModelName: 'GPT-5.6 Sol',
+			},
+			action,
+			{},
+			false,
+		));
+		const container = document.createElement('div');
+
+		viewItem.render(container);
+
+		assert.deepStrictEqual({
+			modelHidden: container.querySelector('.chat-subagent-pill-model')?.classList.contains('hidden'),
+			tooltip: viewItem.tooltip,
+			ariaLabel: container.getAttribute('aria-label'),
+		}, {
+			modelHidden: true,
+			tooltip: 'Open Subagent\nModel: GPT-5.6 Sol',
+			ariaLabel: 'Open Subagent. Subagent completed. Model GPT-5.6 Sol',
 		});
 	});
 });
