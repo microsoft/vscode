@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -553,6 +553,8 @@ suite('dom', () => {
 	});
 
 	suite('DisposableResizeObserver', () => {
+		teardown(() => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve())));
+
 		// Captures the callback handed to a `ResizeObserver` so tests can fire
 		// deliveries synthetically. Returned via dependency injection — no
 		// global mutation, no `any` casts.
@@ -642,7 +644,7 @@ suite('dom', () => {
 			observer.dispose();
 		});
 
-		test('exposes the configured name for attribution', () => {
+		test('exposes the configured name for loop-warning context', () => {
 			const fake = createFakeResizeObserverCtor();
 			const observer = new DisposableResizeObserver(
 				'my-observer',
@@ -654,42 +656,82 @@ suite('dom', () => {
 			observer.dispose();
 		});
 
-		test('getRecentDisposableResizeObserverAttributionForLoopError returns undefined for unrelated messages', () => {
-			assert.strictEqual(getRecentDisposableResizeObserverAttributionForLoopError(undefined), undefined);
-			assert.strictEqual(getRecentDisposableResizeObserverAttributionForLoopError('Uncaught TypeError: foo'), undefined);
+		test('getRecentDisposableResizeObserverContextForLoopError returns undefined for unrelated messages', () => {
+			assert.strictEqual(getRecentDisposableResizeObserverContextForLoopError(undefined), undefined);
+			assert.strictEqual(getRecentDisposableResizeObserverContextForLoopError('Uncaught TypeError: foo'), undefined);
 		});
 
-		test('getRecentDisposableResizeObserverAttributionForLoopError returns last invoked observer name for the loop warning', () => {
+		test('getRecentDisposableResizeObserverContextForLoopError returns sorted unique wrapped observers from the current frame', () => {
 			const fake = createFakeResizeObserverCtor();
 			const a = new DisposableResizeObserver('a', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
 			fake.fire([fakeEntry()]);
 			const fakeB = createFakeResizeObserverCtor();
 			const b = new DisposableResizeObserver('b', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fakeB.ctor });
 			fakeB.fire([fakeEntry()]);
-			const attribution = getRecentDisposableResizeObserverAttributionForLoopError(
+			fake.fire([fakeEntry()]);
+			const context = getRecentDisposableResizeObserverContextForLoopError(
 				'ResizeObserver loop completed with undelivered notifications.',
 			);
-			assert.ok(attribution, 'attribution string must be produced for the loop warning');
-			assert.ok(attribution!.startsWith('[DisposableResizeObserver(b)] '), 'attribution prefixes the message with the most recently invoked observer name');
+			assert.strictEqual(
+				context,
+				'[ResizeObserverLoopContext(a,b)] ResizeObserver loop completed with undelivered notifications.',
+			);
 			a.dispose();
 			b.dispose();
 		});
 
-		test('getRecentDisposableResizeObserverAttributionForLoopError clears after the current task so unrelated later errors are not mis-attributed', async () => {
+		test('getRecentDisposableResizeObserverContextForLoopError marks bounded participant overflow', () => {
+			const observers: DisposableResizeObserver[] = [];
+			for (let i = 8; i >= 0; i--) {
+				const fake = createFakeResizeObserverCtor();
+				observers.push(new DisposableResizeObserver(`observer-${i}`, () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor }));
+				fake.fire([fakeEntry()]);
+			}
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'),
+				'[ResizeObserverLoopContext(observer-0,observer-1,observer-2,observer-3,observer-4,observer-5,observer-6,observer-7,<overflow>)] ResizeObserver loop completed with undelivered notifications.',
+			);
+			observers.forEach(observer => observer.dispose());
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError is scoped to the observer window', async () => {
+			const iframe = document.createElement('iframe');
+			document.body.appendChild(iframe);
+			const auxiliaryWindow = iframe.contentWindow!;
+			ensureCodeWindow(auxiliaryWindow, 999);
+
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('auxiliary', () => { /* noop */ }, auxiliaryWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.', mainWindow),
+				undefined,
+			);
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.', auxiliaryWindow),
+				'[ResizeObserverLoopContext(auxiliary)] ResizeObserver loop completed with undelivered notifications.',
+			);
+
+			observer.dispose();
+			await new Promise<void>(resolve => auxiliaryWindow.requestAnimationFrame(() => resolve()));
+			iframe.remove();
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError clears at the next animation frame', async () => {
 			const fake = createFakeResizeObserverCtor();
 			const observer = new DisposableResizeObserver('scoped', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
 			fake.fire([fakeEntry()]);
-			// Slot is set synchronously and survives microtasks (so it is
+			// Context is recorded synchronously and survives microtasks (so it is
 			// still set when Chromium dispatches the loop warning at the end
 			// of the resize-observation phase).
 			await Promise.resolve();
-			assert.ok(getRecentDisposableResizeObserverAttributionForLoopError('ResizeObserver loop completed with undelivered notifications.'));
-			// A 0-ms timer (next macrotask) clears the slot.
-			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.ok(getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'));
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			assert.strictEqual(
-				getRecentDisposableResizeObserverAttributionForLoopError('ResizeObserver loop completed with undelivered notifications.'),
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'),
 				undefined,
-				'slot must be cleared by the next task so an unrelated later error does not inherit a stale observer name',
+				'context must be cleared at the next frame so a later rendering update does not inherit stale observers',
 			);
 			observer.dispose();
 		});

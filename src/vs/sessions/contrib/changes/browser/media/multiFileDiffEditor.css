@@ -29,7 +29,10 @@
 	pointer-events: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
+/* Include the multi-diff owner to outrank the equally specific core
+ * `.monaco-component.multiDiffEditor .multiDiffEntry .header .header-content`
+ * rule for the Agents header margin, padding, border, and background. */
+.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content {
 	border-radius: var(--vscode-cornerRadius-medium);
 	border: none;
 	background: var(--vscode-sideBarSectionHeader-background);
@@ -42,7 +45,9 @@
 	border-bottom: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
+/* The same owner keeps the Agents body font size from tying the core
+ * `.header-content .file-path .title` 14px rule. */
+.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content .file-path .title {
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 22px;
 }

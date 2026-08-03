@@ -66,11 +66,6 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(result, {});
 		});
 
-		test('preserves a present toolArguments value, drops undefined', () => {
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: { a: 1 } })), { toolArguments: { a: 1 } });
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: undefined })), {});
-		});
-
 		test('reads valid tool-search candidates and drops malformed corpora', () => {
 			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
 			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });

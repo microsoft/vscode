@@ -35,13 +35,22 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
+				this.onDidClickButton();
 			}
 		}));
 
 		this.updateLabel();
 		this.updateEnabled();
 		this.updateTooltip();
+	}
+
+	/**
+	 * Invoked when the pill is activated. Runs the action by default; subclasses can
+	 * override to present their own affordance (e.g. a picker when the pill stands
+	 * for several items).
+	 */
+	protected onDidClickButton(): void {
+		this.actionRunner.run(this._action, this._context);
 	}
 
 	override focus(): void {

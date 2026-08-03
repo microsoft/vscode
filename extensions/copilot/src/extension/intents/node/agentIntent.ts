@@ -251,11 +251,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 
-		// Only look up endpoints when a subagent that depends on model availability
-		// could actually be enabled, since the lookup is otherwise unnecessary.
-		const allEndpoints = searchSubagentEnabled || executionSubagentEnabled
+		// The search/explore subagents are the only ones whose availability depends
+		// on the model list, so skip the lookup entirely when they are off.
+		const allEndpoints = searchSubagentEnabled
 			? await endpointProvider.getAllChatEndpoints().catch(err => {
-				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling availability-gated subagents: ${err}`);
+				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling the search/explore subagents: ${err}`);
 				return [] as IChatEndpoint[];
 			})
 			: [];
@@ -264,11 +264,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.SearchSubagent] = searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
 		allowTools[ToolName.ExploreSubagent] = searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
-		// The execution subagent is powered by gemini-3-flash, so it can only be
-		// offered when that model is actually available to the user. If it isn't
-		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled && hasGemini3Flash;
+		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
@@ -1059,7 +1055,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		if (this.endpoint.apiType !== 'messages') {
-			addCacheBreakpoints(result.messages);
+			addCacheBreakpoints(result.messages, this.endpoint.apiType);
 		}
 
 		if (this.request.command === 'error') {

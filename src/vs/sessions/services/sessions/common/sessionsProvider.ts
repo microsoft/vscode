@@ -277,6 +277,13 @@ export interface ISessionsProvider {
 	setIsolationMode?(sessionId: string, mode: string): Promise<void>;
 
 	/**
+	 * Set whether the worktree branch tracks its upstream for a session.
+	 * @param sessionId The ID of the session.
+	 * @param enabled Whether branch tracking is enabled.
+	 */
+	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
+
+	/**
 	 * Set the git branch for a session.
 	 * @param sessionId The ID of the session.
 	 * @param branch The branch name to set.

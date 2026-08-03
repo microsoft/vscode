@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -989,6 +989,9 @@ export class McpListWidget extends Disposable {
 							return element.id;
 						}
 						return element.server.id;
+					},
+					getGroupId(element: IMcpListEntry) {
+						return element.type === 'group-header' ? NotSelectableGroupId : 0;
 					}
 				}
 			}

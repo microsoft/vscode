@@ -73,6 +73,19 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		);
 	});
 
+	test('local AH copilotcli session resolves from COPILOT_HOME', () => {
+		const result = resolveEventsUri(
+			URI.parse('agent-host-copilotcli:/abc'),
+			userHome,
+			() => undefined,
+			{ COPILOT_HOME: '/custom/copilot' },
+		);
+		assert.deepStrictEqual(
+			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
+			{ kind: 'ok', resource: 'file:///custom/copilot/session-state/abc/events.jsonl' },
+		);
+	});
+
 	test('copilot log roots resolve beside session-state', () => {
 		const conn = makeRemoteConn('localhost:4321', '/home/remote');
 		const remoteLogs = buildRemoteCopilotLogsUri(conn);
@@ -95,6 +108,13 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 				isLogsPath: true,
 			},
 		});
+	});
+
+	test('local copilot log root resolves from COPILOT_HOME', () => {
+		assert.strictEqual(
+			buildLocalCopilotLogsUri(userHome, { COPILOT_HOME: '/custom/copilot' }).toString(),
+			'file:///custom/copilot/logs',
+		);
 	});
 
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {

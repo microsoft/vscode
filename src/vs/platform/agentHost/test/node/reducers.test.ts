@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -331,6 +331,129 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		], [
 			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
 			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
+		]);
+	});
+
+	test('ChatToolCallDelta can update the invocation message without exposing partial input', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			toolName: 'edit',
+			displayName: 'Edit File',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallDelta,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			content: '',
+			invocationMessage: 'Replacing 2 lines with 3 lines',
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			invocationMessage: part.toolCall.status === ToolCallStatus.Streaming ? part.toolCall.invocationMessage : undefined,
+			partialInput: part.toolCall.status === ToolCallStatus.Streaming ? part.toolCall.partialInput : undefined,
+		}, {
+			invocationMessage: 'Replacing 2 lines with 3 lines',
+			partialInput: '',
+		});
+	});
+
+	test('ChatToolCallReady replaces provisional contributor and intention', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			toolName: 'mcp_tool',
+			displayName: 'MCP Tool',
+			intention: 'Query',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+			invocationMessage: 'Querying project metadata',
+			toolInput: '{"query":"metadata"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			status: part.toolCall.status,
+			contributor: part.toolCall.contributor,
+			intention: part.toolCall.intention,
+		}, {
+			status: ToolCallStatus.Running,
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+		});
+	});
+
+	test('ChatToolCallReady cannot change client execution ownership', () => {
+		const readyContributor = (startContributor: ToolCallContributor | undefined, contributor: ToolCallContributor) => {
+			let state = chatReducer(makeChat(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				toolName: 'tool',
+				displayName: 'Tool',
+				contributor: startContributor,
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				contributor,
+				invocationMessage: 'Running tool',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall.contributor;
+		};
+
+		assert.deepStrictEqual([
+			readyContributor(undefined, { kind: ToolCallContributorKind.Client, clientId: 'client-1' }),
+			readyContributor(
+				{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-2' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+		], [
+			undefined,
+			{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
 		]);
 	});
 

@@ -950,7 +950,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = this.renderSettingToolbar(toolbarContainer);
+		const toolbar = toDispose.add(this.renderSettingToolbar(toolbarContainer));
 
 		const template: ISettingItemTemplate = {
 			toDispose,

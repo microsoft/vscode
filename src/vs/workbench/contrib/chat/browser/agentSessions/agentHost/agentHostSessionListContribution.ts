@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -23,6 +24,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
+	private _initialized = false;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -37,10 +39,21 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
-		if (this._isSessionsWindow || !agentHostEnablementService.enabled) {
+		if (this._isSessionsWindow) {
 			return;
 		}
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this._initialize();
+			}
+		}));
+	}
 
+	private _initialize(): void {
+		if (this._initialized) {
+			return;
+		}
+		this._initialized = true;
 		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService));
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

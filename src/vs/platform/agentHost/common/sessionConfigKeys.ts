@@ -31,6 +31,8 @@ export const enum SessionConfigKey {
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
 	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
+	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
+	WorktreeBranchTrack = 'worktreeBranchTrack',
 }
 
 /**

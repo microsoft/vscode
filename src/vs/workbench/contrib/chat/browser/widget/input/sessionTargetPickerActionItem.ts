@@ -172,7 +172,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled);
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -270,7 +270,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get()) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {

@@ -666,9 +666,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (createOptions?.permissionLevel) {
 				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 			}
-			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch)) {
+			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
+				}
+				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
+					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
 				}
 				if (createOptions.branch && provider.setBranch) {
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);

@@ -215,6 +215,8 @@ suite('RemoteAgentHostService', () => {
 			parseRemoteAgentHostInput('ws://127.0.0.1:8089'),
 			parseRemoteAgentHostInput('ws://127.0.0.1:40147?tkn=c9d12867-da33-425e-8d39-0d071e851597'),
 			parseRemoteAgentHostInput('wss://secure.example.com:443'),
+			parseRemoteAgentHostInput('local'),
+			parseRemoteAgentHostInput('ws://local'),
 		], [
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
@@ -222,6 +224,8 @@ suite('RemoteAgentHostService', () => {
 			{ parsed: { address: '127.0.0.1:8089', connectionToken: undefined, suggestedName: '127.0.0.1:8089' } },
 			{ parsed: { address: '127.0.0.1:40147', connectionToken: 'c9d12867-da33-425e-8d39-0d071e851597', suggestedName: '127.0.0.1:40147' } },
 			{ parsed: { address: 'wss://secure.example.com', connectionToken: undefined, suggestedName: 'secure.example.com' } },
+			{ parsed: { address: 'local', connectionToken: undefined, suggestedName: 'local' } },
+			{ parsed: { address: 'local', connectionToken: undefined, suggestedName: 'local' } },
 		]);
 	});
 

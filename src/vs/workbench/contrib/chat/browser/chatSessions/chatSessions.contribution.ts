@@ -464,6 +464,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		controller.setChatSessionItemArchived(sessionResource, archived);
 	}
 
+	canSetChatSessionItemRead(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemRead === 'function';
+	}
+
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemRead) {
+			throw new Error(`Session ${sessionResource.toString()} does not own read state`);
+		}
+		controller.setChatSessionItemRead(sessionResource, isRead);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];

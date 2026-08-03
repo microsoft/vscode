@@ -5,6 +5,7 @@
 
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -104,11 +105,11 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
 
-		this._updateEnabled();
+		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}
 
-	private _updateEnabled(): void {
-		if (this._agentHostEnablementService.enabled) {
+	private _updateEnabled(enabled: boolean): void {
+		if (enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				// The forwarder registers its own agent-host-start listener to re-push

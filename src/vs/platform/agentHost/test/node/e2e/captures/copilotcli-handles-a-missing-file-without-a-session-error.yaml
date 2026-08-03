@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools rather than running a shell command.
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
     response:
       content:
         - type: tool_use
@@ -20,7 +20,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools rather than running a shell command.
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: thinking

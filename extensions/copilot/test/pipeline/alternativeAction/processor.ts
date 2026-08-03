@@ -41,6 +41,33 @@ export namespace Processor {
 			return undefined;
 		}
 
+		return resolveSplitRecording(processedRecording);
+	}
+
+	/**
+	 * Split a recording after the entry at `pivotEntryIndex`.
+	 *
+	 * Unlike {@link splitRecording}, this does not rely on timestamps being
+	 * monotonic or unique. Raw workspace recordings use this path because their
+	 * stateful log order is authoritative while framing timestamps can regress.
+	 */
+	export function splitRecordingAtIndex(entries: LogEntry[], pivotEntryIndex: number): ISplitRecording | undefined {
+		if (pivotEntryIndex < 0 || pivotEntryIndex >= entries.length) {
+			return undefined;
+		}
+
+		return resolveSplitRecording({
+			wholeRecording: entries,
+			recordingPriorToRequest: entries.slice(0, pivotEntryIndex + 1),
+			recordingAfterRequest: entries.slice(pivotEntryIndex + 1),
+		});
+	}
+
+	function resolveSplitRecording(processedRecording: {
+		wholeRecording: LogEntry[];
+		recordingPriorToRequest: LogEntry[];
+		recordingAfterRequest: LogEntry[];
+	}): ISplitRecording | undefined {
 		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
@@ -78,34 +105,29 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
-
-		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
-		if (currentFileId === undefined) {
-			log('Could not determine current file ID from recording prior to request');
+		const split = resolveSplitRecording(processedRecording);
+		if (!split) {
+			log('Could not resolve recording split');
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(wholeRecording);
+		return createScoringFromSplit(split, proposedEdits, isAccepted);
+	}
 
-		const currentFilePath = idToFileMap.get(currentFileId);
-
-		if (!currentFilePath) {
-			log('Could not find current file path from ID mapping');
-			return undefined;
-		}
-
-		const currentFile = { id: currentFileId, relativePath: currentFilePath };
-
-		const nextUserEdit = getNextUserEdit(currentFile, recordingPriorToRequest, recordingAfterRequest);
+	export function createScoringFromSplit(
+		split: ISplitRecording,
+		proposedEdits: IStringReplacement[],
+		isAccepted: boolean,
+	): Scoring.t {
+		const nextUserEdit = getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest);
 
 		const reconstructedRecording: Recording.t = {
-			log: recordingPriorToRequest,
+			log: split.recordingPriorToRequest,
 			nextUserEdit,
 		};
 
 		const nesEdits = proposedEdits.map((se): SuggestedEdit.t => ({
-			documentUri: currentFile.relativePath,
+			documentUri: split.currentFile.relativePath,
 			edit: [se],
 			score: isAccepted ? 1 : 0,
 			scoreCategory: 'nextEdit',

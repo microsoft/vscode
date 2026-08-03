@@ -10,7 +10,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
-import { buildSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from './copilotTestEvents.js';
 
 // =============================================================================
@@ -57,7 +57,6 @@ export interface IHistoryToolStartRecord extends IHistoryRecordBase {
 	readonly toolInput?: string;
 	readonly toolKind?: 'terminal' | 'subagent' | 'search';
 	readonly language?: string;
-	readonly toolArguments?: string;
 	readonly subagentAgentName?: string;
 	readonly subagentDescription?: string;
 	readonly mcpServerName?: string;
@@ -487,7 +486,6 @@ export async function mapSessionEventsToHistoryRecords(
 				toolInput: getToolInputString(d.toolName, info?.parameters, toolArgs),
 				toolKind,
 				language: toolKind === 'terminal' ? getShellLanguage(d.toolName) : undefined,
-				toolArguments: toolArgs,
 				subagentAgentName: subagentMeta?.agentName,
 				subagentDescription: subagentMeta?.description,
 				mcpServerName: d.mcpServerName,

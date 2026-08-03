@@ -214,7 +214,13 @@ export class ChatInputNotificationWidget extends Disposable {
 
 			if (notification.description) {
 				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
-				descriptionElement.textContent = notification.description;
+				if (isMarkdownString(notification.description)) {
+					const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.description));
+					rendered.element.classList.add('chat-input-notification-description-markdown');
+					descriptionElement.appendChild(rendered.element);
+				} else {
+					descriptionElement.textContent = notification.description;
+				}
 			}
 
 			if (actions.length > 0) {

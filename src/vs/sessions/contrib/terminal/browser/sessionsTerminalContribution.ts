@@ -20,7 +20,7 @@ import { TerminalCapability } from '../../../../platform/terminal/common/capabil
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -765,6 +765,8 @@ class OpenSessionInTerminalAction extends Action2 {
 			id: 'agentSession.openInTerminal',
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
+			// The panel is hidden while a custom view replaces the sessions grid.
+			precondition: CustomViewVisibleContext.negate(),
 			toggled: {
 				condition: SessionsTerminalViewVisibleContext,
 				title: localize('hideTerminal', "Hide Terminal"),

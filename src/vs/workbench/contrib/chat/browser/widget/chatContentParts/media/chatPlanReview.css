@@ -64,10 +64,6 @@
 	background-color: var(--vscode-editor-background);
 }
 
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded > .chat-confirmation-widget2.chat-plan-review {
-	max-height: min(720px, calc(100vh - 240px));
-}
-
 /* ---------- Title bar ---------- */
 .interactive-session .chat-plan-review-container .chat-plan-review-title {
 	display: flex;
@@ -208,16 +204,13 @@
 	padding-inline-start: 20px;
 }
 
-.interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
-	min-height: min(280px, 35vh);
+.interactive-session .chat-plan-review-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
-	min-height: min(420px, 45vh);
-}
-
-.interactive-session .chat-plan-review-container .chat-plan-review-body-editor > .monaco-editor {
-	height: 100%;
+.interactive-session .chat-plan-review-container .rendered-markdown a:hover,
+.interactive-session .chat-plan-review-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* ---------- Feedback section (fixed; outside scroll) ---------- */

@@ -12,6 +12,7 @@ import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from 
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
+import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
@@ -53,6 +54,11 @@ export interface IGitHubService {
 	createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel>;
 
 	/**
+	 * Get a reference to a reactive model for a GitHub issue.
+	 */
+	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel>;
+
+	/**
 	 * List files changed between two refs using the GitHub compare API.
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
@@ -84,6 +90,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
+	private readonly _issueReferences: GitHubIssueModelReferenceCollection;
 	private readonly _apiClient: GitHubApiClient;
 
 	/**
@@ -111,6 +118,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
 		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
+		this._issueReferences = instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient);
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
@@ -195,6 +203,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel> {
 		return this._pullRequestCIReferences.acquire(`${getPullRequestKey(owner, repo, prNumber)}/${headSha}`, owner, repo, prNumber, headSha);
+	}
+
+	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
+		return this._issueReferences.acquire(`${owner}/${repo}/issues/${issueNumber}`, owner, repo, issueNumber);
 	}
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {

@@ -71,6 +71,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
+			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
 			authenticate: request => provider.authenticate(request),
 			setCustomizationEnabled: (rawId, enabled) => {

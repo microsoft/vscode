@@ -251,7 +251,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return undefined;
 		}
@@ -291,7 +291,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return undefined;
 		}
@@ -322,7 +322,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPreConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return actions;
 		}
@@ -441,7 +441,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPostConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return actions;
 		}

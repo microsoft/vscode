@@ -482,6 +482,10 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
 	});
 
+	test('Kimi K3 prefers high when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
+	});
+
 	test('non-claude family prefers medium when available', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'gpt-5'), 'medium');
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'some-other-family'), 'medium');

@@ -8,6 +8,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -161,7 +162,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
-		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
@@ -171,7 +172,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (toPromptsType(customization.contents) !== type) {
 				continue;
 			}
-			const source = workingDirectory && customization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
@@ -284,10 +285,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
-		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && isParentOrEqual(workingDirectory, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
@@ -319,10 +320,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source: origin.source,
 			extensionId: origin.extensionId,
 			pluginUri: origin.pluginUri,
-			// Drop the synthetic bundle's `remote-client` group so the recovered
-			// source drives grouping (extension/plugin/built-in). Otherwise the
-			// item would keep rendering under the "Local" group.
-			groupKey: undefined,
+			groupKey: origin.source === AICustomizationSources.user ? child.groupKey : undefined,
 		};
 	}
 
@@ -342,7 +340,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 }
 function isParentOrEqual(folderURI: string, childURI: string): boolean {
-	return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	try {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(childURI), URI.parse(folderURI));
+	} catch {
+		return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	}
+}
+
+/** True when `childURI` is contained by (or equal to) any of the workspace roots. */
+function isUnderAnyRoot(roots: readonly string[], childURI: string): boolean {
+	return roots.some(root => isParentOrEqual(root, childURI));
 }
 
 function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {

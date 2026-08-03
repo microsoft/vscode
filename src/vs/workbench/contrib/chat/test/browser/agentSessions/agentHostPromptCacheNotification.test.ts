@@ -41,17 +41,23 @@ suite('AgentHostPromptCacheNotification', () => {
 
 		assert.deepStrictEqual([...notificationService.notifications.values()].map(notification => ({
 			message: notification.message,
+			description: typeof notification.description === 'string' ? notification.description : notification.description?.value,
 			actions: notification.actions.map(action => action.label),
+			muteCommandId: notification.mute?.commandId,
+			autoDismissOnMessage: notification.autoDismissOnMessage,
 			sessionResources: notification.sessionResources?.map(resource => resource.toString()),
 		})), [{
 			message: 'This chat\'s prompt cache is stale',
-			actions: ['Don\'t Show Again', 'Learn More', 'Start New Chat'],
+			description: 'The next prompt will incur increased cost. Consider starting a new chat. [Learn more](https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters)',
+			actions: ['Start New Chat'],
+			muteCommandId: 'workbench.action.chat.disablePromptCacheExpirationNotification',
+			autoDismissOnMessage: true,
 			sessionResources: [sessionResource.toString()],
 		}]);
 		clock.restore();
 	});
 
-	test('does not show before ten minutes after expiration', async () => {
+	test('does not show before expiration', async () => {
 		const clock = sinon.useFakeTimers({ now: new Date('2026-07-24T12:00:00.000Z') });
 		const notificationService = new TestNotificationService();
 		const contribution = store.add(new AgentHostPromptCacheNotification(
@@ -66,12 +72,12 @@ suite('AgentHostPromptCacheNotification', () => {
 		await Promise.resolve();
 
 		assert.strictEqual(notificationService.notifications.size, 0);
-		subscription.setValue(createState('2026-07-24T11:49:59.999Z'));
+		subscription.setValue(createState('2026-07-24T11:59:59.999Z'));
 		assert.strictEqual(notificationService.notifications.size, 1);
 		clock.restore();
 	});
 
-	test('shows immediately after the ten-minute boundary', async () => {
+	test('shows at the expiration boundary', async () => {
 		const clock = sinon.useFakeTimers({ now: new Date('2026-07-24T12:00:00.000Z') });
 		const notificationService = new TestNotificationService();
 		const contribution = store.add(new AgentHostPromptCacheNotification(
@@ -85,7 +91,7 @@ suite('AgentHostPromptCacheNotification', () => {
 		store.add(contribution.trackSession(sessionResource, subscription));
 		await Promise.resolve();
 
-		await clock.tickAsync(11 * 60 * 1000);
+		await clock.tickAsync(60 * 1000 - 1);
 		assert.strictEqual(notificationService.notifications.size, 0);
 		await clock.tickAsync(1);
 		assert.strictEqual(notificationService.notifications.size, 1);

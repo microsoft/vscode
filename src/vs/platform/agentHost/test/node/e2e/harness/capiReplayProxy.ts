@@ -41,6 +41,9 @@ import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
 import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
+import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
+import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
 
 // `http`/`https`/`js-yaml` are lazily required (slow to load and/or not in this
 // layer's import allowlist); `import type` above still gives us http/https types.
@@ -62,54 +65,12 @@ const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-tes
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
- * The Copilot CLI names its shell tools after the shell it runs — `bash` and
- * friends on POSIX, `powershell` and friends on Windows — so a fixture recorded
- * on one platform instructs the agent to call a tool that does not exist on the
- * other, and the turn fails with "Tool does not exist".
- *
- * Store the platform-neutral placeholder in the fixture and expand it back to
- * the running platform's name on replay, so a single capture drives every
- * platform. Only the names that actually vary are mapped: Claude's `Bash` and
- * Codex's `shell` are fixed strings their SDKs use everywhere.
- */
-const SHELL_TOOL_PREFIXES = ['', 'read_', 'write_', 'stop_', 'list_'] as const;
-const SHELL_TOOL_PLACEHOLDERS = new Map<string, string>();
-for (const prefix of SHELL_TOOL_PREFIXES) {
-	const placeholder = `\${${prefix}shell}`;
-	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}bash`, placeholder);
-	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}powershell`, placeholder);
-}
-SHELL_TOOL_PLACEHOLDERS.set('bash_shutdown', '${shell_shutdown}');
-SHELL_TOOL_PLACEHOLDERS.set('powershell_shutdown', '${shell_shutdown}');
-
-/** Rewrites a platform-specific shell tool name to its stable placeholder. */
-export function normalizeShellToolNameForCapture(toolName: string): string {
-	return SHELL_TOOL_PLACEHOLDERS.get(toolName) ?? toolName;
-}
-
-/**
- * Expands a shell tool placeholder to the name the given platform uses.
- *
- * `platform` is injectable so both branches are testable from either host;
- * it defaults to the running platform.
- */
-export function expandShellToolName(toolName: string, platform: NodeJS.Platform = process.platform): string {
-	const match = /^\$\{(?<prefix>read_|write_|stop_|list_)?shell(?<shutdown>_shutdown)?\}$/.exec(toolName);
-	if (!match) {
-		return toolName;
-	}
-	const shell = platform === 'win32' ? 'powershell' : 'bash';
-	return match.groups?.shutdown ? `${shell}_shutdown` : `${match.groups?.prefix ?? ''}${shell}`;
-}
-
-
-/**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
  * `homeDir` normalization misses it — scrub it explicitly to keep local identity
  * out of fixtures.
  */
-const USER_PLACEHOLDER = '${user}';
+const USER_PLACEHOLDER = USER_NAME_PLACEHOLDER;
 /**
  * Placeholder for the upstream CAPI origin in recorded response bodies. Token /
  * user-discovery responses echo the CAPI host (`endpoints.api`); rewriting that
@@ -249,12 +210,20 @@ export interface ICapiReplayProxyOptions {
 	 * stated there. See `posixCommandLint.ts`.
 	 */
 	readonly allowPosixCommands?: boolean;
+
+	/**
+	 * Skip comparing the live model request against the recorded one.
+	 *
+	 * Only for a capture that cannot be refreshed; see
+	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
+	 */
+	readonly allowStaleRecordedRequest?: boolean;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
 	| { readonly kind: 'raw'; readonly response: IRecordedResponse }
-	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage };
+	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
 interface IReplayBucket {
@@ -277,6 +246,8 @@ export class CapiReplayProxy {
 	private readonly _recorded: IRecordedExchange[] = [];
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
+	private readonly _requestMismatches: string[] = [];
+	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 
 	/**
@@ -287,7 +258,15 @@ export class CapiReplayProxy {
 	 */
 	private _fixturePath: string;
 
+	/**
+	 * Whether the current fixture's recorded request may disagree with the live
+	 * one. Per-test like {@link _fixturePath}, since a shared replay proxy
+	 * serves every test in the suite.
+	 */
+	private _allowStaleRecordedRequest: boolean;
+
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
+		this._allowStaleRecordedRequest = _options.allowStaleRecordedRequest ?? false;
 		this._fixturePath = _options.fixturePath;
 		this._workingDirectory = _options.workDir;
 		const fixtureExists = existsSync(this._fixturePath);
@@ -347,7 +326,7 @@ export class CapiReplayProxy {
 		await this._closeSocket();
 
 		if (this._isReplaying) {
-			this.assertNoCacheMisses();
+			this.assertNoReplayMismatches();
 			return;
 		}
 
@@ -364,7 +343,7 @@ export class CapiReplayProxy {
 	 * valid). Clears the previous fixture's replay buckets and cache-miss log.
 	 * Replay-only: recording keeps one fixture per proxy.
 	 */
-	resetForReplay(fixturePath: string): void {
+	resetForReplay(fixturePath: string, allowStaleRecordedRequest = false): void {
 		if (!this._isReplaying) {
 			throw new Error('[capi-replay] resetForReplay is only valid in replay mode');
 		}
@@ -372,10 +351,13 @@ export class CapiReplayProxy {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
 		}
 		this._fixturePath = fixturePath;
+		this._allowStaleRecordedRequest = allowStaleRecordedRequest;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
 		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
+		this._requestMismatches.length = 0;
+		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
 
@@ -388,35 +370,49 @@ export class CapiReplayProxy {
 	}
 
 	/**
-	 * Surface strict replay cache-misses without stopping the proxy. Lets a
-	 * shared replay server verify each test's traffic in `teardown` while keeping
-	 * the server (and the agent host's cached SDK client) alive for the next test.
+	 * Surface strict replay failures — unrecorded requests and requests that do
+	 * not match the recorded one — without stopping the proxy. Lets a shared
+	 * replay server verify each test's traffic in `teardown` while keeping the
+	 * server (and the agent host's cached SDK client) alive for the next test.
 	 */
-	assertNoCacheMisses(): void {
-		const error = this._createCacheMissError();
+	assertNoReplayMismatches(): void {
+		const error = this._createReplayError();
 		if (error) {
 			throw error;
 		}
 	}
 
 	/** Returns and consumes the current replay failure so it can be surfaced at the original test failure. */
-	takeCacheMissError(): Error | undefined {
-		const error = this._createCacheMissError();
+	takeReplayError(): Error | undefined {
+		const error = this._createReplayError();
 		this._cacheMisses.length = 0;
+		this._requestMismatches.length = 0;
 		return error;
 	}
 
-	private _createCacheMissError(): Error | undefined {
-		if (!this._isReplaying || !this._strict || this._cacheMisses.length === 0) {
+	private _createReplayError(): Error | undefined {
+		if (!this._isReplaying || !this._strict) {
 			return undefined;
 		}
-		return new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		const sections: string[] = [];
+		if (this._cacheMisses.length > 0) {
+			sections.push(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		}
+		if (this._requestMismatches.length > 0) {
+			sections.push(`[capi-replay] ${this._requestMismatches.length} model request mismatch(es):\n${this._requestMismatches.join('\n')}`);
+		}
+		const unconsumed = Array.from(this._replayBuckets.entries())
+			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
+		if (unconsumed.length > 0) {
+			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
+		}
+		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;
 	}
 
 	/**
-	 * Close the HTTP server socket without running the strict cache-miss check or
+	 * Close the HTTP server socket without running the strict replay checks or
 	 * writing a fixture. Used to tear down a shared replay proxy after per-test
-	 * verification has already happened via {@link assertNoCacheMisses}.
+	 * verification has already happened via {@link assertNoReplayMismatches}.
 	 */
 	async close(): Promise<void> {
 		if (this._stopped) {
@@ -493,6 +489,7 @@ export class CapiReplayProxy {
 		}
 
 		if (item.kind === 'turn') {
+			this._assertRecordedRequest(item.dialect, item.request, body);
 			// Regenerate the dialect's SSE stream from the captured reply.
 			const message = this._expandReplayMessage(item.message);
 			const sseBody = item.dialect === 'responses' ? responsesMessageToSse(message) : anthropicMessageToSse(message);
@@ -507,6 +504,30 @@ export class CapiReplayProxy {
 		delete headers['transfer-encoding'];
 		res.writeHead(item.response.status, headers);
 		res.end(this._expandReplayPlaceholders(item.response.body));
+	}
+
+	/**
+	 * Compare the live request against the one recorded for this turn.
+	 *
+	 * Both sides go through the same summarizer and the same projection, so the
+	 * committed `request:` block becomes the expectation without its stored
+	 * shape having to change.
+	 */
+	private _assertRecordedRequest(dialect: TurnDialect, recorded: IReadableAnthropicRequest, body: string): void {
+		const turnIndex = this._modelTurnCount++;
+		if (this._allowStaleRecordedRequest) {
+			return;
+		}
+		const summarize = dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
+		const observed = summarize(this._normalize(body));
+		if (!observed) {
+			return;
+		}
+		const expected = projectModelRequest(recorded);
+		const actual = projectModelRequest(observed);
+		if (!modelRequestsMatch(expected, actual)) {
+			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
+		}
 	}
 
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
@@ -624,7 +645,7 @@ export class CapiReplayProxy {
 					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._fixturePath}`);
 				}
 				key = `${turnEndpoint.method} ${turnEndpoint.path}`;
-				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason } };
+				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason }, request: exchange.request };
 			} else {
 				key = `${exchange.method} ${exchange.path}`;
 				item = { kind: 'raw', response: exchange.response };
@@ -842,10 +863,11 @@ export class CapiReplayProxy {
 			}
 		}
 		if (this._options.homeDir) {
+			result = replaceAll(result, escapeJsonString(this._options.homeDir), HOMEDIR_PLACEHOLDER);
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
 		}
 		if (this._options.userName) {
-			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
+			result = scrubUserName(result, this._options.userName);
 		}
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);

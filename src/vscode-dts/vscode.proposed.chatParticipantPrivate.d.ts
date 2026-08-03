@@ -127,12 +127,52 @@ declare module 'vscode' {
 		readonly hasHooksEnabled: boolean;
 
 		/**
+		 * Whether this request was submitted through Agents Voice Mode.
+		 */
+		readonly isVoiceModeInput?: boolean;
+
+		/**
 		 * When true, this request was initiated by the system (e.g. a terminal
 		 * command completion notification) rather than by the user typing a
 		 * message. Extensions can use this to render the prompt differently
 		 * and skip billing.
 		 */
 		readonly isSystemInitiated?: boolean;
+	}
+
+	/**
+	 * A transient progress update intended for Voice Mode narration.
+	 */
+	export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+	export class ChatResponseVoiceProgressPart {
+		/**
+		 * A stable identifier used to de-duplicate the progress update.
+		 */
+		readonly id: ChatResponseVoiceProgressStage;
+		/**
+		 * The concise text to narrate.
+		 */
+		readonly value: string;
+		/**
+		 * Creates a Voice Mode progress update.
+		 * @param id A stable identifier used to de-duplicate the update.
+		 * @param value The concise text to narrate.
+		 */
+		constructor(id: ChatResponseVoiceProgressStage, value: string);
+	}
+
+	export interface ExtendedChatResponseParts {
+		ChatResponseVoiceProgressPart: ChatResponseVoiceProgressPart;
+	}
+
+	export interface ChatResponseStream {
+		/**
+		 * Reports transient progress for Voice Mode narration.
+		 * @param id A stable identifier used to de-duplicate the update.
+		 * @param value The concise text to narrate.
+		 */
+		voiceProgress(id: ChatResponseVoiceProgressStage, value: string): void;
 	}
 
 	export enum ChatRequestEditedFileEventKind {

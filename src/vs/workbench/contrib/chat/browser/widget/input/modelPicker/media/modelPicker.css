@@ -126,6 +126,12 @@
 	flex-shrink: 0;
 }
 
+.action-widget .monaco-list-row.chat-model-picker-config-option .title,
+.action-widget .monaco-list-row.chat-model-picker-config-option .description {
+	flex: none;
+	overflow: visible;
+}
+
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;

@@ -9,18 +9,20 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
@@ -72,7 +74,7 @@ suite('resolveByokSessionConfig', () => {
 	 * A bridge connection that pushes `models` as its snapshot synchronously when
 	 * the registry subscribes; `chat` is scripted (unused by most tests).
 	 */
-	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ content: '' })): IByokLmBridgeConnection {
+	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ output: [] })): IByokLmBridgeConnection {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
@@ -120,7 +122,7 @@ suite('resolveByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		// A window connected without a BYOK handler never pushes, so it stays
 		// non-serving and contributes no models.
-		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: Event.None });
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -145,8 +147,8 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(proxy.starts, 1);
 		assert.deepStrictEqual(config, {
 			providers: [
-				{ name: 'acme', type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'NONCE.sess-1' },
-				{ name: 'globex', type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
+				{ name: 'acme', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'NONCE.sess-1' },
+				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
 				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000 },
@@ -161,7 +163,10 @@ suite('resolveByokSessionConfig', () => {
 		let captured: IByokLmChatRequest | undefined;
 		const registration = registry.register('client-1', connectionOf(
 			[{ vendor: 'acme', id: 'claude' }],
-			async (request) => { captured = request; return { content: 'hello from byok' }; },
+			async (request) => {
+				captured = request;
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'hello from byok' }] }] };
+			},
 		));
 		const service = new ByokLmProxyService(log, registry);
 		let handle: IByokLmProxyHandle | undefined;
@@ -170,10 +175,10 @@ suite('resolveByokSessionConfig', () => {
 		const provider = config.providers![0];
 		const model = config.models![0];
 		try {
-			const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+			const response = await fetch(`${provider.baseUrl}/responses`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${provider.bearerToken}` },
-				body: JSON.stringify({ model: model.id, messages: [{ role: 'user', content: 'hi' }] }),
+				body: JSON.stringify({ model: model.id, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }] }),
 			});
 			assert.strictEqual(response.status, 200);
 			const text = await response.text();
@@ -191,7 +196,7 @@ suite('resolveByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registration = registry.register('client-1', {
-			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+			chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 			onDidChangeModels: emitter.event,
 		});
 		const proxy = countingProxy();
@@ -229,7 +234,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: emitter.event };
+		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
@@ -311,12 +316,32 @@ suite('CopilotSessionLauncher client identity', () => {
 			},
 		};
 		const launcher = createTestLauncher();
+		const pluginDir = URI.file('/tmp/synced-customizations');
+		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
+		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
+		const plugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			agents: [],
+			skills: [{
+				uri: skillUri,
+				name: 'user-skill',
+				customization: { type: CustomizationType.Skill, id: skillUri.toString(), uri: skillUri.toString(), name: 'user-skill' },
+			}],
+			instructions: [{
+				uri: instructionUri,
+				name: 'user',
+				customization: { type: CustomizationType.Rule, id: instructionUri.toString(), uri: instructionUri.toString(), name: 'user', alwaysApply: true },
+			}],
+			pluginDir,
+		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: undefined,
@@ -339,10 +364,22 @@ suite('CopilotSessionLauncher client identity', () => {
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
+				createPluginDirectories: createConfigs[0].pluginDirectories,
+				createSkillDirectories: createConfigs[0].skillDirectories,
+				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				resumeClientName: resumeConfigs[0].clientName,
+				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
+				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
+				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 			}, {
 				createClientName: 'vscode-agent-host',
+				createPluginDirectories: [pluginDir.fsPath],
+				createSkillDirectories: [],
+				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeClientName: 'vscode-agent-host',
+				resumePluginDirectories: [pluginDir.fsPath],
+				resumeSkillDirectories: [],
+				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 			});
 		} finally {
 			sessions.dispose();

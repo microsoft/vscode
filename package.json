@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.132.0",
-  "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
+  "distro": "b2ef7d83248f73d41b551318c4a079e0e3546c1c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -10,7 +10,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "echo Please run any of the test scripts from the scripts folder.",
+    "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
@@ -63,7 +63,7 @@
     "monaco-compile-check": "tsc --project src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node --max-old-space-size=8192 node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node build/checker/layersChecker.ts && tsc --project build/checker/tsconfig.browser.json && tsc --project build/checker/tsconfig.worker.json && tsc --project build/checker/tsconfig.node.json && tsc --project build/checker/tsconfig.electron-browser.json && tsc --project build/checker/tsconfig.electron-main.json && tsc --project build/checker/tsconfig.electron-utility.json",
+    "valid-layers-check": "node build/checker/layersChecker.ts && node build/checker/layersTypeCheck.ts",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
@@ -97,8 +97,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "^1.0.73",
-    "@github/copilot-sdk": "^1.0.8",
+    "@github/copilot": "^1.0.77",
+    "@github/copilot-sdk": "^1.0.9-preview.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -109,7 +109,7 @@
     "@microsoft/mxc-sdk": "0.6.1",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-24",
+    "@vscode/codicons": "^0.0.46-28",
     "@vscode/copilot-api": "^0.4.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -167,7 +167,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.198",
+    "@anthropic-ai/claude-agent-sdk": "0.3.220",
     "@openai/codex": "0.142.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.61.1",

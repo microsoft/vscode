@@ -206,6 +206,16 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		}]);
 	});
 
+	test('omits array tool input from structured session event arguments', () => {
+		const events = buildSessionEventsFromTurns([
+			userTurn(generateUuid(), 'run it', [toolCallPart(generateUuid(), 'tool', '["one", "two"]', '')]),
+		], { sessionId });
+		const started = events.find(e => e.type === 'tool.execution_start');
+
+		assert.ok(started && started.type === 'tool.execution_start');
+		assert.strictEqual(started.data.arguments, undefined);
+	});
+
 	test('round-trips a failed tool call preserving the error message', async () => {
 		const id = generateUuid();
 		const toolCallId = generateUuid();

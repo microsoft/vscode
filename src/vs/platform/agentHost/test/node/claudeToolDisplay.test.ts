@@ -10,6 +10,7 @@ import {
 	getClaudeInvocationMessage,
 	getClaudePastTenseMessage,
 	getClaudePermissionKind,
+	getClaudeStreamingInvocationMessage,
 	getClaudeToolDisplayName,
 	getClaudeToolInputString,
 	getClaudeToolKind,
@@ -185,6 +186,38 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 				mcp: false,
 			},
 		);
+	});
+
+	test('streams rich file and line-count messages for Claude edit tools', () => {
+		assert.deepStrictEqual({
+			write: getClaudeStreamingInvocationMessage('Write', {
+				file_path: '/src/new.ts',
+				content: 'one\r\ntwo\r\nthree',
+			}),
+			edit: getClaudeStreamingInvocationMessage('Edit', {
+				file_path: '/src/foo.ts',
+				old_string: 'one',
+				new_string: 'one\ntwo',
+			}),
+			multiEdit: getClaudeStreamingInvocationMessage('MultiEdit', {
+				file_path: '/src/foo.ts',
+				edits: [
+					{ old_string: 'one', new_string: 'one\ntwo' },
+					{ old_string: 'three\nfour', new_string: 'updated' },
+				],
+			}),
+			notebookEdit: getClaudeStreamingInvocationMessage('NotebookEdit', {
+				notebook_path: '/src/notebook.ipynb',
+				new_source: 'one\ntwo',
+			}),
+			read: getClaudeStreamingInvocationMessage('Read', { file_path: '/src/foo.ts' }),
+		}, {
+			write: { markdown: 'Creating [new.ts](file:///src/new.ts) (3 lines)' },
+			edit: { markdown: 'Replacing 1 line with 2 lines in [foo.ts](file:///src/foo.ts)' },
+			multiEdit: { markdown: 'Replacing 3 lines with 3 lines in [foo.ts](file:///src/foo.ts)' },
+			notebookEdit: { markdown: 'Editing 2 lines in [notebook.ipynb](file:///src/notebook.ipynb)' },
+			read: undefined,
+		});
 	});
 
 	test('Phase 8.5 — rich rendering snapshot covers every tool row', () => {

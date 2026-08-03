@@ -1471,3 +1471,25 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 }
+
+/**
+ * Resolves the authoritative {@link ChatState} for a chat URI, whether it names
+ * a peer chat or a session's default chat (addressed by the session URI or the
+ * default chat URI). Returns `undefined` when the chat is unknown.
+ *
+ * Shared by the chat completion provider and the server-side chat-attachment
+ * resolver so both derive a referenced chat's turns the same way.
+ */
+export function resolveChatStateForUri(stateManager: AgentHostStateManager, chatUri: string): ChatState | undefined {
+	const peerState = stateManager.getChatState(chatUri);
+	if (peerState) {
+		return peerState;
+	}
+	if (!isAhpChatChannel(chatUri)) {
+		return stateManager.getDefaultChatState(chatUri);
+	}
+	if (isDefaultChatUri(chatUri)) {
+		return stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(chatUri));
+	}
+	return undefined;
+}

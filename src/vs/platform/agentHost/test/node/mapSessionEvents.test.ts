@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
@@ -122,6 +123,34 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
+	});
+
+	test('resolves relative patch links in restored tool messages', async () => {
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: src/file.ts',
+			'@@',
+			'-old',
+			'+new',
+			'*** End Patch',
+		].join('\n');
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'edit the file' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'apply_patch' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'apply_patch', arguments: patch } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
+		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
+		assert.ok(part);
+		assert.deepStrictEqual({
+			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
+			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
+		}, {
+			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+		});
 	});
 
 	test('restores MCP app data for completed tool calls', async () => {
@@ -568,6 +597,52 @@ suite('mapSessionEvents — history replay', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
 			],
 		}]);
+	});
+
+	test('restores turn timing from the SDK event envelopes', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-07-29T10:00:00.000Z', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:00:03.500Z', data: { messageId: 'm2', content: 'First answer.' } },
+			{ type: 'user.message', id: 'turn-2', timestamp: '2026-07-29T10:05:00.000Z', data: { interactionId: 'm3', content: 'second' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:05:01.000Z', data: { messageId: 'm4', content: 'Second answer.' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: '2026-07-29T10:00:00.000Z', duration: 3500 },
+			{ id: 'turn-2', startedAt: '2026-07-29T10:05:00.000Z', duration: 1000 },
+		]);
+	});
+
+	test('bounds turn duration by the last event belonging to the turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-07-29T10:00:00.000Z', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-07-29T10:00:00.500Z', data: { turnId: 't1' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:00:03.500Z', data: { messageId: 'm2', content: 'First answer.' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-07-29T10:00:04.000Z', data: { turnId: 't1' } },
+			// Ignored by the mapper an hour later: it must not extend the turn.
+			{ type: 'session.unrelated_event', timestamp: '2026-07-29T11:00:00.000Z' },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: '2026-07-29T10:00:00.000Z', duration: 4000 },
+		]);
+	});
+
+	test('leaves turn timing undefined when envelopes carry no usable timestamp', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.message', timestamp: 'not-a-date', data: { messageId: 'm2', content: 'First answer.' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: undefined, duration: undefined },
+		]);
 	});
 });
 

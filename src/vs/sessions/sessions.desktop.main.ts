@@ -208,6 +208,9 @@ import '../workbench/contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import '../workbench/contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Keybindings Export
+import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
 //#endregion
 
 
@@ -224,6 +227,8 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+// Copilot cloud sandbox connections (copilot-developer-cli) over a Web PubSub AHP relay
+import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contribution.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';

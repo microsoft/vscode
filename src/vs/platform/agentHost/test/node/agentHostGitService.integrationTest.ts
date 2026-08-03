@@ -96,6 +96,28 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result.incomingChanges, undefined);
 	});
 
+	(hasGit ? test : test.skip)('reports the GitHub owner of the branch upstream remote', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['remote', 'add', 'fork', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/fork/feature', 'HEAD'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'fork/feature'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: 'fork/feature',
+		});
+	});
+
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
@@ -588,7 +610,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
 			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/include-files', 'main');
-			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**']);
+			const progress: { filesDone: number; filesTotal: number }[] = [];
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
 
 			const read = async (relativePath: string) => {
 				try { return await fs.readFile(join(wtPath, relativePath), 'utf8'); } catch { return undefined; }
@@ -603,6 +626,13 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				partialSkip: await read(join('partial', 'skip.bin')),
 				appConfig: await read(join('app', 'config.local')),
 				appTracked: await read(join('app', 'main.ts')),
+				// One sample per copied entry (`secrets/` collapsed, plus three
+				// standalone files), but counted in the 5 files they cover so
+				// the collapsed directory isn't under-weighted. Completion order
+				// is nondeterministic, so only the totals are asserted.
+				progressSamples: progress.length,
+				progressTotals: [...new Set(progress.map(sample => sample.filesTotal))],
+				progressDone: progress.at(-1)?.filesDone,
 			}, {
 				env: 'SECRET=1',
 				secretKey: 'key',
@@ -612,6 +642,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				partialSkip: undefined,
 				appConfig: 'local',
 				appTracked: 'committed',
+				progressSamples: 4,
+				progressTotals: [5],
+				progressDone: 5,
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }

@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools rather than running a shell command.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
     response:
       content:
         - type: tool_use
@@ -20,7 +20,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools rather than running a shell command.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: thinking
@@ -48,7 +48,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools rather than running a shell command.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: thinking
@@ -75,5 +75,5 @@ exchanges:
               tool_use_id: toolcall_1
               content: File ${workdir}/peer-edit.txt updated with changes.
     response:
-      content: Done — the file now contains `AFTER_PEER`.
+      content: Done — [peer-edit.txt](${workdir}/peer-edit.txt) now contains only `AFTER_PEER`.
       stopReason: end_turn

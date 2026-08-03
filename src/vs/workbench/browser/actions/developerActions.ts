@@ -975,7 +975,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '### Agent Runtime Resolution\n\n';
 			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
-			if (!agentHostEnablementService.enabled) {
+			if (!agentHostEnablementService.enabled.get()) {
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
 			} else {
 				try {

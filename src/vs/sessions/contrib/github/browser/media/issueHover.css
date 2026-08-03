@@ -1,0 +1,113 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-issue-hover {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	width: 520px;
+	max-width: 100%;
+	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+.sessions-issue-hover-header {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+}
+
+.sessions-issue-hover-repository {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.sessions-issue-hover-date {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-issue-hover-title {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	line-height: 1.25;
+	overflow-wrap: anywhere;
+}
+
+.sessions-issue-hover-description {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	overflow: hidden;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+/* --- Issue list (shown when a session references more than one issue) --- */
+
+.sessions-issue-list {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	min-width: 260px;
+	max-width: 420px;
+	padding: var(--vscode-spacing-size40) 0;
+}
+
+.sessions-issue-list-entry {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-editorHoverWidget-foreground);
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+	text-align: left;
+	cursor: pointer;
+}
+
+.sessions-issue-list-entry:hover,
+.sessions-issue-list-entry:focus {
+	background-color: var(--vscode-list-hoverBackground);
+	outline: none;
+}
+
+.sessions-issue-list-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-issue-list-entry-icon {
+	flex-shrink: 0;
+}
+
+.sessions-issue-list-entry-number {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.sessions-issue-list-entry-title {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

@@ -15,10 +15,16 @@ import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
+import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
+import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
+import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
+import { IChatWidget } from '../../../../../browser/chat.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 
 class TestChatSessionsService extends MockChatSessionsService {
 	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
@@ -105,6 +111,59 @@ suite('AgentHostInputCompletionsBase', () => {
 				kind: CompletionItemKind.Text,
 			}],
 			incomplete: true,
+		});
+	});
+});
+
+/**
+ * Test double exposing the protected {@link AgentHostInputCompletions._buildItem}
+ * so the accepted-range invariant can be asserted directly.
+ */
+class TestableAgentHostInputCompletions extends AgentHostInputCompletions {
+	buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem | undefined {
+		return this._buildItem(position, item, widget);
+	}
+}
+
+suite('AgentHostInputCompletions #chat references', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepting a multi-word #chat reference registers a range covering the whole token', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const widget = upcastPartial<IChatWidget>({});
+		// The completion carries the opaque backend chat URI, stored verbatim on
+		// the accepted reference entry.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
+
+		// The host inserts `#chat:<title> ` (trailing space) spanning columns 1..19.
+		const built = completions.buildItem(new Position(1, 19), {
+			insertText: '#chat:Design chat ',
+			start: { lineNumber: 1, column: 1 },
+			end: { lineNumber: 1, column: 19 },
+			attachment: {
+				kind: 'chat',
+				uri: chatResource,
+				endTurn: 'turn-5',
+				title: 'Design chat',
+			},
+		}, widget);
+
+		const argument = built?.command?.arguments?.[0] as { id: string; range: Range } | undefined;
+		assert.deepStrictEqual({ id: argument?.id, range: argument?.range }, {
+			// Stable dynamic-variable id, so the parser treats the reference as one part.
+			id: createChatReferenceVariableEntry(chatResource, 'turn-5', 'Design chat').id,
+			// Covers `#chat:Design chat` (columns 1..18, end-exclusive) — the whole
+			// token minus the trailing space, never a partial slice.
+			range: new Range(1, 1, 1, 18),
 		});
 	});
 });

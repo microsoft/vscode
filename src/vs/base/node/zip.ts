@@ -82,12 +82,13 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	let istream: WriteStream;
 
-	token.onCancellationRequested(() => {
+	const listener = token.onCancellationRequested(() => {
 		istream?.destroy();
 	});
 
 	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
+			c();
 			return;
 		}
 
@@ -100,7 +101,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		} catch (error) {
 			e(error);
 		}
-	}));
+	})).finally(() => listener.dispose());
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {

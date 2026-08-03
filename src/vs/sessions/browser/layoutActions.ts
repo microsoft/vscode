@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRe
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -80,6 +80,7 @@ registerAction2(ToggleSidebarVisibilityAction);
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
+	CustomViewVisibleContext.negate(),
 	IsTopRightEditorGroupContext);
 const isSinglePaneDetailPanelDisabled = SinglePaneLayoutEnabledContext.negate();
 

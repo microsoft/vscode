@@ -18,6 +18,7 @@ import {
 	getMarkdownResponseText,
 	terminalResourceFromContent,
 	textFromContent,
+	initTestGitRepo,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -253,14 +254,10 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	// Git-backed config discovery leaves this temporary repository locked on
-	// Windows CI after the provider session is disposed.
 	conformanceTest(context, 'session configuration resolves and completes git branches', async function () {
 
 		const workspace = createWorkspace('ahp-config-completions-');
-		execSync('git init', { cwd: workspace });
-		execSync('git config user.name "Agent Host Test"', { cwd: workspace });
-		execSync('git config user.email "agent-host-test@example.com"', { cwd: workspace });
+		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
 		execSync('git branch feature/coverage-target', { cwd: workspace });
 		await createSession('config-completions', workspace);
@@ -293,5 +290,5 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 				label: 'feature/coverage-target',
 			}],
 		});
-	}, !isWindows);
+	});
 }

@@ -81,6 +81,8 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.mcp.discovery.enabled': false,
 		'chat.mcp.enabled': false,
 		'chat.disableAIFeatures': false,
+		// This suite exercises the extension-host session providers directly.
+		'chat.agentHost.enabled': false,
 		'github.copilot.chat.backgroundAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.useSdkExtension': false,

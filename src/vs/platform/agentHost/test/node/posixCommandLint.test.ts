@@ -30,7 +30,6 @@ suite('posixCommandLint', () => {
 			`mkdir -p output && printf 'NESTED' > output/report.txt`,
 			`find / -maxdepth 6 -iname "edit.txt" 2>/dev/null`,
 			`xxd \${workdir}/after.txt`,
-			`pwd`,
 			`test -f peer-edit.txt && echo EXISTS || echo MISSING`,
 			`echo "$HOME"`,
 		];
@@ -50,6 +49,8 @@ suite('posixCommandLint', () => {
 			`node -e "console.log(require('fs').readdirSync('.').join(' '))"`,
 			`node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','X')"`,
 			`node script.js`,
+			// PowerShell defines `pwd` as an alias for `Get-Location`.
+			`pwd`,
 		]), []);
 	});
 
@@ -81,8 +82,8 @@ suite('posixCommandLint', () => {
 			{ command: `echo ok`, toolName: 'bash' },
 			{ command: `cat x 2>/dev/null`, toolName: 'powershell' },
 		]), [
-			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
-			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
+			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
+			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
 		]);
 	});
 });

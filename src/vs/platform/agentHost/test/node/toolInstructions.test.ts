@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
 import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /** Builds a `hasTool` predicate backed by the given available tool names. */
@@ -89,7 +89,7 @@ suite('toolInstructions', () => {
 	// exposing the tool-search tool. These lock its content, gating, and
 	// composition so neither the instruction nor its gate can silently regress.
 	suite('toolSearchInstructionLines', () => {
-		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
 
 		test('active tool search contributes the tool-search line only when the client exposes the tool-search tool', () => {
 			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)), TOOL_SEARCH_LINE);

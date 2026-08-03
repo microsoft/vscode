@@ -1048,9 +1048,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
 					const activeDoc = request.getActiveDocument();
 					const currentDocument = promptPieces.currentDocument;
-					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
+					const keptRangeEndExclusive = Math.min(clippedTaggedCurrentDoc.keptRange.endExclusive, currentDocument.lines.length);
+					const lastLine = currentDocument.lines[keptRangeEndExclusive - 1];
 					const lastLineLength = lastLine.length;
-					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, keptRangeEndExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
 					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);

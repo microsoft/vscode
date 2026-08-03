@@ -27,6 +27,9 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { resolveVoiceGlowColors } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
@@ -74,6 +77,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -209,6 +213,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
+			getGlowTheme: () => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			getGlowColors: () => resolveVoiceGlowColors(this.themeService.getColorTheme()),
+			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
+			onDidChangeGlowTheme: Event.map(this.themeService.onDidColorThemeChange, () => undefined),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			showVoiceContextMenu: (e: MouseEvent) => {
 				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);

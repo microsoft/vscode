@@ -129,7 +129,7 @@ When starting a new Claude session, options appear at the bottom of the chat inp
 
 In the chat input area, you'll see the current permission mode (e.g., **"Edit automatically"**). Click it to change how Claude handles tool execution and file edits. Claude sessions have their own permission modes, distinct from other session targets:
 
-> **Note:** Before selecting Claude, you'll see the **Local** target's permission modes (e.g., "Default Approvals"). The modes below only appear after you switch to the Claude session target.
+> **Note:** Before selecting Claude, you'll see the **Local** target's permission modes (e.g., "Default Permissions"). The modes below only appear after you switch to the Claude session target.
 
 | Mode | Label in UI | Behavior |
 |------|-------------|----------|
@@ -690,7 +690,7 @@ VS Code Copilot Chat offers four session targets. Here's how Claude compares:
 | **Subagents** | ✅ Custom specialized agents | Not available | Not available | Not available |
 | **Memory files** | ✅ CLAUDE.md | Custom instructions | Custom instructions | Custom instructions |
 | **Hooks** | ✅ Custom lifecycle scripts | Not available | Not available | Not available |
-| **Permission modes** | Ask before edits / Edit automatically / Plan mode / Bypass all permissions | Default Approvals / Bypass Approvals / Autopilot (Preview) | — | — |
+| **Permission modes** | Ask before edits / Edit automatically / Plan mode / Bypass all permissions | Default Permissions / Bypass Approvals / Autopilot (Preview) | — | — |
 | **Session persistence** | ✅ JSONL files on disk | Chat history | Git worktree | Cloud state |
 | **Todo tracking** | ✅ Built-in | Not available | Not available | Not available |
 | **IDE diagnostics** | ✅ Via MCP server | Via tools | — | — |

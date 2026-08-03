@@ -66,13 +66,20 @@ suite('ChatQuestionCarouselData', () => {
 		assert.strictEqual((json as { draftCurrentIndex?: unknown }).draftCurrentIndex, undefined, 'toJSON should not include draftCurrentIndex');
 	});
 
-	test('toJSON preserves answeredExternally', () => {
+	test('toJSON preserves external answer metadata', () => {
 		const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'test-resolve-id', {}, true);
 		carousel.answeredExternally = true;
+		carousel.autoReply = true;
 
 		const json = carousel.toJSON();
 
-		assert.strictEqual(json.answeredExternally, true, 'toJSON should preserve answeredExternally');
+		assert.deepStrictEqual({
+			answeredExternally: json.answeredExternally,
+			autoReply: json.autoReply,
+		}, {
+			answeredExternally: true,
+			autoReply: true,
+		});
 	});
 
 	test('multiple carousels can have independent completion promises', async () => {

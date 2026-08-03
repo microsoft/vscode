@@ -5,10 +5,34 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeScrollDownState, getAnchoredScrollTop, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
 
 suite('ChatListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('auto-scroll holds compose and survive a double release', () => {
+		const holds = new AutoScrollHolds();
+		const states = [holds.isHeld];
+
+		// Two unrelated features suppress concurrently (e.g. a request edit and
+		// an open text selection).
+		const first = holds.acquire();
+		const second = holds.acquire();
+		states.push(holds.isHeld);
+
+		first.dispose();
+		states.push(holds.isHeld);
+
+		// A redundant dispose must not decrement past the remaining hold and
+		// silently resume auto-scroll for the other caller.
+		first.dispose();
+		states.push(holds.isHeld);
+
+		second.dispose();
+		states.push(holds.isHeld);
+
+		assert.deepStrictEqual(states, [false, true, true, true, false]);
+	});
 
 	test('keeps user toggle tracking active until resizing settles', () => {
 		const state = new UserToggleResizeState(2);

@@ -144,6 +144,43 @@ export class PlaywrightDriver {
 	}
 
 	/**
+	 * Wait for an open window/page whose URL contains the provided pattern.
+	 */
+	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
+	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
+	 */
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const existingPages = new Set(this.getAllWindows());
+		await action();
+
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !existingPages.has(candidate) && !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
 	 * Take a screenshot of the current window.
 	 * @param fullPage - Whether to capture the full scrollable page
 	 * @returns Screenshot as a Buffer

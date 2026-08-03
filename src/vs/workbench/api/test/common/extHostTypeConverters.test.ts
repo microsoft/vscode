@@ -8,14 +8,21 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatPromptReference, ChatRequestModeInstructions, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
-import { ChatReferenceBinaryData, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
 suite('extHostTypeConverters', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('converts voice progress to hidden chat progress', () => {
+		assert.deepStrictEqual(
+			ChatResponseVoiceProgressPart.from(new ExtHostChatResponseVoiceProgressPart('investigating', 'Investigating the relevant code.')),
+			{ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' }
+		);
+	});
 
 	suite('IconPath', function () {
 		suite('from', function () {

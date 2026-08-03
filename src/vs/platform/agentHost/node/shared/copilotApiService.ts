@@ -64,15 +64,14 @@ export interface ICopilotUtilityChatMessage {
  * service forwards the messages and returns the assistant text.
  *
  * `temperature` defaults to `0.1` (matching the Copilot Chat extension's
- * default `IConversationOptions.temperature`). All other parameters
- * (`top_p`, model family) are fixed defaults inside the service — callers
- * should not need to tune them for utility flows. `max_tokens` is left
- * unset so CAPI applies its per-model default, matching what the
- * extension's `copilot-utility-small` endpoint sends today.
+ * default `IConversationOptions.temperature`). `top_p` and the model family
+ * are fixed defaults inside the service. Callers may set `maxTokens` when
+ * their utility flow has a naturally bounded output.
  */
 export interface ICopilotUtilityChatCompletionRequest {
 	readonly messages: readonly ICopilotUtilityChatMessage[];
 	readonly temperature?: number;
+	readonly maxTokens?: number;
 }
 
 /**
@@ -704,6 +703,7 @@ export class CopilotApiService implements ICopilotApiService {
 			stream: false,
 			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
 			top_p: UTILITY_DEFAULT_TOP_P,
+			max_tokens: request.maxTokens,
 		});
 
 		const response = await capiClient.makeRequest<Response>(

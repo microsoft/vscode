@@ -46,15 +46,19 @@ export interface IToolApprovalEvent {
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
+	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
 }
 
 /** Standard per-tool confirmation options presented to the user. */
 const ALLOW_SESSION_OPTION_ID = 'allow-session';
+const ALLOW_ONCE_OPTION: ConfirmationOption = { id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve };
+const SKIP_OPTION: ConfirmationOption = { id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 };
 const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
-	{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
-	{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
+	ALLOW_ONCE_OPTION,
+	SKIP_OPTION,
 ];
+const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
 
 /** Default write-path glob rules applied to auto-approved edits. */
 const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
@@ -304,12 +308,19 @@ export class SessionPermissionManager extends Disposable {
 
 		// 6. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
+			// Terminal-rule analysis needs an explicit shell dialect. Producers
+			// that omit `shellLanguage` (or fail to correlate one) must prompt.
+			if (!e.shellLanguage) {
+				this._logService.trace('[SessionPermissionManager] Shell language is missing, requiring confirmation');
+				return undefined;
+			}
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+				language: e.shellLanguage,
 			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
@@ -322,6 +333,23 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
+	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
+			return false;
+		}
+		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
+			return false;
+		}
+		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workingDirectories = workDirs?.map(d => URI.parse(d));
+		return this._commandAutoApprover.evaluate(e.toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+			language: e.shellLanguage,
+		}).autoApproveRuleResolvable;
 	}
 
 	/**
@@ -356,6 +384,8 @@ export class SessionPermissionManager extends Disposable {
 				type: ActionType.ChatToolCallReady,
 				turnId,
 				toolCallId: state.toolCallId,
+				...(state.contributor ? { contributor: state.contributor } : {}),
+				...(state.intention !== undefined ? { intention: state.intention } : {}),
 				invocationMessage: state.invocationMessage,
 				toolInput: state.toolInput,
 				confirmationTitle: state.confirmationTitle,
@@ -363,16 +393,22 @@ export class SessionPermissionManager extends Disposable {
 				edits: state.edits,
 				editable: state.editable,
 				...(state._meta ? { _meta: state._meta } : {}),
-				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
-				// `Approve`/`Deny`) by populating `state.options`. The standard
-				// `Allow Once / Allow in this Session / Skip` set is the default.
-				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
+				// Managed asks are one-time only. Other agents can supply tool-specific
+				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
+				// otherwise the standard session/once/skip set is used.
+				options: e.managedApprovalRequired
+					? MANAGED_CONFIRMATION_OPTIONS.slice()
+					: state.options
+						? state.options.slice()
+						: CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
 			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: state.toolCallId,
+			...(state.contributor ? { contributor: state.contributor } : {}),
+			...(state.intention !== undefined ? { intention: state.intention } : {}),
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -462,15 +498,35 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
+	 * Matches redirect destinations whose final path is decided by the shell
+	 * rather than by the text: variable expansions (`$HOME/x`, `$env:TEMP/x`,
+	 * `%APPDATA%\x`), command substitutions (`$(pwd)/x`, `` `pwd`/x ``), brace
+	 * expansions, and `~` in a position {@link untildify} does not handle.
+	 * Mirrors the workbench's file-write analyzer guard.
+	 *
+	 * See https://github.com/microsoft/vscode/issues/274166 and
+	 * https://github.com/microsoft/vscode/issues/274167
+	 */
+	private static readonly _dynamicRedirectDestRegex = /[$(){}`~%]/;
+
+	/**
 	 * Resolves the raw text of a shell redirect destination to an absolute
 	 * filesystem path. `~` is expanded to the user's home directory; the
 	 * downstream working-directory check rejects paths that end up outside
 	 * the workspace. Returns `undefined` when resolution would require a
-	 * working directory that isn't configured.
+	 * working directory that isn't configured, or when the destination expands
+	 * at runtime and therefore cannot be resolved from its text alone.
 	 */
 	private _resolveShellRedirectResource(dest: string, workingDirectory: URI | undefined): URI | undefined {
 		const trimmed = untildify(dest.trim(), homedir());
 		if (!trimmed) {
+			return undefined;
+		}
+		// A destination the shell expands (e.g. `$HOME/x.txt`) would otherwise be
+		// treated as a literal relative path and resolve *inside* the working
+		// directory, auto-approving a write that actually lands elsewhere.
+		if (SessionPermissionManager._dynamicRedirectDestRegex.test(trimmed)) {
+			this._logService.trace(`[SessionPermissionManager] Redirect destination expands at runtime, requiring confirmation: ${dest}`);
 			return undefined;
 		}
 		if (path.isAbsolute(trimmed)) {

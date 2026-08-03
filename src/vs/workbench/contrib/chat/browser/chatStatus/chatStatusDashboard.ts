@@ -245,7 +245,10 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		if (hasPremiumUnlimited) {
+		const creditsUsed = hasPremiumUnlimited && !isPooledQuotaDepleted ? premiumChat?.creditsUsed : undefined;
+		if (typeof creditsUsed === 'number') {
+			this.createCreditsUsedIndicator(this.element, creditsUsed, premiumChat?.resetAt);
+		} else if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
@@ -254,13 +257,6 @@ export class ChatStatusDashboard extends DomWidget {
 					return {
 						compact: localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle),
 						default: localize('premiumLimitReached', "Organization limit reached.")
-					};
-				}
-
-				if (typeof premiumChat?.creditsUsed === 'number') {
-					return {
-						compact: localize('premiumCreditsUsedCompact', "{0} used", this.quotaCreditsFormatter.value.format(premiumChat.creditsUsed)),
-						default: localize('premiumCreditsUsed', "{0} used", this.quotaCreditsFormatter.value.format(premiumChat.creditsUsed))
 					};
 				}
 
@@ -298,12 +294,12 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, headerUpgradeButton: Button | undefined, updatePromise: Promise<void>): void {
-		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
+		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
 		const compact = !!this.options?.compactQuotaLayout;
 		const planName = compact ? getChatPlanName(this.chatEntitlementService.entitlement) : undefined;
 
 		if (chatQuota || premiumChatQuota || completionsQuota) {
-			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
+			const resetLabel = this.formatGlobalResetLabel();
 
 			// Global quota callout (shown at the top, before quota indicators)
 			const globalCalloutUpdater = this.createGlobalQuotaCallout(container);
@@ -769,6 +765,46 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 		const resetDate = new Date(resetAt * 1000);
 		return localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(resetDate), this.timeFormatter.value.format(resetDate));
+	}
+
+	private formatGlobalResetLabel(): string | undefined {
+		const { resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
+		if (!resetDate) {
+			return undefined;
+		}
+		return resetDateHasTime
+			? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate)))
+			: localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)));
+	}
+
+	private createCreditsUsedIndicator(container: HTMLElement, creditsUsed: number, resetAt: number | undefined): void {
+		const isCompact = !!this.options?.compactQuotaLayout;
+		const resetLabel = this.formatResetAtLabel(resetAt) ?? this.formatGlobalResetLabel();
+
+		const resetValue = $('span.quota-reset');
+		if (resetLabel) {
+			resetValue.textContent = resetLabel;
+		}
+
+		const quotaPercentage = $('div.quota-percentage', undefined,
+			$('span.quota-value', undefined, this.quotaCreditsFormatter.value.format(creditsUsed)),
+			$('span.quota-value-suffix', undefined, isCompact
+				? localize('quotaLabelUsed', "{0} used", localize('creditsLabel', "Credits"))
+				: localize('creditsUsedLabel', "Credits Used"))
+		);
+
+		const indicatorElement = $('div.quota-indicator.included.credits-used', undefined,
+			...isCompact ? [$('div.quota-title', undefined, getChatPlanName(this.chatEntitlementService.entitlement))] : [],
+			$('div.quota-details', undefined,
+				quotaPercentage,
+				resetValue
+			)
+		);
+		if (isCompact) {
+			indicatorElement.classList.add('compact');
+		}
+
+		container.appendChild(indicatorElement);
 	}
 
 	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot | string, label: string, resetLabel?: string, compactTitle?: string): (quota: IQuotaSnapshot | string) => void {

@@ -15,7 +15,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptsType, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
@@ -66,7 +66,11 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const folders = await this.promptsService.getSourceFolders(type);
 		return folders.map(folder => ({
 			uri: folder.uri,
-			label: this.promptsService.getPromptLocationLabel(folder),
+			// Prefer the source-specific description (e.g. "Global (only used by
+			// Copilot agents)") over the generic "User Data" label so personal
+			// folders like ~/.copilot/skills read naturally. Only folders that
+			// carry a source (currently skills) use this; others fall back.
+			label: (folder.source !== undefined ? getSourceDescription(folder.source) : undefined) ?? this.promptsService.getPromptLocationLabel(folder),
 			source: folder.storage
 		}));
 	}

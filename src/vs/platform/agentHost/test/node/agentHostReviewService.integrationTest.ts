@@ -164,7 +164,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		await svc!.markFileReviewed(sessionUri.toString(), wd(), undefined, URI.file(join(tmpRoot!, 'a.txt')));
 		const beforeDispose = chainLength();
 
-		await svc!.disposeSessionData(sessionUri.toString());
+		await svc!.disposeSessionData(sessionUri.toString(), [wd().toString()]);
 		const afterDispose = chainLength();
 
 		assert.deepStrictEqual({ beforeDispose, afterDispose }, { beforeDispose: 1, afterDispose: 0 });

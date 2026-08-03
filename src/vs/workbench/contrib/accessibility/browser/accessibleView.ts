@@ -592,6 +592,7 @@ export class AccessibleView extends Disposable {
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
+		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -648,7 +649,14 @@ export class AccessibleView extends Disposable {
 					: this._currentProvider.options.position === 'initial-bottom' && !isSameProvider ? savedPosition : undefined;
 				if (preservedPosition && preservedPosition.lineNumber <= (lineCount ?? 0)) {
 					this._editorWidget.setPosition(preservedPosition);
-					this._editorWidget.revealLine(preservedPosition.lineNumber);
+					// When always preserving the cursor position, keep the current scroll
+					// position on content updates instead of revealing the cursor, which
+					// would cause the view to jump while the user is scrolling.
+					if (this._currentProvider.options.position === 'initial-bottom-preserve' && previousScrollTop !== undefined) {
+						this._editorWidget.setScrollTop(previousScrollTop);
+					} else {
+						this._editorWidget.revealLine(preservedPosition.lineNumber);
+					}
 				} else if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom-preserve' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
 					const lastLine = lineCount;
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;

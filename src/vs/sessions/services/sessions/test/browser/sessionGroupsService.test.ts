@@ -53,6 +53,7 @@ suite('SessionGroupsService', () => {
 	let sessionStartedEmitter: Emitter<ISession>;
 	let sessionArchivedEmitter: Emitter<ISession>;
 	let sessionUnarchivedEmitter: Emitter<ISession>;
+	let sessionDeletedEmitter: Emitter<ISession>;
 	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
@@ -76,6 +77,7 @@ suite('SessionGroupsService', () => {
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
 		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
 		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
@@ -87,6 +89,7 @@ suite('SessionGroupsService', () => {
 			onDidStartSession: sessionStartedEmitter.event,
 			onDidArchiveSession: sessionArchivedEmitter.event,
 			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
+			onDidDeleteSession: sessionDeletedEmitter.event,
 			onDidReplaceSession: sessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
@@ -159,10 +162,10 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroupOfSession('s2'), undefined);
 	});
 
-	test('membership is cleaned up when a session is removed', () => {
+	test('membership is cleaned up when a session is deleted', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		const session = createSession('s1');
-		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+		sessionDeletedEmitter.fire(session);
 
 		assert.deepStrictEqual({
 			groupName: service.getGroup(a.id)?.name,
@@ -172,6 +175,24 @@ suite('SessionGroupsService', () => {
 			groupName: 'A',
 			removedMembership: undefined,
 			remainingMembers: ['s2'],
+		});
+	});
+
+	test('membership survives a session being evicted from the provider list', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1');
+
+		// An agent that cannot answer `listSessions` yet reports no sessions,
+		// so the list evicts them until the next refresh. That must not drop
+		// the user's grouping.
+		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+
+		assert.deepStrictEqual({
+			membership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id).sort(),
+		}, {
+			membership: a.id,
+			remainingMembers: ['s1', 's2'],
 		});
 	});
 

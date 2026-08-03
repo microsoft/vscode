@@ -111,27 +111,31 @@ strict priority order:
    - saved state is **visible** with a still-pinned active container → reopen that container.
    - saved state is **visible** but its container is gone → fall back to the default container
      (§3.2 step 4).
-4. **Default container** (`_openDefaultAuxiliaryBarContainer`), used only when the side pane is being
-   shown (new-session default, or restoring a session the user explicitly left visible):
-   - session **is created** → open the Changes view (`CHANGES_VIEW_ID`).
+4. **Default container** (`_defaultAuxiliaryBarContainerId` / `_openDefaultAuxiliaryBarContainer`), used
+   only when the side pane is being shown (new-session default, or restoring a session the user
+   explicitly left visible):
+   - session has produced **at least one file change** in any of its chats (`sessionHasChanges`) → open
+     the Changes view (`CHANGES_VIEW_ID`).
    - otherwise → open the Files container (falling back to Changes if Files is hidden).
+   The change state is read untracked, so it is evaluated only at the moment the side pane is opened.
 
 ### 3.3 New-session submit
 
 When the active new session becomes created (either `isCreated` changes from false to true for the
 same session, or the provider replaces the draft with a new committed resource), the side pane stays
-in whatever visibility state the user left it. If it is visible, the controller switches it to Changes
-immediately. If it is hidden, the controller records Changes as that session's default active container
-so opening the side pane later shows Changes. In single-pane mode, the submit transition keeps editor
-content closed: the managed Changes tab opens under editor-auto-visibility suppression, while the
-visible side pane maps to the Changes detail.
+in whatever visibility state the user left it. If it is visible, it keeps showing the container it is
+already on. If it is hidden, the controller records no active container for that session, so opening
+the side pane later shows the default container for the session's change state at that time (§3.2
+step 4). In single-pane mode, the submit transition keeps editor content closed: the managed Changes
+tab opens under editor-auto-visibility suppression, while the visible side pane maps to the Changes
+detail.
 
 ### 3.4 No auto-reveal on changes
 
 The side pane is **not** revealed, and the active container is not changed, when a chat turn produces
-new file changes. The controller does not track pending turns or file-change counts for default
-selection; the automatic switch to Changes is driven by the created transition (§3.3). Once a session
-is created the side pane stays in whatever state the user left it.
+new file changes. The first change does make Changes the default container (§3.2 step 4), but that
+only takes effect the next time the side pane is opened — a visible side pane is never switched from
+under the user.
 
 ### 3.5 Live visibility tracking
 
@@ -140,7 +144,8 @@ Aux-bar visibility is also tracked **live** (not only on session switch) via an
 multiple sessions are visible). For a titled active session it re-runs `_captureViewState`; for an
 uncreated active session it updates the shared `_newSessionViewState` (§3.2 step 2). When a created
 session with hidden saved state is opened, the saved/default active container is restored before the
-visible state is captured, so a hidden-on-submit session opens to Changes.
+visible state is captured, so a hidden-on-submit session opens to the default container for its
+change state (§3.2 step 4).
 
 ### 3.6 Editor reveal on session switch
 

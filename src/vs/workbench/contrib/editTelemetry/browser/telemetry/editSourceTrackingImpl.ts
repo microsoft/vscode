@@ -8,8 +8,12 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EditTelemetryMode, EditTelemetryTrigger, sendEditSourcesDetailsTelemetry } from '../../../../../platform/telemetry/common/editTelemetry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IUserAttentionService } from '../../../../services/userAttention/common/userAttentionService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnnotatedDocument, IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
 import { CreateSuggestionIdForChatOrInlineChatCaller, EditTelemetryReportEditArcForChatOrInlineChatSender, EditTelemetryReportInlineEditArcSender } from './arcTelemetrySender.js';
 import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
@@ -17,9 +21,7 @@ import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
 import { IScmRepoAdapter, ScmAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
-
-type EditTelemetryMode = 'longterm' | '10minFocusWindow' | '20minFocusWindow';
-type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
+import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
 
 export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'user' | 'ide' | 'external' | 'unknown';
 
@@ -45,13 +47,14 @@ export class EditSourceTrackingImpl extends Disposable {
 	constructor(
 		private readonly _statsEnabled: IObservable<boolean>,
 		private readonly _annotatedDocuments: IAnnotatedDocuments,
+		private readonly _agentHostEditMarkerService: IAgentHostEditMarkerService | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const scmBridge = this._instantiationService.createInstance(ScmAdapter);
 		this._states = mapObservableArrayCached(this, this._annotatedDocuments.documents, (doc, store) => {
-			return [doc.document, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, scmBridge, this._statsEnabled))] as const;
+			return [doc.document, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, scmBridge, this._statsEnabled, this._agentHostEditMarkerService))] as const;
 		});
 		this.docsState = this._states.map((entries) => new Map(entries));
 
@@ -70,16 +73,20 @@ class TrackedDocumentInfo extends Disposable {
 		private readonly _doc: AnnotatedDocument,
 		private readonly _scm: ScmAdapter,
 		private readonly _statsEnabled: IObservable<boolean>,
+		private readonly _agentHostEditMarkerService: IAgentHostEditMarkerService | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRandomService private readonly _randomService: IRandomService,
 		@IUserAttentionService private readonly _userAttentionService: IUserAttentionService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._repo = derived(this, reader => this._scm.getRepo(_doc.document.uri, reader));
 
 		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
+		const externalEditCorrelation = this._agentHostEditMarkerService?.createCorrelation(_doc.document.uri);
 
 		const longtermResetSignal = observableSignal('resetSignal');
 
@@ -88,14 +95,12 @@ class TrackedDocumentInfo extends Disposable {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
 
-			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
+			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined, externalEditCorrelation));
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send long term document telemetry
-				if (!t.isEmpty()) {
-					this.sendTelemetry('longterm', longtermReason, t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
-				}
+				this._sendTelemetryAndLog('longterm', longtermReason, t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 			return t;
@@ -150,7 +155,7 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(async () => {
 				// send windowed document telemetry
-				this.sendTelemetry('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
+				this._sendTelemetryAndLog('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 
@@ -178,7 +183,7 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(async () => {
 				// send focus-windowed document telemetry
-				this.sendTelemetry('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
+				this._sendTelemetryAndLog('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 
@@ -187,89 +192,116 @@ class TrackedDocumentInfo extends Disposable {
 
 	}
 
+	private _sendTelemetryAndLog(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, tracker: DocumentEditSourceTracker, focusTime: number, actualTime: number): void {
+		void this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime).catch(error => {
+			this._logService.error(`[EditSourceTrackingImpl] Failed to send ${mode} edit telemetry: ${error}`);
+		}).finally(() => {
+			tracker.releaseExternalEditCorrelations();
+		});
+	}
+
 	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
-		const ranges = t.getTrackedRanges();
-		const keys = t.getAllKeys();
-		if (keys.length === 0) {
-			return;
-		}
-
-		const data = this.getTelemetryData(ranges);
-
+		const coverageGap = mode === 'longterm' ? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri) : undefined;
+		t.applyPendingExternalEdits();
+		let ranges = t.getTrackedRanges();
+		let internalKeys = t.getAllKeys();
+		let data = this.getTelemetryData(ranges);
 		const statsUuid = this._randomService.generateUuid();
-
-		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
-		for (const key of keys) {
-			if (!sums[key]) {
-				sums[key] = 0;
+		let preparedAgentFlush: IPreparedAgentHostEditAttributionFlush | undefined;
+		let deferSuppressedExternal = false;
+		const isDirty = this._textFileService.isDirty(this._doc.document.uri);
+		if (mode === 'longterm' && this._agentHostEditMarkerService) {
+			try {
+				preparedAgentFlush = await this._agentHostEditMarkerService.prepareFlush(
+					this._doc.document.uri,
+					trigger,
+					statsUuid,
+					isDirty,
+					this._doc.document.languageId.get(),
+				);
+			} catch (error) {
+				this._logService.error(`[EditSourceTrackingImpl] Failed to prepare Agent Host edit attribution: ${error}`);
+				deferSuppressedExternal = error instanceof AgentHostEditAttributionDeferredError || error instanceof AgentHostEditAttributionUnknownOutcomeError;
 			}
 		}
+		if (preparedAgentFlush) {
+			t.applyPendingExternalEdits();
+			ranges = t.getTrackedRanges();
+			internalKeys = t.getAllKeys();
+			data = this.getTelemetryData(ranges);
+			try {
+				await preparedAgentFlush.commit(data.totalModifiedCharactersInFinalState + preparedAgentFlush.agentModifiedCount);
+			} catch (error) {
+				this._logService.error(`[EditSourceTrackingImpl] Failed to commit Agent Host edit attribution: ${error}`);
+				if (!(error instanceof AgentHostEditAttributionUnknownOutcomeError)) {
+					preparedAgentFlush = undefined;
+				}
+				deferSuppressedExternal = error instanceof AgentHostEditAttributionDeferredError || error instanceof AgentHostEditAttributionUnknownOutcomeError;
+			}
+		}
+		const includeSuppressedExternal = !preparedAgentFlush && !deferSuppressedExternal && !isDirty && mode === 'longterm' && !!this._agentHostEditMarkerService;
+		if (includeSuppressedExternal) {
+			ranges = t.getTrackedRanges(undefined, true);
+			internalKeys = t.getAllKeys(true);
+			data = this.getTelemetryData(ranges);
+		}
+		const agentModifiedCount = preparedAgentFlush?.agentModifiedCount ?? 0;
+		if (internalKeys.length === 0 && agentModifiedCount === 0 && !coverageGap) {
+			return;
+		}
+		const totalModifiedCount = data.totalModifiedCharactersInFinalState + agentModifiedCount;
+
+		const telemetryKeys = new Map<string, {
+			readonly representative: TextModelEditSource;
+			modifiedCount: number;
+			deltaModifiedCount: number;
+		}>();
+		for (const internalKey of internalKeys) {
+			const representative = t.getRepresentative(internalKey)!;
+			const telemetryKey = representative.toKey(1);
+			const entry = telemetryKeys.get(telemetryKey) ?? {
+				representative,
+				modifiedCount: 0,
+				deltaModifiedCount: 0,
+			};
+			entry.deltaModifiedCount += t.getTotalInsertedCharactersCount(internalKey, includeSuppressedExternal);
+			telemetryKeys.set(telemetryKey, entry);
+		}
+		for (const range of ranges) {
+			const representative = t.getRepresentative(range.sourceKey)!;
+			const entry = telemetryKeys.get(representative.toKey(1));
+			if (entry) {
+				entry.modifiedCount += range.range.length;
+			}
+		}
+		const sums = Object.fromEntries(Array.from(telemetryKeys, ([key, value]) => [key, value.modifiedCount]));
 		const entries = Object.entries(sums)
 			.filter((entry): entry is [string, number] => entry[1] !== undefined)
 			.sort(reverseOrder(compareBy(([, value]) => value, numberComparator)))
 			.slice(0, mode === 'longterm' ? 30 : 10);
 
 		for (const [key, value] of entries) {
-			const repr = t.getRepresentative(key)!;
-			const deltaModifiedCount = t.getTotalInsertedCharactersCount(key);
+			const telemetryEntry = telemetryKeys.get(key)!;
+			const repr = telemetryEntry.representative;
+			const deltaModifiedCount = telemetryEntry.deltaModifiedCount;
 
-			this._telemetryService.publicLog2<{
-				mode: EditTelemetryMode;
-				sourceKey: string;
-
-				sourceKeyCleaned: string;
-				extensionId: string | undefined;
-				extensionVersion: string | undefined;
-				modelId: string | undefined;
-
-				trigger: EditTelemetryTrigger;
-				languageId: string;
-				statsUuid: string;
-				conversationId: string | undefined;
-				requestId: string | undefined;
-				modifiedCount: number;
-				deltaModifiedCount: number;
-				totalModifiedCount: number;
-			}, {
-				owner: 'hediet';
-				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
-
-				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\', \'10minFocusWindow\', or \'20minFocusWindow\'.' };
-				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
-
-				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with some properties (such as extensionId, extensionVersion and modelId) removed.' };
-				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
-				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
-				modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The LLM id.' };
-
-				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the session for which stats are reported. The sourceKey is unique in this session.' };
-				conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat conversation identifier when the edit source comes from chat. Sourced from the chat edit session id.' };
-				requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
-
-				trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
-
-				modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
-				deltaModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session.'; isMeasurement: true };
-				totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by any edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
-
-			}>('editTelemetry.editSources.details', {
+			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
 				sourceKey: key,
-
 				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
-
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
 				requestId: repr.props.$$requestId,
+				origin: undefined,
+				harness: undefined,
 				modifiedCount: value,
 				deltaModifiedCount: deltaModifiedCount,
-				totalModifiedCount: data.totalModifiedCharactersInFinalState,
+				totalModifiedCount,
 			});
 		}
 
@@ -292,6 +324,9 @@ class TrackedDocumentInfo extends Disposable {
 			focusTime: number;
 			actualTime: number;
 			trigger: EditTelemetryTrigger;
+			agentHostAttributionCoverage?: 'complete' | 'partial';
+			agentHostUntrackedEditCount?: number;
+			agentHostUntrackedInsertedCount?: number;
 		}, {
 			owner: 'hediet';
 			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
@@ -313,6 +348,9 @@ class TrackedDocumentInfo extends Disposable {
 			focusTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The focus time in ms during the session.'; isMeasurement: true };
 			actualTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The actual time in ms during the session.'; isMeasurement: true };
 			trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
+			agentHostAttributionCoverage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether long-term Agent Host edit attribution was complete or skipped at least one oversized edit.' };
+			agentHostUntrackedEditCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of oversized Agent Host edits excluded from detailed attribution in this long-term window.'; isMeasurement: true };
+			agentHostUntrackedInsertedCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Characters inserted by oversized Agent Host edits excluded from retained-character attribution in this long-term window.'; isMeasurement: true };
 		}>('editTelemetry.editSources.stats', {
 			mode,
 			languageId: this._doc.document.languageId.get(),
@@ -320,16 +358,21 @@ class TrackedDocumentInfo extends Disposable {
 			nesModifiedCount: data.nesModifiedCount,
 			inlineCompletionsCopilotModifiedCount: data.inlineCompletionsCopilotModifiedCount,
 			inlineCompletionsNESModifiedCount: data.inlineCompletionsNESModifiedCount,
-			otherAIModifiedCount: data.otherAIModifiedCount,
+			otherAIModifiedCount: data.otherAIModifiedCount + agentModifiedCount,
 			unknownModifiedCount: data.unknownModifiedCount,
 			userModifiedCount: data.userModifiedCount,
 			ideModifiedCount: data.ideModifiedCount,
-			totalModifiedCharacters: data.totalModifiedCharactersInFinalState,
+			totalModifiedCharacters: totalModifiedCount,
 			externalModifiedCount: data.externalModifiedCount,
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 			focusTime,
 			actualTime,
 			trigger,
+			...(mode === 'longterm' ? {
+				agentHostAttributionCoverage: coverageGap ? 'partial' as const : 'complete' as const,
+				agentHostUntrackedEditCount: coverageGap?.editCount ?? 0,
+				agentHostUntrackedInsertedCount: coverageGap?.insertedCount ?? 0,
+			} : {}),
 		});
 	}
 

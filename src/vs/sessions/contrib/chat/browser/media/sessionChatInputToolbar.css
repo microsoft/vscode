@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Floating status pills centered above the chat input. The pills themselves are
-	the shared `.chat-turn-pills` widget (styled in chatTurnPills.css); this file
-	only positions and centers that widget above the input. */
+	the shared `.chat-turn-pills` widget (styled in chatTurnPills.css) and the
+	session activity pills (sessionActivityPill.css); this file only positions and
+	centers them above the input. */
 
 .session-chat-input-toolbar {
 	display: flex;
@@ -14,6 +15,14 @@
 	gap: var(--vscode-spacing-size60);
 	min-width: 0;
 	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+}
+
+/* The turn pills size to their content and deliberately don't shrink internally,
+	so squeezing them would spill their pills over the activity pills next to
+	them. Keep them at their natural width and let the activity pills, which
+	ellipsize their labels, absorb the shrinking instead. */
+.session-chat-input-toolbar > .chat-turn-pills {
+	flex-shrink: 0;
 }
 
 .session-chat-input-toolbar.hidden {

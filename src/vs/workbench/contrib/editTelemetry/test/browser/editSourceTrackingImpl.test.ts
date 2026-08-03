@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,11 +19,13 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUserAttentionService } from '../../../../services/userAttention/common/userAttentionService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { AnnotatedDocuments, UriVisibilityProvider } from '../../browser/helpers/annotatedDocuments.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { StringEditWithReason } from '../../browser/helpers/observableWorkspace.js';
 import { IAiEditTelemetryService } from '../../browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSourceTrackingImpl } from '../../browser/telemetry/editSourceTrackingImpl.js';
+import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
 import { IScmRepoAdapter, ScmAdapter } from '../../browser/telemetry/scmAdapter.js';
 import { IRandomService } from '../../browser/randomService.js';
 import { MutableObservableWorkspace } from './editTelemetry.test.js';
@@ -160,9 +163,484 @@ suite('Edit Source Tracking Windows', () => {
 
 		context.disposables.dispose();
 	}));
+
+	test('coordinates long-term totals with Agent Host attribution', () => runWithFakedTimers({}, async () => {
+		const commits: number[] = [];
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			prepareFlush: async (_resource, trigger, statsUuid, isDirty) => isDirty || trigger !== 'hashChange' ? undefined : ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 3,
+				commit: async totalModifiedCount => {
+					assert.strictEqual(statsUuid, 'stats-2');
+					commits.push(totalModifiedCount);
+				},
+			}),
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			details: context.details.map(event => ({
+				statsUuid: event.statsUuid,
+				modifiedCount: event.modifiedCount,
+				totalModifiedCount: event.totalModifiedCount,
+			})),
+			stats: context.stats.map(event => ({
+				statsUuid: event.statsUuid,
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+			})),
+			commits,
+		}, {
+			details: [{
+				statsUuid: 'stats-2',
+				modifiedCount: 5,
+				totalModifiedCount: 8,
+			}],
+			stats: [{
+				statsUuid: 'stats-2',
+				otherAIModifiedCount: 8,
+				totalModifiedCharacters: 8,
+			}],
+			commits: [8],
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('recomputes workbench totals after a late Agent marker', () => runWithFakedTimers({}, async () => {
+		const onDidSuppress = new Emitter<string>();
+		const prepareStarted = new DeferredPromise<void>();
+		const continuePrepare = new DeferredPromise<void>();
+		let suppressed = false;
+		const committedTotals: number[] = [];
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: onDidSuppress.event,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => suppressed,
+				release: () => { },
+			}),
+			prepareFlush: async (_resource, trigger) => {
+				if (trigger !== 'hashChange') {
+					return undefined;
+				}
+				prepareStarted.complete();
+				await continuePrepare.p;
+				return {
+					flushToken: 'flush-1',
+					agentModifiedCount: 3,
+					commit: async totalModifiedCount => {
+						committedTotals.push(totalModifiedCount);
+					},
+				};
+			},
+		};
+		const context = setup(undefined, markerService);
+		context.disposables.add(onDidSuppress);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await prepareStarted.p;
+		suppressed = true;
+		onDidSuppress.fire('observation');
+		continuePrepare.complete();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			committedTotals,
+			stats: context.stats.map(event => ({
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				externalModifiedCount: event.externalModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+			})),
+		}, {
+			committedTotals: [3],
+			stats: [{
+				otherAIModifiedCount: 3,
+				externalModifiedCount: 0,
+				totalModifiedCharacters: 3,
+			}],
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('defers Agent Host attribution while the model is dirty', () => runWithFakedTimers({}, async () => {
+		const dirtyStates: boolean[] = [];
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			prepareFlush: async (_resource, trigger, _statsUuid, isDirty) => {
+				if (trigger === 'hashChange') {
+					dirtyStates.push(isDirty);
+				}
+				return undefined;
+			},
+		};
+		const context = setup(undefined, markerService, true);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			dirtyStates,
+			details: context.details.map(event => ({
+				modifiedCount: event.modifiedCount,
+				totalModifiedCount: event.totalModifiedCount,
+			})),
+		}, {
+			dirtyStates: [true],
+			details: [{
+				modifiedCount: 5,
+				totalModifiedCount: 5,
+			}],
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('does not fall back matched Agent edits while the model is dirty', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => undefined,
+		};
+		const context = setup(undefined, markerService, true);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			detailCount: context.details.length,
+			statsCount: context.stats.length,
+		}, {
+			detailCount: 0,
+			statsCount: 0,
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('keeps unmatched reloads as standard external telemetry', () => runWithFakedTimers({}, async () => {
+		let observation = 0;
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => `observation-${++observation}`,
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			prepareFlush: async () => undefined,
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			sourceKeys: context.details.map(event => event.sourceKey).sort(),
+			hasInternalObservationKey: context.details.some(event => event.sourceKey.startsWith('external-observation:')),
+		}, {
+			sourceKeys: ['source:Chat.applyEdits', 'source:reloadFromDisk'],
+			hasInternalObservationKey: false,
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('reports partial Agent Host coverage without dropping workbench attribution', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			takeCoverageGap: () => ({
+				editCount: 1,
+				insertedCount: 42,
+			}),
+			prepareFlush: async () => undefined,
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual(context.stats.map(event => ({
+			externalModifiedCount: event.externalModifiedCount,
+			totalModifiedCharacters: event.totalModifiedCharacters,
+			agentHostAttributionCoverage: event.agentHostAttributionCoverage,
+			agentHostUntrackedEditCount: event.agentHostUntrackedEditCount,
+			agentHostUntrackedInsertedCount: event.agentHostUntrackedInsertedCount,
+		})), [{
+			externalModifiedCount: 8,
+			totalModifiedCharacters: 8,
+			agentHostAttributionCoverage: 'partial',
+			agentHostUntrackedEditCount: 1,
+			agentHostUntrackedInsertedCount: 42,
+		}]);
+
+		context.disposables.dispose();
+	}));
+
+	test('emits workbench telemetry when Agent Host coordination fails', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			prepareFlush: async () => {
+				throw new Error('Agent Host unavailable');
+			},
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual(context.details.map(event => ({
+			modifiedCount: event.modifiedCount,
+			totalModifiedCount: event.totalModifiedCount,
+		})), [{
+			modifiedCount: 5,
+			totalModifiedCount: 5,
+		}]);
+
+		context.disposables.dispose();
+	}));
+
+	test('falls back to external telemetry when a matched Agent flush cannot prepare', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => {
+				throw new Error('Agent Host unavailable');
+			},
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual(context.details.map(event => event.sourceKey).sort(), [
+			'source:Chat.applyEdits',
+			'source:reloadFromDisk',
+		]);
+
+		context.disposables.dispose();
+	}));
+
+	test('falls back to a matched initial external edit when Agent Host is unavailable', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => {
+				throw new Error('Agent Host unavailable');
+			},
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual(context.details.map(event => ({
+			sourceKey: event.sourceKey,
+			modifiedCount: event.modifiedCount,
+			totalModifiedCount: event.totalModifiedCount,
+		})), [{
+			sourceKey: 'source:reloadFromDisk',
+			modifiedCount: 8,
+			totalModifiedCount: 8,
+		}]);
+
+		context.disposables.dispose();
+	}));
+
+	test('does not fall back when Agent Host attribution is deferred', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => {
+				throw new AgentHostEditAttributionDeferredError(new Error('Prepare cancelled'));
+			},
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			detailCount: context.details.length,
+			statsCount: context.stats.length,
+		}, {
+			detailCount: 0,
+			statsCount: 0,
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('does not emit external fallback when the Agent Host commit outcome is unknown', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 3,
+				commit: async () => {
+					throw new AgentHostEditAttributionUnknownOutcomeError(new Error('Transport unavailable'));
+				},
+			}),
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			detailCount: context.details.length,
+			stats: context.stats.map(event => ({
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				externalModifiedCount: event.externalModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+			})),
+		}, {
+			detailCount: 0,
+			stats: [{
+				otherAIModifiedCount: 3,
+				externalModifiedCount: 0,
+				totalModifiedCharacters: 3,
+			}],
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('commits zero-retention Agent Host windows', () => runWithFakedTimers({}, async () => {
+		const commits: number[] = [];
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			prepareFlush: async (_resource, trigger) => trigger === 'hashChange' ? ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 0,
+				commit: async totalModifiedCount => {
+					commits.push(totalModifiedCount);
+				},
+			}) : undefined,
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			commits,
+			detailCount: context.details.length,
+			statsCount: context.stats.length,
+		}, {
+			commits: [0],
+			detailCount: 0,
+			statsCount: 0,
+		});
+
+		context.disposables.dispose();
+	}));
 });
 
-function setup(visible: ISettableObservable<boolean> = observableValue('visible', true)) {
+function setup(
+	visible: ISettableObservable<boolean> = observableValue('visible', true),
+	markerService?: IAgentHostEditMarkerService,
+	dirty = false,
+) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
 	const branch = observableValue('branch', 'main');
@@ -171,7 +649,16 @@ function setup(visible: ISettableObservable<boolean> = observableValue('visible'
 		headBranchNameObs: branch,
 		isIgnored: async () => false,
 	} satisfies IScmRepoAdapter;
-	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; modifiedCount: number; deltaModifiedCount: number }> = [];
+	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; statsUuid: string; modifiedCount: number; deltaModifiedCount: number; totalModifiedCount: number }> = [];
+	const stats: Array<{
+		statsUuid: string;
+		otherAIModifiedCount: number;
+		externalModifiedCount: number;
+		totalModifiedCharacters: number;
+		agentHostAttributionCoverage?: 'complete' | 'partial';
+		agentHostUntrackedEditCount?: number;
+		agentHostUntrackedInsertedCount?: number;
+	}> = [];
 	let uuid = 0;
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
 	instantiationService.stub(ITelemetryService, {
@@ -179,6 +666,8 @@ function setup(visible: ISettableObservable<boolean> = observableValue('visible'
 			const eventData = data as { mode?: string } | undefined;
 			if (eventName === 'editTelemetry.editSources.details' && eventData?.mode === 'longterm') {
 				details.push(data as typeof details[number]);
+			} else if (eventName === 'editTelemetry.editSources.stats' && eventData?.mode === 'longterm') {
+				stats.push(data as typeof stats[number]);
 			}
 		},
 	});
@@ -198,6 +687,7 @@ function setup(visible: ISettableObservable<boolean> = observableValue('visible'
 		totalFocusTimeMs: 0,
 		fireAfterGivenFocusTimePassed: () => Disposable.None,
 	});
+	instantiationService.stub(ITextFileService, { isDirty: () => dirty });
 	instantiationService.stub(IAiEditTelemetryService, {
 		_serviceBrand: undefined,
 		createSuggestionId: () => EditSuggestionId.newId(() => 'sgt-test'),
@@ -208,14 +698,14 @@ function setup(visible: ISettableObservable<boolean> = observableValue('visible'
 
 	const workspace = new MutableObservableWorkspace();
 	const annotatedDocuments = disposables.add(new AnnotatedDocuments(workspace, instantiationService));
-	const impl = disposables.add(new EditSourceTrackingImpl(constObservable(true), annotatedDocuments, instantiationService));
+	const impl = disposables.add(new EditSourceTrackingImpl(constObservable(true), annotatedDocuments, markerService, instantiationService));
 	const document = disposables.add(workspace.createDocument({
 		uri: URI.file('C:\\repo\\file.ts'),
 		initialValue: 'hello',
 		languageId: 'typescript',
 	}));
 
-	return { disposables, document, details, headHash, branch, impl };
+	return { disposables, document, details, stats, headHash, branch, impl };
 }
 
 function chatEdit(requestId: string) {

@@ -48,14 +48,17 @@ suite('SessionsListModelService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let sessionDeletedEmitter: Emitter<ISession>;
 
 	setup(() => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
+		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			onDidChangeSessions: sessionsChangedEmitter.event,
+			onDidDeleteSession: sessionDeletedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
@@ -157,14 +160,14 @@ suite('SessionsListModelService', () => {
 
 	// -- Cleanup --
 
-	test('cleans up state when session is removed', () => {
+	test('cleans up state when session is deleted', () => {
 		const session = createSession('s1');
 		service.pinSession(session);
 
 		const events: ISessionListModelChangeEvent[] = [];
 		disposables.add(service.onDidChange(e => events.push(e)));
 
-		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+		sessionDeletedEmitter.fire(session);
 
 		assert.strictEqual(service.isSessionPinned(session), false);
 		assert.deepStrictEqual(events, [
@@ -172,23 +175,38 @@ suite('SessionsListModelService', () => {
 		]);
 	});
 
-	test('removal does not fire when session has no state', () => {
+	test('pin survives a session being evicted from the provider list', () => {
+		const session = createSession('s1');
+		service.pinSession(session);
+
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		// An agent that cannot answer `listSessions` yet reports no sessions,
+		// so the list evicts them until the next refresh. That must not unpin.
+		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+
+		assert.strictEqual(service.isSessionPinned(session), true);
+		assert.strictEqual(changeCount, 0);
+	});
+
+	test('deletion does not fire when session has no state', () => {
 		const session = createSession('s1');
 		let changeCount = 0;
 		disposables.add(service.onDidChange(() => changeCount++));
 
-		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+		sessionDeletedEmitter.fire(session);
 
 		assert.strictEqual(changeCount, 0);
 	});
 
-	test('removal does not affect other sessions', () => {
+	test('deletion does not affect other sessions', () => {
 		const s1 = createSession('s1');
 		const s2 = createSession('s2');
 		service.pinSession(s1);
 		service.pinSession(s2);
 
-		sessionsChangedEmitter.fire({ added: [], removed: [s1], changed: [] });
+		sessionDeletedEmitter.fire(s1);
 
 		assert.strictEqual(service.isSessionPinned(s1), false);
 		assert.strictEqual(service.isSessionPinned(s2), true);
@@ -204,7 +222,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -217,7 +235,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
@@ -244,7 +262,7 @@ suite('SessionsListModelService', () => {
 			instantiationService.stub(IStorageService, storage);
 			instantiationService.stub(ISessionsManagementService, {
 				...mock<ISessionsManagementService>(),
-				onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event,
+				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 			});
@@ -299,7 +317,7 @@ suite('SessionsListModelService', () => {
 				instantiationService.stub(IStorageService, storage);
 				instantiationService.stub(ISessionsManagementService, {
 					...mock<ISessionsManagementService>(),
-					onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event,
+					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 				});

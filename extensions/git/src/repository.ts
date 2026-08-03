@@ -368,16 +368,19 @@ class ProgressManager {
 		onDidChange(_ => this.updateEnablement(), null, this.disposables);
 		this.updateEnablement();
 
-		this.repository.onDidChangeOperations(() => {
-			// Disable input box when the commit operation is running
-			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-		}, null, this.disposables);
+		if (!workspace.isAgentSessionsWorkspace) {
+			this.repository.onDidChangeOperations(() => {
+				// Disable input box when the commit operation is running
+				this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
+			}, null, this.disposables);
+		}
 	}
 
 	private updateEnablement(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
 
-		if (config.get<boolean>('showProgress')) {
+		if (showProgress) {
 			this.enable();
 		} else {
 			this.disable();

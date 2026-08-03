@@ -20,8 +20,12 @@
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
-	padding: 0 0 0 4px !important;
+	padding: var(--agent-sessions-editor-tab-padding, 0 0 0 4px) !important;
 	--tab-border-top-color: transparent !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	--agent-sessions-editor-tab-padding: 0 var(--vscode-spacing-size100) 0 0;
 }
 
 /* Size tabs to their content and never shrink them, so that when more tabs

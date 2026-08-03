@@ -160,7 +160,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const description = DOM.append(container, $('.automation-description'));
 					description.textContent = isEdit
 						? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-						: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected target.");
+						: localize('automation.dialog.createDescription', "Define a prompt that will run on a schedule against the selected target.");
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));

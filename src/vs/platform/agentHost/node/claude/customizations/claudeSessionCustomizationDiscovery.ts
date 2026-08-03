@@ -18,6 +18,8 @@ import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
 import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
 import { CLAUDE_BUILTIN_AGENTS, buildClaudeBuiltinSkillsContainer, buildSdkBuiltinSkillsContainer } from './claudeBuiltinCommands.js';
+import { distinctClaudeWorkingDirectories } from './claudeMultiRootCustomizationDiscovery.js';
+import { findMostSpecificClaudeWorkspaceRoot } from './claudeCustomizationPolicy.js';
 
 /**
  * The Claude SDK's built-in default agent. Hidden from the picker:
@@ -87,24 +89,27 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 }
 
 /**
- * The scope a discovered customization belongs to, derived from which
- * `.claude/` tree contains its source file.
+ * A URI-backed scope bucket. The base URI distinguishes workspace A,
+ * workspace B, and user scope without a separate scope enum.
  */
-const enum ClaudeCustomizationScope {
-	Workspace = 'workspace',
-	User = 'user',
+interface ICustomizationBucket {
+	readonly base: URI;
+	readonly agents: AgentCustomization[];
+	readonly skills: SkillCustomization[];
+	readonly rules: RuleCustomization[];
+	readonly hooks: HookCustomization[];
 }
 
-/**
- * Attributes a discovered file to the scope whose `.claude/` directory
- * contains it. SDK-only (`claude-internal:`) and any out-of-tree URIs fall
- * back to the user scope. Drives per-scope grouping so the workbench can
- * label containers "Workspace" vs "User".
- */
-function scopeOf(uri: URI, workingDirectory: URI | undefined): ClaudeCustomizationScope {
-	return workingDirectory && uri.scheme === workingDirectory.scheme && isEqualOrParent(uri, workingDirectory)
-		? ClaudeCustomizationScope.Workspace
-		: ClaudeCustomizationScope.User;
+function createBucket(base: URI): ICustomizationBucket {
+	return { base, agents: [], skills: [], rules: [], hooks: [] };
+}
+
+function findCustomizationBucket(uri: URI, workspaceBuckets: readonly ICustomizationBucket[], userBucket: ICustomizationBucket): ICustomizationBucket {
+	const root = findMostSpecificClaudeWorkspaceRoot(uri, workspaceBuckets.map(bucket => bucket.base));
+	if (workspaceBuckets.length > 1 && uri.scheme === userBucket.base.scheme && isEqualOrParent(uri, userBucket.base) && (!root || userBucket.base.path.length > root.path.length)) {
+		return userBucket;
+	}
+	return workspaceBuckets.find(bucket => bucket.base === root) ?? userBucket;
 }
 
 /**
@@ -122,15 +127,14 @@ export function mapDiscoveredCustomizations(
 	mcpServers: readonly McpServerCustomization[],
 	hooks: readonly HookCustomization[],
 	nativePlugins: readonly IResolvedNativePlugin[],
-	workingDirectory: URI | undefined,
+	workingDirectories: readonly URI[] | URI | undefined,
 	userHome: URI,
 ): readonly Customization[] {
-	const buckets = new Map<ClaudeCustomizationScope, { agents: AgentCustomization[]; skills: SkillCustomization[]; rules: RuleCustomization[]; hooks: HookCustomization[] }>([
-		[ClaudeCustomizationScope.Workspace, { agents: [], skills: [], rules: [], hooks: [] }],
-		[ClaudeCustomizationScope.User, { agents: [], skills: [], rules: [], hooks: [] }],
-	]);
+	const roots = distinctClaudeWorkingDirectories(Array.isArray(workingDirectories) ? workingDirectories : workingDirectories ? [workingDirectories] : []);
+	const workspaceBuckets = roots.map(createBucket);
+	const userBucket = createBucket(userHome);
 	for (const d of discovered) {
-		const bucket = buckets.get(scopeOf(d.uri, workingDirectory))!;
+		const bucket = findCustomizationBucket(d.uri, workspaceBuckets, userBucket);
 		if (d.customization.type === CustomizationType.Agent) {
 			bucket.agents.push(d.customization);
 		} else if (d.customization.type === CustomizationType.Skill) {
@@ -143,32 +147,22 @@ export function mapDiscoveredCustomizations(
 	// carry no `IParsed*` wrapper, so attribute them to scope via their source
 	// settings-file uri.
 	for (const hook of hooks) {
-		buckets.get(scopeOf(URI.parse(hook.uri), workingDirectory))!.hooks.push(hook);
+		findCustomizationBucket(URI.parse(hook.uri), workspaceBuckets, userBucket).hooks.push(hook);
 	}
 
 	const result: Customization[] = [];
-	// Workspace containers first (precedence), then user. `base` is the scope
-	// root the container `.claude/<sub>` uri is built from.
-	const orderedScopes: readonly (readonly [ClaudeCustomizationScope, URI | undefined])[] = [
-		[ClaudeCustomizationScope.Workspace, workingDirectory],
-		[ClaudeCustomizationScope.User, userHome],
-	];
-	for (const [scope, base] of orderedScopes) {
-		if (!base) {
-			continue;
-		}
-		const bucket = buckets.get(scope)!;
+	for (const bucket of [...workspaceBuckets, userBucket]) {
 		if (bucket.agents.length > 0) {
-			result.push(makeDirectory(base, 'agents', CustomizationType.Agent, bucket.agents));
+			result.push(makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents));
 		}
 		if (bucket.skills.length > 0) {
-			result.push(makeDirectory(base, 'skills', CustomizationType.Skill, bucket.skills));
+			result.push(makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills));
 		}
 		if (bucket.rules.length > 0) {
-			result.push(makeDirectory(base, 'rules', CustomizationType.Rule, bucket.rules));
+			result.push(makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules));
 		}
 		if (bucket.hooks.length > 0) {
-			result.push(makeDirectory(base, 'hooks', CustomizationType.Hook, bucket.hooks));
+			result.push(makeDirectory(bucket.base, 'hooks', CustomizationType.Hook, bucket.hooks));
 		}
 	}
 
@@ -278,7 +272,7 @@ export function buildDiscoveredCustomizations(
 	mcpServers: readonly McpServerCustomization[],
 	hooks: readonly HookCustomization[],
 	nativePlugins: readonly IResolvedNativePlugin[],
-	workingDirectory: URI | undefined,
+	workingDirectories: readonly URI[] | URI | undefined,
 	userHome: URI,
 	sdk: ISdkResolvedCustomizations | undefined,
 ): readonly Customization[] {
@@ -350,7 +344,7 @@ export function buildDiscoveredCustomizations(
 		const builtinAgents = CLAUDE_BUILTIN_AGENTS
 			.filter(a => a.name !== CLAUDE_SDK_DEFAULT_AGENT_NAME && !diskAgentNames.has(a.name))
 			.map(a => toParsedAgent({ uri: nonEditableUri('agent', a.name), name: a.name, description: a.description() }));
-		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, hooks, nativePlugins, workingDirectory, userHome));
+		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, hooks, nativePlugins, workingDirectories, userHome));
 	}
 
 	const agentNames = new Set(sdk.agents.map(a => a.name));
@@ -430,7 +424,7 @@ export function buildDiscoveredCustomizations(
 
 	// Native plugins were matched to the live SDK set at the top of this
 	// function (`visiblePlugins`); surface them as top-level containers.
-	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, hooks, visiblePlugins, workingDirectory, userHome));
+	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, hooks, visiblePlugins, workingDirectories, userHome));
 }
 
 /**
@@ -479,7 +473,7 @@ export class ClaudeCustomizationWatcher extends Disposable {
 	readonly onDidChange: Event<void>;
 
 	constructor(
-		workingDirectory: URI | undefined,
+		workingDirectories: readonly URI[] | URI | undefined,
 		userHome: URI,
 		fileService: IFileService,
 		logService: ILogService,
@@ -487,9 +481,16 @@ export class ClaudeCustomizationWatcher extends Disposable {
 	) {
 		super();
 
+		const roots = distinctClaudeWorkingDirectories(Array.isArray(workingDirectories) ? workingDirectories : workingDirectories ? [workingDirectories] : []);
 		// URIs whose subtree (or exact file, for `.mcp.json`) signals a re-scan.
 		const triggers: URI[] = [];
+		const watched = new Set<string>();
 		const watch = (uri: URI, recursive: boolean) => {
+			const key = `${recursive}:${uri.toString()}`;
+			if (watched.has(key)) {
+				return;
+			}
+			watched.add(key);
 			try {
 				this._register(fileService.watch(uri, { recursive, excludes: [] }));
 			} catch (err) {
@@ -506,12 +507,23 @@ export class ClaudeCustomizationWatcher extends Disposable {
 			}
 		};
 
-		if (workingDirectory) {
-			const projectClaude = URI.joinPath(workingDirectory, '.claude');
+		const primary = roots[0];
+		if (primary) {
+			const projectClaude = URI.joinPath(primary, '.claude');
 			watch(projectClaude, true);
 			addClaudeTriggers(projectClaude);
-			watch(workingDirectory, false);
-			triggers.push(URI.joinPath(workingDirectory, '.mcp.json'));
+			watch(primary, false);
+			triggers.push(URI.joinPath(primary, '.mcp.json'));
+		}
+		for (const additional of roots.slice(1)) {
+			const projectClaude = URI.joinPath(additional, '.claude');
+			watch(projectClaude, true);
+			triggers.push(
+				URI.joinPath(projectClaude, 'agents'),
+				URI.joinPath(projectClaude, 'skills'),
+				URI.joinPath(projectClaude, 'settings.json'),
+				URI.joinPath(projectClaude, 'settings.local.json'),
+			);
 		}
 		const userClaude = URI.joinPath(userHome, '.claude');
 		watch(userClaude, true);
@@ -521,7 +533,7 @@ export class ClaudeCustomizationWatcher extends Disposable {
 		// canonical list so the watcher never drifts from what it actually
 		// reads. Entries already under a recursively-watched `.claude` root
 		// (e.g. `.claude/CLAUDE.md`) are harmless duplicate triggers.
-		triggers.push(...claudeMemoryFiles(workingDirectory, userHome));
+		triggers.push(...claudeMemoryFiles(primary, userHome));
 
 		// Collapse the raw file-change stream into a single debounced signal.
 		// The `DisposableStore` argument is required because `onDidChange` is a

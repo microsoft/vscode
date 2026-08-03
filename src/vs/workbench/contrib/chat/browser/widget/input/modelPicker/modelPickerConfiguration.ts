@@ -140,6 +140,7 @@ export class ModelPickerConfiguration {
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
+				reserveSubmenuSpace: false,
 			}),
 		);
 
@@ -218,6 +219,7 @@ export class ModelPickerConfiguration {
 						}
 					},
 					kind: ActionListItemKind.Action,
+					className: 'chat-model-picker-config-option',
 					label: displayLabel,
 					description: isDefault ? defaultLabel : undefined,
 					ariaDescription: ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined,

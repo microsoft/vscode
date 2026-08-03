@@ -147,20 +147,26 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			this.save();
 		}
 
+		// A session dropping out of the provider's list is an eviction, not a
+		// deletion — an agent that cannot answer `listSessions` yet reports no
+		// sessions, so its sessions disappear until the next refresh. Clearing
+		// membership here would turn that transient gap into a permanent,
+		// unrecoverable loss of the user's grouping.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			const changed = new Set<string>();
 			for (const session of e.removed) {
 				this._inFlightSessionGroups.delete(session.sessionId);
-				if (this._membership.delete(session.sessionId)) {
-					changed.add(session.sessionId);
-				}
 			}
+			const changed = new Set<string>();
 			this.removeArchivedMembership(e.added, changed);
 			this.removeArchivedMembership(e.changed, changed);
 			if (changed.size > 0) {
 				this.save();
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+		}));
+
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
+			this.removeFromGroup(session.sessionId);
 		}));
 
 		this._register(this.sessionsManagementService.onDidArchiveSession(session => {

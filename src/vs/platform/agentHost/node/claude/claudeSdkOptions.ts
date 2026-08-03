@@ -29,6 +29,14 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 export interface IBuildOptionsInput {
 	readonly sessionId: string;
 	readonly workingDirectory: URI;
+	/**
+	 * Additional directories (index 1..N of the session's ordered set) the agent
+	 * is granted tool access to beyond the primary {@link workingDirectory}
+	 * (index 0 → `Options.cwd`). Projected onto `Options.additionalDirectories`
+	 * as absolute paths. Omitted from the returned options entirely when empty so
+	 * a single-root session keeps the SDK default (no additional directories).
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly model: ModelSelection | undefined;
 	readonly abortController: AbortController;
 	readonly permissionMode: ClaudePermissionMode;
@@ -122,6 +130,9 @@ export async function buildOptions(
 
 	return {
 		cwd: input.workingDirectory.fsPath,
+		...(input.additionalDirectories && input.additionalDirectories.length > 0
+			? { additionalDirectories: input.additionalDirectories.map(d => d.fsPath) }
+			: {}),
 		executable: process.execPath as 'node',
 		env: subprocessEnv,
 		abortController: input.abortController,
@@ -240,6 +251,8 @@ export function buildSubprocessEnv(proxied: boolean = true): Record<string, stri
 			ANTHROPIC_API_KEY: undefined,
 			HOME: process.env['HOME'],
 			USERPROFILE: process.env['USERPROFILE'],
+			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
+			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
 		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
 	// Replace semantics mean the sparse (proxied) env would otherwise drop the

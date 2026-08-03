@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { chatLinesAddedForeground, chatLinesRemovedForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getUntitledSessionTitle, ISession } from '../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, getUntitledSessionTitle, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 
 /**
  * Aggregated insertions/deletions across all of a session's changes,
@@ -64,14 +64,18 @@ export function buildSessionHoverContent(
 	// Line 2: folder icon + folder path · git branch
 	const workspace = session.workspace.get();
 	const folder = workspace?.folders[0];
-	const branch = folder?.gitRepository?.branchName?.trim();
+	// A pending worktree still describes the checkout, so its path, branch and changes are withheld.
+	const worktreePending = session.worktreePending?.get() ?? false;
+	const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim();
 	let appendedDetails = false;
 
 	if (folder && workspace) {
-		const isWorkspaceSession = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-		const folderIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
+		const kind = getSessionWorkspaceKind(workspace, worktreePending);
+		const folderIcon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree;
 		md.appendMarkdown(`$(${folderIcon.id}) `);
-		md.appendText(folder.root.fsPath);
+		md.appendText(worktreePending
+			? localize('agentSessions.worktreePending', "Creating worktree…")
+			: folder.root.fsPath);
 		appendedDetails = true;
 	}
 
@@ -89,7 +93,7 @@ export function buildSessionHoverContent(
 	}
 
 	// Line 3: file count · diff stats
-	const diffStats = getSessionDiffStats(session);
+	const diffStats = worktreePending ? undefined : getSessionDiffStats(session);
 	if (diffStats) {
 		const fileText = diffStats.files === 1
 			? localize('agentSessions.fileChanged', "1 file changed")

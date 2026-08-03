@@ -631,18 +631,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('clearConnection clears pending new session config', () => {
+	test('clearConnection clears pending new session config and capabilities', () => {
+		connection.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'running-session', { title: 'Running Session' });
+		const runningSession = provider.getSessions()[0];
 
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const supportsMultipleChatsBeforeDisconnect = runningSession.capabilities.get().supportsMultipleChats;
 		provider.clearConnection();
 
 		assert.deepStrictEqual({
 			resolved: provider.getSessionByResource(session.resource),
 			config: provider.getSessionConfig(session.sessionId),
+			sessionTypes: provider.sessionTypes,
+			supportsMultipleChatsBeforeDisconnect,
+			supportsMultipleChatsAfterDisconnect: runningSession.capabilities.get().supportsMultipleChats,
 		}, {
 			resolved: undefined,
 			config: undefined,
+			sessionTypes: [],
+			supportsMultipleChatsBeforeDisconnect: true,
+			supportsMultipleChatsAfterDisconnect: false,
 		});
 	});
 

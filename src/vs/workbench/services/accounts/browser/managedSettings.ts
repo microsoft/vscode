@@ -40,6 +40,9 @@ export interface IManagedSettingsResponse {
 	readonly strictKnownMarketplaces?: readonly unknown[];
 	readonly allowedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
 	readonly deniedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly strictPluginOnlyCustomization?: boolean;
+	readonly allowManagedMcpServersOnly?: boolean;
+	readonly allowManagedHooksOnly?: boolean;
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;

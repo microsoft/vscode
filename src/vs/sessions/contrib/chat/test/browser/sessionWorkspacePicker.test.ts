@@ -419,6 +419,38 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.strictEqual(picker.selectedFolderUri, undefined, 'restore selects nothing when there is no owned history to restore from');
 	});
 
+	test('filters worktree checkout folders from VS Code global recents only', async () => {
+		const provider = createMockProvider('provider');
+		providersService.setProviders([provider]);
+
+		const ownWorktreeUri = URI.file('/code/owned.worktrees/feature');
+		const globalWorktreeUri = URI.file('/code/vscode.worktrees/feature');
+		const globalUppercaseWorktreeUri = URI.file('/code/VSCode.WORKTREES/other-feature');
+		const globalSimilarUri = URI.file('/code/vscode.worktrees-backup/feature');
+		const globalRegularUri = URI.file('/code/vscode/feature');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: ownWorktreeUri, providerId: 'provider', checked: false }]);
+
+		const workspacesService = {
+			getRecentlyOpened: async () => ({
+				workspaces: [
+					{ folderUri: globalWorktreeUri },
+					{ folderUri: globalUppercaseWorktreeUri },
+					{ folderUri: globalSimilarUri },
+					{ folderUri: globalRegularUri },
+				],
+				files: [],
+			}),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+
+		assert.deepStrictEqual(
+			recentWorkspacesService.getRecentWorkspaces().map(recent => recent.workspace.uri.toString()),
+			[ownWorktreeUri, globalSimilarUri, globalRegularUri].map(uri => uri.toString()),
+		);
+	});
+
 	test('restored remote that never connects falls back after grace period', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// The provider is registered as Disconnected and never transitions —
 		// e.g. SSH host is unreachable and the status was set before the picker

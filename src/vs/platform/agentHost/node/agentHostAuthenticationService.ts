@@ -37,11 +37,13 @@ export class AgentHostAuthenticationService {
 			matching.map(p => p.authenticate(params.resource, params.token)),
 		);
 		let authenticated = false;
+		let rejected = false;
 		for (let i = 0; i < settled.length; i++) {
 			const result = settled[i];
 			if (result.status === 'fulfilled') {
 				authenticated ||= result.value;
 			} else {
+				rejected = true;
 				this._logService.error(
 					result.reason,
 					`[AgentHostAuthenticationService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
@@ -57,14 +59,18 @@ export class AgentHostAuthenticationService {
 			if (result.status === 'fulfilled') {
 				authenticated ||= result.value;
 			} else {
+				rejected = true;
 				this._logService.error(
 					result.reason,
 					`[AgentHostAuthenticationService] Provider '${sessionResourceHandlers[i].id}' handleAuthenticationToken threw for resource=${params.resource}`,
 				);
 			}
 		}
+		const scopes = this._normalizeScopes(params.scopes);
+		if (!authenticated && !rejected) {
+			authenticated = this._tokens.get(this._key(params.resource, scopes))?.token === params.token;
+		}
 		if (authenticated) {
-			const scopes = this._normalizeScopes(params.scopes);
 			this._tokens.set(this._key(params.resource, scopes), { resource: params.resource, scopes, token: params.token });
 		}
 		return { authenticated };

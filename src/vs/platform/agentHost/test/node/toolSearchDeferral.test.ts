@@ -36,15 +36,21 @@ suite('toolSearchDeferral', () => {
 			}
 		});
 
-		test('rejects Haiku and legacy Claude families', () => {
-			for (const id of ['claude-haiku-4-5', 'claude-haiku-4.5', 'claude-3-5-sonnet-20241022', 'claude-3-opus']) {
+		test('supports Haiku 4.5, the only shipping Haiku', () => {
+			for (const id of ['claude-haiku-4-5', 'claude-haiku-4.5', 'claude-haiku-4-5-20251001']) {
+				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
+			}
+		});
+
+		test('rejects legacy Claude families', () => {
+			for (const id of ['claude-3-5-sonnet-20241022', 'claude-3-opus']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
 			}
 		});
 
-		test('rejects OpenAI model families due to an SDK issue', () => {
+		test('supports OpenAI GPT-5.4, GPT-5.5, and GPT-5.6 variants', () => {
 			for (const id of ['gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
-				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
+				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
 			}
 		});
 

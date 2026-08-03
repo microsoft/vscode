@@ -305,7 +305,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.changes-file-list .changes-review-comments-badge .codicon {
+/* Include the view owner to outrank
+ * `.monaco-workbench .codicon[class*='codicon-']` and keep both badge icons at
+ * the compact 12px size instead of the workbench default 16px. */
+.changes-view-body .changes-file-list .changes-review-comments-badge .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
@@ -318,7 +321,7 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.changes-file-list .changes-agent-feedback-badge .codicon {
+.changes-view-body .changes-file-list .changes-agent-feedback-badge .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

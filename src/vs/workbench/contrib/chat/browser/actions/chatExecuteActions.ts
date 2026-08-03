@@ -200,11 +200,11 @@ export class ChatSubmitAction extends SubmitAction {
 			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.newLine,
+				icon: Codicon.arrowUpCompact,
 				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
@@ -777,7 +777,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			menu: [
 				{

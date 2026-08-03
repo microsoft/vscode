@@ -16,6 +16,7 @@ import {
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
 	AgentHostLocalFilePermissionsSettingId,
+	LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -66,6 +67,42 @@ suite('AgentHostResourceService', () => {
 		const { service } = createService();
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Read), false);
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Write), false);
+	});
+
+	test('trusted local identity cannot be spoofed by a remote local address', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+
+		assert.deepStrictEqual({
+			trustedLocal: await service.check(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, uri, AgentHostPermissionMode.Write),
+			remoteLocal: await service.check('local', uri, AgentHostPermissionMode.Read),
+			normalizedRemoteLocal: await service.check('ws://local', uri, AgentHostPermissionMode.Read),
+		}, {
+			trustedLocal: true,
+			remoteLocal: false,
+			normalizedRemoteLocal: false,
+		});
+	});
+
+	test('remote local address uses the normal permission request flow', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+		const promise = service.request('ws://local', { channel: 'ahp-root://', uri: uri.toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const [pending] = service.allPending.get();
+
+		assert.deepStrictEqual({
+			address: pending.address,
+			uri: pending.uri.toString(),
+			mode: pending.mode,
+		}, {
+			address: 'local',
+			uri: uri.toString(),
+			mode: AgentHostPermissionMode.Read,
+		});
+
+		pending.deny();
+		await assert.rejects(promise, (err: unknown) => err instanceof CancellationError);
 	});
 
 	test('implicit read grant covers descendants but not parent or sibling', async () => {
@@ -554,4 +591,3 @@ suite('AgentHostResourceService', () => {
 		assert.strictEqual(await service.check('host', URI.file('/etc/good'), AgentHostPermissionMode.Read), true);
 	});
 });
-

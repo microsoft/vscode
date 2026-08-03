@@ -54,6 +54,33 @@ export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_mo
 	}
 }
 
+/**
+ * Materializes a SPECIFIC version of an npm package into `targetDir`, replacing
+ * any existing contents. Unlike {@link ensureNpmPackage}, the version is passed
+ * explicitly rather than read from the adjacent lockfile — use for build-time
+ * payloads whose required version does not match that lockfile. Pass
+ * `expectedIntegrity` (the `sha512-...` recorded for that version in the
+ * relevant lockfile) to verify the fetched tarball before extraction.
+ */
+export function materializeNpmPackageVersion(packageName: string, version: string, targetDir: string, expectedIntegrity: string | undefined, options: EnsureNpmPackageOptions = {}): void {
+	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-'));
+	try {
+		const tarballPath = (options.packPackage ?? packNpmPackage)(packageName, version, tempDir);
+		verifyNpmIntegrity(tarballPath, expectedIntegrity);
+
+		fs.rmSync(targetDir, { recursive: true, force: true });
+		fs.mkdirSync(targetDir, { recursive: true });
+		extract({ file: tarballPath, cwd: targetDir, strip: 1, sync: true });
+		console.log(`[materializeNpmPackageVersion] Materialized ${packageName}@${version} in ${targetDir}`);
+	} catch (err) {
+		fs.rmSync(targetDir, { recursive: true, force: true });
+		throw new Error(`[materializeNpmPackageVersion] Failed to materialize ${packageName}@${version}: ${err instanceof Error ? err.message : String(err)}`);
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true });
+	}
+}
+
+
 function packNpmPackage(packageName: string, version: string, tempDir: string): string {
 	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
 

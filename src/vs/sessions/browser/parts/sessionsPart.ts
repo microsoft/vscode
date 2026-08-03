@@ -8,8 +8,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
+import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
@@ -31,6 +30,7 @@ import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workben
 import { observableValue } from '../../../base/common/observable.js';
 import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 
 /**
  * ExP treatment that, when enabled, moves the session type ("harness") picker
@@ -55,13 +55,6 @@ export class SessionsPart extends Part {
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 	get snap(): boolean { return false; }
-
-	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_LEFT = 0;
-	static readonly MARGIN_RIGHT = AGENTS_FLOATING_PANEL_GAP;
-	static readonly MARGIN_RIGHT_NO_EDITOR_PANE = 0;
-	static readonly MARGIN_BOTTOM = 0;
 
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
@@ -91,6 +84,12 @@ export class SessionsPart extends Part {
 
 	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
+
+	/**
+	 * Whether the part itself is visible in the workbench grid. Starts `true`
+	 * because the workbench grid only calls {@link setVisible} on change.
+	 */
+	private _isPartVisible = true;
 
 	/**
 	 * Whether the session type ("harness") picker should be rendered below the
@@ -381,6 +380,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		view.setPartVisible(this._isPartVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -406,13 +406,21 @@ export class SessionsPart extends Part {
 
 		const container = assertReturnsDefined(this.getContainer());
 
-		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
-		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
-		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
-		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
+		applyAgentsPartCardStyles(container, this.theme);
 
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
+	}
+
+	override setVisible(visible: boolean): void {
+		if (this._isPartVisible !== visible) {
+			// Update before `super`, whose event re-enters this method.
+			this._isPartVisible = visible;
+			for (const slot of this._slots) {
+				slot.view.setPartVisible(visible);
+			}
+		}
+
+		super.setVisible(visible);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -422,17 +430,10 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		// Compute content dimensions accounting for visual margins and border.
-		const borderTotal = SessionsPart.BORDER_WIDTH * 2;
-		const marginLeft = SessionsPart.MARGIN_LEFT;
-		const marginBottom = SessionsPart.MARGIN_BOTTOM;
-		const marginRight = this.agentWorkbenchLayoutService.isEditorPaneVisible() ? SessionsPart.MARGIN_RIGHT : SessionsPart.MARGIN_RIGHT_NO_EDITOR_PANE;
+		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
 
 		// Size the content area with the reduced dimensions.
-		const { contentSize } = this.layoutContents(
-			width - marginLeft - marginRight - borderTotal,
-			height - SessionsPart.MARGIN_TOP - marginBottom - borderTotal
-		);
+		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the internal grid widget within the content area.
 		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);

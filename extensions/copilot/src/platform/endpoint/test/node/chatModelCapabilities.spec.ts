@@ -144,10 +144,13 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects Haiku and legacy Claude families', () => {
-		// Haiku is current-gen but has no tool search support — denied explicitly.
-		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
-		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
+	test('supports Haiku 4.5, the only shipping Haiku', () => {
+		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4-5-20251001')).toBe(true);
+	});
+
+	test('rejects legacy Claude families', () => {
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});

@@ -8,7 +8,7 @@ import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority, priorityToRank } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -33,7 +33,12 @@ export interface IAvailableEditorTypes {
  * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
  */
 export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService): IAvailableEditorTypes | undefined {
-	const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const standardDiffResources = isDiffEditorInput(activeEditor) ? {
+		original: activeEditor.original.resource,
+		modified: activeEditor.modified.resource,
+	} : undefined;
+	const diffResources = standardDiffResources ?? (isEditorInputWithDiffResources(activeEditor) ? activeEditor.diffResources : undefined);
+	const resource = diffResources?.modified ?? EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	if (!resource) {
 		return undefined;
 	}
@@ -41,12 +46,11 @@ export function getAvailableEditorTypes(activeEditor: EditorInput | null | undef
 	if (editors.length <= 1) {
 		return undefined;
 	}
-	const isDiffEditor = isDiffEditorInput(activeEditor);
 	return {
 		resource,
-		isDiffEditor,
-		originalResource: isDiffEditor ? activeEditor.original.resource : undefined,
-		modifiedResource: isDiffEditor ? activeEditor.modified.resource : undefined,
+		isDiffEditor: !!diffResources,
+		originalResource: diffResources?.original,
+		modifiedResource: diffResources?.modified,
 		currentId: activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id,
 		editors
 	};

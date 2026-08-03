@@ -17,7 +17,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -138,7 +138,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				const data = e.data as Record<string, unknown>;
 				return {
 					eventName: e.eventName,
-					data: { ...data, invocationTimeMs: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0 },
+					data: {
+						...data,
+						invocationTimeMs: data.invocationTimeMs === undefined
+							? undefined
+							: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+					},
 				};
 			});
 	}
@@ -211,6 +216,13 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-1', 'bash');
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'run',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
 		toolComplete('turn-1', 'tc-1', { success: true, pastTenseMessage: 'ran' });
 
 		assert.deepStrictEqual(toolEvents(), [{
@@ -243,7 +255,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				provider: 'mock',
-				invocationTimeMs: true,
+				invocationTimeMs: undefined,
 			},
 		}]);
 	});
@@ -253,6 +265,13 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-client', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-client',
+			invocationMessage: 'run tests',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
 		toolComplete('turn-1', 'tc-client', { success: true, pastTenseMessage: 'ran tests' });
 
 		assert.deepStrictEqual(toolEvents(), [{
@@ -267,6 +286,83 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				invocationTimeMs: true,
 			},
 		}]);
+	});
+
+	test('only accepts contributor refinements that preserve execution ownership', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-mcp-ready', 'lookup');
+		agent.fireProgress({
+			kind: 'pending_confirmation',
+			chat: URI.parse(defaultChatUri),
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tc-mcp-ready',
+				toolName: 'lookup',
+				displayName: 'Lookup',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				invocationMessage: 'Looking up metadata',
+				toolInput: '{}',
+			},
+		});
+		toolStart('turn-1', 'tc-late-client', 'run_tests');
+		agent.fireProgress({
+			kind: 'pending_confirmation',
+			chat: URI.parse(defaultChatUri),
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tc-late-client',
+				toolName: 'run_tests',
+				displayName: 'Run Tests',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				invocationMessage: 'Running tests',
+				toolInput: '{}',
+			},
+		});
+		await timeout(0);
+		toolComplete('turn-1', 'tc-mcp-ready', { success: true, pastTenseMessage: 'looked up metadata' });
+		toolComplete('turn-1', 'tc-late-client', { success: true, pastTenseMessage: 'ran tests' });
+
+		assert.deepStrictEqual(toolEvents().map(event => event.data.toolSourceKind), ['mcp', 'agentHost']);
+	});
+
+	test('excludes pending confirmation time from invocation timing', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-1');
+			toolStart('turn-1', 'tc-confirm-timing', 'write');
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-confirm-timing',
+				invocationMessage: 'Write file',
+				confirmationTitle: 'Write file',
+			});
+			await timeout(10_000);
+
+			const confirmed: ChatAction = {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-confirm-timing',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			};
+			stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, confirmed);
+			await timeout(25);
+			toolComplete('turn-1', 'tc-confirm-timing', { success: true, pastTenseMessage: 'wrote file' });
+		});
+
+		const event = telemetry.events.find(event => event.eventName === 'languageModelToolInvoked');
+		const invocationTimeMs = (event?.data as { invocationTimeMs?: number } | undefined)?.invocationTimeMs;
+		assert.deepStrictEqual({
+			isMeasured: typeof invocationTimeMs === 'number',
+			excludesConfirmationDelay: typeof invocationTimeMs === 'number' && invocationTimeMs < 1000,
+		}, {
+			isMeasured: true,
+			excludesConfirmationDelay: true,
+		});
 	});
 
 	test('emits error for a failure without a cancellation code', () => {

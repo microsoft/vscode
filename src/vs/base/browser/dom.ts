@@ -2058,16 +2058,18 @@ export class DragAndDropObserver extends Disposable {
  * 1. Lifetime management: `dispose()` disconnects the underlying observer.
  * 2. Auxiliary-window support: pass `targetWindow` so the observer is
  *    constructed in the realm of the element being observed.
- * 3. Attribution for the
+ * 3. Context for the
  *    `ResizeObserver loop completed with undelivered notifications` warning:
- *    each instance carries a stable `name`, and just before invoking the
- *    user callback we publish that name to a module-level slot. The warning
- *    is delivered as a stackless `ErrorEvent` on `window` after callbacks
- *    run, so error telemetry can swap in the most-recently-invoked
- *    observer's name to pinpoint the offending consumer (see
- *    {@link getRecentDisposableResizeObserverAttributionForLoopError}).
+ *    each instance carries a stable `name`, and just before invoking the user
+ *    callback we add that name to a bounded, per-window set that is cleared
+ *    at the next animation frame. The warning is delivered as a stackless
+ *    `ErrorEvent` on `window` after callbacks run, so error telemetry can
+ *    include the wrapped observers that recently ran in that window (see
+ *    {@link getRecentDisposableResizeObserverContextForLoopError}). This is
+ *    delivery context, not causal attribution: the browser does not expose
+ *    which observer or skipped target caused the warning.
  *
- * @param name Stable identifier used in attribution. Prefer something that
+ * @param name Stable identifier used in loop-warning context. Prefer one that
  * survives minification and refactors (e.g. the consumer class + purpose)
  * since callstacks change across releases.
  * @param callback Invoked synchronously when the browser delivers resize
@@ -2094,24 +2096,7 @@ export class DisposableResizeObserver extends Disposable {
 		this.name = name;
 		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
 		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
-			_lastInvokedDisposableResizeObserver = this;
-			// Clear via a 0-ms timer (a new macrotask) rather than a
-			// microtask: microtask checkpoints run at the end of every
-			// script, i.e. after each ResizeObserver callback returns, but
-			// Chromium dispatches the synthetic `ResizeObserver loop
-			// completed with undelivered notifications` error *after* all
-			// callbacks in the observation phase finish. A microtask would
-			// clear the slot before the warning fires; a setTimeout(0)
-			// runs after the entire current task completes (callbacks +
-			// loop-error dispatch), so attribution survives long enough to
-			// be picked up by `window.onerror` while still being scoped to
-			// the same task that produced it. The equality check ensures
-			// only the *last* writer in a phase actually clears the slot.
-			setTimeout(() => {
-				if (_lastInvokedDisposableResizeObserver === this) {
-					_lastInvokedDisposableResizeObserver = undefined;
-				}
-			}, 0);
+			recordDisposableResizeObserverInvocation(targetWindow, this.name);
 			try {
 				callback(entries, observer);
 			} catch (e) {
@@ -2128,32 +2113,75 @@ export class DisposableResizeObserver extends Disposable {
 }
 
 /**
- * The most recently invoked `DisposableResizeObserver`. Set just before each
- * user callback runs and cleared by a 0-ms timer scheduled in the same step,
- * so the slot only carries an attribution within the same task as the
- * `ResizeObserver loop completed with undelivered notifications` warning
- * (which fires synchronously at the end of the resize-observation phase).
- * A microtask would be too eager — microtask checkpoints run between each
- * callback, before the loop-error dispatch.
+ * Keep the context bounded so a large delivery phase cannot create an
+ * unbounded telemetry value. Names are static component identifiers, and are
+ * sorted when read so equivalent phases share a stable bucket.
  */
-let _lastInvokedDisposableResizeObserver: DisposableResizeObserver | undefined;
+const maxRecentDisposableResizeObservers = 8;
 
 /**
- * If `message` looks like the ResizeObserver loop warning, return an
- * attribution string built from the most recently invoked
- * `DisposableResizeObserver` so error telemetry can replace its synthetic,
- * stackless callstack with the offending observer's `name`. Returns
- * `undefined` for unrelated messages or when no observer has fired yet.
+ * Wrapped observers that ran recently in one window. This is deliberately
+ * scoped by window because auxiliary windows have independent documents and
+ * resize-observation delivery loops.
  */
-export function getRecentDisposableResizeObserverAttributionForLoopError(message: string | undefined | null): string | undefined {
+interface IRecentDisposableResizeObserverContext {
+	readonly names: Set<string>;
+	overflow: boolean;
+}
+
+const recentDisposableResizeObserverContexts = new WeakMap<CodeWindow, IRecentDisposableResizeObserverContext>();
+
+function recordDisposableResizeObserverInvocation(targetWindow: CodeWindow, name: string): void {
+	let context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		context = { names: new Set(), overflow: false };
+		recentDisposableResizeObserverContexts.set(targetWindow, context);
+
+		// ResizeObserver callbacks and the synthetic loop error are delivered
+		// after requestAnimationFrame callbacks in the rendering update. A
+		// request made here therefore clears this context at the next frame,
+		// after telemetry has observed any warning from the current update.
+		targetWindow.requestAnimationFrame(() => recentDisposableResizeObserverContexts.delete(targetWindow));
+	}
+
+	if (context.names.has(name)) {
+		return;
+	}
+	if (context.names.size < maxRecentDisposableResizeObservers) {
+		context.names.add(name);
+	} else {
+		context.overflow = true;
+		const largestName = Array.from(context.names).sort().at(-1)!;
+		if (name < largestName) {
+			context.names.delete(largestName);
+			context.names.add(name);
+		}
+	}
+}
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return a stable
+ * context string containing the wrapped observers that ran recently in
+ * `targetWindow`. The names are delivery context only; the browser does not
+ * expose the observer or skipped target that caused the warning. Returns
+ * `undefined` for unrelated messages or when no wrapped observer has fired.
+ */
+export function getRecentDisposableResizeObserverContextForLoopError(
+	message: string | undefined | null,
+	targetWindow: CodeWindow = mainWindow,
+): string | undefined {
 	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
 		return undefined;
 	}
-	const observer = _lastInvokedDisposableResizeObserver;
-	if (!observer) {
+	const context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
 		return undefined;
 	}
-	return `[DisposableResizeObserver(${observer.name})] ${message}`;
+	const names = Array.from(context.names).sort();
+	if (context.overflow) {
+		names.push('<overflow>');
+	}
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

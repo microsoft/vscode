@@ -56,8 +56,12 @@ suite('SessionPermissionManager', () => {
 		return { toolCallId: 'tc-read', session: URI.parse(resource), permissionKind: 'read', permissionPath };
 	}
 
-	function shellEvent(commandLine: string): IToolApprovalEvent {
-		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine };
+	function shellEvent(commandLine: string, shellLanguage: IToolApprovalEvent['shellLanguage']): IToolApprovalEvent {
+		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine, shellLanguage };
+	}
+
+	function powershellEvent(commandLine: string): IToolApprovalEvent {
+		return shellEvent(commandLine, 'powershell');
 	}
 
 	setup(async () => {
@@ -231,28 +235,28 @@ suite('SessionPermissionManager', () => {
 	});
 
 	test('auto-approves shell commands in default permission mode when terminal auto-approve is enabled', async () => {
-		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
 	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
 
-		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, undefined);
 	});
 
 	test('respects forwarded terminal auto-approve deny rules in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { echo: false } });
 
-		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, undefined);
 	});
 
 	test('respects forwarded terminal auto-approve allow rules in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { python: true } });
 
-		const result = await permissions.getAutoApproval(shellEvent('python script.py'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('python script.py', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
@@ -262,8 +266,67 @@ suite('SessionPermissionManager', () => {
 			[AgentHostTerminalAutoApproveRulesConfigKey]: { echo: true },
 		});
 
-		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('isAutoApproveRuleResolvable is true only when a missing allow rule is the sole blocker', () => {
+		const cases: [name: string, event: IToolApprovalEvent, expected: boolean][] = [
+			['unknown command', shellEvent('my-custom-script', 'bash'), true],
+			['already approved', shellEvent('echo hello', 'bash'), false],
+			['denied', shellEvent('rm file.txt', 'bash'), false],
+			['unapproved write redirect', shellEvent('my-custom-script > /etc/passwd', 'bash'), false],
+			['sandbox bypass', { ...shellEvent('my-custom-script', 'bash'), requestSandboxBypass: true }, false],
+			['non-shell', writeEvent('/outside/app.ts'), false],
+		];
+		assert.deepStrictEqual(
+			cases.map(([name, e]) => `${name}=${permissions.isAutoApproveRuleResolvable(e, sessionUri)}`),
+			cases.map(([name, , expected]) => `${name}=${expected}`));
+	});
+
+	test('isAutoApproveRuleResolvable is false when terminal auto-approve is disabled', () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: false });
+		assert.strictEqual(permissions.isAutoApproveRuleResolvable(shellEvent('my-custom-script', 'bash'), sessionUri), false);
+	});
+
+	// `get-childitem` only matches the default `Get-ChildItem` allow rule under
+	// PowerShell's case-insensitive matching, so it distinguishes which grammar
+	// the approver used.
+	test('shell approval and rule eligibility respect the event shell language', async () => {
+		const pwshEvent = powershellEvent('get-childitem');
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(pwshEvent, sessionUri),
+			await permissions.getAutoApproval(shellEvent('get-childitem', 'bash'), sessionUri),
+			permissions.isAutoApproveRuleResolvable(pwshEvent, sessionUri),
+			permissions.isAutoApproveRuleResolvable(shellEvent('get-childitem', 'bash'), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, false, true]);
+	});
+
+	test('PowerShell redirects require a literal approved destination', async () => {
+		const dynamicResults = [];
+		for (const dest of ['$HOME/outside.txt', '$env:TEMP/x.txt', '$(Get-Location)/x.txt', '`pwd`/x.txt', '${HOME}/x.txt', '%APPDATA%/x.txt']) {
+			dynamicResults.push(await permissions.getAutoApproval(powershellEvent(`Write-Host hi >${dest}`), sessionUri));
+		}
+		assert.deepStrictEqual({
+			dynamicResults,
+			literalWorkspaceDestination: await permissions.getAutoApproval(powershellEvent('Write-Host hi >out.txt'), sessionUri),
+			nullSink: await permissions.getAutoApproval(powershellEvent('Write-Host hi >$null'), sessionUri),
+		}, {
+			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
+			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
+			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('missing shell language disables terminal rules and rule suggestions', async () => {
+		const event = shellEvent('Get-ChildItem', undefined);
+		assert.deepStrictEqual({
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
+		}, {
+			approval: undefined,
+			ruleResolvable: false,
+		});
 	});
 
 	test('does not affect session bypass permission mode when terminal auto-approve is disabled', async () => {
@@ -276,7 +339,7 @@ suite('SessionPermissionManager', () => {
 			values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 		});
 
-		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('echo hello', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
@@ -296,7 +359,7 @@ suite('SessionPermissionManager', () => {
 		// A command that would otherwise require confirmation (terminal
 		// auto-approve disabled) is approved because global auto-approve is a
 		// superset that short-circuits before the per-kind checks.
-		const result = await permissions.getAutoApproval(shellEvent('rm -rf /tmp/whatever'), sessionUri);
+		const result = await permissions.getAutoApproval(shellEvent('rm -rf /tmp/whatever', 'bash'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
@@ -348,7 +411,7 @@ suite('SessionPermissionManager', () => {
 		test('a relative shell redirect resolves against the primary root (index 0)', async () => {
 			// `out.txt` resolves against the single process cwd = `workDir`, so it
 			// is contained by the primary root and auto-approves.
-			const result = await permissions.getAutoApproval(shellEvent('echo hi > out.txt'), multiUri);
+			const result = await permissions.getAutoApproval(shellEvent('echo hi > out.txt', 'bash'), multiUri);
 			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 		});
 
@@ -356,8 +419,8 @@ suite('SessionPermissionManager', () => {
 			// POSIX-only: embedding absolute paths in the command string avoids
 			// Windows backslash/drive-colon parsing pitfalls. The containment rule
 			// itself is platform-agnostic and covered by the read/write test above.
-			const intoPeer = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(workDir2, 'out.txt')}`), multiUri);
-			const outside = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(outsideDir, 'out.txt')}`), multiUri);
+			const intoPeer = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(workDir2, 'out.txt')}`, 'bash'), multiUri);
+			const outside = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(outsideDir, 'out.txt')}`, 'bash'), multiUri);
 			assert.deepStrictEqual([intoPeer, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
 		});
 

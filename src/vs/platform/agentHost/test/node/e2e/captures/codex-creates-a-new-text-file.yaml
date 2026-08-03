@@ -10,13 +10,13 @@ exchanges:
     response:
       content:
         - type: text
-          text: Creating `result.txt` in the workspace now with exactly the required content and no extra characters.
+          text: Creating `result.txt` in the workspace now with the exact required content and no extra characters.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: printf 'CREATED_VALUE' > result.txt
-            workdir: ${workdir}/ahp-coverage-create-${temp}
+            cmd: printf %s CREATED_VALUE > result.txt
+            workdir: ${workdir}
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
@@ -25,21 +25,21 @@ exchanges:
         - role: user
           content: Create result.txt containing exactly CREATED_VALUE.
         - role: assistant
-          content: Creating `result.txt` in the workspace now with exactly the required content and no extra characters.
+          content: Creating `result.txt` in the workspace now with the exact required content and no extra characters.
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: printf 'CREATED_VALUE' > result.txt
-                workdir: ${workdir}/ahp-coverage-create-${temp}
+                cmd: printf %s CREATED_VALUE > result.txt
+                workdir: ${workdir}
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: 3971d9
-                Wall time: 0.3396 seconds
+                Chunk ID: 6567bb
+                Wall time: 0.0000 seconds
                 Process exited with code 0
                 Original token count: 0
                 Output:

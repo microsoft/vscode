@@ -128,10 +128,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			for (const session of e.removed) {
-				this.deleteSession(session);
-			}
+		// Only a definitive deletion discards pin and sort state. A session
+		// merely dropping out of the provider's list is an eviction (e.g. an
+		// agent that cannot answer `listSessions` yet reports no sessions), and
+		// discarding state there would permanently unpin sessions that come
+		// back on the next refresh.
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
+			this.deleteSession(session);
 		}));
 	}
 

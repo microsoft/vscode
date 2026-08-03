@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '.
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -250,7 +250,7 @@ function createProviderWithConfig(
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -309,7 +309,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
@@ -386,7 +386,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());

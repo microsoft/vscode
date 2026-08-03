@@ -755,4 +755,9 @@ export const codiconsLibrary = {
 	personVoiceCompact: register('person-voice-compact', 0xece5),
 	personVoiceFilled: register('person-voice-filled', 0xece6),
 	personVoiceFilledCompact: register('person-voice-filled-compact', 0xece7),
+	cloudDownloadCompact: register('cloud-download-compact', 0xece8),
+	cloudUploadCompact: register('cloud-upload-compact', 0xece9),
+	micCompact: register('mic-compact', 0xecea),
+	arrowUpCompact: register('arrow-up-compact', 0xeceb),
+	xai: register('xai', 0xecec),
 } as const;

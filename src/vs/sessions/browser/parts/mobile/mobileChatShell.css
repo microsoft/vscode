@@ -203,7 +203,7 @@
 /* Remove card appearance from ALL parts on phone.
 	Specificity wins over the desktop card rule in style.css without !important;
 	width/height match what the mobile Part.layout() already inlines. */
-.agent-sessions-workbench.phone-layout .part.sessionspart,
+.agent-sessions-workbench.phone-layout .agents-part-card,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
@@ -222,7 +222,7 @@
 	policy above). Without this, opening the sidebar — which makes the
 	splitview share space between sidebar and sessions part — would shrink the
 	sessions part's content during the drawer slide animation. */
-.agent-sessions-workbench.phone-layout .part.sessionspart > .content,
+.agent-sessions-workbench.phone-layout .agents-part-card > .content,
 .agent-sessions-workbench.phone-layout .part.sidebar > .content,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
 .agent-sessions-workbench.phone-layout .part.panel > .content {

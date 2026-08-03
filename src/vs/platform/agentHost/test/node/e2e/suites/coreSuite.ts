@@ -24,7 +24,7 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, stableNewScenarioResponse } = context;
+	const { config, createdSessions, tempDirs } = context;
 	const behaviorSnapshot = { profile: 'behavior' } as const;
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
@@ -101,7 +101,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}
 	});
 
-	(stableNewScenarioResponse ? test : test.skip)('retains context across consecutive turns', async function () {
+	test('retains context across consecutive turns', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
 		tempDirs.push(workspace);

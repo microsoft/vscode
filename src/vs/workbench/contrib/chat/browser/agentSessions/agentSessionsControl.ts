@@ -12,7 +12,7 @@ import { $, append, EventHelper, addDisposableListener, EventType, getWindow, hi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -713,6 +713,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.isPinnedAgentSession.key, session.isPinned()]);
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
+		contextOverlay.push([ChatContextKeys.agentSessionPullRequest.key, getAgentSessionPullRequestContextValue(session)]);
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 

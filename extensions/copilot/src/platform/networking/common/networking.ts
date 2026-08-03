@@ -107,6 +107,7 @@ export interface IEndpointBody {
 	input?: readonly any[];
 	truncation?: 'auto' | 'disabled';
 	prompt_cache_key?: string;
+	prompt_cache_options?: { mode: 'implicit' | 'explicit' };
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
 	text?: {

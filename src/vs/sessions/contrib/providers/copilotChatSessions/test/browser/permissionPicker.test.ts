@@ -19,7 +19,7 @@ suite('Copilot PermissionPicker', () => {
 		})), [
 			{
 				level: ChatPermissionLevel.Default,
-				label: 'Default approvals',
+				label: 'Default permissions',
 				detail: 'Asks when approval settings don\'t apply',
 			},
 			{
@@ -30,7 +30,7 @@ suite('Copilot PermissionPicker', () => {
 			{
 				level: ChatPermissionLevel.Autopilot,
 				label: 'Autopilot (Preview)',
-				detail: 'Autonomously iterates from start to finish',
+				detail: 'Works autonomously within permissions',
 			},
 		]);
 	});

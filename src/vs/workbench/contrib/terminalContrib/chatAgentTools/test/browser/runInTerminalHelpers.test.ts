@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { Separator } from '../../../../../../base/common/actions.js';
 import * as marked from '../../../../../../base/common/marked/marked.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../../../base/common/htmlContent.js';
 import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay, normalizeCommandForExecution, isMultilineCommand, buildCommandDisplayText } from '../../browser/runInTerminalHelpers.js';
@@ -474,6 +475,26 @@ suite('generateAutoApproveActions', () => {
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
 		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test') && action.label.includes('Always Allow Command:'));
 		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
+	});
+
+	test('should not include session-scoped actions when skipSessionScoped is set', () => {
+		const commandLine = 'mvn test';
+		const subCommands = ['mvn test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult, { skipSessionScoped: true });
+		deepStrictEqual(actions.map(action => action instanceof Separator ? '---' : action.label), [
+			'Allow `mvn test …` in this Workspace',
+			'Always Allow `mvn test …`',
+			'---',
+			'Allow Exact Command Line in this Workspace',
+			'Always Allow Exact Command Line',
+			'---',
+			'Configure Auto Approve...',
+		]);
 	});
 });
 

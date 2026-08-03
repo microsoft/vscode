@@ -56,7 +56,6 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-// Returns the available context size options for a model, or undefined if the model has no configurable context sizes. With a long_context surcharge, offers the default tier and the full window as an opt-in. Without a surcharge, `chat.preferLongContext.enabled` decides: enabled shows only the full window, disabled (default) still shows both so the smaller window stays selectable.
 function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
 
@@ -840,8 +839,15 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		let thinkingActive = false;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
-				// Show thinking progress for unencrypted thinking deltas
-				if (!isEncryptedThinkingDelta(delta.thinking)) {
+				if (isEncryptedThinkingDelta(delta.thinking)) {
+					if (options.includeEncryptedThinking) {
+						progress.report(new vscode.LanguageModelThinkingPart(
+							delta.thinking.text ?? '',
+							delta.thinking.id,
+							{ encrypted_content: delta.thinking.encrypted },
+						));
+					}
+				} else {
 					const text = delta.thinking.text ?? '';
 					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));
 					thinkingActive = true;

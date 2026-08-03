@@ -1021,6 +1021,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.stickyCount;
 	}
 
+	/** The container that bounds the editor pane, excluding any docked content inset. */
+	get editorPaneContainer(): HTMLElement {
+		return this.editorContainer;
+	}
+
 	get activeEditorPane(): IVisibleEditorPane | undefined {
 		return this.editorPane ? this.editorPane.activeEditorPane ?? undefined : undefined;
 	}
@@ -2228,13 +2233,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		// Layout the title control first to receive the size it occupies. The
-		// title always spans the full group width (so the tab strip and its
-		// toolbar can extend across any docked right inset).
+		// Keep tabs full-width while breadcrumbs follow the editor content inset.
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		});
+		}, this._contentRightInset);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
@@ -2255,9 +2258,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	/**
-	 * Sets the right inset (px) reserved beside the editor pane while the title
-	 * keeps the full group width, then relayouts. `0` restores the default
-	 * full-width content.
+	 * Sets the right inset reserved beside the breadcrumbs and editor pane while tabs remain full-width.
+	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {
 		const next = Math.max(0, Math.round(inset));

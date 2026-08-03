@@ -15,64 +15,109 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
  * These shapes are deliberately wire-friendly (plain JSON, no `VSBuffer`,
  * `URI`, or `workbench/contrib/chat` types) so they survive both the local
  * utility-process IPC channel and the remote JSON-RPC transport without a
- * translation step. The node side converts OpenAI Chat Completions wire
- * payloads to/from these; the renderer side converts these to/from the VS Code
+ * translation step. The node side converts OpenAI Responses wire payloads
+ * to/from these; the renderer side converts these to/from the VS Code
  * LM API (`ILanguageModelsService`).
  */
 
-/** A single tool/function call requested by the assistant. */
-export interface IByokLmToolCall {
-	/** Stable id correlating the call with its later `tool` result message. */
-	readonly id: string;
-	/** Tool/function name. */
+export interface IByokLmTextPart {
+	readonly type: 'text';
+	readonly text: string;
+}
+
+export interface IByokLmMessageItem {
+	readonly type: 'message';
+	readonly role: 'system' | 'developer' | 'user' | 'assistant';
+	readonly content: IByokLmTextPart[];
+}
+
+export interface IByokLmReasoningItem {
+	readonly type: 'reasoning';
+	readonly id?: string;
+	readonly summary: string[];
+	readonly encryptedContent?: string;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface IByokLmFunctionCallItem {
+	readonly type: 'function_call';
+	readonly callId: string;
 	readonly name: string;
-	/** JSON-encoded arguments object. */
 	readonly argumentsJson: string;
 }
 
-/** A tool/function the model may call. */
-export interface IByokLmTool {
+export interface IByokLmFunctionCallOutputItem {
+	readonly type: 'function_call_output';
+	readonly callId: string;
+	readonly output: string;
+}
+
+export interface IByokLmCustomToolCallItem {
+	readonly type: 'custom_tool_call';
+	readonly callId: string;
+	readonly name: string;
+	readonly input: string;
+}
+
+export interface IByokLmCustomToolCallOutputItem {
+	readonly type: 'custom_tool_call_output';
+	readonly callId: string;
+	readonly output: string;
+}
+
+export type IByokLmInputItem =
+	IByokLmMessageItem |
+	IByokLmReasoningItem |
+	IByokLmFunctionCallItem |
+	IByokLmFunctionCallOutputItem |
+	IByokLmCustomToolCallItem |
+	IByokLmCustomToolCallOutputItem;
+
+export interface IByokLmFunctionTool {
+	readonly type: 'function';
 	readonly name: string;
 	readonly description?: string;
-	/** JSON schema for the tool parameters. */
 	readonly parametersSchema?: object;
 }
 
-/** One chat message in a BYOK request. */
-export interface IByokLmChatMessage {
-	readonly role: 'system' | 'user' | 'assistant' | 'tool';
-	/** Flattened text content. Empty string when the message carries only tool calls/results. */
-	readonly content: string;
-	/** Present on `assistant` messages that requested tool calls. */
-	readonly toolCalls?: IByokLmToolCall[];
-	/** Present on `tool` messages: the {@link IByokLmToolCall.id} this result answers. */
-	readonly toolCallId?: string;
+export interface IByokLmCustomTool {
+	readonly type: 'custom';
+	readonly name: string;
+	readonly description?: string;
 }
 
-/** A chat request forwarded from the proxy to the renderer LM API. */
+export type IByokLmTool = IByokLmFunctionTool | IByokLmCustomTool;
+
 export interface IByokLmChatRequest {
-	/** Provider/vendor name (the LM API vendor that registered the model). */
 	readonly vendor: string;
-	/** Provider-local model id (the wire id the runtime sent on the OpenAI request). */
 	readonly modelId: string;
-	readonly messages: IByokLmChatMessage[];
+	readonly instructions?: string;
+	readonly input: IByokLmInputItem[];
 	readonly tools?: IByokLmTool[];
-	/** Opaque per-request model options forwarded to the LM provider. */
+	readonly previousResponseId?: string;
+	readonly reasoningEffort?: string;
 	readonly modelOptions?: Record<string, unknown>;
 }
 
-/** The (buffered) completion produced by the renderer LM API. */
+export interface IByokLmOutputMessageItem {
+	readonly type: 'message';
+	readonly content: IByokLmTextPart[];
+}
+
+export type IByokLmOutputItem =
+	IByokLmOutputMessageItem |
+	IByokLmReasoningItem |
+	IByokLmFunctionCallItem |
+	IByokLmCustomToolCallItem;
+
 export interface IByokLmChatResult {
-	/** Concatenated assistant text. */
-	readonly content: string;
-	/** Tool calls the assistant requested, if any. */
-	readonly toolCalls?: IByokLmToolCall[];
-	/** Best-effort token usage, when the provider reports it. */
+	readonly output: IByokLmOutputItem[];
+	readonly responseId?: string;
 	readonly usage?: {
-		readonly promptTokens?: number;
-		readonly completionTokens?: number;
+		readonly inputTokens?: number;
+		readonly outputTokens?: number;
+		readonly reasoningTokens?: number;
 	};
-	/** Set when the LM call failed; `content` is then empty. */
 	readonly error?: string;
 }
 
@@ -98,6 +143,10 @@ export interface IByokLmModelInfo {
 	readonly maxContextWindowTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
+	/** Reasoning effort values advertised by the renderer model, when known. */
+	readonly supportedReasoningEfforts?: readonly string[];
+	/** Default reasoning effort advertised by the renderer model, when known. */
+	readonly defaultReasoningEffort?: string;
 }
 
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');
@@ -119,7 +168,7 @@ export interface IAgentHostByokLmHandler {
 	readonly onDidChangeModels?: Event<void>;
 
 	/**
-	 * Run a BYOK chat completion against the extension-registered model that
+	 * Run a BYOK Responses request against the extension-registered model that
 	 * matches `request.vendor` + `request.modelId`. Rejects (or resolves with
 	 * {@link IByokLmChatResult.error}) when no such model is available.
 	 */

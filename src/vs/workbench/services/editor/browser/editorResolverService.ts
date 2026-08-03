@@ -289,30 +289,26 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
-		// The specialized diff/merge associations win over the general ones and are allowed to target
-		// an editor even if that editor opted out of diffs/merges through a `never` priority.
-		if (associationType === EditorAssociationType.DiffEditor || associationType === EditorAssociationType.MergeEditor) {
-			const diffAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
-			if (diffAssociations.length) {
-				return diffAssociations;
-			}
+		if (associationType === EditorAssociationType.Editor) {
+			return this.getAssociationsForResource(resource);
 		}
 
-		// General `editorAssociations` entries must not select an editor that opted out of this kind of
-		// input via a `never` priority (e.g. a custom editor that only handles the normal editor, not diffs).
-		const r = this.getAssociationsForResource(resource);
-		return r.filter(association => !this.isNeverForAssociationType(association.viewType, associationType));
+		const modeAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
+		if (modeAssociations.length) {
+			return modeAssociations;
+		}
+
+		return this.getAssociationsForResource(resource)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
 	}
 
 	/**
-	 * Whether every editor registered under `viewType` opts out of the given kind of input via a
-	 * `never` priority. Such editors can only be selected explicitly (e.g. `Reopen Editor With`) or
-	 * through the specialized `workbench.diffEditorAssociations` setting, never through a general
-	 * `workbench.editorAssociations` entry.
+	 * Whether the editor requires an association for the given input kind instead of inheriting one
+	 * from another input kind.
 	 */
-	private isNeverForAssociationType(viewType: string, associationType: EditorAssociationType): boolean {
+	private isExplicitForAssociationType(viewType: string, associationType: EditorAssociationType): boolean {
 		const editor = this._registeredEditors.filter(editor => editor.editorInfo.id === viewType).at(0);
-		return !!editor && this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.never;
+		return !!editor && this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.explicit;
 	}
 
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
@@ -497,8 +493,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this._flattenedEditors = this._flattenEditorsMap();
 
 		// `findMatchingEditors(..., DiffEditor)` only keeps editors that provide a diff editor factory
-		// and sorts them by their diff priority. It still includes `never` editors (they match by glob),
-		// which is exactly what we want here: a `never` editor opts out of diffs for text files, but is
+		// and sorts them by their diff priority. It still includes `explicit` editors (they match by glob),
+		// which is exactly what we want here: an `explicit` editor opts out of diffs for text files, but is
 		// the better choice than the generic binary fallback when the text diff editor cannot render the
 		// content. We exclude the built-in default text editor since that is the editor that already
 		// failed to render the binary content.

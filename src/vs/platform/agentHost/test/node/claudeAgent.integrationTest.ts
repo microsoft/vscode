@@ -34,7 +34,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type * as http from 'http';
@@ -363,7 +363,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 	queryMessages: QueryStreamItem[] = [];
 
 	/** Records the {@link PermissionResult} returned by each `canUseTool` invocation in {@link queryMessages} order. */
-	readonly canUseToolResults: PermissionResult[] = [];
+	readonly canUseToolResults: (PermissionResult | null)[] = [];
 	readonly elicitationResults: Awaited<ReturnType<NonNullable<Options['onElicitation']>>>[] = [];
 
 	readonly warmQueries: RoundTripWarmQuery[] = [];
@@ -482,6 +482,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				const result = await startup.canUseTool(item.toolName, item.input, {
 					signal: new AbortController().signal,
 					toolUseID: item.toolUseID,
+					requestId: item.toolUseID,
 				});
 				this._sdk.canUseToolResults.push(result);
 				continue;
@@ -509,7 +510,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 		throw err;
 	}
 
-	async interrupt(): Promise<void> { /* not used */ }
+	async interrupt(): Promise<SDKControlInterruptResponse | undefined> { return undefined; }
 
 	setPermissionMode(): never { throw new Error('not modeled'); }
 	setMcpPermissionModeOverride(): never { throw new Error('not modeled'); }

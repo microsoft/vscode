@@ -40,6 +40,7 @@ class Editor extends Disposable {
 	#initialized = false;
 
 	readonly #comments = new CommentsModel();
+	#commentsView: VsCodeV2CommentsView | undefined;
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
 	readonly #vscode = acquireVsCodeApi();
@@ -64,8 +65,12 @@ class Editor extends Disposable {
 					break;
 				}
 				case 'update': {
+					// `replaceSourceText` (not `sourceText.set`) applies authoritative host
+					// text: it maps the selection through the change and clears stale
+					// pending-paragraph state, so the caret stays valid after an undo shrinks
+					// the document. The guard stops this echoing back as a user edit.
 					this.isUpdatingFromExtension = true;
-					this.model.sourceText.set(new StringValue(message.content), undefined);
+					this.model.replaceSourceText(new StringValue(message.content));
 					this.isUpdatingFromExtension = false;
 					break;
 				}
@@ -87,6 +92,10 @@ class Editor extends Disposable {
 					})));
 					this.#isUpdatingComments = false;
 					this.#acceptsComments.set(!!message.acceptsComments, undefined);
+					break;
+				}
+				case 'revealComment': {
+					this.#commentsView?.revealComment(message.id);
 					break;
 				}
 			}
@@ -152,7 +161,16 @@ class Editor extends Disposable {
 			},
 		}));
 
-		this._register(new EditorController(model, view));
+		// Wire history chords (undo/redo) to the extension so they run against the
+		// backing TextDocument's own undo stack. `record` is deliberately omitted:
+		// the TextDocument owns the history, and a second local stack would drift
+		// from the Edit menu, dirty state and hot exit.
+		this._register(new EditorController(model, view, {
+			historyStrategy: {
+				undo: () => this.#vscode.postMessage({ type: 'history', command: 'undo' }),
+				redo: () => this.#vscode.postMessage({ type: 'history', command: 'redo' }),
+			},
+		}));
 		host.appendChild(view.element);
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
@@ -160,7 +178,7 @@ class Editor extends Disposable {
 		// the light/dark token wrapper. `resolveLine` maps a comment's start offset
 		// to a 1-based line for the card header.
 		const isLight = document.body.classList.contains('vscode-light');
-		this._register(new VsCodeV2CommentsView(this.#comments, view, {
+		this.#commentsView = this._register(new VsCodeV2CommentsView(this.#comments, view, {
 			theme: isLight ? 'light' : 'dark',
 			resolveLine: (offset) => model.sourceText.get().value.slice(0, offset).split('\n').length,
 		}));
@@ -259,13 +277,13 @@ class Editor extends Disposable {
 		// Forward user edits to the extension. Edits are ignored by the model while
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
-		let firstTime = true;
+		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
-			if (!this.isUpdatingFromExtension && !firstTime) {
-				this.#vscode.postMessage({ type: 'edit', content: text });
+			if (!this.isUpdatingFromExtension && text !== previousText) {
+				this.#vscode.postMessage({ type: 'edit', ...computeTextEdit(previousText, text) });
 			}
-			firstTime = false;
+			previousText = text;
 		}));
 
 		// Restore scroll last: content height settles over a few frames (async parse,
@@ -295,6 +313,26 @@ class Editor extends Disposable {
 		};
 		requestAnimationFrame(apply);
 	}
+}
+
+function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {
+	let start = 0;
+	while (start < previousText.length && start < text.length && previousText.charCodeAt(start) === text.charCodeAt(start)) {
+		start++;
+	}
+
+	let previousEnd = previousText.length;
+	let end = text.length;
+	while (previousEnd > start && end > start && previousText.charCodeAt(previousEnd - 1) === text.charCodeAt(end - 1)) {
+		previousEnd--;
+		end--;
+	}
+
+	return {
+		start,
+		endExclusive: previousEnd,
+		text: text.slice(start, end),
+	};
 }
 
 new Editor(document.getElementById('editor')!);

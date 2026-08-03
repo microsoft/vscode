@@ -966,6 +966,19 @@ export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
 	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
 }
 
+export interface IEditorInputWithDiffResources extends EditorInput {
+	readonly diffResources: {
+		readonly original: URI;
+		readonly modified: URI;
+	};
+}
+
+export function isEditorInputWithDiffResources(editor: unknown): editor is IEditorInputWithDiffResources {
+	const candidate = editor as IEditorInputWithDiffResources | undefined;
+
+	return URI.isUri(candidate?.diffResources?.original) && URI.isUri(candidate.diffResources.modified);
+}
+
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
 
 	/**

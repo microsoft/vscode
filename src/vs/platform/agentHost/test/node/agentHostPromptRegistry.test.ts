@@ -11,7 +11,7 @@ import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../node/copilot/prompts/allPrompts.js';
 
@@ -268,7 +268,7 @@ suite('AgentHostPromptRegistry', () => {
 		// when `toolSearchActive` AND the client tool-search tool are both
 		// present; the composition/gating itself is covered in
 		// toolInstructions.test.ts.
-		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
 
 		test('layers the tool-search line onto the default config when active and the tool-search tool is present', () => {
 			const registry = new AgentHostPromptRegistry();

@@ -23,6 +23,8 @@ Files are collected best-effort, so a valid bundle may contain only some of thes
 
 ```text
 events.jsonl
+usage.jsonl
+customizations.json
 Agent Host.log
 Window.log
 Shared.log
@@ -42,6 +44,8 @@ Window/client <-> AHP <-> Agent Host process <-> Copilot SDK
 | Path | What it shows |
 |---|---|
 | `events.jsonl` | Persisted Copilot SDK events for the selected session: turns, messages, tools, permissions, hooks, skills, and subagents. It can cover a much longer period than the other logs. |
+| `usage.jsonl` | Client-captured token/credit usage, one record per model call (`turnId`, model, input/output/cache tokens, cumulative `totalNanoAiu`). The SDK's `assistant.usage` event is ephemeral and never reaches `events.jsonl`, so this is the only per-call usage record. Present only when agent-host debug logging was on. |
+| `customizations.json` | Snapshot of the skills/hooks/agents/MCP servers loaded for the session. The SDK's `session.*_loaded` events are ephemeral, so this is the only record of what was actually active. Present only when agent-host debug logging was on. |
 | `ahp/*.jsonl` | AHP traffic for a client connection. `_ahpLog.dir` is `c2s` or `s2c`; `_ahpLog.ts` is the wire timestamp. Use this to see requests, responses, subscriptions, actions, notifications, and client-visible ordering. |
 | `Agent Host.log` | Local Agent Host process behavior: startup, auth, sessions, provider events, tools, Git/worktrees, and host-side errors. |
 | `copilot-logs/*.log` | Copilot SDK process logs that mention the selected session ID. A process log may contain other sessions too. |
@@ -56,6 +60,7 @@ Window/client <-> AHP <-> Agent Host process <-> Copilot SDK
 2. Identify the reported symptom, approximate time, local or remote host, and any known session, chat, turn, request, or tool ID.
 3. Start with the file closest to the symptom:
    - Turn or provider behavior: `events.jsonl`
+   - Token/credit usage or cost questions: `usage.jsonl`
    - Client/server state or ordering: `ahp/*.jsonl`
    - Host implementation failure: `Agent Host.log`
    - SDK behavior: `copilot-logs/*.log`

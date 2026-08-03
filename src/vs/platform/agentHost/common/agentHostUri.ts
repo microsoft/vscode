@@ -5,6 +5,7 @@
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
@@ -127,20 +128,26 @@ export function normalizeRemoteAgentHostAddress(address: string): string {
 	return address;
 }
 
+const REMOTE_LOCAL_AGENT_HOST_AUTHORITY = 'remote_local';
+
 /**
  * Encode a remote address into an identifier that is safe for use in
  * both URI schemes and URI authorities, and is collision-free.
  *
- * Three tiers:
- * 1. Purely alphanumeric addresses are returned as-is.
- * 2. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
+ * Four tiers:
+ * 1. The reserved ambient authority `local` is escaped for remote hosts.
+ * 2. Purely alphanumeric addresses are returned as-is.
+ * 3. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
  *    replaced with `__` (double underscore) for human readability.
  *    Addresses containing `_` skip this tier to keep the encoding
  *    collision-free (`__` can only appear from colon replacement).
- * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
+ * 4. Everything else is url-safe base64-encoded with a `b64-` prefix.
  */
 export function agentHostAuthority(address: string): string {
 	const normalized = normalizeRemoteAgentHostAddress(address);
+	if (normalized === 'local') {
+		return REMOTE_LOCAL_AGENT_HOST_AUTHORITY;
+	}
 	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
 		return normalized;
 	}
@@ -151,8 +158,21 @@ export function agentHostAuthority(address: string): string {
 }
 
 /**
- * Label formatter for {@link AGENT_HOST_SCHEME} URIs. The URI path is
- * already the original resource path, so the label is the path verbatim.
+ * Authority of the in-process agent host. It always runs on the same
+ * machine — and therefore the same operating system — as the client.
+ */
+export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
+
+/**
+ * Fallback label formatter for {@link AGENT_HOST_SCHEME} URIs of hosts
+ * whose operating system is unknown. The URI path is already the original
+ * resource path, so the label is the path verbatim.
+ *
+ * Deliberately lossless: without knowing the host's operating system,
+ * neither `\` separators nor drive letter normalization can be applied
+ * safely, since `/c:/repo/a.ts` is a valid POSIX path too and rendering it
+ * as `C:/repo/a.ts` would name a different resource. Hosts whose operating
+ * system is known get {@link agentHostLabelFormatter} instead.
  */
 export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 	scheme: AGENT_HOST_SCHEME,
@@ -161,3 +181,26 @@ export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 		separator: '/',
 	},
 };
+
+/**
+ * Label formatter for {@link AGENT_HOST_SCHEME} URIs of an agent host whose
+ * operating system is known, so its paths render the way they do natively
+ * on that host (`C:\a\b` instead of `/c:/a/b`). This matters because such
+ * URIs are shown side by side with plain `file:` URIs — for example as the
+ * original side of a diff — which are always rendered natively.
+ *
+ * Registered per authority since the operating system cannot be derived
+ * from the client: a Windows client may be connected to a POSIX host.
+ */
+export function agentHostLabelFormatter(authority: string, os: OperatingSystem): ResourceLabelFormatter {
+	const isWindows = os === OperatingSystem.Windows;
+	return {
+		scheme: AGENT_HOST_SCHEME,
+		authority,
+		formatting: {
+			label: '${path}',
+			separator: isWindows ? '\\' : '/',
+			normalizeDriveLetter: isWindows,
+		},
+	};
+}
