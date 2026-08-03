@@ -1031,9 +1031,12 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+// The reflog subject of a stash is `(WIP )on <branch>: <message>`, and git prefixes it even
+// when the message is user provided. Stashes created by git itself carry no branch (ex: the
+// `autostash` of `git pull --autostash`), so the branch is optional
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(?:(WIP\s)?on\s([^:]+):\s)?(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
-function parseGitStashes(raw: string): Stash[] {
+export function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
 	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
@@ -1049,7 +1052,7 @@ function parseGitStashes(raw: string): Stash[] {
 			hash,
 			parents: parents.split(' '),
 			index: parseInt(index),
-			branchName: branchName.trim(),
+			branchName: branchName?.trim(),
 			description: wip ? `WIP (${description.trim()})` : description.trim(),
 			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
 			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,
@@ -2473,12 +2476,13 @@ export class Repository {
 			args.push(branch);
 		}
 
+		let result: IExecutionResult<string>;
+
 		try {
-			const result = await this.exec(args, {
+			result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
-			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2499,6 +2503,22 @@ export class Repository {
 
 			throw err;
 		}
+
+		// `git pull --autostash` exits with 0 even when re-applying the autostash fails,
+		// so the conflict is only reported on stderr
+		if (options.autoStash && /Applying autostash resulted in conflicts/.test(result.stderr || '')) {
+			throw new GitError({
+				message: 'Failed to apply autostash',
+				stdout: result.stdout,
+				stderr: result.stderr,
+				exitCode: result.exitCode,
+				gitErrorCode: GitErrorCodes.StashConflict,
+				gitCommand: 'pull',
+				gitArgs: args
+			});
+		}
+
+		return !/Already up to date/i.test(result.stdout);
 	}
 
 	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
