@@ -116,6 +116,9 @@ class MockCopilotSession {
 	usageMetricsCalls = 0;
 	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
 	usageMetricsGate: Promise<unknown> | undefined;
+	disconnectCalls = 0;
+	disconnectGate: Promise<void> | undefined;
+	disconnectHook: (() => void) | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -208,7 +211,11 @@ class MockCopilotSession {
 	}
 	async setModel() { }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
-	async disconnect() { }
+	async disconnect() {
+		this.disconnectCalls++;
+		this.disconnectHook?.();
+		await this.disconnectGate;
+	}
 
 	readonly rpc = {
 		mode: {
@@ -370,7 +377,7 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	readonly sqmId = 'sqmId';
 	readonly devDeviceId = 'devDeviceId';
 	readonly firstSessionDate = 'firstSessionDate';
-	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined }> = [];
+	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined; measurements?: TelemetryMeasurements }> = [];
 
 	publicLog(): void { }
 	publicLog2(): void { }
@@ -379,17 +386,17 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 	sendGHTelemetryEvent(): void { }
-	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'enhanced', eventName, properties });
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-		this.events.push({ destination: 'enhanced', eventName, properties });
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'internal', eventName, properties });
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-		this.events.push({ destination: 'internal', eventName, properties });
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
@@ -797,6 +804,32 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+	});
+
+	test('destroySession completes when shutdown arrives before the response', async () => {
+		const disconnectStarted = new DeferredPromise<void>();
+		const disconnectGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
+			},
+		});
+		const destroy = session.destroySession();
+
+		await disconnectStarted.p;
+		try {
+			mockSession.fire('session.shutdown', {
+				shutdownType: 'normal',
+				totalApiDurationMs: 0,
+			} as SessionEventPayload<'session.shutdown'>['data']);
+			await destroy;
+			session.dispose();
+
+			assert.strictEqual(mockSession.disconnectCalls, 1);
+		} finally {
+			disconnectGate.complete();
+		}
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2845,7 +2878,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 		});
 
-		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+		test('per-request sandbox: applies the configured policy under default permissions', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 			});
@@ -6624,7 +6657,7 @@ suite('CopilotAgentSession', () => {
 
 			const unsupported = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-haiku-4.5',
+				modelId: 'claude-3-opus',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
@@ -8528,21 +8561,45 @@ suite('CopilotAgentSession', () => {
 				confidence: 0.91,
 				candidateModels: ['gpt-5', 'gpt-4.1'],
 				categoryScores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+				routingMethod: 'binary',
+				availableModels: ['gpt-5', 'gpt-4.1', 'gpt-5-mini'],
+				fallback: false,
+				fallbackReason: 'not-needed',
+				stickyOverride: true,
+				routerLatencyMs: 25,
+				endToEndLatencyMs: 40,
+				chosenShortfall: 0.05,
+				hasImage: true,
 			} as SessionEventPayload<'session.auto_mode_resolved'>['data']);
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'automode.routerDecisionRestricted')
-				.map(event => ({ destination: event.destination, properties: event.properties })), [{
+				.map(event => ({ destination: event.destination, properties: event.properties, measurements: event.measurements })), [{
 					destination: 'enhanced',
 					properties: {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
 						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
+						routingMethod: 'binary',
+						fallback: 'false',
+						fallbackReason: 'not-needed',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
 						candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+						availableModels: JSON.stringify(['gpt-5', 'gpt-4.1', 'gpt-5-mini']),
+						stickyOverrideStr: 'true',
+						hasImage: 'true',
 						binaryScores: JSON.stringify({ needs_reasoning: 0.9, no_reasoning: 0.1 }),
+					},
+					measurements: {
+						confidence: 0.91,
+						latencyMs: 25,
+						e2eLatencyMs: 40,
+						stickyOverride: 1,
+						chosenShortfall: 0.05,
+						scoreNeedsReasoning: 0.9,
+						scoreNoReasoning: 0.1,
 					},
 				}]);
 		});

@@ -158,6 +158,23 @@ suite('resolveByokSessionConfig', () => {
 		});
 	});
 
+	test('preserves provider groups when models share a vendor and id', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro' },
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Work/gemini-2.5-pro' },
+		]));
+		const proxy = countingProxy();
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [
+			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
+			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+		]);
+	});
+
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		let captured: IByokLmChatRequest | undefined;
@@ -445,8 +462,8 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	});
 
-	test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
-		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+	test('falls back to createSession when the SDK reports the session was not found', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: Session not found: session-1');
 
 		const sessions = new DisposableStore();
 		try {
@@ -454,6 +471,31 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			assert.strictEqual(getCreateSessionCalls(), 1);
 		} finally {
 			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a session with an empty one after a transient network failure', async () => {
+		// Regression: this used to fall through to `createSession`, presenting a
+		// session with real history as having zero turns — which the empty-session
+		// GC then deleted along with its worktree.
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: network fetch failed: request failed: error sending request for url (https://api.github.com/copilot_internal/user)');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /network fetch failed/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a session with an empty one for an unrecognized -32603', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /something went wrong/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
 			await launcher.disposeByokProxyHandle();
 		}
 	});

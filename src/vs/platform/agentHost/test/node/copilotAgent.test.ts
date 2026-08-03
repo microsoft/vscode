@@ -2190,6 +2190,42 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('BYOK models from multiple Gemini provider groups have unique picker identifiers', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const agent = createTestAgent(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+
+		try {
+			modelSnapshots.fire([
+				{
+					vendor: 'google',
+					id: 'gemini-2.5-pro',
+					name: 'Gemini 2.5 Pro',
+					modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro',
+				},
+				{
+					vendor: 'google',
+					id: 'gemini-2.5-pro',
+					name: 'Gemini 2.5 Pro',
+					modelIdentifier: 'google/Gemini Work/gemini-2.5-pro',
+				},
+			]);
+			const models = await waitForState(agent.models, models => models.length === 2);
+
+			assert.deepStrictEqual(models.map(model => model.id), [
+				'google/Gemini Personal/gemini-2.5-pro',
+				'google/Gemini Work/gemini-2.5-pro',
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('configSchema emits a numeric contextSize property when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{

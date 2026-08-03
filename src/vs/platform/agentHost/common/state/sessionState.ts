@@ -1169,7 +1169,6 @@ export interface ISessionGitHubState {
 	/** The URL of the GitHub pull request. */
 	readonly pullRequestUrl?: string;
 	/**
-<<<<<<< HEAD
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
 	 */

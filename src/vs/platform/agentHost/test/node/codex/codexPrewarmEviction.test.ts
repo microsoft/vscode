@@ -8,11 +8,15 @@ import assert from 'assert';
 import { PassThrough } from 'stream';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -31,6 +35,7 @@ import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
+import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 
 interface ITestWireRequest {
@@ -40,6 +45,7 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly runtimeWorkspaceRoots?: readonly string[];
+		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly sandboxPolicy?: SandboxPolicy;
 	};
 }
@@ -113,10 +119,33 @@ interface ICreateAgentOptions {
 	readonly database?: TestSessionDatabase;
 }
 
+class TestCodexLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].join(' '));
+	}
+}
+
+class TestCodexFileService extends FileService {
+	private readonly statFailures = new Set<string>();
+
+	failStat(resource: URI): void {
+		this.statFailures.add(resource.toString());
+	}
+
+	override stat(resource: URI): ReturnType<FileService['stat']> {
+		if (this.statFailures.has(resource.toString())) {
+			return Promise.reject(new Error(`sensitive path: ${resource.fsPath}`));
+		}
+		return super.stat(resource);
+	}
+}
+
 class TestCodexConfigurationService extends AgentConfigurationService {
 	constructor(
 		stateManager: AgentHostStateManager,
-		logService: NullLogService,
+		logService: TestCodexLogService,
 		private sessionConfig: Readonly<Record<string, boolean | string | readonly string[]>> | undefined,
 	) {
 		super(stateManager, logService);
@@ -134,7 +163,9 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
 	const models = [{ id: 'gpt-test', name: 'GPT Test', supported_endpoints: ['/responses'] }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
-	const logService = new NullLogService();
+	const logService = new TestCodexLogService();
+	const fileService = disposables.add(new TestCodexFileService(logService));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
 	configurationService.updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: options.multiRootEnabled });
@@ -146,6 +177,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => true });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
+	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
@@ -237,6 +269,169 @@ suite('CodexAgent prewarm eviction', () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
 	});
 
+	test('fresh multi-root start selects only existing secondary skill directories', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoC = URI.file('/repo-c');
+		const primarySkills = URI.joinPath(repoA, '.agents', 'skills');
+		const repoBAgentsSkills = URI.joinPath(repoB, '.agents', 'skills');
+		const repoBCodexSkills = URI.joinPath(repoB, '.codex', 'skills');
+		const repoCAgentsSkills = URI.joinPath(repoC, '.agents', 'skills');
+		const repoCCodexSkills = URI.joinPath(repoC, '.codex', 'skills');
+		const fileService = agent['_fileService'];
+		await fileService.createFolder(primarySkills);
+		await fileService.createFolder(repoBAgentsSkills);
+		await fileService.createFolder(repoBCodexSkills);
+		await fileService.createFolder(URI.joinPath(repoC, '.agents'));
+		await fileService.createFile(repoCAgentsSkills);
+		await fileService.createFolder(repoCCodexSkills);
+
+		try {
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB, repoC], model: { id: 'gpt-test' } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			await fileService.del(repoBAgentsSkills, { recursive: true });
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repoA, repoB, repoC], undefined, 'turn-1');
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				startMethod: start.method,
+				selectedPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+				nextMethodAfterSnapshotMutation: turn.method,
+				turnSelectedCapabilityRoots: turn.params.selectedCapabilityRoots,
+			}, {
+				startMethod: 'thread/start',
+				selectedPaths: [repoBAgentsSkills.fsPath, repoBCodexSkills.fsPath, repoCCodexSkills.fsPath],
+				nextMethodAfterSnapshotMutation: 'turn/start',
+				turnSelectedCapabilityRoots: undefined,
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('unexpected capability-root metadata failures warn without blocking start or exposing paths', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoBAgentsSkills = URI.joinPath(repoB, '.agents', 'skills');
+		const repoBCodexSkills = URI.joinPath(repoB, '.codex', 'skills');
+		const fileService = agent['_fileService'];
+		const logService = agent['_logService'];
+		assert.ok(fileService instanceof TestCodexFileService);
+		assert.ok(logService instanceof TestCodexLogService);
+		await fileService.createFolder(repoBAgentsSkills);
+		fileService.failStat(repoBCodexSkills);
+
+		try {
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+			const capabilityRootWarnings = logService.warnings.filter(warning => warning.includes('selected capability root'));
+
+			assert.deepStrictEqual({
+				selectedPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+				warningCount: capabilityRootWarnings.length,
+				warningIncludesPath: capabilityRootWarnings.some(warning => warning.includes(repoB.fsPath)),
+				warningIncludesRawError: capabilityRootWarnings.some(warning => warning.includes('sensitive path')),
+			}, {
+				selectedPaths: [repoBAgentsSkills.fsPath],
+				warningCount: 1,
+				warningIncludesPath: false,
+				warningIncludesRawError: false,
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('pre-first-turn replacement reevaluates selected capability roots', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoBAgentsSkills = URI.joinPath(repoB, '.agents', 'skills');
+		const repoBCodexSkills = URI.joinPath(repoB, '.codex', 'skills');
+		const fileService = agent['_fileService'];
+		await fileService.createFolder(repoBAgentsSkills);
+
+		try {
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const firstStart = await readNextRequest(peer.outbound);
+			peer.push({ id: firstStart.id, result: { thread: { id: 'thread-first' } } });
+			await entry.materializePromise;
+
+			await fileService.del(repoBAgentsSkills, { recursive: true });
+			await fileService.createFolder(repoBCodexSkills);
+			entry.clientToolSet.set('client', [{
+				name: 'test_tool',
+				description: 'Test tool',
+				inputSchema: { type: 'object' },
+			}]);
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repoA, repoB], undefined, 'turn-1');
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const secondStart = await readNextRequest(peer.outbound);
+			peer.push({ id: secondStart.id, result: { thread: { id: 'thread-second' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				firstSelectedPaths: firstStart.params.selectedCapabilityRoots?.map(root => root.location.path),
+				unsubscribeMethod: unsubscribe.method,
+				secondSelectedPaths: secondStart.params.selectedCapabilityRoots?.map(root => root.location.path),
+				turnMethod: turn.method,
+			}, {
+				firstSelectedPaths: [repoBAgentsSkills.fsPath],
+				unsubscribeMethod: 'thread/unsubscribe',
+				secondSelectedPaths: [repoBCodexSkills.fsPath],
+				turnMethod: 'turn/start',
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('multi-root start and turn separate workspace roots from additional writable directories', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'multi-root');
@@ -279,9 +474,14 @@ suite('CodexAgent prewarm eviction', () => {
 			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
 
 			assert.deepStrictEqual({
-				start: { cwd: start.params.cwd, runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots },
+				start: {
+					cwd: start.params.cwd,
+					runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: start.params.selectedCapabilityRoots,
+				},
 				turn: {
 					runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: turn.params.selectedCapabilityRoots,
 					sandboxPolicy: turn.params.sandboxPolicy,
 				},
 				fullAccess: {
@@ -293,9 +493,14 @@ suite('CodexAgent prewarm eviction', () => {
 					sandboxPolicy: readOnly.sandboxPolicy,
 				},
 			}, {
-				start: { cwd: repoA.fsPath, runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath] },
+				start: {
+					cwd: repoA.fsPath,
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					selectedCapabilityRoots: undefined,
+				},
 				turn: {
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					selectedCapabilityRoots: undefined,
 					sandboxPolicy: {
 						type: 'workspaceWrite',
 						writableRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
@@ -351,11 +556,15 @@ suite('CodexAgent prewarm eviction', () => {
 
 			assert.deepStrictEqual({
 				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+				startSelectedCapabilityRoots: start.params.selectedCapabilityRoots,
 				turnRuntimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
+				turnSelectedCapabilityRoots: turn.params.selectedCapabilityRoots,
 				writableRoots: turn.params.sandboxPolicy?.type === 'workspaceWrite' ? turn.params.sandboxPolicy.writableRoots : undefined,
 			}, {
 				startRuntimeWorkspaceRoots: undefined,
+				startSelectedCapabilityRoots: undefined,
 				turnRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
+				turnSelectedCapabilityRoots: undefined,
 				writableRoots: [repoA.fsPath, additionalDirectory],
 			});
 		} finally {
@@ -404,9 +613,11 @@ suite('CodexAgent prewarm eviction', () => {
 				start: {
 					cwd: start.params.cwd,
 					runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: start.params.selectedCapabilityRoots,
 				},
 				turn: {
 					runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: turn.params.selectedCapabilityRoots,
 					sandboxPolicy: turn.params.sandboxPolicy,
 				},
 				fullAccess: {
@@ -421,9 +632,11 @@ suite('CodexAgent prewarm eviction', () => {
 				start: {
 					cwd: repo.fsPath,
 					runtimeWorkspaceRoots: undefined,
+					selectedCapabilityRoots: undefined,
 				},
 				turn: {
 					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+					selectedCapabilityRoots: undefined,
 					sandboxPolicy: {
 						type: 'workspaceWrite',
 						writableRoots: [repo.fsPath, additionalDirectory],
@@ -502,6 +715,7 @@ suite('CodexAgent prewarm eviction', () => {
 					method: fork.method,
 					cwd: fork.params.cwd,
 					runtimeWorkspaceRoots: fork.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: fork.params.selectedCapabilityRoots,
 				},
 				workingDirectories: forkedEntry.workingDirectories?.map(directory => directory.fsPath),
 			}, {
@@ -509,6 +723,7 @@ suite('CodexAgent prewarm eviction', () => {
 					method: 'thread/fork',
 					cwd: repoA.fsPath,
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					selectedCapabilityRoots: undefined,
 				},
 				workingDirectories: [repoA.fsPath, repoB.fsPath],
 			});
@@ -592,16 +807,20 @@ suite('CodexAgent prewarm eviction', () => {
 				resume: {
 					cwd: resume.params.cwd,
 					runtimeWorkspaceRoots: resume.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: resume.params.selectedCapabilityRoots,
 				},
 				turnRuntimeWorkspaceRoots: resumedTurn.params.runtimeWorkspaceRoots,
+				turnSelectedCapabilityRoots: resumedTurn.params.selectedCapabilityRoots,
 			}, {
 				canonicalOverlay: [repoA.fsPath, repoB.fsPath],
 				metadata: [repoA.fsPath, repoB.fsPath],
 				resume: {
 					cwd: repoA.fsPath,
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					selectedCapabilityRoots: undefined,
 				},
 				turnRuntimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+				turnSelectedCapabilityRoots: undefined,
 			});
 		} finally {
 			peerB?.exit();

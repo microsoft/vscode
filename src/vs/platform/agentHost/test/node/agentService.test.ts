@@ -38,7 +38,7 @@ import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -5102,6 +5102,79 @@ suite('AgentService (node dispatcher)', () => {
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
 			});
 		});
+
+		test('a restored session that loaded zero turns is never GC-disposed', () => {
+			// Regression: GC used to key purely off "0 turns", but a restored
+			// session can present as empty because its history FAILED to load.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				await copilotAgent.createSession();
+				const sessions = await copilotAgent.listSessions();
+				const sessionResource = sessions[0].session;
+
+				// No messages => restores with zero turns, exactly as a failed
+				// history load would look.
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					disposed: copilotAgent.disposeSessionCalls.map(u => u.toString()),
+					released: copilotAgent.releaseSessionCalls.map(u => u.toString()),
+				}, {
+					// Nothing destroyed, but the non-destructive idle release still happens.
+					disposed: [],
+					released: [sessionResource.toString()],
+				});
+			});
+		});
+
+		test('a session restored during the grace window is not GC-disposed', () => {
+			// The rehydrated session is deliberately still empty, so that the
+			// turns check cannot be what saves it — only draft status can.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.stateManager.deleteSession(sessionResource.toString());
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				assert.strictEqual(service.stateManager.isUnusedDraft(sessionResource.toString()), false, 'precondition: session is now durable state');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a session restored mid-grace must not be GC-disposed');
+			});
+		});
+
+		test('a session truncated back to zero turns is not GC-disposed', () => {
+			// A session created in this process that has been used is durable
+			// data — its worktree holds real work — even though a truncate
+			// (checkpoint restore / first-message edit) empties its turns.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const chatUri = buildDefaultChatUri(sessionResource.toString());
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } }, 'client-1', 1);
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 }, 'client-1', 2);
+
+				// Truncate every turn away, then drop the last subscriber.
+				service.dispatchAction(chatUri, { type: ActionType.ChatTruncated }, 'client-1', 3);
+				assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString())?.turns.length, 0, 'precondition: session now looks empty');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a used session must not be GC-disposed after truncation');
+			});
+		});
 	});
 
 	suite('session config persistence', () => {
@@ -5435,6 +5508,142 @@ suite('AgentService (node dispatcher)', () => {
 				[toStrings(await resolve(multi)), toStrings(await resolve(single)), toStrings(await resolve(none))],
 				[[a, b, c].map(d => d.toString()), [a.toString()], undefined],
 			);
+		});
+
+		test('first-send worktree failure warns and falls back to the original folder', async () => {
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-failure-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const database = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.addWorktree = async () => {
+				throw new Error('git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found');
+			};
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/failure' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-failure');
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.stateManager.restoreSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: 'Worktree failure',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: [sourceDir.toString()],
+			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			localService.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'test', origin: { kind: MessageKind.User } },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const resolver = localService as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			const resolved = await resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' });
+			const chatState = localService.stateManager.getChatState(chat);
+
+			assert.deepStrictEqual({
+				resolved: resolved?.map(uri => uri.toString()),
+				activity: chatState?.activity,
+				responseParts: chatState?.activeTurn?.responseParts,
+				persistedFailure: JSON.parse((await database.getMetadata('copilot.worktree.creationFailure'))!),
+			}, {
+				resolved: [sourceDir.toString()],
+				activity: undefined,
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found`',
+					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+				}],
+				persistedFailure: {
+					sessionId: 'worktree-failure',
+					diagnostic: 'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
+				},
+			});
+		});
+
+		test('first-send worktree fallback warns when no repository root is resolved', async () => {
+			const sourceDir = URI.file('/source/repo');
+			const database = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => undefined;
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/fallback' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-fallback');
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.stateManager.restoreSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: 'Worktree fallback',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: [sourceDir.toString()],
+			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			localService.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'test', origin: { kind: MessageKind.User } },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const resolver = localService as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			const resolved = await resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' });
+
+			assert.deepStrictEqual({
+				resolved: resolved?.map(uri => uri.toString()),
+				responseParts: localService.stateManager.getChatState(chat)?.activeTurn?.responseParts,
+				persistedFailure: JSON.parse((await database.getMetadata('copilot.worktree.creationFailure'))!),
+			}, {
+				resolved: [sourceDir.toString()],
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.',
+					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+				}],
+				persistedFailure: { sessionId: 'worktree-fallback' },
+			});
 		});
 	});
 
