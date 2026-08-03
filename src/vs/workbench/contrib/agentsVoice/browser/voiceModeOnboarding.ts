@@ -905,10 +905,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			return;
 		}
 
+		const hadVoiceFocus = this.voicesContainer ? dom.isAncestorOfActiveElement(this.voicesContainer) : false;
 		this.player.stop();
 		this.localizedVoice = localizedVoice;
 		this.selectedVoice = undefined;
 		this.renderVoices();
+		if (hadVoiceFocus) {
+			this.voiceElements.values().next().value?.element.focus();
+		}
 	}
 
 	/**
