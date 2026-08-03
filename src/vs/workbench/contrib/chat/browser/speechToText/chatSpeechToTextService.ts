@@ -397,6 +397,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	get state(): ChatSpeechToTextState {
 		return this._state;
 	}
+	private _startInProgress = false;
 
 	get sessionSurface(): ChatDictationSurface {
 		return this._sessionSurface;
@@ -640,92 +641,97 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async start(window: Window & typeof globalThis, surface: ChatDictationSurface = 'chat'): Promise<void> {
-		if (this._state !== ChatSpeechToTextState.Idle) {
+		if (this._state !== ChatSpeechToTextState.Idle || this._startInProgress) {
 			return;
 		}
-
-		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
-			return;
-		}
-
-		const backend = this._getBackend();
-		this._activeBackend = backend;
-
-		if (backend === 'nemo' && !this._localTranscription.isSupported) {
-			this._notificationService.notify({
-				severity: Severity.Warning,
-				message: localize('chatStt.notSupported', "On-device speech-to-text is not available on this platform."),
-			});
-			return;
-		}
-		if (backend === 'mai' && !this._voiceWsUrl()) {
-			this._notificationService.notify({
-				severity: Severity.Warning,
-				message: localize('chatStt.maiNotConfigured', "Cloud speech-to-text is not available: no voice service is configured."),
-			});
-			return;
-		}
-
-		this._sessionStartMs = Date.now();
-		this._sessionSegments = 0;
-		this._sessionPartialUpdates = 0;
-		this._sessionErrorCode = '';
-		this._sessionSurface = surface;
-		this._firstAudioMs = 0;
-		this._firstTranscriptMs = 0;
-		this._finalizeMs = -1;
-		// Defensively clear any transcript left over from a previous session so a
-		// new dictation never starts by re-emitting the prior transcript (teardown
-		// already clears these, but a start without a clean teardown must not leak).
-		this._finalizedText = '';
-		this._deltaText = '';
-		this._backendFinalizedText = '';
-
-		let stream: MediaStream;
+		this._startInProgress = true;
 		try {
-			stream = await this._acquireStream(window);
-		} catch (err) {
-			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
-			this._logSessionTelemetry('error');
-			this._logService.error('[chat-stt] microphone acquisition failed', err);
-			this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
-			throw err;
-		}
 
-		this._mediaStream = stream;
+			if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
+				return;
+			}
 
-		try {
-			await this._startBackendSession(window);
-		} catch (err) {
-			this._teardown();
-			this._sessionErrorCode = this._sessionErrorCode || 'connect';
-			this._logSessionTelemetry('error');
-			this._logService.error('[chat-stt] failed to start transcription', err);
-			this._notificationService.error(localize('chatStt.connectError', "Could not start speech-to-text: {0}", toErrorMessage(err)));
-			throw err;
-		}
+			const backend = this._getBackend();
+			this._activeBackend = backend;
 
-		try {
-			await this._startCapture(window, stream);
-		} catch (err) {
-			// Capture setup (AudioContext/nodes) can fail after the mic and the
-			// transcription session are already live; make sure both are torn
-			// down instead of leaking an active recording in the Idle state.
-			this._cancelBackend();
-			this._teardown();
-			this._sessionErrorCode = this._sessionErrorCode || 'capture';
-			this._logSessionTelemetry('error');
-			this._logService.error('[chat-stt] failed to start audio capture', err);
-			this._notificationService.error(localize('chatStt.captureError', "Could not start audio capture for speech-to-text: {0}", toErrorMessage(err)));
-			throw err;
-		}
-		this._setState(ChatSpeechToTextState.Recording);
-		// Only cue "recording started" once we are actually listening. If the
-		// model is still downloading/loading, defer the cue until it becomes
-		// ready (see _handleModelStatus), so it lands with the "Listening…"
-		// placeholder rather than at the start of the download.
-		if (!this._isPreparingModel) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			if (backend === 'nemo' && !this._localTranscription.isSupported) {
+				this._notificationService.notify({
+					severity: Severity.Warning,
+					message: localize('chatStt.notSupported', "On-device speech-to-text is not available on this platform."),
+				});
+				return;
+			}
+			if (backend === 'mai' && !this._voiceWsUrl()) {
+				this._notificationService.notify({
+					severity: Severity.Warning,
+					message: localize('chatStt.maiNotConfigured', "Cloud speech-to-text is not available: no voice service is configured."),
+				});
+				return;
+			}
+
+			this._sessionStartMs = Date.now();
+			this._sessionSegments = 0;
+			this._sessionPartialUpdates = 0;
+			this._sessionErrorCode = '';
+			this._sessionSurface = surface;
+			this._firstAudioMs = 0;
+			this._firstTranscriptMs = 0;
+			this._finalizeMs = -1;
+			// Defensively clear any transcript left over from a previous session so a
+			// new dictation never starts by re-emitting the prior transcript (teardown
+			// already clears these, but a start without a clean teardown must not leak).
+			this._finalizedText = '';
+			this._deltaText = '';
+			this._backendFinalizedText = '';
+
+			let stream: MediaStream;
+			try {
+				stream = await this._acquireStream(window);
+			} catch (err) {
+				this._sessionErrorCode = this._sessionErrorCode || 'microphone';
+				this._logSessionTelemetry('error');
+				this._logService.error('[chat-stt] microphone acquisition failed', err);
+				this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
+				throw err;
+			}
+
+			this._mediaStream = stream;
+
+			try {
+				await this._startBackendSession(window);
+			} catch (err) {
+				this._teardown();
+				this._sessionErrorCode = this._sessionErrorCode || 'connect';
+				this._logSessionTelemetry('error');
+				this._logService.error('[chat-stt] failed to start transcription', err);
+				this._notificationService.error(localize('chatStt.connectError', "Could not start speech-to-text: {0}", toErrorMessage(err)));
+				throw err;
+			}
+
+			try {
+				await this._startCapture(window, stream);
+			} catch (err) {
+				// Capture setup (AudioContext/nodes) can fail after the mic and the
+				// transcription session are already live; make sure both are torn
+				// down instead of leaking an active recording in the Idle state.
+				this._cancelBackend();
+				this._teardown();
+				this._sessionErrorCode = this._sessionErrorCode || 'capture';
+				this._logSessionTelemetry('error');
+				this._logService.error('[chat-stt] failed to start audio capture', err);
+				this._notificationService.error(localize('chatStt.captureError', "Could not start audio capture for speech-to-text: {0}", toErrorMessage(err)));
+				throw err;
+			}
+			this._setState(ChatSpeechToTextState.Recording);
+			// Only cue "recording started" once we are actually listening. If the
+			// model is still downloading/loading, defer the cue until it becomes
+			// ready (see _handleModelStatus), so it lands with the "Listening…"
+			// placeholder rather than at the start of the download.
+			if (!this._isPreparingModel) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			}
+		} finally {
+			this._startInProgress = false;
 		}
 	}
 
