@@ -46,7 +46,6 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
-	readonly isAutomations?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 }
