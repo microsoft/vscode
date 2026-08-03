@@ -22,6 +22,7 @@ import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatch
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
 import { SettingsTarget } from './preferencesWidgets.js';
+import { getSettingDisplayCategoryOverride, getSettingDisplayLabelOverride } from './settingsDisplayLabels.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -193,22 +194,32 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	get displayCategory(): string {
-		if (!this._displayCategory) {
-			this.initLabels();
+		const override = getSettingDisplayCategoryOverride(this.setting.key);
+		if (override) {
+			return override;
 		}
 
-		return this._displayCategory!;
+		if (this._displayCategory === null) {
+			this.initFallbackLabels();
+		}
+
+		return this._displayCategory ?? '';
 	}
 
 	get displayLabel(): string {
-		if (!this._displayLabel) {
-			this.initLabels();
+		const override = getSettingDisplayLabelOverride(this.setting.key);
+		if (override) {
+			return override;
+		}
+
+		if (this._displayLabel === null) {
+			this.initFallbackLabels();
 		}
 
 		return this._displayLabel!;
 	}
 
-	private initLabels(): void {
+	private initFallbackLabels(): void {
 		if (this.setting.title) {
 			this._displayLabel = this.setting.title;
 			this._displayCategory = this.setting.categoryLabel ?? null;

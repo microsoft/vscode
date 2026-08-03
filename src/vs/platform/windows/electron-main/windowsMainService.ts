@@ -22,7 +22,7 @@ import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
+import { getNLSLanguage, getNLSMessages, getNLSModuleTranslationsMap, localize } from '../../../nls.js';
 import { IBackupMainService } from '../../backup/electron-main/backup.js';
 import { IEmptyWindowBackupInfo } from '../../backup/node/backup.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -1571,7 +1571,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			nls: {
 				messages: getNLSMessages(),
-				language: getNLSLanguage()
+				language: getNLSLanguage(),
+				moduleTranslations: getNLSModuleTranslationsMap()
 			},
 
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,

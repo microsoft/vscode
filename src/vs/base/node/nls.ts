@@ -79,6 +79,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 		const globalLanguagePackCachePath = join(userDataPath, 'clp', languagePackId);
 		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, commit);
 		const languagePackMessagesFile = join(commitLanguagePackCachePath, 'nls.messages.json');
+		const moduleTranslationsFile = join(commitLanguagePackCachePath, 'nls.moduleTranslations.json');
 		const translationsConfigFile = join(globalLanguagePackCachePath, 'tcf.json');
 		const languagePackCorruptMarkerFile = join(globalLanguagePackCachePath, 'corrupted.info');
 
@@ -94,6 +95,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 			languagePack: {
 				translationsConfigFile,
 				messagesFile: languagePackMessagesFile,
+				moduleTranslationsFile,
 				corruptMarkerFile: languagePackCorruptMarkerFile
 			},
 
@@ -108,7 +110,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 			_corruptedFile: languagePackCorruptMarkerFile
 		};
 
-		if (await Promises.exists(languagePackMessagesFile)) {
+		if (await Promises.exists(languagePackMessagesFile) && await Promises.exists(moduleTranslationsFile)) {
 			touch(commitLanguagePackCachePath).catch(() => { }); // We don't wait for this. No big harm if we can't touch
 			mark('code/didGenerateNls');
 			return result;
@@ -147,7 +149,8 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 
 		await Promise.all([
 			promises.writeFile(languagePackMessagesFile, JSON.stringify(nlsResult), 'utf-8'),
-			promises.writeFile(translationsConfigFile, JSON.stringify(languagePack.translations), 'utf-8')
+			promises.writeFile(translationsConfigFile, JSON.stringify(languagePack.translations), 'utf-8'),
+			promises.writeFile(moduleTranslationsFile, JSON.stringify(extractModuleTranslations(nlsPackdata.contents)), 'utf-8')
 		]);
 
 		mark('code/didGenerateNls');
@@ -158,6 +161,18 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	}
 
 	return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
+}
+
+// Keep this in sync with MODULE_ID in src/vs/workbench/contrib/preferences/browser/settingsDisplayLabels.ts.
+const SETTING_DISPLAY_LABELS_MODULE = 'vs/workbench/contrib/preferences/browser/settingsDisplayLabels';
+
+/** Extract optional per-module translation tables shipped inside a language pack. */
+function extractModuleTranslations(contents: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
+	const moduleContents = contents[SETTING_DISPLAY_LABELS_MODULE];
+	if (!moduleContents) {
+		return {};
+	}
+	return { [SETTING_DISPLAY_LABELS_MODULE]: moduleContents };
 }
 
 /**

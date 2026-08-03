@@ -5,9 +5,32 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getSettingDisplayCategoryOverride, getSettingDisplayLabelOverride, getSettingEnumDisplayLabelOverride } from '../../browser/settingsDisplayLabels.js';
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId } from '../../browser/settingsTreeModels.js';
 
 suite('SettingsTree', () => {
+	test('settings display label overrides', () => {
+		const previousTranslations = globalThis._VSCODE_NLS_MODULE_TRANSLATIONS;
+		globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = {
+			'vs/workbench/contrib/preferences/browser/settingsDisplayLabels': {
+				'settingDisplayCategory.editor': '编辑器',
+				'settingDisplay.editor.fontSize': '字体大小',
+				'settingDisplayEnum.files.autoSave.off': '关闭',
+				'settingDisplay.editor.fontFamily': '  字体系列  '
+			}
+		};
+
+		try {
+			assert.strictEqual(getSettingDisplayCategoryOverride('editor.fontSize'), '编辑器');
+			assert.strictEqual(getSettingDisplayLabelOverride('editor.fontSize'), '字体大小');
+			assert.strictEqual(getSettingEnumDisplayLabelOverride('files.autoSave', 'off'), '关闭');
+			assert.strictEqual(getSettingDisplayLabelOverride('editor.fontFamily'), '字体系列');
+			assert.strictEqual(getSettingDisplayLabelOverride('files.autoSave.off'), undefined);
+		} finally {
+			globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = previousTranslations;
+		}
+	});
+
 	test('settingKeyToDisplayFormat', () => {
 		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar'),
