@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -37,12 +38,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
 		@ILogService private readonly _logService: ILogService,
-		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._byokStorageService = new BYOKStorageService(extensionContext);
+		this._byokStorageService = new BYOKStorageService(this._extensionContext);
 		void this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => void this._applyPolicy()));
 		this._register(this._authService.onDidCopilotTokenChange(() => void this._applyPolicy()));
@@ -76,7 +78,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 
 	private async _applyPolicy(): Promise<void> {
 		const generation = ++this._policyApplyGeneration;
-		const allowed = await resolveClientBYOKAllowed(this._authService);
+		const allowed = await resolveClientBYOKAllowed(this._authService, this._extensionContext, this._logService, this._configurationService);
 		if (generation !== this._policyApplyGeneration || this._store.isDisposed) {
 			return;
 		}

@@ -8,6 +8,7 @@ import { TokenErrorReason } from '../../../platform/authentication/common/copilo
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -60,6 +61,7 @@ export class ContextKeysContribution extends Disposable {
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@IExperimentationService private readonly _expService: IExperimentationService
@@ -224,7 +226,7 @@ export class ContextKeysContribution extends Disposable {
 	}
 
 	private async _updateClientByokEnabledContext() {
-		commands.executeCommand('setContext', clientByokEnabledContextKey, await resolveClientBYOKAllowed(this._authenticationService));
+		commands.executeCommand('setContext', clientByokEnabledContextKey, await resolveClientBYOKAllowed(this._authenticationService, this._extensionContext, this._logService, this._configService));
 	}
 
 	private _updateShowLogViewContext() {
