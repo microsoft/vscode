@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, Separator } from '../../../../../../base/common/actions.js';
@@ -19,9 +20,12 @@ import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -52,8 +56,10 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private _submitButton: Button | undefined;
 	private _renderedSubmitInlineCount = -1;
 	private readonly _messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _planChangeListeners = this._register(new DisposableStore());
 
 	private readonly _titleActionsEl: HTMLElement;
+	private readonly _outdatedBadgeEl: HTMLElement;
 	private readonly _inlineActionsEl: HTMLElement;
 	private readonly _footerButtonsEl: HTMLElement;
 	private readonly _messageEl: HTMLElement;
@@ -86,6 +92,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@IPlanReviewFeedbackService private readonly _planReviewFeedbackService: IPlanReviewFeedbackService,
 		@IAgentEditorCommentsBridge private readonly _agentEditorCommentsBridge: IAgentEditorCommentsBridge,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IModelService private readonly _modelService: IModelService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -137,7 +145,10 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		const elements = dom.h('.chat-confirmation-widget-container.chat-plan-review-container@container', [
 			dom.h('.chat-confirmation-widget2.chat-plan-review@root', [
 				dom.h('.chat-confirmation-widget-title.chat-plan-review-title@title', [
-					dom.h('.chat-plan-review-title-label@titleLabel'),
+					dom.h('.chat-plan-review-title-content', [
+						dom.h('.chat-plan-review-title-label@titleLabel'),
+						dom.h('span.chat-plan-review-outdated@outdatedBadge'),
+					]),
 					dom.h('.chat-plan-review-inline-actions@inlineActions'),
 					dom.h('.chat-plan-review-title-actions@titleActions'),
 				]),
@@ -155,6 +166,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.domNode.setAttribute('aria-label', localize('chat.planReview.ariaLabel', 'Plan review: {0}', review.title));
 
 		this._titleActionsEl = elements.titleActions;
+		this._outdatedBadgeEl = elements.outdatedBadge;
 		this._inlineActionsEl = elements.inlineActions;
 		this._footerButtonsEl = elements.footerButtons;
 		this._messageEl = elements.message;
@@ -162,6 +174,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		// Title label + hover for truncated titles.
 		elements.titleLabel.textContent = review.title;
 		this._register(this._hoverService.setupDelayedHover(elements.titleLabel, { content: review.title }));
+		this._outdatedBadgeEl.textContent = localize('chat.planReview.outdated', 'Outdated');
+		this._outdatedBadgeEl.setAttribute('aria-label', localize('chat.planReview.outdatedAriaLabel', 'Plan summary is outdated'));
+		if (!review.isOutdated) {
+			dom.hide(this._outdatedBadgeEl);
+		}
+		this.watchPlanChanges();
 
 		// Review button — opens the plan file and enters feedback mode.
 		if (review.planUri) {
@@ -239,6 +257,42 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (!this._isSubmitted && this.getInlineFeedbackItems().length > 0) {
 			void this.enterFeedbackMode({ focus: false });
 		}
+	}
+
+	private watchPlanChanges(): void {
+		if (!this.review.planUri || this.review.isOutdated) {
+			return;
+		}
+
+		const planUri = URI.revive(this.review.planUri);
+		const modelListener = this._planChangeListeners.add(new MutableDisposable());
+		const watchModel = (model: ITextModel) => {
+			if (isEqual(model.uri, planUri)) {
+				modelListener.value = model.onDidChangeContent(() => this.markOutdated());
+			}
+		};
+
+		const model = this._modelService.getModel(planUri);
+		if (model) {
+			watchModel(model);
+		}
+		this._planChangeListeners.add(this._modelService.onModelAdded(watchModel));
+		this._planChangeListeners.add(this._fileService.onDidFilesChange(event => {
+			if (event.contains(planUri, FileChangeType.DELETED) || (!this._modelService.getModel(planUri) && event.contains(planUri, FileChangeType.ADDED, FileChangeType.UPDATED))) {
+				this.markOutdated();
+			}
+		}));
+	}
+
+	private markOutdated(): void {
+		if (this.review.isOutdated) {
+			return;
+		}
+
+		this.review.isOutdated = true;
+		dom.show(this._outdatedBadgeEl);
+		this._planChangeListeners.clear();
+		status(localize('chat.planReview.outdatedAnnouncement', 'Plan summary is outdated'));
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
