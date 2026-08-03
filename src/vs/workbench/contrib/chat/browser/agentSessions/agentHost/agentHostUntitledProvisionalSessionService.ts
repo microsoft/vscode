@@ -39,8 +39,8 @@
  * Invariants to preserve:
  * - `_entries` is keyed by chat UI resources and stores backend resources.
  * - `getOrCreate` is serialized per chat UI resource; chip instances may race.
- * - `tryRebind` is best-effort. Failure must degrade to the handler's normal
- *   create path rather than blocking Send.
+ * - Recoverable `tryRebind` failure degrades to the handler's normal create
+ *   path. It rejects only when an ambiguous final URI cannot be retired safely.
  * - Abandoned untitled chats must dispose their backend provisional state when
  *   `IChatService.onDidDisposeSession` reports the chat UI resource.
  * - Callers own provider and working-directory consistency. Derive them from
@@ -71,7 +71,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
+import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -227,6 +227,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
 	// to the new real URI; without this tombstone the picker would call
@@ -278,6 +279,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
+		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
 	}
 
 	get(sessionResource: URI): URI | undefined {
@@ -302,7 +304,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			if (!pending) {
 				return this.get(sessionResource);
 			}
-			await pending;
+			try {
+				await pending;
+			} catch {
+				// The operation caller owns its error; observers only re-read stable state.
+				return undefined;
+			}
 			if (this._pending.get(sessionResource) === pending) {
 				return this.get(sessionResource);
 			}
@@ -404,6 +411,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
 			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+				await this._retireGeneration(sessionResource, entry);
 				return undefined;
 			}
 
@@ -419,6 +427,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				});
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] Failed to create provisional session for ${sessionResource.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+				await this._disposeBackend(candidate, 'failed provisional candidate');
+				await this._retireGeneration(sessionResource, entry);
 				return undefined;
 			}
 
@@ -438,11 +448,33 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return undefined;
 	}
 
-	private async _disposeBackend(backendSession: URI, reason: string): Promise<void> {
+	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
+		const generation = entry.generation;
+		if (!generation) {
+			return;
+		}
+		entry.generation = undefined;
+		if (this._entries.get(sessionResource) === entry) {
+			this._onDidChange.fire(sessionResource);
+		}
+		await this._disposeBackend(generation.backendSession, 'retired provisional generation');
+	}
+
+	private async _disposeBackend(backendSession: URI, reason: string): Promise<boolean> {
+		this._pendingBackendDisposals.add(backendSession);
 		try {
 			await this._agentHostService.disposeSession(backendSession);
+			this._pendingBackendDisposals.delete(backendSession);
+			return true;
 		} catch (err) {
 			this._logService.warn(`[AgentHostProvisional] Failed to dispose ${reason} ${backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			return false;
+		}
+	}
+
+	private _retryPendingBackendDisposals(): void {
+		for (const backendSession of this._pendingBackendDisposals) {
+			void this._disposeBackend(backendSession, 'pending provisional cleanup');
 		}
 	}
 
@@ -499,15 +531,28 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					});
 				} catch (err) {
 					this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
+					this._restoreImportedConversation(newSessionResource, imported);
+					const disposed = await this._disposeBackend(newBackendSession, 'failed rebound candidate');
+					if (!disposed) {
+						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+					}
 					return undefined;
 				}
 
 				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
-					await this._disposeBackend(created, 'retired rebound candidate');
+					const disposed = await this._disposeBackend(created, 'retired rebound candidate');
+					this._restoreImportedConversation(newSessionResource, imported);
+					if (!disposed) {
+						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+					}
 					return undefined;
 				}
 				if (oldEntry.configVersion !== configVersion || !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)) {
-					await this._disposeBackend(created, 'obsolete rebound candidate');
+					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
+					if (!disposed) {
+						this._restoreImportedConversation(newSessionResource, imported);
+						throw new Error(`Cannot safely retry rebound session ${newBackendSession.toString()} until its stale candidate is retired`);
+					}
 					continue;
 				}
 
@@ -536,8 +581,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				return created;
 			}
+			this._restoreImportedConversation(newSessionResource, imported);
 			return undefined;
 		});
+	}
+
+	private _restoreImportedConversation(sessionResource: URI, imported: IAgentHostImportConversation | undefined): void {
+		if (imported) {
+			this._importConversationStore.set(sessionResource, imported);
+		}
 	}
 
 	/**
@@ -613,8 +665,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
 			}
 		}
+		for (const backendSession of this._pendingBackendDisposals) {
+			this._agentHostService.disposeSession(backendSession).catch(() => { /* swallow on shutdown */ });
+		}
 		this._entries.clear();
 		this._pending.clear();
+		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
 		this._rebound.clear();

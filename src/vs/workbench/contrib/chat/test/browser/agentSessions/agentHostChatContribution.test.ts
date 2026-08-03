@@ -11017,6 +11017,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables, {
 				provisionalServiceOverride: {
 					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+					waitForPending: async () => backendSession,
 				},
 			});
 			let request: CompletionsParams | undefined;
@@ -11032,6 +11033,54 @@ suite('AgentHostChatContribution', () => {
 			);
 
 			assert.strictEqual(request?.channel, backendSession.toString());
+		});
+
+		test('waits for a pending provisional before requesting untitled completions', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-pending-completions' });
+			const backendSession = AgentSession.uri('copilot', 'replacement-provisional');
+			const pending = new DeferredPromise<void>();
+			disposables.add({ dispose: () => pending.cancel() });
+			const currentBackend: { value: URI | undefined } = { value: undefined };
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: () => currentBackend.value,
+					waitForPending: async () => {
+						await pending.p;
+						return currentBackend.value;
+					},
+				},
+			});
+			const requests: CompletionsParams[] = [];
+			(agentHostService as unknown as { completions: (params: CompletionsParams) => Promise<CompletionsResult> }).completions = async params => {
+				requests.push(params);
+				return { items: [] };
+			};
+
+			const completions = sessionHandler.provideChatInputCompletions(sessionResource, { text: '/', offset: 1 }, CancellationToken.None);
+			await timeout(0);
+			assert.strictEqual(requests.length, 0);
+			currentBackend.value = backendSession;
+			pending.complete();
+			await completions;
+
+			assert.strictEqual(requests[0]?.channel, backendSession.toString());
+		});
+
+		test('returns no untitled completions when there is no current generation', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			let requests = 0;
+			(agentHostService as unknown as { completions: (_params: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => {
+				requests++;
+				return { items: [] };
+			};
+
+			const result = await sessionHandler.provideChatInputCompletions(
+				URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-generation' }),
+				{ text: '/', offset: 1 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({ result, requests }, { result: undefined, requests: 0 });
 		});
 
 		test('surfaces a chat completion backend URI verbatim on the completion attachment', async () => {

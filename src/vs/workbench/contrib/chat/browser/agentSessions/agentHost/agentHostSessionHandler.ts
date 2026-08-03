@@ -81,7 +81,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../com
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -930,7 +930,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
-		const backendSession = this._resolveSessionUri(sessionResource);
+		let backendSession: URI;
+		if (isUntitledChatSession(sessionResource)) {
+			// Provisional URIs are opaque; wait for the current generation instead of deriving one.
+			const provisionalSession = await raceCancellation(this._provisionalService.waitForPending(sessionResource), token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			if (!provisionalSession) {
+				return undefined;
+			}
+			backendSession = provisionalSession;
+		} else {
+			backendSession = this._resolveSessionUri(sessionResource);
+		}
 		// Note: we don't forward `token` across IPC \u2014 cancellation tokens
 		// don't round-trip through the proxy channel today. The post-await
 		// `isCancellationRequested` check below is enough to drop a stale

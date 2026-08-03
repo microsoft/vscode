@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -21,7 +21,7 @@ import type { ConfigSchema } from '../../../../../../platform/agentHost/common/s
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -43,8 +43,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly disposed: URI[] = [];
 	readonly dispatched: IDispatchedAction[] = [];
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
+	readonly disposeAttempts: URI[] = [];
 	createGate: DeferredPromise<void> | undefined;
 	failNextCreate = false;
+	failNextDispose = false;
+	private readonly _onAgentHostStart = new Emitter<void>();
+	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
 	/** Agents advertised by the (stubbed) root state; drives capability gating. */
 	rootStateAgents: AgentInfo[] = [];
@@ -81,7 +85,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override async disposeSession(session: URI): Promise<void> {
+		this.disposeAttempts.push(session);
+		if (this.failNextDispose) {
+			this.failNextDispose = false;
+			throw new Error('dispose failed');
+		}
 		this.disposed.push(session);
+	}
+
+	fireAgentHostStart(): void {
+		this._onAgentHostStart.fire();
+	}
+
+	dispose(): void {
+		this._onAgentHostStart.dispose();
 	}
 
 	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
@@ -136,6 +153,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let agentHost: MockAgentHostService;
+	let importStore: AgentHostImportConversationStore;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
@@ -144,7 +162,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let workspaceFolders: URI[];
 
 	setup(async () => {
-		agentHost = new MockAgentHostService();
+		agentHost = ds.add(new MockAgentHostService());
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
 		workspaceFolders = [];
@@ -165,7 +183,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
-		insta.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
+		importStore = new AgentHostImportConversationStore();
+		insta.stub(IAgentHostImportConversationStore, importStore);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
 	});
@@ -490,6 +509,60 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('tryRebind restores an imported conversation when final creation fails', async () => {
+		const ui = untitledChatUri('rebind-import-failure');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-import-failure' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const turn: Turn = { id: 'turn', message: { text: 'hello', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+		const imported = { turns: [turn], model: { id: 'test-model' } };
+		importStore.set(realUi, imported);
+		agentHost.failNextCreate = true;
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot', undefined);
+
+		assert.deepStrictEqual({
+			rebound,
+			imported: importStore.take(realUi),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: undefined,
+			imported,
+			disposed: [URI.from({ scheme: 'copilot', path: '/real-import-failure' }).toString()],
+		});
+	});
+
+	test('tryRebind blocks deterministic URI reuse until failed disposal is retried', async () => {
+		const ui = untitledChatUri('rebind-dispose-failure');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-failure' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const pendingRead = provisional.waitForPending(ui);
+		await timeout(0);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+		agentHost.failNextDispose = true;
+		gate.complete();
+
+		await assert.rejects(rebind, /Cannot safely retry rebound session/);
+		assert.strictEqual(await pendingRead, undefined);
+		await configChange;
+		const reboundUri = URI.from({ scheme: 'copilot', path: '/real-dispose-failure' });
+		assert.deepStrictEqual({
+			attempts: agentHost.disposeAttempts.filter(uri => uri.toString() === reboundUri.toString()).length,
+			disposed: agentHost.disposed.filter(uri => uri.toString() === reboundUri.toString()).length,
+		}, {
+			attempts: 1,
+			disposed: 0,
+		});
+
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		assert.strictEqual(agentHost.disposed.filter(uri => uri.toString() === reboundUri.toString()).length, 1);
+	});
+
 	test('disposeSession drops the entry and its overlay', async () => {
 		const ui = untitledChatUri('h');
 		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
@@ -635,7 +708,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('untrusted folder change hides the previous generation and reuses it on rollback', async () => {
+	test('untrusted folder change retires the hidden generation and recreates on rollback', async () => {
 		const folderA = URI.file('/repoA');
 		const folderB = URI.file('/repoB');
 		const ui = untitledChatUri('trust-change');
@@ -653,7 +726,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 		}, {
 			current: undefined,
-			disposed: [],
+			disposed: [original.toString()],
 			createCount: 1,
 		});
 
@@ -664,14 +737,16 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			current: provisional.get(ui)?.toString(),
 			createCount: agentHost.createCalls.length,
 			disposed: agentHost.disposed.map(uri => uri.toString()),
+			recreated: provisional.get(ui)?.toString() !== original.toString(),
 		}, {
-			current: original.toString(),
-			createCount: 1,
-			disposed: [],
+			current: agentHost.createCalls.at(-1)?.session?.toString(),
+			createCount: 2,
+			disposed: [original.toString()],
+			recreated: true,
 		});
 	});
 
-	test('failed folder replacement retains the previous generation until retry succeeds', async () => {
+	test('failed folder replacement cleans up its candidate and recreates on retry', async () => {
 		const folderA = URI.file('/repoA');
 		const folderB = URI.file('/repoB');
 		const ui = untitledChatUri('failed-change');
@@ -682,6 +757,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		folderService.setFolder(ui, folderB);
 		await flush();
+		const failedCandidate = agentHost.createCalls[1].session;
+		assert.ok(failedCandidate);
 
 		assert.deepStrictEqual({
 			current: provisional.get(ui),
@@ -689,7 +766,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 		}, {
 			current: undefined,
-			disposed: [],
+			disposed: [failedCandidate.toString(), original.toString()],
 			createCount: 2,
 		});
 
@@ -701,7 +778,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		}, {
 			retried: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: folderB.toString(),
-			disposed: [original.toString()],
+			disposed: [failedCandidate.toString(), original.toString()],
 		});
 	});
 
