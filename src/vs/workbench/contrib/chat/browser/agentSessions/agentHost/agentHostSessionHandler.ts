@@ -81,7 +81,7 @@ import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, IL
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -937,7 +937,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
-		const backendSession = this._resolveSessionUri(sessionResource);
+		let backendSession: URI;
+		if (isUntitledChatSession(sessionResource)) {
+			// Provisional URIs are opaque; wait for the current generation instead of deriving one.
+			const provisionalSession = await raceCancellation(this._provisionalService.waitForPending(sessionResource), token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			if (!provisionalSession) {
+				return undefined;
+			}
+			backendSession = provisionalSession;
+		} else {
+			backendSession = this._resolveSessionUri(sessionResource);
+		}
 		// Note: we don't forward `token` across IPC \u2014 cancellation tokens
 		// don't round-trip through the proxy channel today. The post-await
 		// `isCancellationRequested` check below is enough to drop a stale
@@ -1369,9 +1382,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 
 		try {
-			const resolvedSession = this._resolveSessionUri(request.sessionResource);
-			const sessionKey = resolvedSession.toString();
-
 			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session
 			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
@@ -1382,6 +1392,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
+			const resolvedSession = this._resolveSessionUri(request.sessionResource);
+			const sessionKey = resolvedSession.toString();
 			const provisionalBackend = this._provisionalService.get(request.sessionResource);
 			if (provisionalBackend) {
 				this._ensureSessionSubscription(sessionKey);
@@ -4126,6 +4138,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Maps a UI session resource to a backend provider URI. */
 	private _resolveSessionUri(sessionResource: URI): URI {
+		const provisionalSession = this._provisionalService.get(sessionResource);
+		if (provisionalSession) {
+			return provisionalSession;
+		}
 		const rawId = sessionResource.path.substring(1);
 		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
 	}
