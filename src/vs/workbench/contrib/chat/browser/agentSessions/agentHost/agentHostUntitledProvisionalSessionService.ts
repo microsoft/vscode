@@ -555,8 +555,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		entry.workingDirectory = newWorkingDirectory;
 		entry.configVersion++;
 		entry.resolvedConfig = undefined;
-		this._onDidChange.fire(sessionResource);
-		return this._queue(sessionResource, async () => {
+		const work = this._queue(sessionResource, async () => {
 			if (this._entries.get(sessionResource) !== entry || entry.disposed) {
 				return;
 			}
@@ -582,6 +581,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 			this._onDidChange.fire(sessionResource);
 		});
+		// Register pending work before notifying because listeners can synchronously wait or reacquire.
+		this._onDidChange.fire(sessionResource);
+		return work;
 	}
 
 	disposeSession(sessionResource: URI): Promise<void> {

@@ -564,6 +564,34 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('folder change listeners can wait for the queued replacement', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('cwd-listener');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'folder' } }];
+		let pendingReplacement: Promise<URI | undefined> | undefined;
+		cleanup.add(provisional.onDidChange(resource => {
+			if (!pendingReplacement && resource.toString() === ui.toString()) {
+				pendingReplacement = provisional.waitForPending(ui);
+			}
+		}));
+
+		folderService.setFolder(ui, folderB);
+		assert.ok(pendingReplacement);
+		const replacement = await pendingReplacement;
+
+		assert.deepStrictEqual({
+			replacement: replacement?.toString(),
+			current: provisional.get(ui)?.toString(),
+			cwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+		}, {
+			replacement: agentHost.createCalls.at(-1)?.session?.toString(),
+			current: agentHost.createCalls.at(-1)?.session?.toString(),
+			cwd: folderB.toString(),
+		});
+	});
+
 	test('folder change to the same folder is a no-op', async () => {
 		const folderA = URI.file('/repoA');
 		const ui = untitledChatUri('cwd2');
