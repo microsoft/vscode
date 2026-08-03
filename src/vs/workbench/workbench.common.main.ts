@@ -382,6 +382,10 @@ import './contrib/themes/browser/themes.contribution.js';
 // Update
 import './contrib/update/browser/update.contribution.js';
 
+// --- Start FusionIDE ---
+import './contrib/fusionide/browser/fusionide.menus.contribution.js';
+// --- End FusionIDE ---
+
 // Surveys
 import './contrib/surveys/browser/nps.contribution.js';
 import './contrib/surveys/browser/languageSurveys.contribution.js';
