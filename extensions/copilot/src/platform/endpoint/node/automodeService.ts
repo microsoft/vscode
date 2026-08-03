@@ -11,6 +11,7 @@ import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycl
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
@@ -22,6 +23,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 import { AutoChatEndpoint } from './autoChatEndpoint';
+import { AutoV2Error, AutoV2Fetcher } from './autoV2Fetcher';
 import { RouterDecisionError, RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
 
 interface AutoModeAPIResponse {
@@ -29,6 +31,16 @@ interface AutoModeAPIResponse {
 	expires_at: number;
 	discounted_costs?: { [key: string]: number };
 	session_token: string;
+}
+
+interface AutoV2CacheEntry {
+	endpoint: AutoChatEndpoint;
+	sessionToken: string;
+	/** UNIX seconds at which `sessionToken` expires. */
+	expiresAt: number;
+	lastRoutedPrompt?: string;
+	turnCount: number;
+	needsReEval: boolean;
 }
 
 interface AutoModelCacheEntry {
@@ -135,9 +147,17 @@ export interface IAutomodeService {
 export class AutomodeService extends Disposable implements IAutomodeService {
 	readonly _serviceBrand: undefined;
 	private readonly _autoModelCache: Map<string, AutoModelCacheEntry> = new Map();
+	private readonly _autoV2Cache: Map<string, AutoV2CacheEntry> = new Map();
 	private _reserveTokens: DisposableMap<ChatLocation, AutoModeTokenBank> = new DisposableMap();
 	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
+	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	private _lastRoutingDecision: AutoModeRoutingDecision | undefined;
+	/**
+	 * Set when `POST /auto` fails in a way that indicates the endpoint is not
+	 * usable for this client (e.g. `404` from the API-version or feature-flag
+	 * gate). Once set, we stay on the legacy flow for the rest of the session.
+	 */
+	private _autoV2Unavailable = false;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -148,6 +168,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@IEnvService private readonly _envService: IEnvService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => {
@@ -155,6 +176,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				entry.tokenBank.dispose();
 			}
 			this._autoModelCache.clear();
+			this._autoV2Cache.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
@@ -163,6 +185,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}));
 		this._serviceBrand = undefined;
 		this._routerDecisionFetcher = new RouterDecisionFetcher(this._capiClientService, this._authService, this._logService, this._telemetryService, this._requestLogger);
+		this._autoV2Fetcher = new AutoV2Fetcher(this._capiClientService, this._authService, this._logService, this._telemetryService, this._requestLogger);
 	}
 
 	override dispose(): void {
@@ -170,6 +193,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			entry.tokenBank.dispose();
 		}
 		this._autoModelCache.clear();
+		this._autoV2Cache.clear();
 		this._reserveTokens.dispose();
 		super.dispose();
 	}
@@ -191,6 +215,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			entry.needsReEval = true;
 			this._logService.trace(`[AutomodeService] Router cache invalidated for conversation ${conversationId}`);
 		}
+		const v2Entry = this._autoV2Cache.get(conversationId);
+		if (v2Entry) {
+			v2Entry.needsReEval = true;
+			this._logService.trace(`[AutomodeService] Auto v2 cache invalidated for conversation ${conversationId}`);
+		}
 	}
 
 	async resolveAutoModeEndpoint(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
@@ -201,6 +230,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// Clear any previous routing decision upfront so stale data cannot
 		// leak to a consumer if this call takes a non-router path.
 		this._lastRoutingDecision = undefined;
+
+		if (this._isAutoV2Enabled()) {
+			const v2Endpoint = await this._tryResolveWithAutoV2(chatRequest, knownEndpoints);
+			if (v2Endpoint) {
+				return v2Endpoint;
+			}
+		}
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
 		const entry = this._autoModelCache.get(conversationId);
@@ -327,6 +363,122 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			needsReEval: false,
 		});
 		return autoEndpoint;
+	}
+
+	private _isAutoV2Enabled(): boolean {
+		return !this._autoV2Unavailable && this._configurationService.getConfig(ConfigKey.Advanced.AutoModeV2Enabled);
+	}
+
+	/**
+	 * Resolve the endpoint via the single-call Auto endpoint (`POST /auto`).
+	 *
+	 * Returns `undefined` when V2 cannot serve the request, in which case the
+	 * caller falls back to the legacy `/models/session` + `/models/session/intent`
+	 * flow. This keeps auto mode working when `/auto` is gated off, times out, or
+	 * returns a model the client has no endpoint for.
+	 */
+	private async _tryResolveWithAutoV2(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint | undefined> {
+		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+		const prompt = chatRequest?.prompt?.trim();
+		// `/auto` requires a non-empty prompt to classify. Non-panel locations
+		// (e.g. inline chat) keep using the legacy flow, which applies their
+		// location-specific model hints.
+		if (!prompt?.length || conversationId === 'unknown' || !this._isRouterEnabled(chatRequest)) {
+			return undefined;
+		}
+
+		const entry = this._autoV2Cache.get(conversationId);
+		// The session token is valid for 24h and there is no refresh flow, so
+		// reuse the resolved endpoint for the rest of the conversation unless the
+		// prompt changed on a re-evaluated turn (e.g. after compaction). A turn
+		// that newly attaches an image must re-resolve, since the cached model
+		// was picked without the vision constraint.
+		const cacheUsable = entry && !entry.needsReEval && entry.turnCount > 0
+			&& !this._isAutoV2SessionExpired(entry)
+			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);
+		if (cacheUsable) {
+			return entry.endpoint;
+		}
+
+		try {
+			const result = await this._autoV2Fetcher.getAutoDecision(prompt, {
+				hasImage: hasImage(chatRequest),
+				conversationId,
+				vscodeRequestId: chatRequest?.id,
+			});
+
+			const selectedModel = knownEndpoints.find(e => e.model === result.selected_model.id);
+			if (!selectedModel) {
+				this._logService.warn(`[AutomodeService] Auto v2 selected '${result.selected_model.id}' which is not in knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]; falling back to the legacy flow.`);
+				this._sendAutoV2FallbackTelemetry('noMatchingEndpoint');
+				return undefined;
+			}
+
+			// The server pre-filters to vision-capable models when `has_image` is
+			// set, but the client is ultimately responsible for not routing an
+			// image to a model that would reject it at the provider.
+			if (hasImage(chatRequest) && !selectedModel.supportsVision) {
+				this._logService.warn(`[AutomodeService] Auto v2 selected '${selectedModel.model}' which does not support vision for an image request; falling back to the legacy flow.`);
+				this._sendAutoV2FallbackTelemetry('noVisionSupport');
+				return undefined;
+			}
+
+			const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model)
+				? entry.endpoint
+				: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(result.discounted_costs));
+
+			this._autoV2Cache.set(conversationId, {
+				endpoint,
+				sessionToken: result.session_token,
+				expiresAt: result.expires_at,
+				lastRoutedPrompt: prompt,
+				turnCount: (entry?.turnCount ?? 0) + (entry?.lastRoutedPrompt === prompt ? 0 : 1),
+				needsReEval: false,
+			});
+			return endpoint;
+		} catch (e) {
+			const reason = this._classifyAutoV2Failure(e);
+			// A 404 means the API version or the feature flag gate rejected us;
+			// retrying on every turn would just add latency to every request.
+			if (e instanceof AutoV2Error && e.status === 404) {
+				this._autoV2Unavailable = true;
+				this._logService.info(`[AutomodeService] Auto v2 endpoint unavailable (404); using the legacy flow for the rest of the session.`);
+			}
+			this._logService.error(`[AutomodeService] Auto v2 failed for conversation ${conversationId} (${reason}):`, (e as Error).message);
+			this._sendAutoV2FallbackTelemetry(reason);
+			// Serve the last known good endpoint rather than paying for the
+			// legacy flow's extra round-trips when we already have a session.
+			if (entry && !this._isAutoV2SessionExpired(entry) && (!hasImage(chatRequest) || entry.endpoint.supportsVision)) {
+				return entry.endpoint;
+			}
+			return undefined;
+		}
+	}
+
+	private _isAutoV2SessionExpired(entry: AutoV2CacheEntry): boolean {
+		// Renew a few minutes early so a long request cannot outlive its token.
+		return entry.expiresAt * 1000 - Date.now() < 5 * 60 * 1000;
+	}
+
+	private _classifyAutoV2Failure(e: unknown): string {
+		if (isAbortError(e)) {
+			return 'autoV2Timeout';
+		}
+		if (e instanceof AutoV2Error) {
+			return e.errorCode ?? `autoV2Status${e.status}`;
+		}
+		return 'autoV2Error';
+	}
+
+	private _sendAutoV2FallbackTelemetry(reason: string): void {
+		/* __GDPR__
+			"automode.autoV2Fallback" : {
+				"owner": "lramos15",
+				"comment": "Reports when the single-call Auto endpoint (POST /auto) cannot be used and auto mode falls back to the legacy session + intent flow",
+				"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Why the single-call endpoint could not be used, e.g. autoV2Timeout, autoV2Error, noMatchingEndpoint, noVisionSupport, or a server status/error code" }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('automode.autoV2Fallback', { reason });
 	}
 
 	private _acquireTokenBank(entry: AutoModelCacheEntry | undefined, location: ChatLocation | undefined, conversationId: string): AutoModeTokenBank {

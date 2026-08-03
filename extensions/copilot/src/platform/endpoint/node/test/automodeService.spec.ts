@@ -16,6 +16,9 @@ import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger
 import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { createPngBytes } from '../../../image/common/test/testImageData';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService } from '../automodeService';
 
@@ -57,6 +60,7 @@ describe('AutomodeService', () => {
 	let mockExpService: IExperimentationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
+	let configurationService: IConfigurationService;
 	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
 	function createEndpoint(model: string, provider: string, overrides?: Partial<IChatEndpoint>): IChatEndpoint {
@@ -85,7 +89,8 @@ describe('AutomodeService', () => {
 			mockExpService,
 			envService,
 			mockTelemetryService,
-			new NullRequestLogger()
+			new NullRequestLogger(),
+			configurationService
 		);
 	}
 
@@ -138,6 +143,12 @@ describe('AutomodeService', () => {
 		mockExpService = new NullExperimentationService();
 
 		envService = new NullEnvService();
+		// These tests cover the legacy session + intent flow; the single-call
+		// Auto endpoint is exercised separately below.
+		configurationService = new InMemoryConfigurationService(
+			new DefaultsOnlyConfigurationService(),
+			new Map([[ConfigKey.Advanced.AutoModeV2Enabled, false]]),
+		);
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
 			sendMSFTTelemetryEvent: vi.fn(),
@@ -1368,6 +1379,305 @@ describe('AutomodeService', () => {
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('No available_models matched knownEndpoints')
 			);
+		});
+	});
+	describe('single-call Auto endpoint (POST /auto)', () => {
+		function enableAutoV2(): void {
+			configurationService = new InMemoryConfigurationService(
+				new DefaultsOnlyConfigurationService(),
+				new Map([[ConfigKey.Advanced.AutoModeV2Enabled, true]]),
+			);
+		}
+
+		function makeAutoResponse(body: unknown, status = 200) {
+			return {
+				ok: status >= 200 && status < 300,
+				status,
+				statusText: String(status),
+				headers: createMockHeaders(),
+				text: vi.fn().mockResolvedValue(JSON.stringify(body)),
+			};
+		}
+
+		function mockAuto(body: unknown, status = 200): void {
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, opts: any) => {
+				if (opts?.type === RequestType.Auto) {
+					return Promise.resolve(makeAutoResponse(body, status));
+				}
+				return Promise.resolve(
+					makeMockTokenResponse({
+						available_models: ['gpt-4o-mini'],
+						expires_at: Math.floor(Date.now() / 1000) + 3600,
+						session_token: 'legacy-token',
+					})
+				);
+			});
+		}
+
+		it('resolves the model from /auto without calling the legacy endpoints', async () => {
+			enableAutoV2();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(result.model).toBe('gpt-4o');
+			const requestTypes = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.map(c => c[1]?.type);
+			expect(requestTypes).toEqual([RequestType.Auto]);
+		});
+
+		it('sends has_image when the request contains an image', async () => {
+			enableAutoV2();
+			const visionEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'describe this',
+				sessionId: 'session-auto-v2-image',
+				references: [{ value: { mimeType: 'image/png', data: createPngBytes(4, 4) } }] as unknown as ChatRequest['references'],
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [visionEndpoint]);
+
+			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
+			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'describe this', has_image: true });
+		});
+
+		it('reuses the resolved endpoint for later turns in the same conversation', async () => {
+			enableAutoV2();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'first prompt',
+				sessionId: 'session-auto-v2-reuse'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			const second = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second prompt' } as ChatRequest, [gpt4oEndpoint]);
+
+			expect(second.model).toBe('gpt-4o');
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(1);
+		});
+
+		it('re-runs /auto after the cache is invalidated', async () => {
+			enableAutoV2();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'first prompt',
+				sessionId: 'session-auto-v2-invalidate'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			automodeService.invalidateRouterCache(chatRequest as ChatRequest);
+			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'after compaction' } as ChatRequest, [gpt4oEndpoint]);
+
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(2);
+		});
+
+		it('falls back to the legacy flow when /auto is gated off with a 404', async () => {
+			enableAutoV2();
+			mockAuto({ error: 'not_found' }, 404);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-404'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+
+			expect(result.model).toBe('gpt-4o-mini');
+			expect(mockTelemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith(
+				'automode.autoV2Fallback',
+				{ reason: 'not_found' }
+			);
+		});
+
+		it('stops calling /auto for the rest of the session after a 404', async () => {
+			enableAutoV2();
+			mockAuto({ error: 'not_found' }, 404);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-404-sticky'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'another' } as ChatRequest, [mockChatEndpoint]);
+
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(1);
+		});
+
+		it('falls back to the legacy flow when the selected model has no known endpoint', async () => {
+			enableAutoV2();
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'model-the-client-cannot-serve' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-unknown-model'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+
+			expect(result.model).toBe('gpt-4o-mini');
+			expect(mockTelemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith(
+				'automode.autoV2Fallback',
+				{ reason: 'noMatchingEndpoint' }
+			);
+		});
+
+		it('falls back to the legacy flow when /auto returns a non-vision model for an image request', async () => {
+			enableAutoV2();
+			const textOnly = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: false });
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'describe this',
+				sessionId: 'session-auto-v2-no-vision',
+				references: [{ value: { mimeType: 'image/png', data: createPngBytes(4, 4) } }] as unknown as ChatRequest['references'],
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [textOnly, mockChatEndpoint]);
+
+			expect(result.model).toBe('gpt-4o-mini');
+			expect(mockTelemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith(
+				'automode.autoV2Fallback',
+				{ reason: 'noVisionSupport' }
+			);
+		});
+
+		it('re-resolves instead of reusing a non-vision cached endpoint when a later turn attaches an image', async () => {
+			enableAutoV2();
+			const textOnly = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: false });
+			const visionModel = createEndpoint('gpt-4o-vision', 'OpenAI', { supportsVision: true });
+			let selectedId = 'gpt-4o';
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, opts: any) => {
+				if (opts?.type === RequestType.Auto) {
+					return Promise.resolve(makeAutoResponse({
+						session_token: 'auto-v2-token',
+						expires_at: Math.floor(Date.now() / 1000) + 86400,
+						selected_model: { id: selectedId },
+					}));
+				}
+				return Promise.resolve(
+					makeMockTokenResponse({
+						available_models: ['gpt-4o-mini'],
+						expires_at: Math.floor(Date.now() / 1000) + 3600,
+						session_token: 'legacy-token',
+					})
+				);
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'text only turn',
+				sessionId: 'session-auto-v2-image-later'
+			};
+
+			const first = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [textOnly, visionModel]);
+			expect(first.model).toBe('gpt-4o');
+
+			selectedId = 'gpt-4o-vision';
+			const second = await automodeService.resolveAutoModeEndpoint({
+				...chatRequest,
+				prompt: 'now describe this',
+				references: [{ value: { mimeType: 'image/png', data: createPngBytes(4, 4) } }],
+			} as unknown as ChatRequest, [textOnly, visionModel]);
+
+			expect(second.model).toBe('gpt-4o-vision');
+		});
+
+		it('does not call /auto for non-panel chat locations', async () => {
+			enableAutoV2();
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Editor,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-editor'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(0);
+		});
+
+		it('does not call /auto when the setting is disabled', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-disabled'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(0);
 		});
 	});
 });

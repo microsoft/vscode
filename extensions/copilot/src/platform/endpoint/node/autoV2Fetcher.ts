@@ -1,0 +1,201 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { RequestType } from '@vscode/copilot-api';
+import { Codicon } from '../../../util/vs/base/common/codicons';
+import { IAuthenticationService } from '../../authentication/common/authentication';
+import { ILogService } from '../../log/common/logService';
+import { Response } from '../../networking/common/fetcherService';
+import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { ICAPIClientService } from '../common/capiClient';
+
+/**
+ * The model object embedded in a `POST /auto` response. Shares the shape of an
+ * entry from `GET /models`, but volatile fields (warning banners, policy state,
+ * promo pricing, picker UI flags) are intentionally left unset by the server.
+ */
+export interface AutoV2SelectedModel {
+	id: string;
+	name?: string;
+	version?: string;
+	vendor?: string;
+	capabilities?: {
+		family?: string;
+		tokenizer?: string;
+		limits?: {
+			max_prompt_tokens?: number;
+			max_context_window_tokens?: number;
+			max_output_tokens?: number;
+		};
+		supports?: {
+			vision?: boolean;
+			tool_calls?: boolean;
+			streaming?: boolean;
+			structured_outputs?: boolean;
+		};
+	};
+	supported_endpoints?: string[];
+	billing?: { is_premium?: boolean; multiplier?: number };
+}
+
+export interface AutoV2Response {
+	session_token: string;
+	/** UNIX seconds. The token lifetime is 24 hours; there is no refresh flow. */
+	expires_at: number;
+	selected_model: AutoV2SelectedModel;
+	hydra_scores?: Record<string, number>;
+	discounted_costs?: Record<string, number>;
+}
+
+/**
+ * Client-side multi-turn routing state. Logged server-side only today, it does
+ * not influence the routing decision.
+ */
+export interface AutoV2MultiTurnState {
+	routing_intent?: string;
+	turns_since_anchor?: number;
+	current_skip_window?: number;
+	anchor_cap_vector?: Record<string, number>;
+}
+
+/**
+ * Thrown when `POST /auto` returns a non-OK HTTP response. Carries the status so
+ * callers can distinguish "endpoint unavailable" (404, e.g. the API version or
+ * feature flag gate) from a transient failure (503).
+ */
+export class AutoV2Error extends Error {
+	override readonly name = 'AutoV2Error';
+	constructor(message: string, public readonly status: number, public readonly errorCode?: string) {
+		super(message);
+	}
+}
+
+/**
+ * Fetches a model selection from the single-call Auto endpoint (`POST /auto`).
+ *
+ * This endpoint collapses the legacy two-call flow (`POST /models/session` then
+ * `POST /models/session/intent`) into one request: it mints the session token
+ * and resolves task intent server-side, returning the chosen model with its
+ * full `/models`-shaped metadata embedded.
+ */
+export class AutoV2Fetcher {
+	private static readonly TIMEOUT_MS = 5000;
+
+	constructor(
+		private readonly _capiClientService: ICAPIClientService,
+		private readonly _authService: IAuthenticationService,
+		private readonly _logService: ILogService,
+		private readonly _telemetryService: ITelemetryService,
+		private readonly _requestLogger: IRequestLogger,
+	) { }
+
+	async getAutoDecision(
+		prompt: string,
+		options: {
+			hasImage?: boolean;
+			multiTurn?: AutoV2MultiTurnState;
+			conversationId?: string;
+			vscodeRequestId?: string;
+		} = {},
+	): Promise<AutoV2Response> {
+		const startTime = Date.now();
+		const requestBody: Record<string, unknown> = { prompt };
+		if (options.hasImage) {
+			requestBody.has_image = true;
+		}
+		if (options.multiTurn) {
+			requestBody.multi_turn = options.multiTurn;
+		}
+
+		const copilotToken = (await this._authService.getCopilotToken()).token;
+		const abortController = new AbortController();
+		const timeout = setTimeout(() => abortController.abort(), AutoV2Fetcher.TIMEOUT_MS);
+		let response: Response;
+		try {
+			response = await this._capiClientService.makeRequest<Response>({
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${copilotToken}`,
+				},
+				body: JSON.stringify(requestBody),
+				signal: abortController.signal,
+			}, { type: RequestType.Auto });
+		} finally {
+			clearTimeout(timeout);
+		}
+
+		if (!response.ok) {
+			const errorText = await response.text().catch(() => '');
+			let errorCode: string | undefined;
+			try {
+				const parsed = JSON.parse(errorText);
+				if (typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string') {
+					errorCode = parsed.error;
+				}
+			} catch { /* not JSON */ }
+			throw new AutoV2Error(`Auto request failed with status ${response.status}: ${response.statusText}`, response.status, errorCode);
+		}
+
+		const result: AutoV2Response = JSON.parse(await response.text());
+		if (!result.selected_model?.id) {
+			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
+		}
+		const e2eLatencyMs = Date.now() - startTime;
+		this._logService.trace(`[AutoV2Fetcher] Selected model: ${result.selected_model.id} (e2e_latency_ms: ${e2eLatencyMs}, expires_at: ${result.expires_at})`);
+
+		this._requestLogger.addEntry({
+			type: LoggedRequestKind.MarkdownContentRequest,
+			debugName: `Auto Mode (v2)`,
+			startTimeMs: startTime,
+			icon: Codicon.lightbulbSparkle,
+			markdownContent: [
+				`# Auto Mode Decision (POST /auto)`,
+				`## Result`,
+				`- **Selected Model**: ${result.selected_model.id}`,
+				`- **Expires At**: ${new Date(result.expires_at * 1000).toISOString()}`,
+				`## Latency`,
+				`- **E2E Latency**: ${e2eLatencyMs}ms`,
+				...(result.hydra_scores
+					? [`## Hydra Scores`, ...Object.entries(result.hydra_scores).map(([k, v]) => `- **${k}**: ${v}`)]
+					: []),
+				`## Query`,
+				prompt,
+			].join('\n'),
+		});
+
+		/* __GDPR__
+			"automode.autoV2Decision" : {
+				"owner": "lramos15",
+				"comment": "Reports the model selection made by the single-call Auto endpoint (POST /auto)",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID in which the selection was made." },
+				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id in which the selection was made." },
+				"selectedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model the server selected for this prompt." },
+				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the auto request in milliseconds, including network overhead." },
+				"scoreReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for reasoning. -1 if not present in the response." },
+				"scoreCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for code generation. -1 if not present in the response." },
+				"scoreDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for debugging. -1 if not present in the response." },
+				"scoreToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for tool use. -1 if not present in the response." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('automode.autoV2Decision',
+			{
+				conversationId: options.conversationId ?? '',
+				vscodeRequestId: options.vscodeRequestId ?? '',
+				selectedModel: result.selected_model.id,
+			},
+			{
+				e2eLatencyMs,
+				scoreReasoning: result.hydra_scores?.reasoning ?? -1,
+				scoreCodeGen: result.hydra_scores?.code_gen ?? -1,
+				scoreDebugging: result.hydra_scores?.debugging ?? -1,
+				scoreToolUse: result.hydra_scores?.tool_use ?? -1,
+			}
+		);
+
+		return result;
+	}
+}
