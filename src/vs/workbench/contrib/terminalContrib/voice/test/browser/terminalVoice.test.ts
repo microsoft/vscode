@@ -84,12 +84,7 @@ suite('TerminalVoiceSession', () => {
 		store.clear();
 	});
 
-	/**
-	 * Drive terminal dictation from the built-in on-device engine, streaming a
-	 * cumulative transcript and returning `finalText` from `stopAndTranscribe()`
-	 * only once `transcribe` resolves. `transcribe` lets a test hold the accept
-	 * path open across an interleaved teardown.
-	 */
+	/** Lets tests control completion of the built-in engine's final transcription. */
 	function stubBuiltinEngine(transcriptEmitter: Emitter<IChatDictationTranscript>, stateEmitter: Emitter<ChatSpeechToTextState>, transcribe: () => Promise<string | undefined>): void {
 		let state = ChatSpeechToTextState.Idle;
 		instantiationService.stub(ISpeechService, new class extends mock<ISpeechService>() { });
