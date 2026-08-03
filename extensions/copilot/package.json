@@ -160,7 +160,7 @@
         "icon": "$(folder)",
         "userDescription": "%copilot.codebase.tool.description%",
         "modelDescription": "Run a natural language search for relevant code or documentation comments from the user's current workspace. Returns relevant code snippets from the user's current workspace if it is large, or the full contents of the workspace if it is small.",
-        "when": "!config.github.copilot.chat.semanticSearchTool.disabled",
+        "when": "config.github.copilot.chat.semanticSearchTool.mode != disabled",
         "tags": [
           "codesearch",
           "vscode_codesearch"
@@ -4215,10 +4215,20 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.semanticSearchTool.disabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.semanticSearchTool.disabled%",
+          "github.copilot.chat.semanticSearchTool.mode": {
+            "type": "string",
+            "default": "enabled",
+            "enum": [
+              "enabled",
+              "disabled",
+              "preferred"
+            ],
+            "markdownEnumDescriptions": [
+              "%github.copilot.config.semanticSearchTool.mode.enabled%",
+              "%github.copilot.config.semanticSearchTool.mode.disabled%",
+              "%github.copilot.config.semanticSearchTool.mode.preferred%"
+            ],
+            "markdownDescription": "%github.copilot.config.semanticSearchTool.mode%",
             "tags": [
               "experimental",
               "onExp"
