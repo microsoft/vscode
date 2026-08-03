@@ -116,6 +116,9 @@ class MockCopilotSession {
 	usageMetricsCalls = 0;
 	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
 	usageMetricsGate: Promise<unknown> | undefined;
+	disconnectCalls = 0;
+	disconnectGate: Promise<void> | undefined;
+	disconnectHook: (() => void) | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -208,7 +211,11 @@ class MockCopilotSession {
 	}
 	async setModel() { }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
-	async disconnect() { }
+	async disconnect() {
+		this.disconnectCalls++;
+		this.disconnectHook?.();
+		await this.disconnectGate;
+	}
 
 	readonly rpc = {
 		mode: {
@@ -797,6 +804,32 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+	});
+
+	test('destroySession completes when shutdown arrives before the response', async () => {
+		const disconnectStarted = new DeferredPromise<void>();
+		const disconnectGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
+			},
+		});
+		const destroy = session.destroySession();
+
+		await disconnectStarted.p;
+		try {
+			mockSession.fire('session.shutdown', {
+				shutdownType: 'normal',
+				totalApiDurationMs: 0,
+			} as SessionEventPayload<'session.shutdown'>['data']);
+			await destroy;
+			session.dispose();
+
+			assert.strictEqual(mockSession.disconnectCalls, 1);
+		} finally {
+			disconnectGate.complete();
+		}
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2845,7 +2878,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 		});
 
-		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+		test('per-request sandbox: applies the configured policy under default permissions', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 			});
@@ -6624,7 +6657,7 @@ suite('CopilotAgentSession', () => {
 
 			const unsupported = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-haiku-4.5',
+				modelId: 'claude-3-opus',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
