@@ -44,18 +44,8 @@
 	cursor: grabbing;
 }
 
-.chat-input-window .chat-input-window-drag-glyph {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	width: 12px;
-}
-
-.chat-input-window .chat-input-window-drag-glyph > span {
-	display: block;
-	height: 1px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: currentColor;
+.chat-input-window .chat-input-window-lead .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-input-window .chat-input-window-trail {

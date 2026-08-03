@@ -181,10 +181,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}));
 		this._lead = lead;
 		lead.style.setProperty('-webkit-app-region', 'drag');
-		const dragGlyph = dom.append(lead, dom.$('span.chat-input-window-drag-glyph'));
-		dom.append(dragGlyph, dom.$('span'));
-		dom.append(dragGlyph, dom.$('span'));
-		dom.append(dragGlyph, dom.$('span'));
+		lead.appendChild(renderIcon(Codicon.grabber));
 
 		applyThemeColors();
 		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
