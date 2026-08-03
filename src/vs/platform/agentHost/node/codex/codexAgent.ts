@@ -37,12 +37,12 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSkillsToContainers } from './codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexMcpServersFromPlugins, codexSkillRootsFromPlugins, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
@@ -70,6 +70,7 @@ import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
+import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
 import type { CommandExecutionRequestApprovalResponse } from './protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
@@ -1267,6 +1268,23 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _isMultiRootActive(session: ICodexSession): boolean {
 		return session.multiRootEnabled && (session.workingDirectories?.length ?? 0) > 1;
+	}
+
+	private async _selectedCapabilityRoots(session: ICodexSession): Promise<SelectedCapabilityRoot[]> {
+		const candidates = codexSelectedCapabilityRootCandidates(session.workingDirectories ?? []);
+		const resolved = await Promise.all(candidates.map(async candidate => {
+			try {
+				const stat = await this._fileService.stat(URI.file(candidate.location.path));
+				return stat.isDirectory ? candidate : undefined;
+			} catch (error) {
+				const result = toFileOperationResult(error);
+				if (result !== FileOperationResult.FILE_NOT_FOUND) {
+					this._logService.warn(`[Codex] selected capability root metadata lookup failed: id=${candidate.id}, result=${result}`);
+				}
+				return undefined;
+			}
+		}));
+		return resolved.filter(candidate => candidate !== undefined);
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -3110,9 +3128,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const multiRootActive = this._isMultiRootActive(session);
 		const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+		const selectedCapabilityRoots = multiRootActive ? await this._selectedCapabilityRoots(session) : [];
 		const startResult = await conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
 			cwd: session.workingDirectory.fsPath,
 			...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
+			...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 			model: model.id,
 			approvalPolicy,
 			sandbox: sandboxMode,
