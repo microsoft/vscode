@@ -37,7 +37,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 
 import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
@@ -537,77 +536,9 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Select Microphone Command ---
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentsVoice.selectMicrophone',
-			title: nls.localize2('agentsVoice.selectMicrophone', "Voice: Select Microphone"),
-			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const storageService = accessor.get(IStorageService);
-
-		const devices = await navigator.mediaDevices.enumerateDevices();
-
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
-			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
-			return;
-		}
-
-		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
-
-		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [];
-
-		// "System Default" entry — clears the stored device so the OS default is always used
-		items.push({
-			label: nls.localize('systemDefault', "System Default"),
-			description: currentDeviceId === '' ? nls.localize('current', "(current)") : undefined,
-			deviceId: '',
-		});
-
-		for (const d of audioInputs) {
-			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? nls.localize('current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
-		});
-
-		if (picked) {
-			const selection = picked as DevicePickItem;
-			if (selection.deviceId) {
-				storageService.store(AgentsVoiceStorageKeys.MicrophoneDevice, selection.deviceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			} else {
-				storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
-			}
-		}
-	}
-});
+// Microphone selection is shared with dictation via the single
+// `workbench.action.chat.selectSpeechToTextMicrophone` command (see
+// chatSpeechToTextActions.ts), so Voice Mode no longer registers its own.
 
 // --- Settings ---
 
