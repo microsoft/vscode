@@ -93,6 +93,24 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		assert.ok(!remaining.includes(looselyMatchingEditor), 'the loosely-matching tab should still be closed');
 	});
 
+	test('does not trigger on a sticky tab whose visible action is Unpin, not Close', () => {
+		// Sticky tabs show an Unpin button by default (tabActionUnpinVisibility), not Close.
+		// This gesture is specifically about the close button; Alt+clicking a sticky tab's
+		// Unpin button should just unpin it, not also close every other tab.
+		const { model, titleContainer } = createTabBarTestContext(container, {
+			editors,
+			partOptions: { closeOtherTabsOnAltClick: true },
+		}, disposables);
+
+		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.ok(model.isSticky(beforeOrder[0]), 'expected tab 0 to be sticky in this fixture');
+
+		altClickCloseButton(titleContainer, 0);
+
+		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.deepStrictEqual(afterOrder, beforeOrder, 'nothing should have closed');
+	});
+
 	test('does nothing when the setting is disabled (default)', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,

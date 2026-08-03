@@ -934,6 +934,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				return;
 			}
 
+			// The visible action here may be Unpin rather than Close (sticky tabs default to
+			// showing Unpin). This gesture is specifically about the close button, so leave
+			// the Unpin button's own click behavior alone rather than closing other tabs.
+			const isSticky = this.tabsModel.isSticky(tabIndex);
+			if (isSticky && this.groupsView.partOptions.tabActionUnpinVisibility) {
+				return;
+			}
+
 			EventHelper.stop(e, true);
 
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
