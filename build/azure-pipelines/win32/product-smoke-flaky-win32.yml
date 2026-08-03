@@ -335,6 +335,23 @@ jobs:
             continueOnError: true
             timeoutInMinutes: 20
 
+        # Force-kill any lingering test processes that still hold integration-test
+        # log files open and would otherwise break the 1ES "Publish Log Files" output.
+        - powershell: |
+            $ErrorActionPreference = "Continue"
+            $appRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+            $serverRoot = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+            Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
+              Where-Object { $_.ExecutablePath -like "$appRoot\*" -or $_.ExecutablePath -like "$serverRoot\*" } |
+              ForEach-Object {
+                Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
+                try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+                catch { Write-Host "  failed: $($_.Exception.Message)" }
+              }
+          displayName: Kill lingering integration test processes
+          continueOnError: true
+          condition: succeededOrFailed()
+
   - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
     - job: WindowsSmokeFlakySmoke
       dependsOn: WindowsSmokeFlakyBuild
