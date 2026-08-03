@@ -668,8 +668,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	private readonly voiceElements = new Map<string, IVoiceElement>();
 
+	/** Where the voice chips live, so they can be re-rendered on a language change. */
+	private voicesContainer: HTMLElement | undefined;
+
+	/** Listeners for the current set of voice chips, cleared when they re-render. */
+	private readonly voicesDisposables = this._register(new DisposableStore());
+
 	/** The native voice for the spoken language, when one exists. */
-	private readonly localizedVoice: ILocalizedVoice | undefined;
+	private localizedVoice: ILocalizedVoice | undefined;
 
 	/** The voice being auditioned, and the one that will be committed. */
 	private selectedVoice: IVoiceModeVoice | undefined;
@@ -712,9 +718,19 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.renderMicrophonePicker();
 
 		const actions = dom.append(this.domNode, dom.$('.voice-mode-onboarding-actions'));
-		this.renderVoices(actions);
+		this.voicesContainer = actions;
+		this.renderVoices();
 		this.renderClose();
 		this.logAction('shown');
+
+		// "Changing this while voice mode is connected takes effect immediately"
+		// applies to the card too: swap the chips for the new language's voice
+		// rather than leaving stale ones behind.
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(VOICE_LANGUAGE_SETTING)) {
+				this.updateForLanguage();
+			}
+		}));
 
 		this.focusForScreenReader();
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.focusForScreenReader()));
@@ -832,8 +848,20 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 * because bare text gave no sign it could be clicked at all. In a language
 	 * Voice Mode speaks natively there is only one voice, so the card previews
 	 * that voice instead of offering the English chooser.
+	 *
+	 * Re-entrant: clears any previously rendered chips so the card can rebuild
+	 * them when the spoken language changes.
 	 */
-	private renderVoices(container: HTMLElement): void {
+	private renderVoices(): void {
+		const container = this.voicesContainer;
+		if (!container) {
+			return;
+		}
+
+		this.voicesDisposables.clear();
+		this.voiceElements.clear();
+		dom.clearNode(container);
+
 		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
 		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
 		label.textContent = labelText;
@@ -859,11 +887,28 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			label.textContent = voice.label;
 			this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
-			this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
-			this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
+			this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
+			this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
 		}
 
 		this.updateSelection();
+	}
+
+	/**
+	 * The spoken language changed, so swap the chips: the four English voices
+	 * for a native language's single voice, or back again. Nothing is carried
+	 * over - a voice chosen for the old language means nothing for the new one.
+	 */
+	private updateForLanguage(): void {
+		const localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
+		if (localizedVoice?.id === this.localizedVoice?.id) {
+			return;
+		}
+
+		this.player.stop();
+		this.localizedVoice = localizedVoice;
+		this.selectedVoice = undefined;
+		this.renderVoices();
 	}
 
 	/**
@@ -886,8 +931,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		label.textContent = voice.label;
 		this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
-		this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
-		this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
+		this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
+		this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
 				keyboardEvent.preventDefault();
