@@ -71,7 +71,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
+import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -105,9 +105,6 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * the initial config supplied on the request.
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
-
-	/** Workbench-owned config for an existing logical provisional record. */
-	getSessionConfig(sessionResource: URI): Record<string, unknown> | undefined;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -299,11 +296,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return this._getInitialConfig();
 	}
 
-	getSessionConfig(sessionResource: URI): Record<string, unknown> | undefined {
-		const entry = this._entries.get(sessionResource);
-		return entry && !entry.disposed ? { ...entry.config } : undefined;
-	}
-
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
 		while (true) {
 			const pending = this._pending.get(sessionResource);
@@ -487,43 +479,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const newBackendSession = this._toBackendUri(newSessionResource, provider);
-			let imported: IAgentHostImportConversation | undefined;
-			let importedRead = false;
+			// Imports materialize eagerly, so carry their history and model into the rebound session.
+			const imported = this._importConversationStore.take(newSessionResource);
 
 			while (this._entries.get(oldSessionResource) === oldEntry && !oldEntry.disposed) {
 				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
 				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
-				const trusted = await this._isTargetFolderTrusted(targetWorkingDirectory);
-				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
-					return undefined;
-				}
-				if (oldEntry.configVersion !== configVersion || !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)) {
-					continue;
-				}
-				if (!trusted) {
-					if (imported) {
-						this._importConversationStore.set(newSessionResource, imported);
-					}
-					const oldGeneration = oldEntry.generation;
-					oldEntry.generation = undefined;
-					this._entries.set(newSessionResource, oldEntry);
-					this._entries.delete(oldSessionResource);
-					this._resolvedConfigs.delete(oldSessionResource);
-					this._resolvedConfigRequestSeq.delete(oldSessionResource);
-					this._rebound.add(oldSessionResource);
-					this._onDidChange.fire(newSessionResource);
-					if (oldGeneration) {
-						await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
-					}
-					return undefined;
-				}
-				if (!importedRead) {
-					// Imports materialize eagerly, so carry their history and model into the rebound session.
-					imported = this._importConversationStore.take(newSessionResource);
-					importedRead = true;
-				}
 				let created: URI;
 				try {
 					created = await this._agentHostService.createSession({

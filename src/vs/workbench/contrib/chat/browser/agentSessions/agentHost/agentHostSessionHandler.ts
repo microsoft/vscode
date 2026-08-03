@@ -1408,7 +1408,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
-					...this._provisionalService.getSessionConfig(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
 				await this._createAndSubscribe(
