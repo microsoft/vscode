@@ -44,6 +44,34 @@ export interface IChatListWidgetStyles {
 }
 
 /**
+ * Ref-counted suppression of auto-scrolling to the bottom. Holds compose, so
+ * unrelated features (request editing, an open text selection) can suppress
+ * concurrently without clobbering each other; auto-scroll resumes only once the
+ * last hold is released.
+ */
+export class AutoScrollHolds {
+
+	private _count = 0;
+
+	get isHeld(): boolean {
+		return this._count > 0;
+	}
+
+	acquire(): IDisposable {
+		this._count++;
+		// Idempotent so a double-dispose releases one hold rather than
+		// decrementing past it and silently cancelling somebody else's.
+		let released = false;
+		return toDisposable(() => {
+			if (!released) {
+				released = true;
+				this._count--;
+			}
+		});
+	}
+}
+
+/**
  * Tracks when a user-triggered resize has remained stable across animation frames.
  */
 export class UserToggleResizeState {
@@ -239,11 +267,6 @@ export interface IChatListWidgetOptions {
 	 * Callback to get current mode info (for rerun requests).
 	 */
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
-
-	/**
-	 * The render style for the chat widget. Affects minimum height behavior.
-	 */
-	readonly renderStyle?: 'compact' | 'minimal';
 }
 
 /**
@@ -312,7 +335,7 @@ export class ChatListWidget extends Disposable {
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
-	private _suppressAutoScroll: boolean = false;
+	private _autoScrollHolds = new AutoScrollHolds();
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
@@ -324,7 +347,6 @@ export class ChatListWidget extends Disposable {
 	private readonly _location: ChatAgentLocation | undefined;
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
-	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
 
 	//#endregion
 
@@ -407,7 +429,6 @@ export class ChatListWidget extends Disposable {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
 		));
-		this._renderStyle = options.renderStyle;
 
 		// Create overflow widgets container
 		const overflowWidgetsContainer = options.overflowWidgetsDomNode ?? document.createElement('div');
@@ -916,15 +937,22 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Suppress auto-scroll behavior temporarily. While suppressed,
-	 * _withPersistedAutoScroll will not scroll to bottom after operations.
+	 * Suppresses auto-scrolling to the bottom until the returned disposable is
+	 * disposed. Holds compose, so unrelated features (request editing, an open
+	 * text selection) can suppress concurrently without clobbering each other;
+	 * auto-scroll resumes only once the last hold is released.
 	 */
-	set suppressAutoScroll(value: boolean) {
-		this._suppressAutoScroll = value;
+	acquireAutoScrollHold(): IDisposable {
+		return this._autoScrollHolds.acquire();
+	}
+
+	/** Whether any {@link acquireAutoScrollHold} hold is currently active. */
+	get isAutoScrollHeld(): boolean {
+		return this._autoScrollHolds.isHeld;
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {
-		if (this._suppressAutoScroll) {
+		if (this.isAutoScrollHeld) {
 			fn();
 			return;
 		}
@@ -1053,33 +1081,8 @@ export class ChatListWidget extends Disposable {
 	 * Layout the list.
 	 */
 	layout(height: number, width: number): void {
-		this._bodyDimension = new dom.Dimension(width ?? this._container.clientWidth, height);
-		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
-	}
-
-	private _bodyDimension: dom.Dimension | null = null;
-	private _previousLastItemMinHeight: number | null = null;
-
-	private updateLastItemMinHeight(): void {
-		if (!this._bodyDimension) {
-			return;
-		}
-
-		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
-			this._container.style.removeProperty('--chat-current-response-min-height');
-		} else {
-			const lastItemMinHeight = this._bodyDimension.height / 4;
-			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
-			if (lastItemMinHeight !== this._previousLastItemMinHeight) {
-				this._previousLastItemMinHeight = lastItemMinHeight;
-				const lastItem = this._viewModel?.getItems().at(-1);
-				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
-					this._updateElementHeight(lastItem, undefined);
-				}
-			}
-		}
 	}
 
 	//#endregion

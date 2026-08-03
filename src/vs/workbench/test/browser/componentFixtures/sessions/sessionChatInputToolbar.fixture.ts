@@ -159,7 +159,8 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 	await renderChatWidget(ctx, {
 		messages,
 		decorateInputPart: (inputPart, instantiationService) => {
-			// All pills are off by default; enable them so the fixture renders.
+			// The fixture's test configuration has no product defaults, so opt in
+			// explicitly to make sure the pills render.
 			instantiationService.invokeFunction(accessor => {
 				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
 			});
@@ -244,7 +245,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
-	// --- Background activity pill ------------------------------------------
+	// --- Browser and background activity pills ------------------------------
 
 	SessionChatPills_BackgroundBrowser: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'Visual Studio Code' }] })),

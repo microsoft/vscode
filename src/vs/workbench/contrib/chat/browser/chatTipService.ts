@@ -13,7 +13,7 @@ import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,6 +27,7 @@ import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
 import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -444,9 +445,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
-		// Only show tips when there is exactly one foreground chat session visible.
-		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
-		if (foregroundSessionCount !== 1) {
+		if (!this._hasSingleForegroundChatSurface(contextKeyService)) {
 			return undefined;
 		}
 
@@ -497,6 +496,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		const tip = this._pickTip('welcome', contextKeyService);
 
 		return tip;
+	}
+
+	private _hasSingleForegroundChatSurface(contextKeyService: IContextKeyService): boolean {
+		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
+		return foregroundSessionCount === 1
+			|| (foregroundSessionCount === 0 && contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true);
 	}
 
 	private _findNextEligibleTip(currentTipId: string, contextKeyService: IContextKeyService): ITipDefinition | undefined {
@@ -762,7 +767,23 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
 			return false;
 		}
+		if (!this._areTipCommandsRegistered(tip)) {
+			return false;
+		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
+		return true;
+	}
+
+	private _areTipCommandsRegistered(tip: ITipDefinition): boolean {
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
+		const rawMessage = tip.buildMessage(ctx);
+		const commandIds = extractCommandIds(rawMessage.value);
+		for (const commandId of commandIds) {
+			if (!CommandsRegistry.getCommand(commandId)) {
+				this._logService.debug('#ChatTips: tip excluded because command is not registered', tip.id, commandId);
+				return false;
+			}
+		}
 		return true;
 	}
 

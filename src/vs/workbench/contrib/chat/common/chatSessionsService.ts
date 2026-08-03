@@ -224,6 +224,12 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/**
+	 * Authoritative read state, set by controllers that own it (see
+	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
+	 * `undefined`, and the workbench falls back to its own read tracking.
+	 */
+	readonly isRead?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
 	/**
 	 * Resource identifier the item was previously known by. When set, host-stored
@@ -306,6 +312,10 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	/**
+	 * Identifier of the backing provider turn.
+	 */
+	readonly id: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
@@ -494,7 +504,7 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
 }
 
 /**
@@ -538,6 +548,40 @@ export interface IChatInputCompletionSkillAttachment {
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly description?: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Chat attachment associated with a completion item. References another chat's
+ * transcript through a fixed completed turn. The workbench adds it to the
+ * input's variable model when the item is accepted so it round-trips back to
+ * the provider as a chat attachment on the outgoing user message.
+ */
+export interface IChatInputCompletionChatAttachment {
+	readonly kind: 'chat';
+	/**
+	 * The opaque **backend** chat URI of the referenced chat — the exact value
+	 * carried on `MessageChatAttachment.resource`. The workbench stores it
+	 * verbatim on the accepted reference entry (`value`) and round-trips it back
+	 * on send; it never parses or constructs it.
+	 */
+	readonly uri: URI;
+	/**
+	 * The last completed turn included in the referenced transcript, when the
+	 * reference is pinned to a specific turn. Omitted for references that resolve
+	 * to the referenced chat's latest completed turn at accept time (e.g. a
+	 * reference produced by dragging a chat into the input).
+	 */
+	readonly endTurn?: string;
+	/** The chat title, used as the display label. */
+	readonly title: string;
+	/** Display label shown in the completion picker; defaults to {@link title}. */
+	readonly displayName?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a
@@ -600,6 +644,14 @@ export interface IChatSessionItemController {
 	 * Set the authoritative archived state for the session identified by `resource`.
 	 */
 	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
+
+	/**
+	 * Set the authoritative read state for the session identified by `resource`.
+	 * Implementing this declares that the controller, not the workbench, owns read
+	 * state — letting it be shared with other clients on the same backend. The
+	 * controller reflects the new value back via {@link IChatSessionItem.isRead}.
+	 */
+	setChatSessionItemRead?(resource: URI, isRead: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -750,6 +802,16 @@ export interface IChatSessionsService {
 	 * Sets archived state by delegating to the registered item controller.
 	 */
 	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
+
+	/**
+	 * Whether the registered item controller owns read state for the session.
+	 */
+	canSetChatSessionItemRead(sessionResource: URI): boolean;
+
+	/**
+	 * Sets read state by delegating to the registered item controller.
+	 */
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void;
 
 	// #endregion
 

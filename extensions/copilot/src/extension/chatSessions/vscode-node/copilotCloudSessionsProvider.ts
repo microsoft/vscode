@@ -525,8 +525,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
 			}
 
-
+			// Reachable when `chatSessionPullRequest` is unknown, which keeps the action visible.
 			if (!pullRequestNumber) {
+				this.logService.warn('No pull request number could be resolved for the requested cloud session action.');
 				return;
 			}
 			const repoIds = await getRepoId(this._gitService);

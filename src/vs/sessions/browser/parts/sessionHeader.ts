@@ -34,7 +34,7 @@ import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewIt
 /**
  * An action runner for the session header toolbars that promotes the header's
  * session to be the active session before running any contributed command. This
- * ensures commands (e.g. View Changes) operate on the clicked session even when
+ * ensures commands (e.g. View All Changes) operate on the clicked session even when
  * a different session is currently active.
  */
 class SessionActivatingActionRunner extends ActionRunner {
@@ -178,7 +178,7 @@ export class SessionHeader extends Disposable {
 		// SessionHeaderMetaActionViewItem.
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
-		// Commands contributed into the header meta toolbar (e.g. View Changes)
+		// Commands contributed into the header meta toolbar (e.g. View All Changes)
 		// operate on this view's session. Promote it to the active session before
 		// running any of them via a custom action runner, so the command always
 		// targets the clicked session even when another session is active.
