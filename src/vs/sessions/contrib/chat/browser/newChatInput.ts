@@ -45,7 +45,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
+import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -859,6 +859,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
 		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
 		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
+		const isVoiceSessionActive = derived(this, reader => isNewChatVoiceSessionActive(
+			this.voiceSessionController.isConnected.read(reader),
+			this.voiceSessionController.isConnecting.read(reader),
+			this.voiceSessionController.targetSession.read(reader),
+			this.voiceSessionController.hasDraftTarget.read(reader),
+		));
 
 		const action = toAction({
 			id: ChatVoiceInputModeAction.ID,
@@ -870,6 +876,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
 			isActive: isVoiceInputActive,
+			isVoiceActive: isVoiceSessionActive,
 		}));
 		pill.render(pillContainer);
 
@@ -886,7 +893,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// `AGENTS_VOICE_CONNECTED` context key, which tracks `isConnected` only.
 			// Counting `isConnecting` here would show the pill while the scoped
 			// standalone toolbar still shows its Connecting item (duplicate controls).
-			const connected = this.voiceSessionController.isConnected.read(reader);
+			const connected = isVoiceSessionActive.read(reader) && this.voiceSessionController.isConnected.read(reader);
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && connected);
 			pillContainer.classList.toggle('hidden', !pillActive);
 			// Mirror the pill's active state onto the input container so voice glow
@@ -962,7 +969,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// voice mic affordances never compete on this composer. Also hide when
 			// the segmented voice/dictation pill applies (both modes available, so
 			// the pill hosts its own dictation cell), which supersedes this button.
-			const voiceActive = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
+			const voiceActive = isNewChatVoiceSessionActive(
+				this.voiceSessionController.isConnected.get(),
+				this.voiceSessionController.isConnecting.get(),
+				this.voiceSessionController.targetSession.get(),
+				this.voiceSessionController.hasDraftTarget.get(),
+			);
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
 			const handsFree = this.voiceInputModeService.handsFree.get();
@@ -976,6 +988,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(autorun(reader => {
 			this.voiceSessionController.isConnected.read(reader);
 			this.voiceSessionController.isConnecting.read(reader);
+			this.voiceSessionController.targetSession.read(reader);
+			this.voiceSessionController.hasDraftTarget.read(reader);
 			this.voiceInputModeService.dictationAvailable.read(reader);
 			this.voiceInputModeService.voiceAvailable.read(reader);
 			this.voiceInputModeService.handsFree.read(reader);
