@@ -132,15 +132,24 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 				await this._channel.call('connect');
 				return;
 			} catch (error) {
-				if (this._store.isDisposed || !isUnknownChannelError(error) || Date.now() >= deadline) {
+				// Retry only the transient "channel not registered yet" timeout, and
+				// only while the transport is live and within the wall-clock budget.
+				const remaining = deadline - Date.now();
+				if (this._store.isDisposed || !isUnknownChannelError(error) || remaining <= 0) {
 					throw error;
 				}
+				// Clamp the backoff to the remaining budget so a throttled timer can't
+				// push the next attempt (and its own IPC timeout) past the budget, then
+				// recheck the deadline before issuing another call.
+				await this._sleep(Math.min(delay, remaining));
+				if (this._store.isDisposed) {
+					throw new Error('Transport is disposed');
+				}
+				if (Date.now() >= deadline) {
+					throw error;
+				}
+				delay = Math.min(delay * 2, this._connectRetryMaxDelayMs);
 			}
-			await this._sleep(delay);
-			if (this._store.isDisposed) {
-				throw new Error('Transport is disposed');
-			}
-			delay = Math.min(delay * 2, this._connectRetryMaxDelayMs);
 		}
 	}
 

@@ -131,6 +131,25 @@ suite('AgentHostIpcChannelTransport', () => {
 		assert.strictEqual(transport.isOpen, false);
 	});
 
+	test('bounds the retry budget even when a backoff overshoots the deadline', async () => {
+		const channel = ds.add(new FakeChannel());
+		let attempts = 0;
+		channel.connectHandler = () => { attempts++; return Promise.reject(unknownChannelError()); };
+		const sleeps: number[] = [];
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, {
+			connectRetryBudgetMs: 20,
+			connectRetryInitialDelayMs: 10_000, // unclamped this would ignore the budget entirely
+			sleep: ms => { sleeps.push(ms); return new Promise<void>(resolve => setTimeout(resolve, ms)); },
+		}));
+
+		await assert.rejects(() => transport.connect(), /Unknown channel/);
+
+		// No attempt is issued past the deadline, and any backoff is clamped to the
+		// remaining budget rather than the 10s initial delay.
+		assert.strictEqual(attempts, 1);
+		assert.ok(sleeps.every(ms => ms <= 20), `backoff should be clamped to the remaining budget, got ${JSON.stringify(sleeps)}`);
+	});
+
 	test('stops retrying once the transport is disposed', async () => {
 		const channel = ds.add(new FakeChannel());
 		let attempts = 0;
