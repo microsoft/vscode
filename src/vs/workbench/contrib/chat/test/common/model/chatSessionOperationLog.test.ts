@@ -5,12 +5,33 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import * as Adapt from '../../../common/model/objectMutationLog.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { MockChatService } from '../chatService/mockChatService.js';
 
 suite('ChatSessionOperationLog', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Test data types
 	interface TestItem {
@@ -58,6 +79,39 @@ suite('ChatSessionOperationLog', () => {
 		const reader = new Adapt.ObjectMutationLog(createTestSchema());
 		return reader.read(fileContent);
 	}
+
+	test('persists plan review changes through the operation log', () => {
+		const store = testDisposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, store.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+
+		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'Create a plan';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		const review = new ChatPlanReviewData('Plan summary', 'Generated summary', [{ label: 'Approve' }], true);
+		model.acceptResponseProgress(request, review);
+
+		const writer = new ChatSessionOperationLog();
+		const initial = writer.createInitial(model);
+		review.isOutdated = true;
+		const update = writer.write(model);
+		writer.confirmWrite();
+
+		const reader = new ChatSessionOperationLog();
+		const restored = reader.read(VSBuffer.concat([initial, update.data]));
+		const restoredReview = restored.requests[0].response?.[0];
+		assert.ok(hasKey(restoredReview, { kind: true }) && restoredReview.kind === 'planReview');
+		assert.strictEqual(restoredReview.isOutdated, true);
+	});
 
 	suite('Transform factories', () => {
 		test('key uses strict equality by default', () => {

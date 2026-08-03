@@ -102,7 +102,10 @@ suite('ChatPlanReviewPart', () => {
 		lastModelService = instantiationService.get(IModelService);
 		lastCommentsBridge = commentsBridge;
 		if (fileChangesEmitter) {
-			sinon.stub(instantiationService.get(IFileService), 'onDidFilesChange').value(fileChangesEmitter.event);
+			sinon.stub(instantiationService.get(IFileService), 'createWatcher').returns({
+				onDidChange: fileChangesEmitter.event,
+				dispose: () => { },
+			});
 		}
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);

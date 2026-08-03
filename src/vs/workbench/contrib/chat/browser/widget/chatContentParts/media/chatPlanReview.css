@@ -95,7 +95,7 @@
 .interactive-session .chat-plan-review-container .chat-plan-review-outdated {
 	flex-shrink: 0;
 	padding: 0 var(--vscode-spacing-size60);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-circle);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label3);

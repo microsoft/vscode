@@ -277,7 +277,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			watchModel(model);
 		}
 		this._planChangeListeners.add(this._modelService.onModelAdded(watchModel));
-		this._planChangeListeners.add(this._fileService.onDidFilesChange(event => {
+		const watcher = this._planChangeListeners.add(this._fileService.createWatcher(planUri, { recursive: false, excludes: [] }));
+		this._planChangeListeners.add(watcher.onDidChange(event => {
 			if (event.contains(planUri, FileChangeType.DELETED) || (!this._modelService.getModel(planUri) && event.contains(planUri, FileChangeType.ADDED, FileChangeType.UPDATED))) {
 				this.markOutdated();
 			}
