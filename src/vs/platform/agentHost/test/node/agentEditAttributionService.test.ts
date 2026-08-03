@@ -15,7 +15,6 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest } from '../../common/fileEditAttribution.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
@@ -190,21 +189,21 @@ suite('Agent Edit Attribution Service', () => {
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
-					conversationId: AgentSession.id(copilotDefaultChatUri),
+					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
 					requestId: 'turn-default',
 					harness: 'copilotcli',
 				},
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
-					conversationId: AgentSession.id(copilotPeerChatUri),
+					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
 					requestId: 'turn-peer',
 					harness: 'copilotcli',
 				},
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:claude-model-$harness:claude-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:claude-$origin:agentHost',
-					conversationId: AgentSession.id(claudeChatUri),
+					conversationId: 'Y2xhdWRlOi9zZXNzaW9uLTI',
 					requestId: 'turn-claude',
 					harness: 'claude',
 				},
