@@ -1466,26 +1466,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	AutomationsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Automations,
-			automationsEnabled: true,
-			width: 1200,
-			managementSections: [
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Instructions,
-				AICustomizationManagementSection.Hooks,
-				AICustomizationManagementSection.Prompts,
-				AICustomizationManagementSection.Automations,
-				AICustomizationManagementSection.McpServers,
-				AICustomizationManagementSection.Plugins,
-			],
-		}),
-	}),
-
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
