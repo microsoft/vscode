@@ -61,6 +61,38 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		assert.ok(remaining.includes(clickedEditor));
 	});
 
+	test('closes a tab even if its matches() loosely matches the clicked tab (e.g. Welcome/walkthrough tabs)', () => {
+		// Some editor inputs (e.g. GettingStartedInput, used for the Welcome and walkthrough
+		// tabs) override matches() to return true for *any* instance of the same type, not just
+		// the exact same instance — used elsewhere to reuse a singleton editor pane. The
+		// close-others filter must key off identity, not matches(), or such a tab wrongly
+		// survives whenever the clicked tab happens to be of the same loosely-matching type.
+		const { model, titleContainer } = createTabBarTestContext(container, {
+			editors,
+			partOptions: { closeOtherEditorsOnAltClick: true },
+		}, disposables);
+
+		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
+		const stickyEditor = beforeOrder[0];
+		const looselyMatchingEditor = beforeOrder[1];
+		const clickedEditor = beforeOrder[2];
+
+		// Simulate a loosely-matching "singleton" input type by making both editors' matches()
+		// report a match against each other, without touching how they were opened above (opening
+		// two genuinely matches()-colliding inputs would just make the model dedupe them into one
+		// tab, which isn't the scenario being tested here).
+		const originalMatches = looselyMatchingEditor.matches.bind(looselyMatchingEditor);
+		looselyMatchingEditor.matches = other => other === clickedEditor || originalMatches(other);
+
+		altClickCloseButton(titleContainer, 2);
+
+		const remaining = model.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.strictEqual(remaining.length, 2);
+		assert.ok(remaining.includes(stickyEditor));
+		assert.ok(remaining.includes(clickedEditor));
+		assert.ok(!remaining.includes(looselyMatchingEditor), 'the loosely-matching tab should still be closed');
+	});
+
 	test('does nothing when the setting is disabled (default)', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,

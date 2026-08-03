@@ -943,7 +943,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			this.blockRevealActiveTabOnce();
 
-			const editorsToClose = this.groupView.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(other => !other.matches(editor));
+			const editorsToClose = this.groupView.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(other => other !== editor);
 			this.groupView.closeEditors(editorsToClose);
 		}, true /* capture */);
 
