@@ -109,7 +109,9 @@ suite('ChatSessionOperationLog', () => {
 		const reader = new ChatSessionOperationLog();
 		const restored = reader.read(VSBuffer.concat([initial, update.data]));
 		const restoredReview = restored.requests[0].response?.[0];
-		assert.ok(hasKey(restoredReview, { kind: true }) && restoredReview.kind === 'planReview');
+		if (!restoredReview || !hasKey(restoredReview, { kind: true }) || restoredReview.kind !== 'planReview') {
+			assert.fail('Expected a restored plan review');
+		}
 		assert.strictEqual(restoredReview.isOutdated, true);
 	});
 
