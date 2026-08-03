@@ -322,6 +322,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
 	readonly actionBar?: ActionBar;
+	readonly changesContainer: HTMLElement;
 	changesElement?: HTMLElement;
 }
 
@@ -350,9 +351,8 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		// Only when a row-action provider is supplied do we add a right-aligned
-		// action bar; the row becomes a flex row so the label fills the remaining
-		// width and the actions hug the right edge.
+		// Only when a row-action provider is supplied do we add an action bar
+		// between the file label and the right-aligned change counts.
 		let actionBar: ActionBar | undefined;
 		if (this.options?.getRowActions) {
 			container.classList.add('chat-summary-list-row-with-actions');
@@ -362,6 +362,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		return {
 			label,
 			actionBar,
+			changesContainer: actionBar ? container : label.element,
 			dispose: () => {
 				label.dispose();
 				actionBar?.dispose();
@@ -380,7 +381,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		templateData.changesElement?.remove();
 
 		if (!data.identical && !data.isBusy) {
-			const changesSummary = labelElement.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+			const changesSummary = templateData.changesContainer.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
 
 			const added = changesSummary.appendChild($(`.insertions`));
 			added.textContent = `+${data.added}`;

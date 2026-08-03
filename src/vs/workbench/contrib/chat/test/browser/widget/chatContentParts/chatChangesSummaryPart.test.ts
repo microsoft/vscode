@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../../../base/common/actions.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
-import { ChatCheckpointFileChangesSummaryContentPart } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
+import { ChatCheckpointFileChangesSummaryContentPart, renderChangesSummaryFileList } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
@@ -113,5 +116,26 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			expandedChevron: true,
 			toggleCount: 1,
 		});
+	});
+
+	test('renders row actions before right-aligned change counts', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
+			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
+		]);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			getRowActions: () => [toAction({ id: 'preview', label: 'Preview' })],
+		}));
+
+		const row = container.querySelector('.chat-summary-list-row-with-actions');
+		assert.deepStrictEqual(
+			Array.from(row?.children ?? []).map(element => element.classList.item(0)),
+			['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
+		);
 	});
 });

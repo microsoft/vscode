@@ -3189,9 +3189,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Per-row action bar in the changed-files list (e.g. the "Preview" action). The
-	row becomes a flex row so the file label fills the remaining width and the
-	actions hug the right edge. Scoped via the class the renderer adds only when a
-	row-action provider is supplied. */
+	row becomes a flex row so the file label fills the remaining width, followed
+	by the actions and the right-aligned change counts. Scoped via the class the
+	renderer adds only when a row-action provider is supplied. */
 .interactive-session .chat-summary-list .monaco-list-row.chat-summary-list-row-with-actions,
 .interactive-session .chat-summary-list-row-with-actions {
 	display: flex;
@@ -3206,6 +3206,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-summary-list-row-with-actions > .chat-summary-list-actions {
 	flex: 0 0 auto;
 	padding-right: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-summary-list-row-with-actions > .insertions-and-deletions {
+	flex: 0 0 auto;
 }
 
 .interactive-session .chat-summary-list-actions .action-label {
