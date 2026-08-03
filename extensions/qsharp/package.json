@@ -1,0 +1,50 @@
+{
+  "name": "qsharp",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin qsharp-community/qsharp-tmLanguage grammars/qsharp.tmLanguage.json ./syntaxes/qsharp.tmLanguage.json"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "qsharp",
+        "extensions": [
+          ".qs"
+        ],
+        "aliases": [
+          "Q#",
+          "qsharp"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "qsharp",
+        "scopeName": "source.qsharp",
+        "path": "./syntaxes/qsharp.tmLanguage.json",
+        "tokenTypes": {
+          "meta.interpolation.qsharp": "other"
+        },
+        "unbalancedBracketScopes": [
+          "keyword.operator.comparison.qsharp",
+          "keyword.operator.lambda.qsharp",
+          "keyword.operator.bitwise.qsharp",
+          "keyword.operator.copy-update.qsharp"
+        ]
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
