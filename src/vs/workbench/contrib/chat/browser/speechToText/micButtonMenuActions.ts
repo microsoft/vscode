@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
+import { DictationSettingId } from './chatSpeechToTextService.js';
 import { SHOW_DICTATION_ONBOARDING_COMMAND } from './dictationOnboarding.js';
 
 /** Command that opens the microphone picker shared by dictation and Voice Mode. */
@@ -72,6 +73,22 @@ function createShowDictationOnboardingAction(commandService: ICommandService): I
 }
 
 /**
+ * Checkable "Microphone Button" entry mirroring the action bar visibility toggles:
+ * checked while the button is shown, unchecking it hides the button. Hiding only
+ * removes the toolbar affordance — dictation can still be launched with its
+ * Cmd/Ctrl+I shortcut, and the button can be restored from Settings.
+ */
+function createToggleDictationButtonAction(configurationService: IConfigurationService): IAction {
+	const shown = configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+	return toAction({
+		id: 'chat.dictation.toggleButton',
+		label: localize('dictation.microphoneButton', "Microphone Button"),
+		checked: shown,
+		run: () => configurationService.updateValue(DictationSettingId.ShowButton, !shown),
+	});
+}
+
+/**
  * "Disable" entry for Voice Mode. Tears down any active session first so disabling
  * the setting doesn't leave the microphone capturing while the toolbar
  * affordance disappears, then turns off the feature setting.
@@ -95,6 +112,7 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 	return Separator.join(
 		[
 			createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
+			createToggleDictationButtonAction(configurationService),
 			createDisableDictationAction(commandService, configurationService),
 		],
 		[
