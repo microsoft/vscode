@@ -66,7 +66,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	resolveQueue: (Promise<ResolveSessionConfigResult> | ResolveSessionConfigResult)[] = [];
 
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		this.createCalls.push(config!);
+		assert.ok(config?.session);
+		this.createCalls.push(config);
 		if (this.failNextCreate) {
 			this.failNextCreate = false;
 			throw new Error('create failed');
@@ -76,7 +77,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (gate) {
 			await gate.p;
 		}
-		return config!.session!;
+		return config.session;
 	}
 
 	override async disposeSession(session: URI): Promise<void> {
@@ -420,7 +421,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-g');
 		assert.ok(reboundCreate, 'rebind triggered a createSession');
-		assert.strictEqual(reboundCreate!.config?.['isolation'], 'worktree');
+		assert.strictEqual(reboundCreate.config?.['isolation'], 'worktree');
 	});
 
 	test('tryRebind retries when config changes during final session creation', async () => {
@@ -713,6 +714,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const disposal = provisional.disposeSession(ui);
 		gate.complete();
 		await Promise.all([creation, disposal]);
+		const createdSession = agentHost.createCalls[0].session;
+		assert.ok(createdSession);
 
 		assert.deepStrictEqual({
 			current: provisional.get(ui),
@@ -721,7 +724,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		}, {
 			current: undefined,
 			createCount: 1,
-			disposed: agentHost.createCalls[0].session ? [agentHost.createCalls[0].session!.toString()] : [],
+			disposed: [createdSession.toString()],
 		});
 	});
 

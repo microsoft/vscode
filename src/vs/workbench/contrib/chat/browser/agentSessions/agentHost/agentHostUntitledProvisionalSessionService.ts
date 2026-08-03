@@ -282,10 +282,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	get(sessionResource: URI): URI | undefined {
 		const entry = this._entries.get(sessionResource);
-		if (!entry || entry.disposed || !this._generationMatchesDesiredState(entry)) {
+		if (!entry || entry.disposed) {
 			return undefined;
 		}
-		return entry.generation?.backendSession;
+		return this._generationMatchingDesiredState(entry)?.backendSession;
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
@@ -374,8 +374,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return work;
 	}
 
-	private _generationMatchesDesiredState(entry: IEntry): boolean {
-		return !!entry.generation && this._sameUri(entry.generation.workingDirectory, entry.workingDirectory);
+	private _generationMatchingDesiredState(entry: IEntry): IProvisionalGeneration | undefined {
+		const generation = entry.generation;
+		return generation && this._sameUri(generation.workingDirectory, entry.workingDirectory) ? generation : undefined;
 	}
 
 	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
@@ -392,8 +393,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 */
 	private async _reconcileGeneration(sessionResource: URI, entry: IEntry): Promise<URI | undefined> {
 		while (this._entries.get(sessionResource) === entry && !entry.disposed) {
-			if (this._generationMatchesDesiredState(entry)) {
-				return entry.generation!.backendSession;
+			const currentGeneration = this._generationMatchingDesiredState(entry);
+			if (currentGeneration) {
+				return currentGeneration.backendSession;
 			}
 
 			const workingDirectory = entry.workingDirectory;
