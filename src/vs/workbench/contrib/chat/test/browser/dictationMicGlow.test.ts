@@ -25,6 +25,22 @@ suite('DictationMicGlow', () => {
 		);
 	});
 
+	test('the chat mic stays dark while dictation runs in the editor or terminal', () => {
+		const states = [ChatSpeechToTextState.Idle, ChatSpeechToTextState.Recording, ChatSpeechToTextState.Transcribing];
+		assert.deepStrictEqual(
+			{
+				chat: states.map(state => getDictationMicGlowPhase(state, false, 'chat')),
+				editor: states.map(state => getDictationMicGlowPhase(state, false, 'editor')),
+				terminal: states.map(state => getDictationMicGlowPhase(state, false, 'terminal')),
+			},
+			{
+				chat: ['off', 'live', 'settling'],
+				editor: ['off', 'off', 'off'],
+				terminal: ['off', 'off', 'off'],
+			}
+		);
+	});
+
 	test('the level swells faster than it drifts back, so speech reads as ambient', () => {
 		const rose = easeDictationMicLevel(0, 1);
 		const fell = 1 - easeDictationMicLevel(1, 0);

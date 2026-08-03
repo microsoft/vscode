@@ -38,6 +38,7 @@ suite('DictationSession', () => {
 			onDidChangeDownloadingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
+			get sessionSurface() { return 'chat' as const; },
 			get showTranscriptWhileDictating() { return showTranscriptWhileDictating; },
 			get analyserNode() { return undefined; },
 			get isConfigured() { return true; },

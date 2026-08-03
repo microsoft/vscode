@@ -255,6 +255,15 @@ export interface IChatSpeechToTextService {
 	readonly state: ChatSpeechToTextState;
 
 	/**
+	 * The surface the current (or most-recent) dictation session runs in. The
+	 * service is a singleton shared across the chat input, editor, and terminal,
+	 * so its state alone cannot tell those surfaces apart. Chat-side affordances
+	 * (e.g. the mic glow) read this to stay dark while dictation is running in
+	 * the editor or terminal rather than in the chat input.
+	 */
+	readonly sessionSurface: ChatDictationSurface;
+
+	/**
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
 	 * (finalized utterances plus any in-progress delta), and carries the
@@ -387,6 +396,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
 		return this._state;
+	}
+
+	get sessionSurface(): ChatDictationSurface {
+		return this._sessionSurface;
 	}
 
 	private readonly _recordingContextKey: IContextKey<boolean>;
