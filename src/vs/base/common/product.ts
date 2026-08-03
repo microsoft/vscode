@@ -160,7 +160,7 @@ export interface IProductConfiguration {
 	 * publicly released, independent of any admin policy configuration.
 	 */
 	readonly enableExtensionGalleryEntraAuth?: boolean;
-  
+
 	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	readonly mcpGallery?: {
