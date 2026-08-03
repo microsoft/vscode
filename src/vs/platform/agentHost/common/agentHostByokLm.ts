@@ -25,10 +25,20 @@ export interface IByokLmTextPart {
 	readonly text: string;
 }
 
+export type ByokLmImageMimeType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/bmp';
+
+export interface IByokLmImagePart {
+	readonly type: 'image';
+	readonly mimeType: ByokLmImageMimeType;
+	readonly data: string;
+}
+
+export type IByokLmContentPart = IByokLmTextPart | IByokLmImagePart;
+
 export interface IByokLmMessageItem {
 	readonly type: 'message';
 	readonly role: 'system' | 'developer' | 'user' | 'assistant';
-	readonly content: IByokLmTextPart[];
+	readonly content: IByokLmContentPart[];
 }
 
 export interface IByokLmReasoningItem {
