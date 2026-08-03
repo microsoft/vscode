@@ -16,8 +16,7 @@ use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
 use crate::util::command::{
-	capture_command, capture_command_and_check_status, check_output_status, kill_tree,
-	new_script_command,
+	capture_command_and_check_status, check_output_status, kill_tree, new_script_command,
 };
 use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
@@ -312,6 +311,16 @@ impl CodeServerOrigin {
 }
 
 /// Ensures the given list of extensions are installed on the running server.
+fn new_extension_install_command(start_script_path: &Path, extensions: &[String]) -> Command {
+	let mut command = new_script_command(start_script_path);
+	command.stdin(std::process::Stdio::null()).args(
+		extensions
+			.iter()
+			.map(|extension| get_extensions_flag(extension)),
+	);
+	command
+}
+
 async fn do_extension_install_on_running_server(
 	start_script_path: &Path,
 	extensions: &[String],
@@ -322,7 +331,7 @@ async fn do_extension_install_on_running_server(
 	}
 
 	debug!(log, "Installing extensions...");
-	let command = format!(
+	let command_label = format!(
 		"{} {}",
 		start_script_path.display(),
 		extensions
@@ -332,7 +341,14 @@ async fn do_extension_install_on_running_server(
 			.join(" ")
 	);
 
-	let result = capture_command("bash", &["-c", &command]).await?;
+	let result = new_extension_install_command(start_script_path, extensions)
+		.output()
+		.await
+		.map_err(|e| CodeError::CommandFailed {
+			command: command_label,
+			code: -1,
+			output: e.to_string(),
+		})?;
 	if !result.status.success() {
 		Err(AnyError::from(ExtensionInstallFailed(
 			String::from_utf8_lossy(&result.stderr).to_string(),
@@ -844,6 +860,54 @@ fn parse_port_from(text: &str) -> Option<u16> {
 		cap.get(1)
 			.and_then(|path| path.as_str().parse::<u16>().ok())
 	})
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::ffi::OsString;
+
+	#[test]
+	fn extension_install_command_uses_platform_script_runner() {
+		let script = Path::new("path with spaces/code-server.cmd");
+		let extensions = vec![
+			"publisher.first".to_string(),
+			"publisher.second".to_string(),
+		];
+		let command = new_extension_install_command(script, &extensions);
+		let command = command.as_std();
+		let args = command
+			.get_args()
+			.map(OsString::from)
+			.collect::<Vec<OsString>>();
+
+		#[cfg(windows)]
+		{
+			assert_eq!(command.get_program(), "cmd");
+			assert_eq!(
+				args,
+				vec![
+					OsString::from("/Q"),
+					OsString::from("/C"),
+					script.as_os_str().to_owned(),
+					OsString::from("--install-extension=publisher.first"),
+					OsString::from("--install-extension=publisher.second"),
+				]
+			);
+		}
+
+		#[cfg(not(windows))]
+		{
+			assert_eq!(command.get_program(), script.as_os_str());
+			assert_eq!(
+				args,
+				vec![
+					OsString::from("--install-extension=publisher.first"),
+					OsString::from("--install-extension=publisher.second"),
+				]
+			);
+		}
+	}
 }
 
 pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
