@@ -10,7 +10,7 @@ import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata, FileSy
 import { IQuickInputService, IQuickPickItem, IQuickPick, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
-import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISaveDialogOptiremoteUriFromons, IOpenDialogOptions, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -258,16 +258,30 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private remoteUriFrom(path: string, hintUri?: URI): URI {
-		if (!path.startsWith('\\\\')) {
-			path = path.replace(/\\/g, '/');
+		// Keep a display-friendly version of the path (preserve forward slashes the user typed)
+		let displayPath = path;
+		if (!displayPath.startsWith('\\\\')) {
+			displayPath = displayPath.replace(/\\/g, '/');
 		}
+
+		// Prepare a filesystem path to hand to URI.file on Windows when needed.
+		// Do NOT mutate displayPath so the UI keeps showing exactly what the user typed.
+		let fsPathForUri = displayPath;
+		if (this.scheme === Schemas.file && isWindows) {
+			if (/^\/?[a-zA-Z]:\//.test(displayPath)) {
+				// Remove optional leading slash and convert forward slashes -> backslashes for fs path
+				fsPathForUri = displayPath.replace(/^\//, '').replace(/\//g, '\\');
+			}
+		}
+
 		// When scoped to a specific authority (e.g. agenthost://host/...),
 		// construct the URI directly with the authority to avoid
 		// toLocalResource stripping or replacing it.
 		if (this.scopedAuthority) {
-			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path, query: hintUri?.query, fragment: hintUri?.fragment });
+			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: displayPath, query: hintUri?.query, fragment: hintUri?.fragment });
 		}
-		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
+
+		const uri: URI = this.scheme === Schemas.file ? URI.file(fsPathForUri) : URI.from({ scheme: this.scheme, path: displayPath, query: hintUri?.query, fragment: hintUri?.fragment });
 		// If the default scheme is file, then we don't care about the remote authority or the hint authority
 		const authority = (uri.scheme === Schemas.file) ? undefined : (this.remoteAuthority ?? hintUri?.authority);
 		return resources.toLocalResource(uri, authority,
