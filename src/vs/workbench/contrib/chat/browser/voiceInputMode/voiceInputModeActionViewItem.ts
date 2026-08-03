@@ -15,6 +15,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -51,6 +52,25 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  * the start command, so target it in every state.
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
+
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+	if (!currentSession) {
+		return false;
+	}
+	try {
+		const resource = URI.parse(currentSession);
+		if (resource.scheme === 'sessions-voice') {
+			controller.setDraftTarget();
+		} else {
+			controller.setTargetSession(resource);
+			controller.activateSession(resource);
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 /** Number of animated waveform bars shown in the voice segment. */
 const WAVEFORM_BAR_COUNT = 5;
@@ -154,6 +174,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
+			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -286,6 +307,8 @@ export interface IVoiceInputModePillOptions {
 	readonly toggleDictation?: () => void;
 	/** Whether this is the focused or last-focused chat input that owns live state. */
 	readonly isActive?: IObservable<boolean>;
+	/** Whether the shared Voice Mode transport belongs to this input. */
+	readonly isVoiceActive?: IObservable<boolean>;
 }
 
 /**
@@ -395,7 +418,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
-		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive, this.themeService));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
@@ -407,7 +430,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._voiceCell,
 			() => {
-				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
+				const ownsVoice = this._options?.isVoiceActive?.get() ?? this._options?.isActive?.get() ?? true;
+				const connectedish = (ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())) || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return getVoiceModeHoverContent(connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
 					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
@@ -417,7 +441,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// in hands-free mode.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
-			this._onClickVoicePowerToggle();
+			void this._onClickVoicePowerToggle();
 		}));
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
@@ -494,6 +518,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
+			const isVoiceActive = sim !== undefined || (this._options?.isVoiceActive?.read(reader) ?? isActive);
 
 			// Resolve the effective state — a simulation override wins over live state.
 			let isDictating: boolean;
@@ -509,8 +534,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				speaking = sim === 'speaking';
 			} else {
 				isDictating = isActive && dictationActive.read(reader);
-				connected = isActive && this.voiceSessionController.isConnected.read(reader);
-				connecting = isActive && this.voiceSessionController.isConnecting.read(reader);
+				connected = isVoiceActive && this.voiceSessionController.isConnected.read(reader);
+				connecting = isVoiceActive && this.voiceSessionController.isConnecting.read(reader);
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -706,7 +731,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	}
 
 	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
-	private _onClickVoicePowerToggle(): void {
+	private async _onClickVoicePowerToggle(): Promise<void> {
 		this.voiceInputModeService.setSelectedMode('voice');
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.
@@ -716,8 +741,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 		const controller = this.voiceSessionController;
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
+			if (this._options?.isVoiceActive?.get() === false) {
+				await retargetVoiceToCurrentSession(this.commandService, controller);
+				return;
+			}
 			controller.disconnect();
 		} else {
+			await retargetVoiceToCurrentSession(this.commandService, controller);
 			const targetWindow = getWindow(this._voiceCell);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}

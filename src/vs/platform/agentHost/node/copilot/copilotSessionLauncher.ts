@@ -205,18 +205,22 @@ function getErrorMessage(err: unknown): string {
 }
 
 /**
+ * Messages from a failed Copilot SDK `session.resume` that positively indicate
+ * the session has no events on disk, so there is no history to lose. Includes
+ * the post-"Start Over" case, where `truncateSession` leaves zero events.
+ */
+const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
+	/\bSession not found\b/i,
+	/\bno events\b/i,
+	/\bempty session\b/i,
+];
+
+/**
  * Decide whether a Copilot SDK `resumeSession` failure should fall back to
- * `createSession({ sessionId })`. We want to preserve the original
- * recovery for empty / truncated sessions (e.g. after the user invoked
- * "Start Over", which calls `truncateSession` and leaves the on-disk
- * session with zero events - the SDK then refuses to resume it), but we
- * must NOT silently swallow corruption / schema-validation / parse
- * failures: those should surface so the user sees the real error and the
- * original session contents are not masked by a fresh empty session.
- *
- * Heuristic: any `-32603` Internal Error is treated as the empty-session
- * case UNLESS the message clearly indicates corruption, schema
- * validation, parse failure, or malformed input.
+ * `createSession({ sessionId })`, which presents the session as having no
+ * history. Deliberately an allowlist: a fallback on an unrelated failure (a
+ * transient `network fetch failed` is also `-32603`) discards a live session's
+ * history and leaves it exposed to empty-session GC.
  */
 function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	if (getCopilotSdkErrorCode(err) !== -32603) {
@@ -224,7 +228,7 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	}
 
 	const message = getErrorMessage(err);
-	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
+	return RESUMABLE_HISTORY_ABSENT_PATTERNS.some(pattern => pattern.test(message));
 }
 
 function isCustomAgentNotFoundError(err: unknown): boolean {
@@ -421,14 +425,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
 				}
 			}
-			// The SDK fails to resume sessions that have no messages.
-			// Fall back to creating a new session with the same ID,
-			// seeding model & working directory from stored metadata.
+			// Only a session with no events on disk may fall back to creating a
+			// fresh one under the same ID (seeding model & working directory
+			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
 
-			this._logService.warn(`[Copilot:${plan.sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
+			this._logService.warn(`[Copilot:${plan.sessionId}] Resume reported no session history; falling back to createSession with same ID`);
 			const wrapper = await this._createSession({
 				...fallbackPlan,
 				kind: 'create',

@@ -80,6 +80,8 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly mcpEnableCalls: Array<{ serverName: string }> = [];
 	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
+	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
+	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
 	mcpDisableGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
@@ -114,6 +116,9 @@ class MockCopilotSession {
 	usageMetricsCalls = 0;
 	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
 	usageMetricsGate: Promise<unknown> | undefined;
+	disconnectCalls = 0;
+	disconnectGate: Promise<void> | undefined;
+	disconnectHook: (() => void) | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -206,7 +211,11 @@ class MockCopilotSession {
 	}
 	async setModel() { }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
-	async disconnect() { }
+	async disconnect() {
+		this.disconnectCalls++;
+		this.disconnectHook?.();
+		await this.disconnectGate;
+	}
 
 	readonly rpc = {
 		mode: {
@@ -273,6 +282,21 @@ class MockCopilotSession {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'disabled' } : server),
 				};
 			},
+			startServer: async (params: { serverName: string }) => {
+				this.mcpStartServerCalls.push(params);
+				if (this.mcpStartServerError !== undefined) {
+					throw this.mcpStartServerError;
+				}
+				this.mcpListResult = {
+					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
+				};
+			},
+			stopServer: async (params: { serverName: string }) => {
+				this.mcpStopServerCalls.push(params);
+				this.mcpListResult = {
+					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'not_configured' } : server),
+				};
+			},
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
@@ -318,6 +342,7 @@ class MockCopilotSession {
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
 	mcpEnableError: unknown = undefined;
+	mcpStartServerError: unknown = undefined;
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -779,6 +804,32 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+	});
+
+	test('destroySession completes when shutdown arrives before the response', async () => {
+		const disconnectStarted = new DeferredPromise<void>();
+		const disconnectGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
+			},
+		});
+		const destroy = session.destroySession();
+
+		await disconnectStarted.p;
+		try {
+			mockSession.fire('session.shutdown', {
+				shutdownType: 'normal',
+				totalApiDurationMs: 0,
+			} as SessionEventPayload<'session.shutdown'>['data']);
+			await destroy;
+			session.dispose();
+
+			assert.strictEqual(mockSession.disconnectCalls, 1);
+		} finally {
+			disconnectGate.complete();
+		}
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2827,7 +2878,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 		});
 
-		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+		test('per-request sandbox: applies the configured policy under default permissions', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 			});
@@ -6606,7 +6657,7 @@ suite('CopilotAgentSession', () => {
 
 			const unsupported = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-haiku-4.5',
+				modelId: 'claude-3-opus',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
@@ -7887,19 +7938,17 @@ suite('CopilotAgentSession', () => {
 					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
-				// Settled (failed) before the explicit restart, and the enable
+				// Settled (failed) before the explicit start, and startServer
 				// rejects, so the SDK never reports a connect attempt.
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] };
-					mock.mcpEnableError = new Error('enable failed');
+					mock.mcpStartServerError = new Error('start failed');
 				},
 			});
 
 			const beforeStart = session.topLevelMcpCustomizations()[0]?.state;
 			await session.startMcpServer(id).catch(() => { });
-			// Let the fire-and-forget inventory refresh settle: the disable
-			// landed but the enable rejected, so the server reads as stopped
-			// rather than optimistically Starting.
+			// Let the fire-and-forget inventory refresh settle.
 			await timeout(0);
 			const afterFailedStart = session.topLevelMcpCustomizations()[0]?.state;
 			mockSession.fire('session.mcp_server_status_changed', {
@@ -7908,10 +7957,39 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
 			const afterSdkPending = session.topLevelMcpCustomizations()[0]?.state;
 
-			assert.deepStrictEqual({ beforeStart, afterFailedStart, afterSdkPending }, {
+			assert.deepStrictEqual({ startServerCalls: mockSession.mcpStartServerCalls, beforeStart, afterFailedStart, afterSdkPending }, {
+				startServerCalls: [{ serverName }],
 				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterFailedStart: { kind: McpServerStatus.Stopped },
+				afterFailedStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 				afterSdkPending: { kind: McpServerStatus.Starting },
+			});
+		});
+
+		test('stopMcpServer uses the SDK lifecycle method', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Ready },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+
+			await session.stopMcpServer(id);
+
+			assert.deepStrictEqual({
+				stopServerCalls: mockSession.mcpStopServerCalls,
+				state: session.topLevelMcpCustomizations()[0]?.state,
+			}, {
+				stopServerCalls: [{ serverName }],
+				state: { kind: McpServerStatus.Stopped },
 			});
 		});
 

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.132.0",
-  "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
+  "version": "1.133.0",
+  "distro": "b2ef7d83248f73d41b551318c4a079e0e3546c1c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -10,7 +10,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "echo Please run any of the test scripts from the scripts folder.",
+    "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",

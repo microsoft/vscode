@@ -8,7 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -50,8 +50,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		// Pull request already exists
-		if (gitHubState?.pullRequestUrl) {
+		// Pull request already exists for the currently checked out branch
+		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return undefined;
 		}
 
@@ -111,7 +111,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry?.refreshSessionGitState(sessionKey);
 
 		this._gitStateService.setSessionGitHubState(sessionKey, {
-			pullRequestUrl: event.pullRequestUrl
+			pullRequestUrl: event.pullRequestUrl,
+			pullRequestBranchName: event.branchName
 		});
 	}
 }
