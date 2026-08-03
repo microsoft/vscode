@@ -1011,7 +1011,6 @@
 		"--tab-border-top-color",
 		"--tab-dirty-border-top-color",
 		"--tabs-border-bottom-color",
-		"--tabs-scrollbar-height",
 		"--tab-sizing-current-width",
 		"--tab-sizing-fixed-min-width",
 		"--tab-sizing-fixed-max-width",

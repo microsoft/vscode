@@ -201,7 +201,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
 		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 		this.tabsScrollbar.getDomNode().appendChild(this.stickyTabsBackground);
-		this.updateTabsScrollbarPadding();
 
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
@@ -293,19 +292,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
 		});
-		this.updateTabsScrollbarPadding();
 	}
 
 	private updateTabsScrollbarVisibility(): void {
 		this.tabsScrollbar?.updateOptions({
 			horizontal: this.getTabsScrollbarVisibility()
 		});
-		this.updateTabsScrollbarPadding();
-	}
-
-	private updateTabsScrollbarPadding(): void {
-		const scrollbarHeight = this.getTabsScrollbarVisibility() === ScrollbarVisibility.Hidden ? 0 : this.getTabsScrollbarSizing();
-		this.tabsScrollbar?.getDomNode().style.setProperty('--tabs-scrollbar-height', `${scrollbarHeight}px`);
 	}
 
 	private updateTabSizing(fromEvent: boolean): void {

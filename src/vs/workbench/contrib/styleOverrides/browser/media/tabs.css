@@ -134,11 +134,13 @@
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px 0 4px 4px;
+	padding: 4px 0 0 4px;
 }
 
+/* Move the bottom gutter into the scrollable element so the horizontal
+ * scrollbar sits below the tab pills without increasing total height. */
 .style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
-	padding-bottom: var(--tabs-scrollbar-height, 0px);
+	padding-bottom: 4px;
 }
 
 .style-override .part.editor .tabs-container > .tab.active {
