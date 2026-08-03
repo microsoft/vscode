@@ -43,9 +43,10 @@ import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConf
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -859,6 +860,7 @@ export class CopilotAgentSession extends Disposable {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._abortCts.value = new CancellationTokenSource();
@@ -2079,7 +2081,8 @@ export class CopilotAgentSession extends Disposable {
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -3192,7 +3195,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
-				request: inputRequest,
+				request: { ...inputRequest, purpose: ChatInputRequestPurpose.AskUser },
 			});
 
 			const result = await pendingInput;
@@ -3264,6 +3267,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const inputRequest: ChatInputRequest = {
 				id: requestId,
+				purpose: ChatInputRequestPurpose.Elicitation,
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
 				...(questions && questions.length > 0 ? { questions } : {}),
@@ -4796,6 +4800,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const inputRequest: ChatInputRequestWithPlanReview = {
 			id: requestId,
+			purpose: ChatInputRequestPurpose.PlanReview,
 			planReview: {
 				title: localize('agentHost.planReview.title', "Review Plan"),
 				content: data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review."),

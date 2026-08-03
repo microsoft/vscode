@@ -157,6 +157,49 @@ export interface IAgentHostToolInvokedReport {
 	invocationTimeMs?: number;
 }
 
+export interface IAgentHostAskQuestionsToolInvokedEvent {
+	requestId: string;
+	questionCount: number;
+	answeredCount: number;
+	skippedCount: number;
+	freeTextCount: number;
+	recommendedAvailableCount: number;
+	recommendedSelectedCount: number;
+	duration: number;
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+}
+
+export type IAgentHostAskQuestionsToolInvokedClassification = {
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current request turn.' };
+	questionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of questions asked' };
+	answeredCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were answered' };
+	skippedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were skipped' };
+	freeTextCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions answered with free text input' };
+	recommendedAvailableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that had a recommended option' };
+	recommendedSelectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions where the user selected the recommended option' };
+	duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time in milliseconds to complete all questions' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the questions belong to a subagent session.' };
+	owner: 'digitarald';
+	comment: 'Tracks usage of the AskQuestions tool for agent clarifications';
+};
+
+export interface IAgentHostAskQuestionsToolInvokedReport {
+	provider: string;
+	session: string;
+	requestId: string;
+	questionCount: number;
+	answeredCount: number;
+	skippedCount: number;
+	freeTextCount: number;
+	recommendedAvailableCount: number;
+	recommendedSelectedCount: number;
+	duration: number;
+}
+
 type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
 
 export interface IAgentHostToolCallDetailsEvent {
@@ -768,6 +811,23 @@ export class AgentHostTelemetryReporter {
 			toolSourceKind: report.toolSourceKind,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+		});
+	}
+
+	askQuestionsToolInvoked(report: IAgentHostAskQuestionsToolInvokedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostAskQuestionsToolInvokedEvent, IAgentHostAskQuestionsToolInvokedClassification>('askQuestionsToolInvoked', {
+			requestId: report.requestId,
+			questionCount: report.questionCount,
+			answeredCount: report.answeredCount,
+			skippedCount: report.skippedCount,
+			freeTextCount: report.freeTextCount,
+			recommendedAvailableCount: report.recommendedAvailableCount,
+			recommendedSelectedCount: report.recommendedSelectedCount,
+			duration: report.duration,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
 		});
 	}
 
