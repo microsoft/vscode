@@ -143,6 +143,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		this._toolCalls.delete(key);
 		const resultBucket = deriveToolInvokedResult(result);
 		const totalTimeMs = timing.lifecycleStopWatch.elapsed();
+		const resultSizeInCharacters = JSON.stringify(result).length;
 
 		this._reporter.toolInvoked({
 			provider: timing.provider,
@@ -151,6 +152,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			toolSourceKind: timing.toolSourceKind,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
+			resultSizeInCharacters,
 		});
 
 		const stalled = this._stalledToolCalls.get(key);

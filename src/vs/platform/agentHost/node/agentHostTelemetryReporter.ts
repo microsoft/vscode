@@ -154,6 +154,7 @@ export interface IAgentHostToolInvokedReport {
 	toolSourceKind: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
+	resultSizeInCharacters: number;
 }
 
 export interface IAgentHostAskQuestionsToolInvokedEvent {
@@ -809,6 +810,7 @@ export class AgentHostTelemetryReporter {
 			toolSourceKind: report.toolSourceKind,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+			resultSizeInCharacters: report.resultSizeInCharacters,
 		});
 	}
 

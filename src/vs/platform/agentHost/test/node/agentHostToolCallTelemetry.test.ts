@@ -17,7 +17,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -235,6 +235,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolSourceKind: 'agentHost',
 				provider: 'mock',
 				invocationTimeMs: true,
+				resultSizeInCharacters: 41,
 			},
 		}]);
 	});
@@ -256,6 +257,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolSourceKind: 'mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
+				resultSizeInCharacters: 90,
 			},
 		}]);
 	});
@@ -284,8 +286,23 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolSourceKind: 'client',
 				provider: 'mock',
 				invocationTimeMs: true,
+				resultSizeInCharacters: 47,
 			},
 		}]);
+	});
+
+	test('includes result content in the serialized result size', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-read', 'read_file');
+		toolComplete('turn-1', 'tc-read', {
+			success: true,
+			pastTenseMessage: 'read files',
+			content: [{ type: ToolResultContentType.Text, text: 'alpha\nbeta' }],
+		});
+
+		assert.deepStrictEqual(toolEvents()[0].data.resultSizeInCharacters, 97);
 	});
 
 	test('only accepts contributor refinements that preserve execution ownership', async () => {
