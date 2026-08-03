@@ -113,14 +113,14 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 		case ChatPermissionLevel.Autopilot:
 			return {
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Works autonomously within permissions"),
 				icon: Codicon.rocket,
 				hover: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 			};
 		case ChatPermissionLevel.Default:
 		default:
 			return {
-				label: localize('permissions.default', "Default approvals"),
+				label: localize('permissions.default', "Default permissions"),
 				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: Codicon.shield,
 			};

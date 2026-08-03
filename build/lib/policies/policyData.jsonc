@@ -39,209 +39,137 @@
     ],
     "policies": [
         {
-            "key": "chat.agentHost.otel.otlpProtocol",
-            "name": "CopilotOtelOtlpProtocol",
+            "key": "chat.agent.allowedNetworkDomains",
+            "name": "ChatAgentAllowedNetworkDomains",
             "category": "InteractiveSession",
-            "minimumVersion": "1.127",
+            "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "chat.agentHost.otel.otlpProtocol.policy",
-                    "value": "Controls the enterprise-managed OTLP wire protocol (protobuf vs JSON) for Copilot OpenTelemetry export."
-                }
-            },
-            "type": "string",
-            "default": "",
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.protocol"
-            ]
-        },
-        {
-            "key": "chat.agentHost.otel.serviceName",
-            "name": "CopilotOtelServiceName",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.otel.serviceName.policy",
-                    "value": "Controls the enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export."
-                }
-            },
-            "type": "string",
-            "default": "",
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.serviceName"
-            ]
-        },
-        {
-            "key": "chat.agentHost.otel.resourceAttributes",
-            "name": "CopilotOtelResourceAttributes",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.otel.resourceAttributes.policy",
-                    "value": "Controls the enterprise-managed OTel resource attributes for Copilot OpenTelemetry export."
-                }
-            },
-            "type": "object",
-            "default": {},
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.resourceAttributes"
-            ]
-        },
-        {
-            "key": "chat.agentHost.otel.headers",
-            "name": "CopilotOtelHeaders",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.otel.headers.policy",
-                    "value": "Controls the enterprise-managed OTLP exporter headers for Copilot OpenTelemetry export."
-                }
-            },
-            "type": "object",
-            "default": {},
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.headers"
-            ]
-        },
-        {
-            "key": "mcp.enterpriseManagedAuth.idp",
-            "name": "McpEnterpriseManagedAuthIdp",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "mcp.enterpriseManagedAuth.idp.policy",
-                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."
-                }
-            },
-            "type": "object",
-            "default": {},
-            "included": false
-        },
-        {
-            "key": "chat.plugins.extraMarketplaces",
-            "name": "ChatExtraMarketplaces",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "chat.plugins.extraMarketplaces.policy",
-                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."
-                }
-            },
-            "type": "object",
-            "default": {},
-            "included": false
-        },
-        {
-            "key": "chat.mcp.gallery.serviceUrl",
-            "name": "McpGalleryServiceUrl",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.101",
-            "localization": {
-                "description": {
-                    "key": "mcp.gallery.serviceUrl",
-                    "value": "Configure the MCP Gallery service URL to connect to"
-                }
-            },
-            "type": "string",
-            "default": "",
-            "included": false
-        },
-        {
-            "key": "chat.approvedAccountOrganizations",
-            "name": "ChatApprovedAccountOrganizations",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.118",
-            "localization": {
-                "description": {
-                    "key": "chat.approvedAccountOrganizations.policy.description",
-                    "value": "Setting this policy to a non-empty list activates the Approved Account gate: all AI features are disabled until the user signs into a GitHub account whose organizations intersect this list AND the account-side policy data has resolved. Comparison is case-insensitive. Use '*' as a wildcard to accept any signed-in GitHub or GHE account (use this for GHE deployments where the organization list is not surfaced)."
+                    "key": "chat.agent.allowedNetworkDomains",
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
                 }
             },
             "type": "array",
             "default": [],
-            "included": false
-        },
-        {
-            "key": "extensions.gallery.serviceUrl",
-            "name": "ExtensionGalleryServiceUrl",
-            "category": "Extensions",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "extensions.gallery.serviceUrl",
-                    "value": "Configure the Marketplace service URL to connect to"
-                }
-            },
-            "type": "string",
-            "default": "",
-            "included": false
-        },
-        {
-            "key": "extensions.gallery.authProvider",
-            "name": "ExtensionGalleryAuthProvider",
-            "category": "Extensions",
-            "minimumVersion": "1.121",
-            "localization": {
-                "description": {
-                    "key": "extensions.gallery.authProvider",
-                    "value": "Configure the authentication provider for the Extensions Marketplace"
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "extensions.gallery.authProvider.github",
-                        "value": "Authenticate to the Extensions Marketplace using GitHub."
-                    },
-                    {
-                        "key": "extensions.gallery.authProvider.microsoft",
-                        "value": "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."
-                    }
-                ]
-            },
-            "type": "string",
-            "default": "",
-            "enum": [
-                "github",
-                "microsoft"
-            ],
-            "included": false
-        },
-        {
-            "key": "extensions.allowed",
-            "name": "AllowedExtensions",
-            "category": "Extensions",
-            "minimumVersion": "1.96",
-            "localization": {
-                "description": {
-                    "key": "extensions.allowed.policy",
-                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"
-                }
-            },
-            "type": "object",
-            "default": "*",
             "included": true
         },
         {
-            "key": "chat.agentHost.enabled",
-            "name": "ChatAgentHostEnabled",
+            "key": "chat.agent.deniedNetworkDomains",
+            "name": "ChatAgentDeniedNetworkDomains",
             "category": "InteractiveSession",
-            "minimumVersion": "1.126",
+            "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "chat.agentHost.enabled",
-                    "value": "When enabled, some agents run in a separate agent host process."
+                    "key": "chat.agent.deniedNetworkDomains",
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": true
+        },
+        {
+            "key": "chat.agent.enabled",
+            "name": "ChatAgentMode",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.enabled.description",
+                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
                 }
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.networkFilter",
+            "name": "ChatAgentNetworkFilter",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.networkFilter",
+                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowAutoApprove",
+            "name": "ChatAgentSandboxAllowAutoApprove",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowAutoApprove",
+                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowNetwork",
+            "name": "ChatAgentSandboxAllowNetwork",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowNetwork",
+                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowUnsandboxedCommands",
+            "name": "ChatAgentSandboxAllowUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.enabled",
+            "name": "ChatAgentSandboxEnabled",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.enabledSetting",
+                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use `#chat.agent.sandbox.allowNetwork#` to allow all network domains."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "agentSandbox.enabledSetting.offDescription",
+                        "value": "Disable sandboxing for agent mode tools."
+                    },
+                    {
+                        "key": "agentSandbox.enabledSetting.onDescription",
+                        "value": "Enable sandboxing for agent mode tools."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "off",
+            "enum": [
+                "off",
+                "on"
+            ],
             "included": true
         },
         {
@@ -259,7 +187,8 @@
             "default": true,
             "included": true,
             "referencedSettings": [
-                "github.copilot.chat.claudeAgent.enabled"
+                "github.copilot.chat.claudeAgent.enabled",
+                "sessions.chat.claudeAgent.enabled"
             ]
         },
         {
@@ -276,6 +205,24 @@
             "type": "boolean",
             "default": false,
             "included": true
+        },
+        {
+            "key": "chat.agentHost.otel.captureContent",
+            "name": "CopilotOtelCaptureContent",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.captureContent.policy",
+                    "value": "Controls whether Copilot OpenTelemetry export captures prompt, response, and tool content."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureContent"
+            ]
         },
         {
             "key": "chat.agentHost.otel.enabled",
@@ -338,6 +285,24 @@
             ]
         },
         {
+            "key": "chat.agentHost.otel.headers",
+            "name": "CopilotOtelHeaders",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.headers.policy",
+                    "value": "Controls the enterprise-managed OTLP exporter headers for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.headers"
+            ]
+        },
+        {
             "key": "chat.agentHost.otel.otlpEndpoint",
             "name": "CopilotOtelEndpoint",
             "category": "InteractiveSession",
@@ -356,21 +321,21 @@
             ]
         },
         {
-            "key": "chat.agentHost.otel.captureContent",
-            "name": "CopilotOtelCaptureContent",
+            "key": "chat.agentHost.otel.otlpProtocol",
+            "name": "CopilotOtelOtlpProtocol",
             "category": "InteractiveSession",
             "minimumVersion": "1.127",
             "localization": {
                 "description": {
-                    "key": "chat.agentHost.otel.captureContent.policy",
-                    "value": "Controls whether Copilot OpenTelemetry export captures prompt, response, and tool content."
+                    "key": "chat.agentHost.otel.otlpProtocol.policy",
+                    "value": "Controls the enterprise-managed OTLP wire protocol (protobuf vs JSON) for Copilot OpenTelemetry export."
                 }
             },
-            "type": "boolean",
-            "default": false,
-            "included": true,
+            "type": "string",
+            "default": "",
+            "included": false,
             "referencedSettings": [
-                "github.copilot.chat.otel.captureContent"
+                "github.copilot.chat.otel.protocol"
             ]
         },
         {
@@ -392,6 +357,72 @@
             ]
         },
         {
+            "key": "chat.agentHost.otel.resourceAttributes",
+            "name": "CopilotOtelResourceAttributes",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.resourceAttributes.policy",
+                    "value": "Controls the enterprise-managed OTel resource attributes for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.resourceAttributes"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.serviceName",
+            "name": "CopilotOtelServiceName",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.serviceName.policy",
+                    "value": "Controls the enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.serviceName"
+            ]
+        },
+        {
+            "key": "chat.approvedAccountOrganizations",
+            "name": "ChatApprovedAccountOrganizations",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.118",
+            "localization": {
+                "description": {
+                    "key": "chat.approvedAccountOrganizations.policy.description",
+                    "value": "Setting this policy to a non-empty list activates the Approved Account gate: all AI features are disabled until the user signs into a GitHub account whose organizations intersect this list AND the account-side policy data has resolved. Comparison is case-insensitive. Use '*' as a wildcard to accept any signed-in GitHub or GHE account (use this for GHE deployments where the organization list is not surfaced)."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": false
+        },
+        {
+            "key": "chat.customizations.strictPluginOnlyCustomization",
+            "name": "ChatStrictPluginOnlyCustomization",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.132",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.strictPluginOnlyCustomization.policy",
+                    "value": "Blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers while keeping eligible plugin customizations available."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false
+        },
+        {
             "key": "chat.defaultModel",
             "name": "ChatDefaultModel",
             "category": "InteractiveSession",
@@ -407,49 +438,34 @@
             "included": true
         },
         {
-            "key": "chat.tools.global.autoApprove",
-            "name": "ChatToolsAutoApprove",
+            "key": "chat.extensionTools.enabled",
+            "name": "ChatAgentExtensionTools",
             "category": "InteractiveSession",
             "minimumVersion": "1.99",
             "localization": {
                 "description": {
-                    "key": "autoApprove3.description",
-                    "value": "Global auto approve also known as \"YOLO mode\" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the `#chat.autoReply#` setting."
+                    "key": "chat.extensionToolsEnabled",
+                    "value": "Enable using tools contributed by third-party extensions."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.hooks.allowManagedOnly",
+            "name": "ChatAllowManagedHooksOnly",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.132",
+            "localization": {
+                "description": {
+                    "key": "chat.hooks.allowManagedOnly.policy",
+                    "value": "Allows hooks only from enterprise-managed sources and plugins force-enabled by policy."
                 }
             },
             "type": "boolean",
             "default": false,
-            "included": true
-        },
-        {
-            "key": "chat.sessionSync.enabled",
-            "name": "CopilotSessionSync",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.121",
-            "localization": {
-                "description": {
-                    "key": "chat.sessionSync.enabled.policy",
-                    "value": "Enable session sync to GitHub.com for cross-device Copilot session history. When disabled by organization policy, session data is kept local only."
-                }
-            },
-            "type": "boolean",
-            "default": false,
-            "included": true
-        },
-        {
-            "key": "chat.tools.eligibleForAutoApproval",
-            "name": "ChatToolsEligibleForAutoApproval",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.107",
-            "localization": {
-                "description": {
-                    "key": "chat.tools.eligibleForAutoApproval",
-                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options."
-                }
-            },
-            "type": "object",
-            "default": {},
-            "included": true
+            "included": false
         },
         {
             "key": "chat.mcp.access",
@@ -468,7 +484,7 @@
                     },
                     {
                         "key": "chat.mcp.access.registry",
-                        "value": "Allows access to MCP servers installed from the registry that VS Code is connected to."
+                        "value": "Allows access to MCP servers listed in the registry that VS Code is connected to."
                     },
                     {
                         "key": "chat.mcp.access.any",
@@ -504,6 +520,21 @@
             "included": false
         },
         {
+            "key": "chat.mcp.allowManagedServersOnly",
+            "name": "ChatAllowManagedMcpServersOnly",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.132",
+            "localization": {
+                "description": {
+                    "key": "chat.mcp.allowManagedServersOnly.policy",
+                    "value": "Use only the enterprise-managed MCP allowlist when deciding which servers may run."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false
+        },
+        {
             "key": "chat.mcp.deniedServers",
             "name": "ChatDeniedMcpServers",
             "category": "InteractiveSession",
@@ -522,19 +553,19 @@
             "included": false
         },
         {
-            "key": "chat.extensionTools.enabled",
-            "name": "ChatAgentExtensionTools",
+            "key": "chat.mcp.gallery.serviceUrl",
+            "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
-            "minimumVersion": "1.99",
+            "minimumVersion": "1.101",
             "localization": {
                 "description": {
-                    "key": "chat.extensionToolsEnabled",
-                    "value": "Enable using tools contributed by third-party extensions."
+                    "key": "mcp.gallery.serviceUrl",
+                    "value": "Configure the MCP Gallery service URL to connect to"
                 }
             },
-            "type": "boolean",
-            "default": true,
-            "included": true
+            "type": "string",
+            "default": "",
+            "included": false
         },
         {
             "key": "chat.plugins.enabled",
@@ -567,6 +598,21 @@
             "included": true
         },
         {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`), optionally with an enterprise-managed auto-update override."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.plugins.strictMarketplaces",
             "name": "ChatStrictMarketplaces",
             "category": "InteractiveSession",
@@ -585,29 +631,14 @@
             "included": true
         },
         {
-            "key": "chat.agent.enabled",
-            "name": "ChatAgentMode",
+            "key": "chat.sessionSync.enabled",
+            "name": "CopilotSessionSync",
             "category": "InteractiveSession",
-            "minimumVersion": "1.99",
+            "minimumVersion": "1.121",
             "localization": {
                 "description": {
-                    "key": "chat.agent.enabled.description",
-                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "chat.agent.networkFilter",
-            "name": "ChatAgentNetworkFilter",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "chat.agent.networkFilter",
-                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
+                    "key": "chat.sessionSync.enabled.policy",
+                    "value": "Enable session sync to GitHub.com for cross-device Copilot session history. When disabled by organization policy, session data is kept local only."
                 }
             },
             "type": "boolean",
@@ -615,33 +646,48 @@
             "included": true
         },
         {
-            "key": "chat.agent.allowedNetworkDomains",
-            "name": "ChatAgentAllowedNetworkDomains",
+            "key": "chat.tools.eligibleForAutoApproval",
+            "name": "ChatToolsEligibleForAutoApproval",
             "category": "InteractiveSession",
-            "minimumVersion": "1.116",
+            "minimumVersion": "1.107",
             "localization": {
                 "description": {
-                    "key": "chat.agent.allowedNetworkDomains",
-                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
+                    "key": "chat.tools.eligibleForAutoApproval",
+                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options."
                 }
             },
-            "type": "array",
-            "default": [],
+            "type": "object",
+            "default": {},
             "included": true
         },
         {
-            "key": "chat.agent.deniedNetworkDomains",
-            "name": "ChatAgentDeniedNetworkDomains",
+            "key": "chat.tools.global.autoApprove",
+            "name": "ChatToolsAutoApprove",
             "category": "InteractiveSession",
-            "minimumVersion": "1.116",
+            "minimumVersion": "1.99",
             "localization": {
                 "description": {
-                    "key": "chat.agent.deniedNetworkDomains",
-                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                    "key": "autoApprove3.description",
+                    "value": "Global auto approve also known as \"YOLO mode\" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the `#chat.autoReply#` setting."
                 }
             },
-            "type": "array",
-            "default": [],
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.tools.terminal.enableAutoApprove",
+            "name": "ChatToolsTerminalEnableAutoApprove",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.104",
+            "localization": {
+                "description": {
+                    "key": "autoApproveMode.description",
+                    "value": "Controls whether to allow auto approval in the run in terminal tool."
+                }
+            },
+            "type": "boolean",
+            "default": true,
             "included": true
         },
         {
@@ -652,11 +698,41 @@
             "localization": {
                 "description": {
                     "key": "chat.useHooks.description",
-                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`."
+                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness."
                 }
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "dictation.enabled",
+            "name": "DictationEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.131",
+            "localization": {
+                "description": {
+                    "key": "dictation.enabled.policy",
+                    "value": "Controls whether dictation is available across the product (chat input, editor, and terminal)."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "extensions.allowed",
+            "name": "AllowedExtensions",
+            "category": "Extensions",
+            "minimumVersion": "1.96",
+            "localization": {
+                "description": {
+                    "key": "extensions.allowed.policy",
+                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"
+                }
+            },
+            "type": "object",
+            "default": "*",
             "included": true
         },
         {
@@ -704,14 +780,58 @@
             "included": true
         },
         {
-            "key": "chat.tools.terminal.enableAutoApprove",
-            "name": "ChatToolsTerminalEnableAutoApprove",
-            "category": "IntegratedTerminal",
+            "key": "extensions.gallery.serviceUrl",
+            "name": "ExtensionGalleryServiceUrl",
+            "category": "Extensions",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.serviceUrl",
+                    "value": "Configure the Marketplace service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false
+        },
+        {
+            "key": "extensions.gallery.authProvider",
+            "name": "ExtensionGalleryAuthProvider",
+            "category": "Extensions",
+            "minimumVersion": "1.121",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.authProvider",
+                    "value": "Configure the authentication provider for the Extensions Marketplace"
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.gallery.authProvider.github",
+                        "value": "Authenticate to the Extensions Marketplace using GitHub."
+                    },
+                    {
+                        "key": "extensions.gallery.authProvider.microsoft",
+                        "value": "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "",
+            "enum": [
+                "github",
+                "microsoft"
+            ],
+            "included": false
+        },
+        {
+            "key": "github.copilot.chat.reviewAgent.enabled",
+            "name": "CopilotReviewAgent",
+            "category": "InteractiveSession",
             "minimumVersion": "1.104",
             "localization": {
                 "description": {
-                    "key": "autoApproveMode.description",
-                    "value": "Controls whether to allow auto approval in the run in terminal tool."
+                    "key": "github.copilot.chat.reviewAgent.enabled",
+                    "value": "Enables the code review agent."
                 }
             },
             "type": "boolean",
@@ -719,58 +839,14 @@
             "included": true
         },
         {
-            "key": "chat.agent.sandbox.enabled",
-            "name": "ChatAgentSandboxEnabled",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
+            "key": "github.copilot.chat.reviewSelection.enabled",
+            "name": "CopilotReviewSelection",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.104",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.enabledSetting",
-                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use `#chat.agent.sandbox.allowNetwork#` to allow all network domains."
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "agentSandbox.enabledSetting.offDescription",
-                        "value": "Disable sandboxing for agent mode tools."
-                    },
-                    {
-                        "key": "agentSandbox.enabledSetting.onDescription",
-                        "value": "Enable sandboxing for agent mode tools."
-                    }
-                ]
-            },
-            "type": "string",
-            "default": "off",
-            "enum": [
-                "off",
-                "on"
-            ],
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.allowNetwork",
-            "name": "ChatAgentSandboxAllowNetwork",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowNetwork",
-                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions."
-                }
-            },
-            "type": "boolean",
-            "default": false,
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.allowUnsandboxedCommands",
-            "name": "ChatAgentSandboxAllowUnsandboxedCommands",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                    "key": "github.copilot.chat.reviewSelection.enabled",
+                    "value": "Enables code review on current selection."
                 }
             },
             "type": "boolean",
@@ -778,14 +854,14 @@
             "included": true
         },
         {
-            "key": "chat.agent.sandbox.allowAutoApprove",
-            "name": "ChatAgentSandboxAllowAutoApprove",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
+            "key": "github.copilot.nextEditSuggestions.enabled",
+            "name": "CopilotNextEditSuggestions",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.99",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.allowAutoApprove",
-                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                    "key": "github.copilot.nextEditSuggestions.enabled",
+                    "value": "Whether to enable next edit suggestions (NES). NES can propose a next edit based on your recent changes."
                 }
             },
             "type": "boolean",
@@ -793,42 +869,33 @@
             "included": true
         },
         {
-            "key": "update.mode",
-            "name": "UpdateMode",
-            "category": "Update",
-            "minimumVersion": "1.67",
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
             "localization": {
                 "description": {
-                    "key": "updateMode",
-                    "value": "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "none",
-                        "value": "Disable updates."
-                    },
-                    {
-                        "key": "manual",
-                        "value": "Disable automatic background update checks. Updates will be available if you manually check for updates."
-                    },
-                    {
-                        "key": "start",
-                        "value": "Check for updates only on startup. Disable automatic background update checks."
-                    },
-                    {
-                        "key": "default",
-                        "value": "Enable automatic update checks. Code will check for updates automatically and periodically."
-                    }
-                ]
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."
+                }
             },
-            "type": "string",
-            "default": "default",
-            "enum": [
-                "none",
-                "manual",
-                "start",
-                "default"
-            ],
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
+            "key": "telemetry.feedback.enabled",
+            "name": "EnableFeedback",
+            "category": "Telemetry",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "telemetry.feedback.enabled",
+                    "value": "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."
+                }
+            },
+            "type": "boolean",
+            "default": true,
             "included": true
         },
         {
@@ -871,18 +938,42 @@
             "included": true
         },
         {
-            "key": "telemetry.feedback.enabled",
-            "name": "EnableFeedback",
-            "category": "Telemetry",
-            "minimumVersion": "1.99",
+            "key": "update.mode",
+            "name": "UpdateMode",
+            "category": "Update",
+            "minimumVersion": "1.67",
             "localization": {
                 "description": {
-                    "key": "telemetry.feedback.enabled",
-                    "value": "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."
-                }
+                    "key": "updateMode",
+                    "value": "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "none",
+                        "value": "Disable updates."
+                    },
+                    {
+                        "key": "manual",
+                        "value": "Disable automatic background update checks. Updates will be available if you manually check for updates."
+                    },
+                    {
+                        "key": "start",
+                        "value": "Check for updates only on startup. Disable automatic background update checks."
+                    },
+                    {
+                        "key": "default",
+                        "value": "Enable automatic update checks. Code will check for updates automatically and periodically."
+                    }
+                ]
             },
-            "type": "boolean",
-            "default": true,
+            "type": "string",
+            "default": "default",
+            "enum": [
+                "none",
+                "manual",
+                "start",
+                "default"
+            ],
             "included": true
         },
         {
@@ -894,66 +985,6 @@
                 "description": {
                     "key": "browser.enableChatTools",
                     "value": "When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "github.copilot.nextEditSuggestions.enabled",
-            "name": "CopilotNextEditSuggestions",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "github.copilot.nextEditSuggestions.enabled",
-                    "value": "Whether to enable next edit suggestions (NES). NES can propose a next edit based on your recent changes."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "github.copilot.chat.reviewSelection.enabled",
-            "name": "CopilotReviewSelection",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.104",
-            "localization": {
-                "description": {
-                    "key": "github.copilot.chat.reviewSelection.enabled",
-                    "value": "Enables code review on current selection."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "github.copilot.chat.reviewAgent.enabled",
-            "name": "CopilotReviewAgent",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.104",
-            "localization": {
-                "description": {
-                    "key": "github.copilot.chat.reviewAgent.enabled",
-                    "value": "Enables the code review agent."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "dictation.enabled",
-            "name": "DictationEnabled",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.131",
-            "localization": {
-                "description": {
-                    "key": "dictation.enabled.policy",
-                    "value": "Controls whether dictation is available across the product (chat input, editor, and terminal)."
                 }
             },
             "type": "boolean",

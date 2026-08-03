@@ -5,20 +5,14 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { buildMicrophoneOptions, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
-
-/**
- * Comfortably longer than the card's hand-off delay, so the tests observe the
- * settled state rather than racing it.
- */
-const HANDOFF_GRACE_MS = 500;
+import { buildMicrophoneOptions, DictationOnboardingBanner, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
 
 /** Minimal stand-in for the browser's device descriptor. */
 function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDeviceInfo {
@@ -62,7 +56,7 @@ suite('Dictation onboarding', () => {
 		return store.add(instantiationService.createInstance(DictationOnboardingService));
 	}
 
-	test('lists every real microphone once, behind the system default', () => {
+	test('labels the physical default microphone without listing it twice', () => {
 		const options = buildMicrophoneOptions([
 			// The virtual entries duplicate a real device under a synthetic id.
 			device('audioinput', 'default', 'Default - Studio Mic'),
@@ -76,14 +70,30 @@ suite('Dictation onboarding', () => {
 		]);
 
 		assert.deepStrictEqual(options, [
-			{ deviceId: '', label: 'System default' },
-			{ deviceId: 'mic-a', label: 'Studio Mic' },
+			{ deviceId: '', label: 'Studio Mic (System default)' },
 			{ deviceId: 'abcdefghij-unlabelled', label: 'Unknown device (abcdefgh)' },
 		]);
 	});
 
+	test('uses the first physical microphone when the virtual default has no identity', () => {
+		const options = buildMicrophoneOptions([
+			device('audioinput', 'default', 'System default'),
+			device('audioinput', 'mic-a', 'Studio Mic'),
+			device('audioinput', 'mic-b', 'Built-in Mic'),
+		]);
+
+		assert.deepStrictEqual(options, [
+			{ deviceId: '', label: 'Studio Mic (System default)' },
+			{ deviceId: 'mic-b', label: 'Built-in Mic' },
+		]);
+	});
+
 	test('falls back to the system default when the remembered device is gone', () => {
-		const options = buildMicrophoneOptions([device('audioinput', 'mic-a', 'Studio Mic')]);
+		const options = buildMicrophoneOptions([
+			device('audioinput', 'default', 'Default - Built-in Mic'),
+			device('audioinput', 'built-in', 'Built-in Mic'),
+			device('audioinput', 'mic-a', 'Studio Mic'),
+		]);
 
 		assert.deepStrictEqual(
 			{
@@ -94,66 +104,110 @@ suite('Dictation onboarding', () => {
 			{ remembered: 1, systemDefault: 0, unplugged: 0 });
 	});
 
-	test('takes over the first dictation, then never returns', async () => {
+	test('shows alongside the first dictation, then never returns', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, undefined, telemetryEvents);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
-		let dictations = 0;
-		const tookOver = service.showIfNeeded(() => dictations++);
+		const shownFirstTime = service.showIfNeeded();
 		const shown = host.container.classList.contains('has-dictation-onboarding');
 
-		// Nothing is recorded while the card is up: confirming it is the only
-		// thing that starts the dictation it deferred, and even that waits a beat
-		// for the card to hand the microphone back.
-		const dictationsWhileOpen = dictations;
+		const closeIcon = host.container.querySelector('.dictation-onboarding-close .codicon')?.className;
+		const hasMicrophoneControls = host.container.querySelector('.dictation-onboarding-device') !== null;
+		const hasWaveform = host.container.querySelector('.dictation-onboarding-waveform') !== null;
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
-		const dictationsBeforeHandoff = dictations;
-		await timeout(HANDOFF_GRACE_MS);
-
-		const tookOverAgain = service.showIfNeeded(() => dictations++);
+		const shownAgain = service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{
-				tookOver, shown, dictationsWhileOpen, dictationsBeforeHandoff,
-				dictationsAfterHandoff: dictations,
-				visibleAfterHandoff: host.container.classList.contains('has-dictation-onboarding'),
-				tookOverAgain,
+				shownFirstTime, shown, closeIcon,
+				hasMicrophoneControls,
+				hasWaveform,
+				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
+				shownAgain,
 				telemetryEvents,
 			},
 			{
-				tookOver: true, shown: true, dictationsWhileOpen: 0, dictationsBeforeHandoff: 0,
-				dictationsAfterHandoff: 1,
-				visibleAfterHandoff: false,
-				tookOverAgain: false,
+				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
+				hasMicrophoneControls: true,
+				hasWaveform: true,
+				visibleAfterClose: false,
+				shownAgain: false,
 				telemetryEvents: [
 					{ name: 'dictationOnboarding.action', data: { action: 'shown', source: 'automatic' } },
-					{ name: 'dictationOnboarding.action', data: { action: 'startDictation', source: 'automatic' } },
+					{ name: 'dictationOnboarding.action', data: { action: 'close', source: 'automatic' } },
 				],
 			});
 	});
 
-	test('escape dismisses the card without dictating', async () => {
+	test('shows populated microphone picker after dictation acquires permission without another capture', async () => {
+		const host = createHost(disposables);
+		let getUserMediaCalls = 0;
+		const selectedDeviceIds: string[] = [];
+		const mediaDevices = Object.assign(new EventTarget(), {
+			enumerateDevices: async () => [
+				device('audioinput', 'default', 'Default - Studio Mic'),
+				device('audioinput', 'studio', 'Studio Mic'),
+				device('audioinput', 'built-in', 'Built-in Mic'),
+			],
+			getUserMedia: async (): Promise<MediaStream> => {
+				getUserMediaCalls++;
+				throw new Error('Automatic onboarding must not acquire a stream');
+			},
+		});
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(DictationOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => { },
+			previewMicrophone: false,
+			source: 'automatic',
+		}, mediaDevices));
+
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+		};
+		await banner.refreshMicrophones(analyser, async deviceId => {
+			selectedDeviceIds.push(deviceId);
+			return analyser;
+		});
+		const picker = host.container.querySelector<HTMLSelectElement>('.dictation-onboarding-picker select')!;
+		picker.selectedIndex = 1;
+		picker.dispatchEvent(new Event('change', { bubbles: true }));
+
+		assert.deepStrictEqual(
+			{
+				pickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				options: Array.from(host.container.querySelectorAll<HTMLOptionElement>('.dictation-onboarding-picker option'), option => option.textContent),
+				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
+				getUserMediaCalls,
+				selectedDeviceIds,
+			},
+			{
+				pickerHidden: false,
+				options: ['Studio Mic (System default)', 'Built-in Mic'],
+				hasWaveform: true,
+				getUserMediaCalls: 0,
+				selectedDeviceIds: ['built-in'],
+			});
+	});
+
+	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
-		let dictations = 0;
-		service.showIfNeeded(() => dictations++);
+		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
 			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-		await timeout(HANDOFF_GRACE_MS);
 
-		assert.deepStrictEqual(
-			{ dictations, visible: host.container.classList.contains('has-dictation-onboarding') },
-			{ dictations: 0, visible: false });
+		assert.strictEqual(host.container.classList.contains('has-dictation-onboarding'), false);
 	});
 
 	test('dictates straight away when there is no chat input to dock to', () => {
 		const service = createService(disposables);
 
-		assert.strictEqual(service.showIfNeeded(() => { }), false);
+		assert.strictEqual(service.showIfNeeded(), false);
 	});
 
 	test('showing again replaces the card rather than hiding it', () => {
@@ -168,8 +222,23 @@ suite('Dictation onboarding', () => {
 			{
 				visible: host.container.classList.contains('has-dictation-onboarding'),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
+				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
+				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
+				microphonePickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
 			},
-			{ visible: true, cards: 1 });
+			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true });
+	});
+
+	test('reset shows the introduction on the next dictation', () => {
+		const service = createService(disposables);
+		const host = createHost(disposables);
+		disposables.add(service.registerHost(host.container, host.root));
+
+		service.showIfNeeded();
+		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
+		service.reset();
+
+		assert.strictEqual(service.showIfNeeded(), true);
 	});
 
 	test('attaches to the most recently focused host', () => {
@@ -183,7 +252,7 @@ suite('Dictation onboarding', () => {
 		// so raise the same event the focus tracker listens for.
 		second.root.focus();
 		second.root.dispatchEvent(new FocusEvent('focus'));
-		service.showIfNeeded(() => { });
+		service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{

@@ -325,7 +325,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
 	if (options.responseFooterAction) {
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
@@ -619,10 +619,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 ];
 
 async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
-	const targetWindow = context.container.ownerDocument.defaultView;
-	if (!targetWindow) {
-		throw new Error('ResizeObserver harness requires a window');
-	}
+	const targetWindow = dom.getWindow(context.container);
 
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
@@ -676,7 +673,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['lastAttribution'] = dom.getRecentDisposableResizeObserverAttributionForLoopError(event.message) ?? event.message;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));

@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostWorkspaceSessionMembershipStore } from './agentHostWorkspaceSessionMembershipStore.js';
@@ -31,6 +31,13 @@ export interface IAgentHostSessionListEntry {
 	readonly provider: string;
 	readonly rawId: string;
 	readonly summary: SessionSummary;
+	/**
+	 * Whether {@link summary}'s status came from the host. `listSessions()`
+	 * metadata carries no status for a cold session that has never been marked
+	 * read or archived, and `SessionSummary.status` is required — so the status
+	 * is synthesized and the session-scoped flags on it mean nothing.
+	 */
+	readonly statusKnown: boolean;
 }
 
 /**
@@ -124,25 +131,41 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsArchived, archived, {
+			type: ActionType.SessionIsArchivedChanged,
+			isArchived: archived,
+		});
+	}
+
+	setSessionRead(provider: string, rawId: string, isRead: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsRead, isRead, {
+			type: ActionType.SessionIsReadChanged,
+			isRead,
+		});
+	}
+
+	/**
+	 * Optimistically flips a session-scoped status flag and dispatches the owning
+	 * action, so the host can fan the change out to other connected clients. An
+	 * uncached session still dispatches; the summary notification seeds the entry.
+	 */
+	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
 		const session = AgentSession.uri(provider, rawId);
 		const key = this._key(provider, rawId);
 		const cached = this._entries.get(key);
 		let updated: IAgentHostSessionListEntry | undefined;
 		if (cached) {
-			const status = archived
-				? cached.summary.status | SessionStatus.IsArchived
-				: cached.summary.status & ~SessionStatus.IsArchived;
-			if (status === cached.summary.status) {
+			const status = set ? cached.summary.status | flag : cached.summary.status & ~flag;
+			if (status === cached.summary.status && cached.statusKnown) {
 				return;
 			}
-			updated = { ...cached, summary: { ...cached.summary, status } };
+			// The flag is now meaningful whatever the host had said before: this
+			// dispatch is what establishes it.
+			updated = { ...cached, statusKnown: true, summary: { ...cached.summary, status } };
 		}
 
 		this._mutationGeneration++;
-		this._connection.dispatch(session.toString(), {
-			type: ActionType.SessionIsArchivedChanged,
-			isArchived: archived,
-		});
+		this._connection.dispatch(session.toString(), action);
 		if (updated) {
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -294,7 +317,12 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
-			const updated = { provider, rawId, summary: { ...cached.summary, ...notification.changes } };
+			const updated: IAgentHostSessionListEntry = {
+				provider,
+				rawId,
+				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
+				summary: { ...cached.summary, ...notification.changes },
+			};
 			if (!this._isSessionInWorkspace(updated)) {
 				this._mutationGeneration++;
 				this._removeSessionFromList(provider, rawId);
@@ -315,22 +343,16 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		let status = session.status ?? SessionStatus.Idle;
-		if (session.isRead) {
-			status |= SessionStatus.IsRead;
-		}
-		if (session.isArchived) {
-			status |= SessionStatus.IsArchived;
-		}
 
 		return {
 			provider,
 			rawId,
+			statusKnown: session.status !== undefined,
 			summary: {
 				resource: session.session.toString(),
 				provider,
 				title: session.summary ?? `Session ${rawId.substring(0, 8)}`,
-				status,
+				status: session.status ?? SessionStatus.Idle,
 				activity: session.activity,
 				createdAt: new Date(session.startTime).toISOString(),
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
@@ -348,6 +370,7 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),
+			statusKnown: true,
 			summary,
 		};
 	}
