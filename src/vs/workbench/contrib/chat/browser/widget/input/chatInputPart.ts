@@ -115,6 +115,7 @@ import { DictationDownloadActionViewItem } from '../../speechToText/dictationDow
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
+import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -716,6 +717,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IProductService private readonly productService: IProductService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -3158,6 +3160,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
+		const isVoiceSessionActive = derived(this, reader => {
+			if (!isVoiceInputActive.read(reader)) {
+				return false;
+			}
+			const target = this.voiceSessionController.targetSession.read(reader);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			const resource = widget.viewModel?.sessionResource;
+			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
+		});
 
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
@@ -3299,7 +3310,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatVoiceInputModeAction.ID) {
-					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, { isActive: isVoiceInputActive });
+					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
+						isActive: isVoiceInputActive,
+						isVoiceActive: isVoiceSessionActive,
+					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
