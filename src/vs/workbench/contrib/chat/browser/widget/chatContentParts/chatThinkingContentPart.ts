@@ -441,7 +441,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
-		} else if (configuredMode === ThinkingDisplayMode.CollapsedPreview) {
+		} else if (configuredMode === ThinkingDisplayMode.CollapsedPreview || configuredMode === ThinkingDisplayMode.Scrolling) {
 			// Start expanded if still in progress.
 			// streamingCompleted is true when look-ahead finds subsequent non-pinnable
 			// parts, meaning this thinking part won't receive more content.
@@ -940,7 +940,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private getFinalizedDisplayTitle(title: string): string {
-		if (this.thinkingDisplayMode !== ThinkingDisplayMode.Collapsed || !this.containsReasoning || this.containsGroupedItems || !this.reasoningDurationMs) {
+		if ((this.thinkingDisplayMode !== ThinkingDisplayMode.Collapsed && this.thinkingDisplayMode !== ThinkingDisplayMode.Scrolling) || !this.containsReasoning || this.containsGroupedItems || !this.reasoningDurationMs) {
 			return title;
 		}
 
@@ -955,6 +955,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public hasGroupedItems(): boolean {
 		return this.containsGroupedItems;
+	}
+
+	private isAlwaysVisibleGroupedItems(): boolean {
+		return this.thinkingDisplayMode === ThinkingDisplayMode.Scrolling && this.containsGroupedItems && !this.containsReasoning;
 	}
 
 	private recordReasoningContent(content: string): void {
@@ -976,7 +980,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	private shouldAllowExpansion(): boolean {
 		// Multiple tool invocations or lazy items mean there's content to show
-		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0) {
+		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0 || this.hookCount > 0) {
 			return true;
 		}
 
@@ -1002,6 +1006,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private updateDropdownClickability(knownContentHeight?: number): void {
+		if (this.isAlwaysVisibleGroupedItems()) {
+			this.setDropdownClickable(false);
+			return;
+		}
+
 		let allowExpansion = this.shouldAllowExpansion();
 
 		// don't allow feedback on fixed scrolling before reaching max height.
@@ -1157,6 +1166,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public finalizeTitleIfDefault(): void {
 		this.processPendingRemovals();
+		if (this.thinkingDisplayMode === ThinkingDisplayMode.Scrolling && this.containsReasoning && !this.containsGroupedItems) {
+			this.setExpanded(false);
+		}
 
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
@@ -1186,6 +1198,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
+		if (this.isAlwaysVisibleGroupedItems()) {
+			return;
+		}
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
@@ -1630,6 +1645,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.updateWorkingSpinnerVisibility();
 		this.appendedItemCount++;
+		if (this.isAlwaysVisibleGroupedItems()) {
+			this.domNode.classList.add('chat-thinking-always-visible-items');
+			this._collapseButton?.element.parentElement?.remove();
+			this.setExpanded(true);
+		}
 
 		// Listen for diff changes from edit pills
 		if (onDidChangeDiff && toolInvocationId) {
@@ -2377,7 +2397,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
-
 		if (_element.isComplete) {
 			return true;
 		}

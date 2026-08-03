@@ -82,6 +82,10 @@
 		.interactive-session .interactive-item-container {
 			padding: 0;
 		}
+
+		.chat-thinking-always-visible-items .chat-used-context-list.chat-thinking-collapsible {
+			margin-left: var(--vscode-spacing-sizeNone);
+		}
 	}
 }
 

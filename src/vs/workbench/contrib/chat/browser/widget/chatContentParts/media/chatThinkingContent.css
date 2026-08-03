@@ -130,6 +130,14 @@
 		border-bottom-left-radius: 5px;
 	}
 
+	&.chat-thinking-always-visible-items::after {
+		display: none;
+	}
+
+	&.chat-thinking-always-visible-items .chat-used-context-list.chat-thinking-collapsible {
+		margin-left: -8px;
+	}
+
 	.monaco-button.hidden,
 	.chat-pinned-preview.hidden {
 		display: none;

@@ -415,12 +415,16 @@ export function shouldRenderInitialProgressiveContentImmediately(isComplete: boo
 	return !isComplete && hasMarkdownParts && !hasRenderData;
 }
 
-export function shouldStartNewCollapsedThinkingGroup(displayMode: ThinkingDisplayMode, existingGroup: 'reasoning' | 'items', incomingGroup: 'reasoning' | 'items'): boolean {
-	return displayMode === ThinkingDisplayMode.Collapsed && existingGroup !== incomingGroup;
+export function shouldSeparateThinkingGroup(displayMode: ThinkingDisplayMode, existingGroup: 'reasoning' | 'items', incomingGroup: 'reasoning' | 'items'): boolean {
+	return (displayMode === ThinkingDisplayMode.Collapsed || displayMode === ThinkingDisplayMode.Scrolling) && existingGroup !== incomingGroup;
 }
 
 export function shouldCreateGroupedThinkingPart(collapsedToolsMode: CollapsedToolsDisplayMode, separatedFromReasoning: boolean): boolean {
 	return collapsedToolsMode === CollapsedToolsDisplayMode.Always || separatedFromReasoning;
+}
+
+export function getEffectiveCollapsedToolsDisplayMode(displayMode: ThinkingDisplayMode, configuredMode: CollapsedToolsDisplayMode): CollapsedToolsDisplayMode {
+	return displayMode === ThinkingDisplayMode.Scrolling ? CollapsedToolsDisplayMode.Always : configuredMode;
 }
 
 export function shouldShowFileChangesSummaryForSettings(isComplete: boolean, isLocalSession: boolean, showFileChanges: boolean): boolean {
@@ -1588,7 +1592,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			const isEffectivelyHiddenToolInvocation = IChatToolInvocation.isEffectivelyHidden(lastPart);
-			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+			const collapsedToolsMode = this.getCollapsedToolsDisplayMode();
 			if (!isEffectivelyHiddenToolInvocation && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
 				return undefined;
 			}
@@ -2568,7 +2572,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	// todo @justschen initially split up each of the checks to easily see what should be pinned/not pinned, we can probably consolidate this down by a lot once we're more confident in the logic.
 	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsDisplayMode();
 
 		// thinking and working content are always pinned (they are the thinking container itself)
 		if (part.kind === 'thinking' || part.kind === 'working') {
@@ -2654,6 +2658,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return false;
 	}
 
+	private getCollapsedToolsDisplayMode(): CollapsedToolsDisplayMode {
+		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
+		const configuredMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		return getEffectiveCollapsedToolsDisplayMode(displayMode, configuredMode);
+	}
+
 	private getLastThinkingPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined): ChatThinkingContentPart | undefined {
 		if (!renderedParts || renderedParts.length === 0) {
 			return undefined;
@@ -2673,7 +2683,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
-		if (lastThinking?.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items')) {
+		if (lastThinking?.hasReasoningContent() && shouldSeparateThinkingGroup(displayMode, 'reasoning', 'items')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 			return { part: undefined, separatedFromReasoning: true };
 		}
@@ -2872,7 +2882,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
-		if (style === ThinkingDisplayMode.CollapsedPreview) {
+		if (style === ThinkingDisplayMode.CollapsedPreview || (style === ThinkingDisplayMode.Scrolling && lastThinking.hasReasoningContent())) {
 			lastThinking.collapseContent();
 		}
 		lastThinking.finalizeTitleIfDefault();
@@ -3156,7 +3166,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools') === CollapsedToolsDisplayMode.Off) {
+		const collapsedToolsMode = this.getCollapsedToolsDisplayMode();
+		if (collapsedToolsMode === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
@@ -3171,7 +3182,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 			const { part: lastThinking, separatedFromReasoning } = this.getLastThinkingPartForGroupedItem(context, templateData);
 
@@ -3861,7 +3871,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Pin the pill into the surrounding thinking part so diff stats bubble
 		// up into the thinking title. The list renderer pinning logic above
 		// already routes externalEdit kinds through this path.
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsDisplayMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(content, context.element)) {
 			// Stable id per part so the thinking part can dedup if it sees us twice.
 			const partId = `externalEdit-${content.uri.toString()}-${content.undoStopId ?? ''}`;
@@ -3966,7 +3976,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsDisplayMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 
 			// append to thinking part when the codeblock is complete
@@ -4047,7 +4057,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const element = isResponseVM(context.element) ? context.element : undefined;
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
 		const lastThinkingPart = this.getLastThinkingPart(templateData.renderedParts);
-		if (lastThinkingPart?.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService), 'items', 'reasoning')) {
+		if (lastThinkingPart?.hasGroupedItems() && shouldSeparateThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService), 'items', 'reasoning')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
