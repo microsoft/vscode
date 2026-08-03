@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -156,8 +157,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	result: IAutomationDialogResult | undefined;
 	beforeReturn: (() => void) | undefined;
+	showCalls = 0;
+	lastOptions: IShowAutomationDialogOptions | undefined;
 
-	override async showAutomationDialog(_options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+		this.showCalls++;
+		this.lastOptions = options;
 		this.beforeReturn?.();
 		return this.result;
 	}
@@ -338,6 +343,31 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			activeElement: widget.element,
 			cardFocused: false,
+		});
+	});
+
+	test('clicking the card opens edit without intercepting card actions', async () => {
+		const { automationDialogService, automationService, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+
+		widget.element.querySelector<HTMLElement>('.automations-card')?.click();
+		await Promise.resolve();
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(actionButton);
+		actionButton.click();
+		await Promise.resolve();
+		const tapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		tapEvent.initialTarget = actionButton;
+		widget.element.querySelector<HTMLElement>('.automations-card')?.dispatchEvent(tapEvent);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+		}, {
+			showCalls: 1,
+			existing: item,
 		});
 	});
 
