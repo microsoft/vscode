@@ -402,6 +402,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const configVersion = entry.configVersion;
 			const config = { ...entry.config };
 
+			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
 			if (!await this._isTargetFolderTrusted(workingDirectory)) {
 				return undefined;
 			}
@@ -478,9 +479,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const newBackendSession = this._toBackendUri(newSessionResource, provider);
+			// Imports materialize eagerly, so carry their history and model into the rebound session.
 			const imported = this._importConversationStore.take(newSessionResource);
 
 			while (this._entries.get(oldSessionResource) === oldEntry && !oldEntry.disposed) {
+				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
 				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
@@ -509,6 +512,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 
 				const oldGeneration = oldEntry.generation;
+				// Publish the real mapping before retiring the untitled entry so consumers never observe a partial swap.
 				this._entries.set(newSessionResource, {
 					provider,
 					generation: { backendSession: created, workingDirectory: targetWorkingDirectory },
@@ -523,9 +527,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._resolvedConfigs.delete(oldSessionResource);
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
 				this._rebound.add(oldSessionResource);
+				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
 				this._onDidChange.fire(newSessionResource);
 
 				if (oldGeneration) {
+					// The temporary generation is in-memory only, so disposal is best-effort.
 					await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
 				}
 				return created;
