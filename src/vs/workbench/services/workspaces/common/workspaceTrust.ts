@@ -297,7 +297,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			let uri: URI;
 			try {
 				// A value with a scheme (e.g. a remote `vscode-remote://` folder) is
-				// parsed as a Uri; otherwise it is treated as a local file path.
+				// parsed as a URI; otherwise it is treated as a local file path.
 				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
 			} catch {
 				continue; // ignore a malformed --trust-folder value
@@ -305,7 +305,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 			try {
 				// Trust each folder independently so one value that cannot be resolved
-				// (e.g. a remote Uri the resolver rejects) does not discard the other,
+				// (e.g. a remote URI the resolver rejects) does not discard the other,
 				// valid --trust-folder entries.
 				await this.setUrisTrust([uri], true);
 			} catch {

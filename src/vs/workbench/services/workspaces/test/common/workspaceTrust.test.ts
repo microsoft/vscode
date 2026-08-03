@@ -270,7 +270,7 @@ suite('Workspace Trust', () => {
 			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/bad`, good.fsPath];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
-			// The resolver is reachable but rejects canonicalization of the remote Uri,
+			// The resolver is reachable but rejects canonicalization of the remote URI,
 			// so trusting that one entry throws; the valid file entry must still be kept.
 			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
 				override async resolveAuthority(authority: string): Promise<ResolverResult> {
