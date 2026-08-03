@@ -389,7 +389,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	/**
 	 * Ensures the published generation realizes the draft's current folder and config.
-	 * It discards stale unpublished candidates, then publishes the valid candidate and retires the previous generation.
+	 * It keeps the previous generation hidden until a valid candidate can replace it, discarding stale candidates along the way.
 	 */
 	private async _reconcileGeneration(sessionResource: URI, entry: IEntry): Promise<URI | undefined> {
 		while (this._entries.get(sessionResource) === entry && !entry.disposed) {
@@ -403,7 +403,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const config = { ...entry.config };
 
 			if (!await this._isTargetFolderTrusted(workingDirectory)) {
-				await this._retireGeneration(sessionResource, entry);
 				return undefined;
 			}
 
@@ -419,7 +418,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				});
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] Failed to create provisional session for ${sessionResource.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-				await this._retireGeneration(sessionResource, entry);
 				return undefined;
 			}
 
@@ -437,18 +435,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return created;
 		}
 		return undefined;
-	}
-
-	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
-		const generation = entry.generation;
-		if (!generation) {
-			return;
-		}
-		entry.generation = undefined;
-		if (this._entries.get(sessionResource) === entry) {
-			this._onDidChange.fire(sessionResource);
-		}
-		await this._disposeBackend(generation.backendSession, 'retired provisional generation');
 	}
 
 	private async _disposeBackend(backendSession: URI, reason: string): Promise<void> {
@@ -680,8 +666,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (!entry) {
 			return undefined;
 		}
+		// Fresh entries already contain defaults; apply the user's partial on top.
+		// Mutate before queueing so a racing tryRebind sees the latest config.
 		Object.assign(entry.config, partial);
 		entry.configVersion++;
+		// Keep overlay values current while schema re-resolution is pending.
 		if (entry.resolvedConfig) {
 			entry.resolvedConfig = {
 				...entry.resolvedConfig,
@@ -689,6 +678,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			};
 		}
 
+		// Serialize dispatch and re-resolution so racing chip changes settle in order.
 		return this._queue(sessionResource, async () => {
 			if (this._entries.get(sessionResource) !== entry || entry.disposed) {
 				return undefined;

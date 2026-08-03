@@ -607,7 +607,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('untrusted folder change retires the previous generation and can retry', async () => {
+	test('untrusted folder change hides the previous generation and reuses it on rollback', async () => {
 		const folderA = URI.file('/repoA');
 		const folderB = URI.file('/repoB');
 		const ui = untitledChatUri('trust-change');
@@ -625,22 +625,25 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 		}, {
 			current: undefined,
-			disposed: [original.toString()],
+			disposed: [],
 			createCount: 1,
 		});
 
-		untrustedFolders.delete(folderB.toString());
-		const retried = await provisional.getOrCreate(ui, 'copilot', folderB);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'folder' } }];
+		folderService.setFolder(ui, folderA);
+		await flush();
 		assert.deepStrictEqual({
-			retried: retried?.toString(),
-			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+			current: provisional.get(ui)?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
 		}, {
-			retried: agentHost.createCalls.at(-1)?.session?.toString(),
-			latestCwd: folderB.toString(),
+			current: original.toString(),
+			createCount: 1,
+			disposed: [],
 		});
 	});
 
-	test('failed folder replacement retires the previous generation and can retry', async () => {
+	test('failed folder replacement retains the previous generation until retry succeeds', async () => {
 		const folderA = URI.file('/repoA');
 		const folderB = URI.file('/repoB');
 		const ui = untitledChatUri('failed-change');
@@ -658,7 +661,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 		}, {
 			current: undefined,
-			disposed: [original.toString()],
+			disposed: [],
 			createCount: 2,
 		});
 
@@ -666,9 +669,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual({
 			retried: retried?.toString(),
 			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
 		}, {
 			retried: agentHost.createCalls.at(-1)?.session?.toString(),
 			latestCwd: folderB.toString(),
+			disposed: [original.toString()],
 		});
 	});
 
