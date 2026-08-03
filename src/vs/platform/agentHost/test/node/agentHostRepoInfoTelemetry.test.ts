@@ -211,6 +211,8 @@ suite('AgentHostRepoInfoTelemetry', () => {
 
 		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: true }, 'agent-session://copilot/s1', 'turn-0', AgentHostClientType.Unknown, root, undefined, () => true, async () => ({ available: false, checks: [] }));
 		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: undefined }, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.Unknown, root, undefined, () => true);
+		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: true }, 'agent-session://copilot/s1', 'turn-2', AgentHostClientType.Unknown, root, undefined, () => true, async () => { throw new Error('policy unavailable'); });
+		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: true }, 'agent-session://copilot/s1', 'turn-3', AgentHostClientType.Unknown, root, undefined, () => true, async () => ({ available: 'yes', checks: [{ path: '/repo/new.txt', excluded: null }] }) as never);
 
 		assert.deepStrictEqual({
 			patchCalls,
@@ -232,6 +234,16 @@ suite('AgentHostRepoInfoTelemetry', () => {
 				fileRelativePaths: JSON.stringify([]),
 				diffsJSON: undefined,
 				result: 'success',
+			}, {
+				repoId: 'microsoft/vscode',
+				fileRelativePaths: JSON.stringify([]),
+				diffsJSON: undefined,
+				result: 'success',
+			}, {
+				repoId: 'microsoft/vscode',
+				fileRelativePaths: JSON.stringify([]),
+				diffsJSON: undefined,
+				result: 'success',
 			}],
 		});
 	});
@@ -239,7 +251,8 @@ suite('AgentHostRepoInfoTelemetry', () => {
 	test('emits paths and patches only when every path for a change is allowed', async () => {
 		const root = URI.file('/repo');
 		const allowedUri = URI.joinPath(root, 'allowed.txt');
-		const excludedUri = URI.joinPath(root, 'excluded.txt');
+		const excludedOldUri = URI.joinPath(root, 'excluded-old.txt');
+		const excludedNewUri = URI.joinPath(root, 'excluded-new.txt');
 		const checkedPaths: string[][] = [];
 		const patchPaths: string[][] = [];
 		const reports: IAgentHostRepoInfoReport[] = [];
@@ -256,8 +269,8 @@ suite('AgentHostRepoInfoTelemetry', () => {
 				after: { uri: allowedUri.toString(), content: { uri: 'git-blob://allowed-after' } },
 				diff: { added: 1, removed: 1 },
 			}, {
-				before: { uri: excludedUri.toString(), content: { uri: 'git-blob://excluded-before' } },
-				after: { uri: excludedUri.toString(), content: { uri: 'git-blob://excluded-after' } },
+				before: { uri: excludedOldUri.toString(), content: { uri: 'git-blob://excluded-before' } },
+				after: { uri: excludedNewUri.toString(), content: { uri: 'git-blob://excluded-after' } },
 				diff: { added: 1, removed: 1 },
 			}],
 			getDiffPatchBetweenRefs: async (_cwd, options) => {
@@ -271,7 +284,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			checkedPaths.push([...paths]);
 			return {
 				available: true,
-				checks: paths.map(path => ({ path, excluded: path === excludedUri.fsPath })),
+				checks: paths.map(path => ({ path, excluded: path === excludedOldUri.fsPath })),
 			};
 		});
 
@@ -281,7 +294,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			fileRelativePaths: reports[0].fileRelativePaths,
 			diffs: JSON.parse(reports[0].diffsJSON ?? '[]').map((diff: { uri: string; diff: string }) => ({ uri: diff.uri, diff: diff.diff })),
 		}, {
-			checkedPaths: [[allowedUri.fsPath, excludedUri.fsPath]],
+			checkedPaths: [[allowedUri.fsPath, excludedOldUri.fsPath, excludedNewUri.fsPath]],
 			patchPaths: [['allowed.txt']],
 			fileRelativePaths: JSON.stringify(['allowed.txt']),
 			diffs: [{ uri: allowedUri.toString(), diff: 'allowed-patch' }],

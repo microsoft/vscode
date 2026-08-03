@@ -294,17 +294,22 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		if (paths.length === 0) {
 			return [];
 		}
-		const result = await checkContentExclusion(paths);
-		if (!result.available || result.checks.length !== paths.length) {
+		let result: Awaited<ReturnType<RepoInfoContentExclusionChecker>>;
+		try {
+			result = await checkContentExclusion(paths);
+		} catch {
+			return [];
+		}
+		if (result.available !== true || !Array.isArray(result.checks) || result.checks.length !== paths.length) {
 			return [];
 		}
 		const allowedPaths = new Set<string>();
 		for (let index = 0; index < paths.length; index++) {
 			const check = result.checks[index];
-			if (check.path !== paths[index]) {
+			if (!check || typeof check.path !== 'string' || check.path !== paths[index] || typeof check.excluded !== 'boolean') {
 				return [];
 			}
-			if (!check.excluded) {
+			if (check.excluded === false) {
 				allowedPaths.add(check.path);
 			}
 		}
