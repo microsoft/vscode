@@ -146,10 +146,10 @@ export class Linkifier implements ILinkifier {
 					break;
 				}
 				case LinkifierState.Type.Accumulating: {
-					const completeWord = async (state: LinkifierState.Accumulating, inPart: string, skipUnlikify: boolean) => {
+					const completeWord = async (state: LinkifierState.Accumulating, inPart: string, options: { skipUnlikify: boolean; isInlineCode?: boolean }) => {
 						const toAppend = state.pendingText + inPart;
 						this._state = LinkifierState.Default;
-						const r = await this.doLinkifyAndAppend(toAppend, { skipUnlikify }, token);
+						const r = await this.doLinkifyAndAppend(toAppend, { skipUnlikify: options.skipUnlikify, isInlineCode: options.isInlineCode }, token);
 						out.push(...r.parts);
 					};
 
@@ -158,17 +158,17 @@ export class Linkifier implements ILinkifier {
 							this._state = this._state.append(part);
 							break;
 						} else if (/\n/.test(part)) {
-							await completeWord(this._state, part, false);
+							await completeWord(this._state, part, { skipUnlikify: false });
 							break;
 						}
 					} else if (this._state.accumulationType === LinkifierState.AccumulationType.InlineCodeOrMath && new RegExp(escapeRegExpCharacters(this._state.terminator ?? '`')).test(part)) {
 						const terminator = this._state.terminator ?? '`';
 						const terminalIndex = part.indexOf(terminator);
 						if (terminalIndex === -1) {
-							await completeWord(this._state, part, true);
+							await completeWord(this._state, part, { skipUnlikify: true, isInlineCode: true });
 						} else {
 							if (terminator === '`') {
-								await completeWord(this._state, part, true);
+								await completeWord(this._state, part, { skipUnlikify: true, isInlineCode: true });
 							} else {
 								// Math shouldn't run linkifies
 
@@ -237,7 +237,7 @@ export class Linkifier implements ILinkifier {
 		return newText;
 	}
 
-	private async doLinkifyAndAppend(newText: string, options: { skipUnlikify?: boolean }, token: CancellationToken): Promise<LinkifiedText> {
+	private async doLinkifyAndAppend(newText: string, options: { skipUnlikify?: boolean; isInlineCode?: boolean }, token: CancellationToken): Promise<LinkifiedText> {
 		if (newText.length === 0) {
 			return { parts: [] };
 		}
@@ -246,8 +246,9 @@ export class Linkifier implements ILinkifier {
 
 		// Run contributed linkifiers
 		let parts: LinkifiedPart[] = [newText];
+		const context: LinkifierContext = options.isInlineCode ? { ...this.context, isInlineCode: true } : this.context;
 		for (const linkifier of this.linkifiers) {
-			parts = coalesceParts(await this.runLinkifier(parts, linkifier, token));
+			parts = coalesceParts(await this.runLinkifier(parts, linkifier, context, token));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -275,7 +276,7 @@ export class Linkifier implements ILinkifier {
 		return { parts };
 	}
 
-	private async runLinkifier(parts: readonly LinkifiedPart[], linkifier: IContributedLinkifier, token: CancellationToken): Promise<LinkifiedPart[]> {
+	private async runLinkifier(parts: readonly LinkifiedPart[], linkifier: IContributedLinkifier, context: LinkifierContext, token: CancellationToken): Promise<LinkifiedPart[]> {
 		const out: LinkifiedPart[] = [];
 		for (const part of parts) {
 			if (token.isCancellationRequested) {
@@ -285,7 +286,7 @@ export class Linkifier implements ILinkifier {
 			if (typeof part === 'string') {
 				let linkified: LinkifiedText | undefined;
 				try {
-					linkified = await linkifier.linkify(part, this.context, token);
+					linkified = await linkifier.linkify(part, context, token);
 				} catch (e) {
 					if (!isCancellationError(e)) {
 						console.error(e);
