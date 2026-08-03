@@ -86,6 +86,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
+	/**
+	 * `true` when every hidden-unchanged region of the current diff is fully
+	 * revealed (or there are none). Read by `DiffEditorItemTemplate` to drive the
+	 * multi-diff per-file expand/collapse toggle. Not external API.
+	 * @internal
+	 */
+	public readonly allUnchangedRegionsShown: IObservable<boolean>;
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -104,6 +112,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		]);
 		this._diffModelSrc = this._register(disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined));
 		this._diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
+		this.allUnchangedRegionsShown = derived(this, reader => {
+			const regions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
+			return regions.every(r => r.visibleLineCountTop.read(reader) + r.visibleLineCountBottom.read(reader) >= r.lineCount);
+		});
 		this.onDidChangeModel = Event.fromObservableLight(this._diffModel);
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(

@@ -19,6 +19,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import {
+	ChatInputNotificationActionKind,
 	ChatInputNotificationSeverity,
 	IChatInputNotification,
 	IChatInputNotificationService,
@@ -125,16 +126,19 @@ export class AgentHostPermissionUiContribution extends Disposable implements IWo
 			description,
 			actions: [
 				{
+					kind: ChatInputNotificationActionKind.Command,
 					label: localize('agentHost.permission.deny', "Deny"),
 					commandId: DENY_COMMAND,
 					commandArgs: [request.id],
 				},
 				{
+					kind: ChatInputNotificationActionKind.Command,
 					label: localize('agentHost.permission.allow', "Allow"),
 					commandId: ALLOW_COMMAND,
 					commandArgs: [request.id],
 				},
 				{
+					kind: ChatInputNotificationActionKind.Command,
 					label: localize('agentHost.permission.allowAlways', "Always Allow"),
 					commandId: ALLOW_ALWAYS_COMMAND,
 					commandArgs: [request.id],

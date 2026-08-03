@@ -7,12 +7,12 @@ import type { SessionModelInfo } from './state/protocol/state.js';
 import type { IAgentModelInfo } from './agentService.js';
 
 /**
- * Well-known pricing metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
- * {@link SessionModelInfo._meta}). Agents that know a model's billing details populate these keys so the chat model
- * picker can render its cost hover.
+ * Well-known model picker metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
+ * {@link SessionModelInfo._meta}). Agents populate these keys so the chat model picker can render pricing,
+ * capability categories, and promotions.
  *
  * All cost values are expressed as credits per 1M tokens — the same unit the model picker hover renders (see
- * `getModelHoverContent` in `chatModelPicker.ts`). Fields are optional; agents omit what they don't know.
+ * `getModelHoverContent` in `modelPicker/modelPickerHover.ts`). Fields are optional; agents omit what they don't know.
  */
 export interface IAgentModelPricingMeta {
 	/** Request multiplier (e.g. `1.5` rendered as "1.5x"). */
@@ -35,8 +35,17 @@ export interface IAgentModelPricingMeta {
 	readonly longContextOutputCost?: number;
 	/** Coarse price bucket (e.g. `low`, `medium`, `high`) for an at-a-glance tag. */
 	readonly priceCategory?: string;
+	/** Capability category (e.g. `lightweight`, `versatile`, `powerful`) shown in the model picker hover. */
+	readonly category?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; shown as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
+	/** Promotional information when the model is experiencing a discount. */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 const NUMBER_KEYS = [
@@ -72,12 +81,22 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 	if (typeof meta.priceCategory === 'string') {
 		result.priceCategory = meta.priceCategory;
 	}
+	if (typeof meta.category === 'string') {
+		result.category = meta.category;
+	}
+	const rawPromo = meta.promo;
+	if (rawPromo && typeof rawPromo === 'object' && !Array.isArray(rawPromo)) {
+		const p = rawPromo as Record<string, unknown>;
+		if (typeof p.id === 'string' && typeof p.discountPercent === 'number' && typeof p.endsAt === 'string' && typeof p.message === 'string') {
+			result.promo = { id: p.id, discountPercent: p.discountPercent, endsAt: p.endsAt, message: p.message };
+		}
+	}
 	return result;
 }
 
 /**
  * Builds a `_meta` payload from {@link IAgentModelPricingMeta}, dropping `undefined` entries. Returns `undefined` when
- * no pricing fields are known so callers can avoid attaching an empty `_meta` object.
+ * no model picker fields are known so callers can avoid attaching an empty `_meta` object.
  */
 export function createAgentModelPricingMeta(pricing: IAgentModelPricingMeta): Record<string, unknown> | undefined {
 	const entries = Object.entries(pricing).filter(([, value]) => value !== undefined);
@@ -85,10 +104,9 @@ export function createAgentModelPricingMeta(pricing: IAgentModelPricingMeta): Re
 }
 
 /**
- * Normalizes a raw CAPI billing payload (which uses snake_case field names like `token_prices`,
- * `input_price`) into the camelCase {@link ICAPIModelBilling} shape that {@link createPricingMetaFromBilling}
- * expects. Also handles the case where the billing object already uses camelCase (e.g. from the
- * Copilot SDK's `ModelInfo`). Returns `undefined` when `raw` is nullish.
+ * Normalizes a raw CAPI or Copilot SDK billing payload into the camelCase
+ * {@link ICAPIModelBilling} shape that {@link createPricingMetaFromBilling} expects.
+ * Prices are converted from the payload's billing batch to credits per million tokens.
  */
 export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefined {
 	if (!raw || typeof raw !== 'object') {
@@ -111,41 +129,61 @@ export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefine
 		// the camelCase format flattens them at the top level of `tokenPrices`.
 		const defaultTier = rawTokenPrices.default as Record<string, unknown> | undefined;
 		const hasDefault = defaultTier && typeof defaultTier === 'object';
+		const batchSize = asNumber(rawTokenPrices.batchSize) ?? asNumber(rawTokenPrices.batch_size) ?? 1_000_000;
+		const scale = batchSize > 0 ? 1_000_000 / batchSize : 1;
+		const price = (...values: unknown[]): number | undefined => {
+			const value = values.map(asNumber).find(candidate => candidate !== undefined);
+			return value === undefined ? undefined : value * scale;
+		};
 
-		const inputPrice = asNumber(rawTokenPrices.inputPrice) ?? asNumber(hasDefault ? defaultTier.input_price : undefined);
-		const cachePrice = asNumber(rawTokenPrices.cachePrice) ?? asNumber(hasDefault ? defaultTier.cache_price : undefined);
-		const cacheWritePrice = asNumber(rawTokenPrices.cacheWritePrice) ?? asNumber(hasDefault ? defaultTier.cache_write_price : undefined);
-		const outputPrice = asNumber(rawTokenPrices.outputPrice) ?? asNumber(hasDefault ? defaultTier.output_price : undefined);
-		const contextMax = asNumber(rawTokenPrices.contextMax) ?? asNumber(hasDefault ? defaultTier.context_max : undefined);
+		const inputPrice = price(rawTokenPrices.inputPrice, hasDefault ? defaultTier.input_price : undefined);
+		const cachePrice = price(rawTokenPrices.cacheReadPrice, rawTokenPrices.cachePrice, hasDefault ? defaultTier.cache_read_price : undefined, hasDefault ? defaultTier.cache_price : undefined);
+		const cacheWritePrice = price(rawTokenPrices.cacheWritePrice, hasDefault ? defaultTier.cache_write_price : undefined);
+		const outputPrice = price(rawTokenPrices.outputPrice, hasDefault ? defaultTier.output_price : undefined);
+		const contextMax = asNumber(rawTokenPrices.maxPromptTokens) ?? asNumber(rawTokenPrices.contextMax) ?? asNumber(hasDefault ? defaultTier.max_prompt_tokens : undefined) ?? asNumber(hasDefault ? defaultTier.context_max : undefined);
 
 		const rawLong = (rawTokenPrices.longContext ?? rawTokenPrices.long_context) as Record<string, unknown> | undefined;
 		let longContext: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number } | undefined;
 		if (rawLong && typeof rawLong === 'object') {
 			longContext = {
-				inputPrice: asNumber(rawLong.inputPrice) ?? asNumber(rawLong.input_price),
-				cachePrice: asNumber(rawLong.cachePrice) ?? asNumber(rawLong.cache_price),
-				cacheWritePrice: asNumber(rawLong.cacheWritePrice) ?? asNumber(rawLong.cache_write_price),
-				outputPrice: asNumber(rawLong.outputPrice) ?? asNumber(rawLong.output_price),
-				contextMax: asNumber(rawLong.contextMax) ?? asNumber(rawLong.context_max),
+				inputPrice: price(rawLong.inputPrice, rawLong.input_price),
+				cachePrice: price(rawLong.cacheReadPrice, rawLong.cachePrice, rawLong.cache_read_price, rawLong.cache_price),
+				cacheWritePrice: price(rawLong.cacheWritePrice, rawLong.cache_write_price),
+				outputPrice: price(rawLong.outputPrice, rawLong.output_price),
+				contextMax: asNumber(rawLong.maxPromptTokens) ?? asNumber(rawLong.contextMax) ?? asNumber(rawLong.max_prompt_tokens) ?? asNumber(rawLong.context_max),
 			};
 		}
 
 		tokenPrices = { inputPrice, cachePrice, cacheWritePrice, outputPrice, contextMax, longContext };
 	}
 
-	return { multiplier, priceCategory, discountPercent, tokenPrices };
+	return { multiplier, priceCategory, discountPercent, promo: normalizePromo(billing), tokenPrices };
 }
 
 function asNumber(v: unknown): number | undefined {
 	return typeof v === 'number' ? v : undefined;
 }
 
+function normalizePromo(billing: Record<string, unknown>): ICAPIModelBilling['promo'] {
+	const raw = billing.promo as Record<string, unknown> | undefined;
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const id = typeof raw.id === 'string' ? raw.id : undefined;
+	const discountPercent = asNumber(raw.discountPercent) ?? asNumber(raw.discount_percent);
+	const endsAt = typeof raw.endsAt === 'string' ? raw.endsAt
+		: typeof raw.ends_at === 'string' ? raw.ends_at
+			: undefined;
+	const message = typeof raw.message === 'string' ? raw.message : undefined;
+	if (id && typeof discountPercent === 'number' && endsAt && message) {
+		return { id, discountPercent, endsAt, message };
+	}
+	return undefined;
+}
+
 /**
- * Runtime shape of the CAPI model billing payload. The published SDK types (`CCAModelBilling`, `ModelBilling`) don't
- * yet declare `tokenPrices`, `priceCategory`, or `discountPercent`, but the `/models` endpoint already carries them.
- * Both Copilot and Claude agents narrow through this interface at the read boundary.
- *
- * Remove individual fields as the SDK catches up (tracked at microsoft/vscode-capi#85).
+ * Normalized model billing shape shared by CAPI-backed agents and the Copilot SDK model list.
+ * Raw snake_case and current SDK fields are converted at the read boundary by {@link normalizeCAPIBilling}.
  */
 export interface ICAPIModelBilling {
 	readonly multiplier?: number;
@@ -153,6 +191,13 @@ export interface ICAPIModelBilling {
 	readonly priceCategory?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
+	/** Promotional info when the model is experiencing a promotional discount. */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly tokenPrices?: {
 		readonly contextMax?: number;
 		readonly inputPrice?: number;
@@ -178,8 +223,9 @@ export interface ICAPIModelBilling {
  * @param billing - The model's billing info, narrowed through {@link ICAPIModelBilling}.
  * @param priceCategory - An optional override for the price category (e.g. from `modelPickerPriceCategory` on the
  *   model object itself). Falls back to `billing.priceCategory` when not provided.
+ * @param category - The model's capability category from its top-level `modelPickerCategory` field.
  */
-export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefined, priceCategory?: string): Record<string, unknown> | undefined {
+export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefined, priceCategory?: string, category?: string): Record<string, unknown> | undefined {
 	const tokenPrices = billing?.tokenPrices;
 	const longContext = tokenPrices?.longContext;
 
@@ -205,7 +251,9 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 		longContextCacheWriteCost: showLongContext ? (longContext.cacheWritePrice ?? tokenPrices?.cacheWritePrice) : undefined,
 		longContextOutputCost: showLongContext ? (longContext.outputPrice ?? tokenPrices?.outputPrice) : undefined,
 		priceCategory: priceCategory ?? (typeof billing?.priceCategory === 'string' ? billing.priceCategory : undefined),
+		category,
 		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
+		promo: billing?.promo,
 	});
 }
 

@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import * as fsPromises from 'fs/promises';
+import { cp as copyFile } from '@vscode/fs-copyfile';
+import * as path from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { parse } from '../../../base/common/glob.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -37,12 +41,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
-	async getDefaultBranch(workingDirectory: URI): Promise<string | undefined> {
+	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
+	}
+
+	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
 		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
-				return remoteRef;
+				return { name: remoteRef, startPoint: remoteRef };
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
@@ -55,24 +63,44 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// (e.g. fresh clone with no remote-tracking refs yet).
 			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
 			if (hasRemoteRef) {
-				return `origin/${branch}`;
+				return { name: branch, startPoint: `origin/${branch}` };
 			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : undefined;
+			return hasLocalBranch ? { name: branch, startPoint: branch } : undefined;
 		}
 		return undefined;
 	}
 
-	async getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]> {
-		const args = ['for-each-ref', '--format=%(refname:short)', '--sort=-committerdate'];
-		args.push('refs/heads');
+	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
+		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
+
+		if (query?.sort && query.sort !== 'alphabetically') {
+			args.push('--sort', `-${query.sort}`);
+		}
+
+		if (query?.count) {
+			args.push(`--count=${query.count}`);
+		}
+
+		if (query?.pattern) {
+			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
+			for (const pattern of patterns) {
+				args.push(pattern.startsWith('refs/') ? pattern : `refs/${pattern}`);
+			}
+		}
 
 		const output = await this._runGit(workingDirectory, args);
-		if (!output) {
-			return [];
-		}
-		const branches = output.split(/\r?\n/g).map(line => line.trim()).filter(branch => branch.length > 0);
-		return getBranchCompletions(branches, options);
+		return parseGitRefs(output);
+	}
+
+	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]> {
+		const refs = await this.getRefs(workingDirectory, query);
+		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
+	}
+
+	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+		const refs = await this.getBranches(workingDirectory, { pattern: name });
+		return refs.length > 0 ? refs[0] : undefined;
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -108,17 +136,73 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
+	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
-		// Pass --no-track so the new agent branch never picks up upstream
-		// tracking from the start point (e.g. when starting from
-		// 'origin/main', without --no-track git would set the new branch's
-		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
+
+		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
+
+		if (!track) {
+			// Pass --no-track so the new agent branch never picks up upstream
+			// tracking from the start point (e.g. when starting from
+			// 'origin/main', without --no-track git would set the new branch's
+			// upstream to origin/main, which would mis-attribute pushes/pulls).
+			args.push('--no-track');
+		}
+
+		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
+
+		// `git worktree add` forces progress reporting on its internal checkout
+		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
+		// parsed for live feedback. GIT_PROGRESS_DELAY=0 lifts git's default
+		// two-second suppression so the first sample arrives immediately.
+		const progressParser = onProgress ? new GitCheckoutProgressParser(onProgress) : undefined;
+
+		await this._runGit(repositoryRoot, args, {
+			timeout: 180_000,
+			throwOnError: true,
+			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),
+		});
+	}
+
+	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
+		try {
+			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, globs);
+			if (worktreeIncludePaths.length === 0) {
+				return;
+			}
+
+			const startTime = performance.now();
+			const limiter = new Limiter<void>(15);
+			const filesTotal = worktreeIncludePaths.reduce((total, entry) => total + entry.fileCount, 0);
+			let filesDone = 0;
+			const results = await Promise.allSettled(worktreeIncludePaths.map(entry => limiter.queue(async () => {
+				const targetPath = path.join(worktree.fsPath, path.relative(repositoryRoot.fsPath, entry.sourcePath));
+				await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
+				await copyFile(entry.sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+				filesDone += entry.fileCount;
+				onProgress?.({ filesDone, filesTotal });
+			})));
+
+			const failedOperations = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			this._logService.info(`[AgentHostGitService][copyWorktreeIncludeFiles] Copied ${worktreeIncludePaths.length - failedOperations.length}/${worktreeIncludePaths.length} folder(s)/file(s) to worktree ${worktree.fsPath}. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			if (failedOperations.length > 0) {
+				this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree ${worktree.fsPath}.`);
+				for (const error of failedOperations) {
+					this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] ${error.reason}`);
+				}
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree ${worktree.fsPath}: ${error}`);
+		}
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		// `-f` (force) so recreation succeeds even when the worktree directory was
+		// deleted out-of-band but git still has it registered ("missing but
+		// already registered worktree"). This is our own managed per-session
+		// worktree/branch, so overriding git's safeguards here is safe.
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -330,6 +414,107 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined ? remoteBranch : undefined;
 	}
 
+	/**
+	 * Resolves the git-ignored paths to copy into a worktree.
+	 */
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, globs: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
+		if (globs.length === 0) {
+			return [];
+		}
+
+		// List the git-ignored (but untracked) files: `--others` selects
+		// untracked files, `--ignored` restricts to those matched by an exclude
+		// source, and `--exclude-standard` uses the standard sources (.gitignore,
+		// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
+		// paths containing spaces or other special characters survive intact.
+		//
+		// The `--directory` variant additionally collapses a *wholly*-ignored
+		// directory (one containing no tracked files) into a single `dir/`
+		// entry. It is enumerated in parallel and used below to copy such
+		// directories as one recursive unit rather than file-by-file.
+		const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
+		const [filesOutput, directoryOutput, worktreeOutput] = await Promise.all([
+			this._runGit(repositoryRoot, baseArgs, { timeout: 60_000 }),
+			this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 60_000 }),
+			this._runGit(worktreeRoot, ['ls-files', '-z'], { timeout: 60_000 }),
+		]);
+		if (!filesOutput) {
+			return [];
+		}
+
+		// git emits repository-relative, forward-slash paths.
+		const ignoredFiles = filesOutput.split('\x00').filter(entry => entry.length > 0);
+		if (ignoredFiles.length === 0) {
+			return [];
+		}
+
+		// Keep only the ignored files that match one of the configured
+		// `git.worktreeIncludeFiles` glob patterns (VS Code glob semantics),
+		// and — in the same pass — tally which wholly-ignored directories
+		// contain an ignored file that cannot be copied (and therefore cannot be
+		// collapsed). `git ls-files --directory` reports a wholly-ignored
+		// directory as a single `dir/` entry and never nests these entries
+		// (it stops descending once a directory is wholly ignored), so each
+		// file has at most one containing directory and no de-duplication of
+		// the directory set is required.
+		const matchers = globs.map(pattern => parse(pattern));
+		const wholeDirectories = new Set((directoryOutput ?? '')
+			.split('\x00').filter(entry => entry.endsWith('/')));
+		const worktreeFiles = new Set((worktreeOutput ?? '')
+			.split('\x00').filter(entry => entry.length > 0));
+
+		// Every ancestor directory of a tracked path, with the trailing `/` used
+		// by `git ls-files --directory`, so a source path can be checked against
+		// the shape (file vs directory) of its destination.
+		const worktreeDirectories = new Set<string>();
+		for (const file of worktreeFiles) {
+			let index = file.indexOf('/');
+			while (index !== -1) {
+				worktreeDirectories.add(file.slice(0, index + 1));
+				index = file.indexOf('/', index + 1);
+			}
+		}
+
+		const matchedFiles: string[] = [];
+		const nonCollapsibleDirectories = new Set<string>();
+		for (const file of ignoredFiles) {
+			if (
+				matchers.some(matcher => matcher(file)) &&
+				!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
+			) {
+				matchedFiles.push(file);
+			} else if (wholeDirectories.size > 0) {
+				const containingDirectory = findContainingDirectory(file, wholeDirectories);
+				if (containingDirectory !== undefined) {
+					nonCollapsibleDirectories.add(containingDirectory);
+				}
+			}
+		}
+
+		if (matchedFiles.length === 0) {
+			return [];
+		}
+
+		// Collapse matched files into their containing directory when the whole
+		// directory can be copied as a single recursive unit — i.e. it is
+		// wholly ignored (so it has no tracked files a recursive copy would
+		// clobber) and every ignored file it contains matched a glob (so
+		// nothing unwanted is copied, tracked by `nonCollapsibleDirectories` above).
+		// This turns a large tree such as `node_modules/` into one copy instead
+		// of one per file, while a partially-matched or partially-tracked
+		// directory falls back to its individual matched files. `--directory`
+		// with `--no-empty-directory` never reports an empty directory, so every
+		// entry in `wholeDirectories` is known to contain at least one ignored file.
+		const collapsedDirectories = new Set<string>();
+		for (const dir of wholeDirectories) {
+			if (!nonCollapsibleDirectories.has(dir)) {
+				collapsedDirectories.add(dir);
+			}
+		}
+
+		return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
+	}
+
 	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
@@ -352,6 +537,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		return this._computeSessionGitState(workingDirectory);
+	}
+
+	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		return parseFetchRemoteUrls(await this._runGit(repositoryRoot, ['remote', '-v']), preferredRemote);
+	}
+
+	async getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const status = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		return status === undefined ? undefined : parseUntrackedPaths(status);
 	}
 
 	async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined> {
@@ -492,6 +694,50 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	async getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+
+		const [virtualFileSystem, sparseCheckout, timestamp, commitCount, workspaceFiles] = await Promise.all([
+			this._runGit(repositoryRoot, ['config', '--get', 'core.virtualfilesystem']),
+			this._runGit(repositoryRoot, ['config', '--get', 'core.sparsecheckout']),
+			this._runGit(repositoryRoot, ['show', '-s', '--format=%ct', baselineCommit]),
+			this._runGit(repositoryRoot, ['rev-list', '--count', `${baselineCommit}..HEAD`]),
+			this._runGit(repositoryRoot, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']),
+		]);
+		const sparseCheckoutEnabled = new Set(['true', 'yes', 'on', '1']).has(sparseCheckout?.trim().toLowerCase() ?? '');
+		const timestampSeconds = Number(timestamp?.trim());
+		const parsedCommitCount = Number(commitCount?.trim());
+		return {
+			hasVirtualFileSystem: Boolean(virtualFileSystem?.trim()) || sparseCheckoutEnabled,
+			baselineCommitTimestamp: Number.isFinite(timestampSeconds) ? timestampSeconds * 1000 : undefined,
+			commitCount: Number.isFinite(parsedCommitCount) ? parsedCommitCount : undefined,
+			workspaceFileCount: workspaceFiles?.split('\x00').filter(Boolean).length ?? 0,
+		};
+	}
+
+	async getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<{ readonly patch: string | undefined; readonly tooLarge: boolean } | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const paths = [...new Set(options.paths)];
+		if (paths.length === 0) {
+			return { patch: '', tooLarge: false };
+		}
+		try {
+			const patch = await this._runGit(repositoryRoot, ['diff', '--patch', '--no-ext-diff', '--find-renames', '--diff-filter=ADMR', options.fromRef, options.toRef, '--', ...paths], { maxBuffer: options.maxBuffer, throwOnError: true });
+			return patch === undefined ? undefined : { patch, tooLarge: false };
+		} catch (error) {
+			if (isMaxBufferError(error)) {
+				return { patch: undefined, tooLarge: true };
+			}
+			throw error;
+		}
+	}
+
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
@@ -514,6 +760,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
+		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
+		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -540,6 +788,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
 			githubOwner: githubRepo?.owner,
+			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
@@ -547,7 +796,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return stripUndefined(result);
 	}
 
-	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
+	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		return new Promise((resolve, reject) => {
@@ -578,6 +827,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			// `execFile` keeps its own listener for the buffered result; an
+			// extra one just tees the same chunks for live progress.
+			const onStderr = options?.onStderr;
+			if (onStderr) {
+				child.stderr?.on('data', (chunk: Buffer | string) => onStderr(chunk.toString()));
+			}
 			const timer = setTimeout(() => {
 				didTimeOut = true;
 				child.kill();
@@ -585,6 +840,139 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+/**
+ * Incrementally extracts checkout progress from git's stderr. Git rewrites the
+ * progress line in place with carriage returns, so a chunk carries any number
+ * of samples and may split one across chunk boundaries; the trailing partial
+ * line is held back until the rest arrives. Every complete sample is forwarded
+ * verbatim — rounding and rate limiting belong to the consumer, which knows how
+ * it wants to present them.
+ *
+ * Exported for tests.
+ */
+export class GitCheckoutProgressParser {
+
+	private static readonly _pattern = /Updating files:\s+\d+% \((?<done>\d+)\/(?<total>\d+)\)/g;
+
+	private _pending = '';
+
+	constructor(private readonly _onProgress: (progress: IWorktreeFileProgress) => void) { }
+
+	push(chunk: string): void {
+		// Keep whatever follows the last line break for the next chunk; git
+		// separates progress samples with `\r` and ends the phase with `\n`.
+		const buffer = this._pending + chunk;
+		const lastBreak = Math.max(buffer.lastIndexOf('\r'), buffer.lastIndexOf('\n'));
+		if (lastBreak === -1) {
+			this._pending = buffer;
+			return;
+		}
+		this._pending = buffer.substring(lastBreak + 1);
+
+		const complete = buffer.substring(0, lastBreak);
+		GitCheckoutProgressParser._pattern.lastIndex = 0;
+		let match: RegExpExecArray | null;
+		while ((match = GitCheckoutProgressParser._pattern.exec(complete))) {
+			const filesTotal = Number(match.groups!.total);
+			if (filesTotal > 0) {
+				this._onProgress({ filesDone: Number(match.groups!.done), filesTotal });
+			}
+		}
+	}
+}
+
+/**
+ * A path to copy into a worktree, plus how many individual ignored files it
+ * covers — one for a plain file, the whole tally for a collapsed directory —
+ * so callers can report progress in files rather than in entries of wildly
+ * different size.
+ */
+interface IWorktreeIncludeEntry {
+	readonly sourcePath: string;
+	readonly fileCount: number;
+}
+
+/**
+ * Builds the entries to copy: one per collapsed directory, standing in for all
+ * the matched files beneath it, plus one per matched file no collapsed
+ * directory covers.
+ */
+function toWorktreeIncludeEntries(repositoryRoot: URI, matchedFiles: readonly string[], collapsedDirectories: ReadonlySet<string>): IWorktreeIncludeEntry[] {
+	const toEntry = (relativePath: string, fileCount: number): IWorktreeIncludeEntry => ({
+		sourcePath: path.join(repositoryRoot.fsPath, relativePath),
+		fileCount,
+	});
+
+	// Seeded with every collapsed directory so one is still emitted even if the
+	// tally below never reaches it.
+	const directoryFileCounts = new Map<string, number>();
+	for (const dir of collapsedDirectories) {
+		directoryFileCounts.set(dir, 0);
+	}
+
+	const fileEntries: IWorktreeIncludeEntry[] = [];
+	for (const file of matchedFiles) {
+		const containingDirectory = collapsedDirectories.size > 0
+			? findContainingDirectory(file, collapsedDirectories)
+			: undefined;
+		if (containingDirectory === undefined) {
+			fileEntries.push(toEntry(file, 1));
+		} else {
+			directoryFileCounts.set(containingDirectory, directoryFileCounts.get(containingDirectory)! + 1);
+		}
+	}
+
+	return [
+		...[...directoryFileCounts].map(([dir, fileCount]) => toEntry(dir, fileCount)),
+		...fileEntries,
+	];
+}
+
+/**
+ * Returns the shallowest directory from `directories` that contains `file`, or
+ * `undefined` if none does. `file` is a repository-relative, forward-slash path
+ * and every entry in `directories` is expected to end with a trailing `/` (as
+ * produced by `git ls-files --directory`). Walking the path's `/` boundaries
+ * and probing the set is O(path depth) per file, avoiding an O(directories)
+ * scan for each file.
+ */
+function findContainingDirectory(file: string, directories: ReadonlySet<string>): string | undefined {
+	let index = file.indexOf('/');
+	while (index !== -1) {
+		const prefix = file.slice(0, index + 1);
+		if (directories.has(prefix)) {
+			return prefix;
+		}
+		index = file.indexOf('/', index + 1);
+	}
+	return undefined;
+}
+
+/**
+ * Returns whether copying a source path would overwrite a tracked worktree path
+ * or conflict with the file/directory shape of its destination. `file` and both
+ * sets use repository-relative, forward-slash paths, with `worktreeDirectories`
+ * entries carrying a trailing `/`.
+ */
+function hasWorktreePathCollision(file: string, worktreeFiles: ReadonlySet<string>, worktreeDirectories: ReadonlySet<string>): boolean {
+	// The destination is a tracked file, which the copy would overwrite, or a
+	// tracked directory, which a file cannot take the place of.
+	if (worktreeFiles.has(file) || worktreeDirectories.has(`${file}/`)) {
+		return true;
+	}
+
+	// An ancestor of the destination is a tracked file, so the directories
+	// leading up to it cannot be created.
+	let index = file.indexOf('/');
+	while (index !== -1) {
+		if (worktreeFiles.has(file.slice(0, index))) {
+			return true;
+		}
+		index = file.indexOf('/', index + 1);
+	}
+	return false;
 }
 
 /**
@@ -896,37 +1284,49 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 	return /github\.com[:\/]/i.test(remotesOutput);
 }
 
+/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
+export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferredRemote?: string): string[] | undefined {
+	const candidates = parseFetchRemotes(remotesOutput);
+	if (!candidates) {
+		return undefined;
+	}
+	const preferredNames = new Set([preferredRemote, 'origin'].filter((name): name is string => Boolean(name)));
+	const ordered = [
+		...candidates.filter(candidate => candidate.name === preferredRemote),
+		...candidates.filter(candidate => candidate.name === 'origin' && candidate.name !== preferredRemote),
+		...candidates.filter(candidate => !preferredNames.has(candidate.name)),
+	];
+	return [...new Set(ordered.map(candidate => candidate.url))];
+}
+
+function parseFetchRemotes(remotesOutput: string | undefined): { name: string; url: string }[] | undefined {
+	if (remotesOutput === undefined) {
+		return undefined;
+	}
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
+		if (match) {
+			candidates.push({ name: match[1], url: match[2] });
+		}
+	}
+	return candidates;
+}
+
 /**
- * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
- * remote; falls back to the first GitHub remote so worktrees that renamed
- * the remote still surface PR state. Returns `undefined` if no GitHub
- * remote is present or the URL doesn't match a GitHub repo shape.
+ * Parse `owner` and `repo` from `git remote -v` output. When `remoteName` is
+ * provided, only that remote is considered. Otherwise, `origin` is preferred.
  *
  * Exported for tests.
  */
-export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
-	if (!remotesOutput) {
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, remoteName?: string): { owner: string; repo: string } | undefined {
+	const candidates = remoteName === undefined
+		? parseFetchRemoteUrls(remotesOutput)
+		: parseFetchRemotes(remotesOutput)?.filter(candidate => candidate.name === remoteName).map(candidate => candidate.url);
+	if (!candidates) {
 		return undefined;
 	}
-	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
-	// don't double-count the same remote.
-	const candidates: { name: string; url: string }[] = [];
-	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const line = rawLine.trim();
-		if (!line) { continue; }
-		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
-		if (!m) { continue; }
-		candidates.push({ name: m[1], url: m[2] });
-	}
-	if (candidates.length === 0) {
-		return undefined;
-	}
-	// Prefer `origin`, otherwise first matching remote.
-	const ordered = [
-		...candidates.filter(c => c.name === 'origin'),
-		...candidates.filter(c => c.name !== 'origin'),
-	];
-	for (const { url } of ordered) {
+	for (const url of candidates) {
 		const parsed = parseGitHubOwnerRepoFromUrl(url);
 		if (parsed) {
 			return parsed;
@@ -962,10 +1362,63 @@ export function parseDefaultBranchRef(symbolicRefOutput: string | undefined): st
 	return ref.startsWith(prefix) ? ref.substring(prefix.length) : ref;
 }
 
+export function parseRemoteBranchRef(ref: string): { ref: string; name: string; remote: string } | undefined {
+	if (!ref.startsWith('refs/remotes/')) {
+		return undefined;
+	}
+
+	const name = ref.substring(13);
+	const remote = name.split('/')[0];
+	return { ref, name, remote };
+}
+
+export function parseGitRefs(output: string | undefined): GitRef[] {
+	if (!output) {
+		return [];
+	}
+
+	const refs: GitRef[] = [];
+	for (const line of output.split(/\r?\n/g)) {
+		const [ref, upstream] = line.trim().split('\0');
+
+		if (ref.startsWith('refs/heads/')) {
+			refs.push({
+				ref,
+				name: ref.substring(11),
+				upstream: upstream
+					? parseRemoteBranchRef(upstream)
+					: undefined,
+				kind: GitRefType.Head
+			} satisfies IBranch);
+		} else if (ref.startsWith('refs/remotes/') && !/^refs\/remotes\/[^/]+\/HEAD$/.test(ref)) {
+			const parsedRemoteBranch = parseRemoteBranchRef(ref);
+			if (parsedRemoteBranch) {
+				refs.push({
+					...parsedRemoteBranch,
+					kind: GitRefType.RemoteHead
+				} satisfies IRemoteBranch);
+			}
+		} else if (ref.startsWith('refs/tags/')) {
+			refs.push({
+				ref,
+				name: ref.substring(10),
+				kind: GitRefType.Tag
+			} satisfies ITag);
+		}
+	}
+
+	return refs;
+}
+
 function stripUndefined<T extends object>(obj: T): T {
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(obj)) {
 		if (v !== undefined) { out[k] = v; }
 	}
 	return out as T;
+}
+
+function isMaxBufferError(error: unknown): boolean {
+	const cause = error instanceof Error ? error.cause : undefined;
+	return cause instanceof Error && (cause as cp.ExecFileException).code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
 }

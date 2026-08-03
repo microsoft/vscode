@@ -902,6 +902,13 @@ export interface IDiffEditorBaseOptions {
 	compactMode?: boolean;
 
 	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
+
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
@@ -4987,6 +4994,12 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
+	 * Grow the suggest widget's preferred width to fit the inline detail text so it
+	 * is not truncated. Defaults to false.
+	 * @internal
+	 */
+	fitWidthToDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -5124,6 +5137,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
+			fitWidthToDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -5218,10 +5232,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.showInlineDetails,
 					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
-				},
-				'editor.suggest.maxVisibleSuggestions': {
-					type: 'number',
-					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -5398,6 +5408,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: boolean(input.preview, this.defaultValue.preview),
 			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			fitWidthToDetails: boolean(input.fitWidthToDetails, this.defaultValue.fitWidthToDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),

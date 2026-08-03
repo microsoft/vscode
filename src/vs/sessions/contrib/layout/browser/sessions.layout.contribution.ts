@@ -6,7 +6,6 @@
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -15,6 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { LayoutController, RESPONSIVE_SIDEBAR_SETTING } from './desktopSessionLayoutController.js';
 import { MobileLayoutController } from './mobileSessionLayoutController.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SinglePaneLayoutController } from './singlePaneLayoutController.js';
 
 class SessionsLayoutContribution extends Disposable implements IWorkbenchContribution {
@@ -23,17 +23,17 @@ class SessionsLayoutContribution extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		if (isWeb && isMobile) {
-			this._register(instantiationService.createInstance(MobileLayoutController));
+		if (layoutService.isSinglePaneLayoutEnabled) {
+			this._register(instantiationService.createInstance(SinglePaneLayoutController));
 			return;
 		}
 
-		if (configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING)) {
-			this._register(instantiationService.createInstance(SinglePaneLayoutController));
+		if (isWeb && isMobile) {
+			this._register(instantiationService.createInstance(MobileLayoutController));
 			return;
 		}
 

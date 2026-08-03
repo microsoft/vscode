@@ -9,6 +9,7 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { escape as escapeXml } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -28,7 +29,7 @@ export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } fro
 export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
+import { ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
@@ -373,10 +374,10 @@ export class ComputeAutomaticInstructions {
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
-					entries.push(`<description>${instruction.description}</description>`);
+					entries.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
 				if (instruction.pattern) {
-					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					entries.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -388,7 +389,7 @@ export class ComputeAutomaticInstructions {
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(uri)}</file>`);
-				entries.push(`<description>${description}</description>`);
+				entries.push(`<description>${escapeXml(description)}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -471,9 +472,9 @@ export class ComputeAutomaticInstructions {
 				let truncatedAtIndex = modelInvocableSkills.length;
 				for (let i = 0; i < modelInvocableSkills.length; i++) {
 					const skill = modelInvocableSkills[i];
-					const skillEntry = [`<skill>`, `<name>${skill.name}</name>`];
+					const skillEntry = [`<skill>`, `<name>${escapeXml(skill.name)}</name>`];
 					if (skill.description) {
-						skillEntry.push(`<description>${skill.description}</description>`);
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push(`</skill>`);
@@ -492,12 +493,13 @@ export class ComputeAutomaticInstructions {
 					const names: string[] = [];
 					let nameListLength = 0;
 					for (const skill of truncatedSkills) {
-						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
 						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
 							break;
 						}
 						nameListLength += addition;
-						names.push(skill.name);
+						names.push(escapedName);
 					}
 					const remaining = truncatedSkills.length - names.length;
 					const nameList = names.join(', ');
@@ -509,8 +511,6 @@ export class ComputeAutomaticInstructions {
 			}
 		}
 		if (runSubagentTool) {
-			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
-
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable && matchesSessionType(agent.sessionTypes, currentSessionType);
@@ -521,29 +521,21 @@ export class ComputeAutomaticInstructions {
 			})();
 			const agents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
-			if (generalPurposeAgentEnabled || agents.length > 0) {
+			if (agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
 				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
 
-				if (generalPurposeAgentEnabled) {
-					// Built-in General Purpose agent, always available when experiment is on
-					entries.push('<agent>');
-					entries.push(`<name>${GeneralPurposeAgentName}</name>`);
-					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
-					entries.push('</agent>');
-				}
-
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
+						entries.push(`<name>${escapeXml(agent.name)}</name>`);
 						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+							entries.push(`<description>${escapeXml(agent.description)}</description>`);
 						}
 						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+							entries.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 						}
 						entries.push('</agent>');
 						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
@@ -656,4 +648,3 @@ export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined, isR
 	}
 	return uri.toString();
 }
-

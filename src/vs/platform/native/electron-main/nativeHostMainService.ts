@@ -14,8 +14,8 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, IOSProperties, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -315,12 +315,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined, options?: IOpenAgentsWindowOptions): Promise<void> {
 		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined);
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source);
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
@@ -1146,6 +1146,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return session?.resolveProxy(url);
 	}
 
+	async resolveProxyWithPackage(_windowId: number | undefined, url: string): Promise<IOSProxy[]> {
+		const { resolveProxy } = await import('@vscode/os-proxy-resolver');
+		return resolveProxy(url);
+	}
+
+	async readProxyConfigWithPackage(_windowId: number | undefined): Promise<IOSProxyConfig> {
+		const { readProxyConfig } = await import('@vscode/os-proxy-resolver');
+		return readProxyConfig();
+	}
+
 	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this.proxyAuthService.lookupAuthorization(authInfo);
 	}
@@ -1412,8 +1422,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Zip
 
-	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
-		await zip(zipPath.fsPath, files);
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[]): Promise<void> {
+		await zip(zipPath.fsPath, files.map(file => {
+			if (hasKey(file, { contents: true })) {
+				return file;
+			}
+			const source = URI.revive(file.source);
+			if (source.scheme !== Schemas.file) {
+				throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
+			}
+			return { path: file.path, localPath: source.fsPath, localPathSize: file.size };
+		}));
 	}
 
 	//#endregion

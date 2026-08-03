@@ -14,9 +14,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -174,13 +175,21 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 
+	readonly capabilities: ISessionChangesetCapabilities;
+
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
+	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
 
 	constructor(
+		changeset: Changeset,
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
+		this.capabilities = {
+			review: changeset.capabilities?.review !== undefined
+		} satisfies ISessionChangesetCapabilities;
+
 		this.isLoadingChanges = derived(reader => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
@@ -207,7 +216,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
 		// files keep their reference across reducer updates, enabling the
 		// per-file cache below to skip rebuilding them.
-		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
+		this._changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
@@ -231,7 +240,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// `ChangesetFile` reference is unchanged so only changed files are
 		// re-parsed and re-mapped.
 		const mappedChangesObs = mapObservableArrayCached(this,
-			changesetFilesObs.map(files => files ?? []),
+			this._changesetFilesObs.map(files => files ?? []),
 			file => changesetFileToChange(file, mapDiffUri));
 
 		const changesObs = derived<readonly ISessionFileChange[] | undefined>(this, reader => {
@@ -299,6 +308,39 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				: undefined,
 		});
 	}
+
+	setReviewState(resources: readonly URI[], reviewed: boolean): void {
+		if (!this.capabilities.review) {
+			return;
+		}
+
+		const connection = this._options.getConnection();
+		const channel = this.channelUriObs.get();
+		if (!connection || !channel) {
+			return;
+		}
+
+		const files = resources.map(resource => {
+			const file = this._changesetFilesObs.get()?.find(candidate => {
+				const change = changesetFileToChange(candidate, this._options.mapDiffUri);
+				return isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
+			});
+			if (!file) {
+				throw new Error(`Resource '${resource.toString()}' is not part of changeset '${this.id}'`);
+			}
+			return file.id;
+		});
+
+		if (files.length === 0) {
+			return;
+		}
+
+		connection.dispatch(channel.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files,
+			reviewed,
+		});
+	}
 }
 
 class AgentHostChangeset extends AbstractAgentHostChangeset {
@@ -322,7 +364,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 		changesetSummary: Changeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(options, dialogService);
+		super(changesetSummary, options, dialogService);
 
 		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
@@ -359,7 +401,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		changesetSummary: Changeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(options, dialogService);
+		super(changesetSummary, options, dialogService);
 
 		this.id = changesetSummary.changeKind;
 

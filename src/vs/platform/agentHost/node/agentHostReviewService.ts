@@ -9,11 +9,12 @@ import { relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import type { URI as ProtocolURI } from '../common/state/sessionState.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * Resolved git context shared by the review operations: the repository root,
@@ -41,7 +42,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 	private readonly _sequencer = new SequencerByKey<string>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -50,11 +51,43 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 
 		// When a session's data directory is about to be deleted, delete the
 		// reviewed ref we created for it. The working directory needed to
-		// resolve the repository root is supplied by the event (resolved from
-		// live session state) so we don't persist our own copy.
+		// resolve the repository root is supplied by the event (resolved
+		// before the session's live state was torn down) so we don't
+		// persist our own copy.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
-			e.waitUntil(this.disposeSessionData(e.session.toString()));
+			e.waitUntil(this.disposeSessionData(e.session.toString(), e.workingDirectories));
 		}));
+	}
+
+	async setReviewState(channel: ProtocolURI, resources: readonly ProtocolURI[], reviewed: boolean): Promise<void> {
+		const parsed = parseChangesetUri(channel);
+		if (!parsed || parsed.kind !== ChangesetKind.Branch) {
+			throw new Error(`Not a branch changeset URI: ${channel}`);
+		}
+
+		const sessionState = this._stateManager.getSessionState(parsed.sessionUri);
+		if (!sessionState) {
+			throw new Error(`Session not found: ${parsed.sessionUri}`);
+		}
+		if (!sessionState.workingDirectories?.[0]) {
+			throw new Error(`Session has no working directory: ${parsed.sessionUri}`);
+		}
+
+		const databaseRef = this._sessionDataService.openDatabase(URI.parse(parsed.sessionUri));
+		let persistedBaseBranch: string | undefined;
+		try {
+			persistedBaseBranch = await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH);
+		} finally {
+			databaseRef.dispose();
+		}
+
+		const workingDirectory = URI.parse(sessionState.workingDirectories?.[0]);
+		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, readSessionGitState(sessionState._meta)?.baseBranchName);
+		await this._sequencer.queue(parsed.sessionUri, async () => {
+			for (const resource of resources) {
+				await this._setReviewed(parsed.sessionUri, workingDirectory, baseBranch, URI.parse(resource), reviewed);
+			}
+		});
 	}
 
 	markFileReviewed(session: ProtocolURI, workingDirectory: URI, baseBranch: string | undefined, resource: URI): Promise<void> {
@@ -197,30 +230,31 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		return { repoRoot, baselineTree, reviewedRef, reviewedCommit, reviewedTree };
 	}
 
-	async disposeSessionData(session: ProtocolURI): Promise<void> {
-		await this._sequencer.queue(session, () => this._disposeSessionData(session));
+	async disposeSessionData(session: ProtocolURI, workingDirectories?: readonly string[]): Promise<void> {
+		await this._sequencer.queue(session, () => this._disposeSessionData(session, workingDirectories));
 	}
 
-	private async _disposeSessionData(session: ProtocolURI): Promise<void> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
-		if (!workingDirectory) {
-			// No working directory means we can't resolve the repository root
-			// (session was never git-backed, or its working directory is gone).
+	private async _disposeSessionData(session: ProtocolURI, workingDirectories?: readonly string[]): Promise<void> {
+		if (!workingDirectories || workingDirectories.length === 0) {
 			return;
 		}
 
-		const repoRoot = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
-		if (!repoRoot) {
-			return;
-		}
+		const sanitizedSessionId = this._sanitizedSessionId(session);
+		const reviewedRef = buildReviewedRefName(sanitizedSessionId);
 
-		try {
-			const reviewedRef = buildReviewedRefName(this._sanitizedSessionId(session));
-			await this._gitService.deleteRefs(repoRoot, [reviewedRef]);
+		for (const workingDirectory of workingDirectories) {
+			try {
+				const workingDirectoryUri = URI.parse(workingDirectory);
+				const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
+				if (!repositoryRootUri) {
+					continue;
+				}
 
-			this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session}`);
-		} catch (err) {
-			this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session}`, err);
+				await this._gitService.deleteRefs(repositoryRootUri, [reviewedRef]);
+				this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session} in working directory ${workingDirectory}`);
+			} catch (err) {
+				this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session} in working directory ${workingDirectory}`, err);
+			}
 		}
 	}
 
