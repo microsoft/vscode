@@ -137,6 +137,10 @@
 	padding: 4px 0 4px 4px;
 }
 
+.style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
+	padding-bottom: var(--tabs-scrollbar-height, 0px);
+}
+
 .style-override .part.editor .tabs-container > .tab.active {
 	background-color: var(--modern-ui-tab-active-background) !important;
 }
