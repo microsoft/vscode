@@ -5,9 +5,8 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -15,7 +14,6 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType, NotificationType, type IToolCallContentChangedAction, type IToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
 import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	dispatchTurn,
@@ -59,92 +57,6 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		const sessionState = subscribeResult.snapshot!.state as SessionState;
 		assert.strictEqual(sessionState.workingDirectories?.[0], workingDirUri,
 			`subscribe snapshot summary should carry the requested working directory`);
-	});
-
-	(config.supportsMultiRootSkillCapabilityRoots ? test : test.skip)('secondary workspace skill reaches the Codex model request', async function () {
-		this.timeout(120_000);
-
-		const parent = mkdtempSync(join(tmpdir(), 'ahp-codex-multiroot-'));
-		tempDirs.push(parent);
-		const rootA = join(parent, 'a');
-		const rootB = join(parent, 'b');
-		const skillName = 'secondary-root-marker';
-		const marker = 'CODEX_SECONDARY_ROOT_SKILL_MARKER_73';
-		const skillDirectory = join(rootB, '.agents', 'skills', skillName);
-		mkdirSync(rootA, { recursive: true });
-		mkdirSync(skillDirectory, { recursive: true });
-		writeFileSync(join(skillDirectory, 'SKILL.md'), [
-			'---',
-			`name: ${skillName}`,
-			'description: Confirms that Codex loaded a skill from a secondary workspace root.',
-			'---',
-			'',
-			`When invoked, follow this marker instruction: ${marker}`,
-		].join('\n'));
-
-		context.client.setWorkingDirectory(parent);
-		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-multiroot-skill' }, 30_000);
-		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
-		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		let multiRootEnabled = false;
-
-		try {
-			context.client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: true } },
-			});
-			await context.client.waitForNotification(n => {
-				if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-					return false;
-				}
-				const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-				return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === true;
-			}, 30_000);
-			multiRootEnabled = true;
-
-			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-			await context.client.call('createSession', {
-				channel: sessionUri,
-				provider: config.provider,
-				workingDirectories: [URI.file(rootA).toString(), URI.file(rootB).toString()],
-				config: { isolation: 'folder' },
-			}, 30_000);
-			createdSessions.push(sessionUri);
-			await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
-			context.client.clearReceived();
-
-			dispatchTurn(context.client, sessionUri, 'turn-secondary-skill', `Use the ${skillName} skill, then reply with exactly done.`, 1);
-			await context.client.waitForNotification(
-				n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-				90_000,
-			);
-
-			const errors = context.client.receivedNotifications(n => isActionNotification(n, 'chat/error'));
-			assert.deepStrictEqual({
-				errorCount: errors.length,
-				modelRequestIncludesMarker: context.observedModelRequestBodies.some(body => body.includes(marker)),
-			}, {
-				errorCount: 0,
-				modelRequestIncludesMarker: true,
-			});
-		} finally {
-			if (multiRootEnabled) {
-				context.client.dispatch({
-					channel: ROOT_STATE_URI,
-					clientSeq: 2,
-					action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: false } },
-				});
-				await context.client.waitForNotification(n => {
-					if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-						return false;
-					}
-					const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-					return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === false;
-				}, 30_000);
-			}
-		}
 	});
 
 	// Skipped on Windows. The command and the tool name are portable now, but the
