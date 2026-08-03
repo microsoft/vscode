@@ -188,7 +188,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		assert.deepStrictEqual({ snapshots, results: reports.map(report => report.result) }, { snapshots: 1, results: ['tooManyChanges'] });
 	});
 
-	test('withholds diff content when content exclusion is enabled or unknown', async () => {
+	test('fails closed when content exclusion is unavailable or no checker is provided', async () => {
 		const root = URI.file('/repo');
 		let patchCalls = 0;
 		const gitService: IAgentHostGitService = {
@@ -209,9 +209,8 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		const reports: IAgentHostRepoInfoReport[] = [];
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		for (const [index, copilotIgnoreEnabled] of [true, undefined].entries()) {
-			await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled }, 'agent-session://copilot/s1', `turn-${index}`, AgentHostClientType.Unknown, root, undefined, () => true);
-		}
+		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: true }, 'agent-session://copilot/s1', 'turn-0', AgentHostClientType.Unknown, root, undefined, () => true, async () => ({ available: false, checks: [] }));
+		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: undefined }, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.Unknown, root, undefined, () => true);
 
 		assert.deepStrictEqual({
 			patchCalls,
@@ -225,15 +224,67 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			patchCalls: 0,
 			reports: [{
 				repoId: 'microsoft/vscode',
-				fileRelativePaths: JSON.stringify(['new.txt']),
+				fileRelativePaths: JSON.stringify([]),
 				diffsJSON: undefined,
 				result: 'success',
 			}, {
 				repoId: 'microsoft/vscode',
-				fileRelativePaths: JSON.stringify(['new.txt']),
+				fileRelativePaths: JSON.stringify([]),
 				diffsJSON: undefined,
 				result: 'success',
 			}],
+		});
+	});
+
+	test('emits paths and patches only when every path for a change is allowed', async () => {
+		const root = URI.file('/repo');
+		const allowedUri = URI.joinPath(root, 'allowed.txt');
+		const excludedUri = URI.joinPath(root, 'excluded.txt');
+		const checkedPaths: string[][] = [];
+		const patchPaths: string[][] = [];
+		const reports: IAgentHostRepoInfoReport[] = [];
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async () => root,
+			getSessionGitState: async () => ({ branchName: 'feature', baseBranchName: 'main' }),
+			getFetchRemoteUrls: async () => ['https://github.com/microsoft/vscode'],
+			resolveBranchBaselineCommit: async () => 'base',
+			getBranchDiffSafetyInfo: async () => ({ hasVirtualFileSystem: false, baselineCommitTimestamp: Date.now(), commitCount: 1, workspaceFileCount: 2 }),
+			captureWorkingTreeAsTree: async () => 'tree',
+			computeFileDiffsBetweenRefs: async () => [{
+				before: { uri: allowedUri.toString(), content: { uri: 'git-blob://allowed-before' } },
+				after: { uri: allowedUri.toString(), content: { uri: 'git-blob://allowed-after' } },
+				diff: { added: 1, removed: 1 },
+			}, {
+				before: { uri: excludedUri.toString(), content: { uri: 'git-blob://excluded-before' } },
+				after: { uri: excludedUri.toString(), content: { uri: 'git-blob://excluded-after' } },
+				diff: { added: 1, removed: 1 },
+			}],
+			getDiffPatchBetweenRefs: async (_cwd, options) => {
+				patchPaths.push([...options.paths]);
+				return { patch: 'allowed-patch', tooLarge: false };
+			},
+		};
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+
+		await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled: true }, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true, async paths => {
+			checkedPaths.push([...paths]);
+			return {
+				available: true,
+				checks: paths.map(path => ({ path, excluded: path === excludedUri.fsPath })),
+			};
+		});
+
+		assert.deepStrictEqual({
+			checkedPaths,
+			patchPaths,
+			fileRelativePaths: reports[0].fileRelativePaths,
+			diffs: JSON.parse(reports[0].diffsJSON ?? '[]').map((diff: { uri: string; diff: string }) => ({ uri: diff.uri, diff: diff.diff })),
+		}, {
+			checkedPaths: [[allowedUri.fsPath, excludedUri.fsPath]],
+			patchPaths: [['allowed.txt']],
+			fileRelativePaths: JSON.stringify(['allowed.txt']),
+			diffs: [{ uri: allowedUri.toString(), diff: 'allowed-patch' }],
 		});
 	});
 

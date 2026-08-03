@@ -5,7 +5,7 @@
 
 import { Limiter } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { relativePath } from '../../../base/common/resources.js';
+import { joinPath, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -38,6 +38,10 @@ interface IRepoInfoFileDescriptor {
 }
 
 type RepoInfoTelemetryReporter = Pick<AgentHostTelemetryReporter, 'reportRepoInfo'>;
+export type RepoInfoContentExclusionChecker = (paths: readonly string[]) => Promise<{
+	readonly available: boolean;
+	readonly checks: readonly { readonly path: string; readonly excluded: boolean }[];
+}>;
 
 export interface IResolvedRepoInfoRemote {
 	readonly remoteUrl: string;
@@ -126,19 +130,19 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		super();
 	}
 
-	async reportBegin(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<void> {
+	async reportBegin(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean, checkContentExclusion?: RepoInfoContentExclusionChecker): Promise<void> {
 		let begin = this._beginResults.get(telemetryMessageId);
 		if (!begin) {
 			begin = {
 				clientType,
-				result: this._captureSafely(context, sessionUri, telemetryMessageId, clientType, 'begin', workingDirectory, baseBranch, isContextCurrent),
+				result: this._captureSafely(context, sessionUri, telemetryMessageId, clientType, 'begin', workingDirectory, baseBranch, isContextCurrent, checkContentExclusion),
 			};
 			this._beginResults.set(telemetryMessageId, begin);
 		}
 		await begin.result;
 	}
 
-	async reportEnd(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<void> {
+	async reportEnd(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean, checkContentExclusion?: RepoInfoContentExclusionChecker): Promise<void> {
 		const begin = this._beginResults.get(telemetryMessageId);
 		if (!begin) {
 			return;
@@ -146,7 +150,7 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		try {
 			const beginResult = await begin.result;
 			if (beginResult === 'success' || beginResult === 'noChanges') {
-				await this._captureSafely(context, sessionUri, telemetryMessageId, begin.clientType, 'end', workingDirectory, baseBranch, isContextCurrent);
+				await this._captureSafely(context, sessionUri, telemetryMessageId, begin.clientType, 'end', workingDirectory, baseBranch, isContextCurrent, checkContentExclusion);
 			}
 		} finally {
 			this._beginResults.delete(telemetryMessageId);
@@ -163,16 +167,16 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		super.dispose();
 	}
 
-	private async _captureSafely(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, location: 'begin' | 'end', workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<AgentHostRepoInfoResult | undefined> {
+	private async _captureSafely(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, location: 'begin' | 'end', workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean, checkContentExclusion?: RepoInfoContentExclusionChecker): Promise<AgentHostRepoInfoResult | undefined> {
 		try {
-			return await this._capture(context, sessionUri, telemetryMessageId, clientType, location, workingDirectory, baseBranch, isContextCurrent);
+			return await this._capture(context, sessionUri, telemetryMessageId, clientType, location, workingDirectory, baseBranch, isContextCurrent, checkContentExclusion);
 		} catch (error) {
 			this._logService.warn(`[AgentHostRepoInfoTelemetry] Failed to capture ${location} repo info: ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
 		}
 	}
 
-	private async _capture(telemetryContext: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, location: 'begin' | 'end', workingDirectory: URI | undefined, persistedBaseBranch: string | undefined, isContextCurrent: () => boolean): Promise<AgentHostRepoInfoResult | undefined> {
+	private async _capture(telemetryContext: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, location: 'begin' | 'end', workingDirectory: URI | undefined, persistedBaseBranch: string | undefined, isContextCurrent: () => boolean, checkContentExclusion?: RepoInfoContentExclusionChecker): Promise<AgentHostRepoInfoResult | undefined> {
 		if (!workingDirectory || !isContextCurrent() || (!telemetryContext.restrictedTelemetryEnabled && !telemetryContext.isInternal)) {
 			return undefined;
 		}
@@ -242,15 +246,15 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 			return undefined;
 		}
 		const resolvedDescriptors = descriptors as IRepoInfoFileDescriptor[];
-		const fileRelativePaths = JSON.stringify([...new Set(resolvedDescriptors.map(descriptor => descriptor.newPath ?? descriptor.oldPath).filter((path): path is string => path !== undefined))]);
-		// The SDK does not expose per-path exclusion decisions yet, so withhold patch content unless exclusion is explicitly disabled.
+		let allowedDescriptors = resolvedDescriptors;
 		if (telemetryContext.copilotIgnoreEnabled !== false) {
-			return await this._reportIfTreeUnchanged(telemetryContext, isContextCurrent, telemetryMessageId, clientType, location, repoInfo, workingDirectory, tree, 'success', safety.workspaceFileCount, fileDiffs.length, 0, fileRelativePaths);
+			allowedDescriptors = await this._filterContentExclusionAllowedDescriptors(repositoryRoot, resolvedDescriptors, checkContentExclusion);
 		}
+		const fileRelativePaths = JSON.stringify([...new Set(allowedDescriptors.map(descriptor => descriptor.newPath ?? descriptor.oldPath).filter((path): path is string => path !== undefined))]);
 		let patchTooLarge = false;
 		const limiter = new Limiter<{ readonly uri: string; readonly originalUri: string; readonly renameUri: string | undefined; readonly status: string; readonly diff: string }>(DIFF_PATCH_CONCURRENCY);
-		const diffs = await Promise.all(resolvedDescriptors.map(descriptor => limiter.queue(async () => {
-			const paths = [descriptor.oldPath, descriptor.newPath].filter((path): path is string => path !== undefined);
+		const diffs = await Promise.all(allowedDescriptors.map(descriptor => limiter.queue(async () => {
+			const paths = [...new Set([descriptor.oldPath, descriptor.newPath].filter((path): path is string => path !== undefined))];
 			const result = await this._gitService.getDiffPatchBetweenRefs(workingDirectory, { fromRef: headCommitHash, toRef: tree, paths, maxBuffer: MAX_DIFFS_JSON_BYTES });
 			if (!result) {
 				throw new Error(`Failed to compute diff for ${paths.join(', ')}`);
@@ -269,12 +273,44 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		if (patchTooLarge) {
 			return await this._reportIfTreeUnchanged(telemetryContext, isContextCurrent, telemetryMessageId, clientType, location, repoInfo, workingDirectory, tree, 'diffTooLarge', safety.workspaceFileCount, fileDiffs.length, MAX_DIFFS_JSON_BYTES + 1, fileRelativePaths);
 		}
-		const diffsJSON = JSON.stringify(diffs);
+		const diffsJSON = diffs.length > 0 ? JSON.stringify(diffs) : undefined;
+		if (!diffsJSON) {
+			return await this._reportIfTreeUnchanged(telemetryContext, isContextCurrent, telemetryMessageId, clientType, location, repoInfo, workingDirectory, tree, 'success', safety.workspaceFileCount, fileDiffs.length, 0, fileRelativePaths);
+		}
 		const measurement = measureRepoInfoDiffsJSON(diffsJSON);
 		if (measurement.tooLarge) {
 			return await this._reportIfTreeUnchanged(telemetryContext, isContextCurrent, telemetryMessageId, clientType, location, repoInfo, workingDirectory, tree, 'diffTooLarge', safety.workspaceFileCount, fileDiffs.length, measurement.diffSizeBytes, fileRelativePaths);
 		}
 		return await this._reportIfTreeUnchanged(telemetryContext, isContextCurrent, telemetryMessageId, clientType, location, repoInfo, workingDirectory, tree, 'success', safety.workspaceFileCount, fileDiffs.length, measurement.diffSizeBytes, fileRelativePaths, diffsJSON);
+	}
+
+	private async _filterContentExclusionAllowedDescriptors(repositoryRoot: URI, descriptors: readonly IRepoInfoFileDescriptor[], checkContentExclusion: RepoInfoContentExclusionChecker | undefined): Promise<IRepoInfoFileDescriptor[]> {
+		if (!checkContentExclusion) {
+			return [];
+		}
+		const paths = [...new Set(descriptors.flatMap(descriptor => [descriptor.oldPath, descriptor.newPath]
+			.filter((path): path is string => path !== undefined)
+			.map(path => joinPath(repositoryRoot, path).fsPath)))];
+		if (paths.length === 0) {
+			return [];
+		}
+		const result = await checkContentExclusion(paths);
+		if (!result.available || result.checks.length !== paths.length) {
+			return [];
+		}
+		const allowedPaths = new Set<string>();
+		for (let index = 0; index < paths.length; index++) {
+			const check = result.checks[index];
+			if (check.path !== paths[index]) {
+				return [];
+			}
+			if (!check.excluded) {
+				allowedPaths.add(check.path);
+			}
+		}
+		return descriptors.filter(descriptor => [descriptor.oldPath, descriptor.newPath]
+			.filter((path): path is string => path !== undefined)
+			.every(path => allowedPaths.has(joinPath(repositoryRoot, path).fsPath)));
 	}
 
 	private async _reportIfTreeUnchanged(telemetryContext: IAgentHostRestrictedTelemetryContext, isContextCurrent: () => boolean, telemetryMessageId: string, clientType: AgentHostClientType, location: 'begin' | 'end', repoInfo: IRepoInfoContext, workingDirectory: URI, capturedTree: string, stableResult: 'success' | 'noChanges' | 'diffTooLarge', workspaceFileCount: number, changedFileCount: number, diffSizeBytes: number, fileRelativePaths?: string, diffsJSON?: string): Promise<AgentHostRepoInfoResult> {
