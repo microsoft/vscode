@@ -1477,6 +1477,8 @@ class NewSession extends Disposable {
 
 	/** Backend session URI, set the moment {@link eagerCreate} starts. */
 	private _backendUri: URI | undefined;
+	private _backendCreated = false;
+	private _autoApprovePolicyReconciliationPending = false;
 	/** Connection used to create the backend session, captured for `disposeSession` on tear-down. */
 	private _connection: IAgentConnection | undefined;
 	/** Held state subscription. Set after the wire `createSession` resolves. */
@@ -1643,6 +1645,39 @@ class NewSession extends Disposable {
 		this._syncWorktreePending();
 	}
 
+	reconcileAutoApprovePolicy(policyRestricted: boolean): boolean {
+		if (!policyRestricted) {
+			return false;
+		}
+
+		const config = this._config;
+		const autoApprove = config?.values[SessionConfigKey.AutoApprove];
+		const normalizedAutoApprove = normalizeSessionConfigValue(SessionConfigKey.AutoApprove, autoApprove, true);
+		const didClampAutoApprove = config !== undefined && normalizedAutoApprove !== autoApprove;
+		if (didClampAutoApprove) {
+			this._config = {
+				...config,
+				values: { ...config.values, [SessionConfigKey.AutoApprove]: normalizedAutoApprove },
+			};
+		}
+
+		this._autoApprovePolicyReconciliationPending = true;
+		this._dispatchPendingAutoApprovePolicyReconciliation();
+		return didClampAutoApprove;
+	}
+
+	private _dispatchPendingAutoApprovePolicyReconciliation(): void {
+		if (!this._autoApprovePolicyReconciliationPending || !this._backendCreated || !this._connection || !this._backendUri) {
+			return;
+		}
+
+		this._connection.dispatch(this._backendUri.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AutoApprove]: ChatPermissionLevel.Default },
+		});
+		this._autoApprovePolicyReconciliationPending = false;
+	}
+
 	/**
 	 * `true` while a {@link resolveConfig} round-trip is in flight. See
 	 * {@link _isResolvingConfig} for why this is distinct from {@link ISession.loading}.
@@ -1762,6 +1797,8 @@ class NewSession extends Disposable {
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
 					...(this._initialActiveClient ? { activeClient: this._initialActiveClient } : {}),
 				});
+				this._backendCreated = true;
+				this._dispatchPendingAutoApprovePolicyReconciliation();
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
 				// Clear backend bookkeeping so a later `dispose()` doesn't
@@ -1771,6 +1808,7 @@ class NewSession extends Disposable {
 				// disposing this NewSession and constructing a new one).
 				if (this._backendUri?.toString() === backendUri.toString()) {
 					this._backendUri = undefined;
+					this._backendCreated = false;
 					this._connection = undefined;
 				}
 				return;
@@ -2160,7 +2198,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 		this._register(this._baseConfigurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) && isAutoApprovePolicyRestricted(this._baseConfigurationService)) {
-				this._reconcileRunningSessionAutoApprovePolicy();
+				this._reconcileSessionAutoApprovePolicy();
 			}
 		}));
 	}
@@ -2639,6 +2677,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			return;
 		}
+		session.reconcileAutoApprovePolicy(isAutoApprovePolicyRestricted(this._baseConfigurationService));
 		const config = session.getConfig();
 		this._cacheSeededConfigSchemas(config);
 		session.setLoading(config !== undefined && !isSessionConfigComplete(config));
@@ -2948,9 +2987,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _reconcileRunningSessionAutoApprovePolicy(): void {
+	private _reconcileSessionAutoApprovePolicy(): void {
+		for (const newSession of this._newSessions.values()) {
+			if (newSession.reconcileAutoApprovePolicy(true)) {
+				this._onDidChangeSessionConfig.fire(newSession.sessionId);
+			}
+		}
+
 		for (const [sessionId, config] of this._runningSessionConfigs) {
 			this._setRunningSessionConfig(sessionId, config, true);
+		}
+
+		const connection = this.connection;
+		if (!connection) {
+			return;
+		}
+		for (const cached of this._sessionCache.values()) {
+			if (this._runningSessionConfigs.has(cached.sessionId)) {
+				continue;
+			}
+			connection.dispatch(cached.backendUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: ChatPermissionLevel.Default },
+			});
 		}
 	}
 

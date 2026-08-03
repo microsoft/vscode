@@ -765,9 +765,10 @@ offered in approval pickers and defaults on outside Stable builds. Enterprise
 policy still leaves Approve When Safe and Allow All visible, but disables both with an
 administrator-directed explanation and normalizes either value back to Ask When Needed.
 When that policy becomes effective after a session has started, the provider immediately
-normalizes the running session's cached approval level and dispatches the change to the
-agent host. This updates the picker and drives the SDK from allow-all `on` to `off`;
-removing the policy does not silently re-enable Allow All for that running session.
+normalizes approval levels for running sessions and eager drafts, including restored
+sessions whose config has not yet been hydrated, and dispatches the change to the agent
+host. This updates the picker and drives the SDK from allow-all `on` to `off`; removing
+the policy does not silently re-enable Allow All for that session.
 The agent mode axis is independent: Autopilot with Ask When Needed still uses
 SDK permission mode `off` and preserves the configured sandbox policy.
 

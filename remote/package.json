@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@github/copilot": "^1.0.77",
+    "@github/copilot": "1.0.78-2",
     "@github/copilot-sdk": "^1.0.9-preview.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -55,6 +55,7 @@
     "zod": "^3.25.76"
   },
   "overrides": {
+    "@github/copilot": "$@github/copilot",
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"

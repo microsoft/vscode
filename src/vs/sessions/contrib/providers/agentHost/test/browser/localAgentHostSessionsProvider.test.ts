@@ -4732,6 +4732,64 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('late policy restriction reconciles an unhydrated restored session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('policy-unhydrated', { summary: 'Unhydrated Policy Session' }));
+		const configurationService = new MutableAutoApprovePolicyConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Unhydrated Policy Session');
+		assert.ok(session);
+		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
+
+		configurationService.setPolicyValue(false);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.dispatchedActions.find(candidate => candidate.channel === 'copilotcli:/policy-unhydrated')?.action, {
+			type: ActionType.SessionConfigChanged,
+			config: { autoApprove: 'default' },
+		});
+	}));
+
+	test('late policy restriction reconciles an eagerly created draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const configurationService = new MutableAutoApprovePolicyConfigurationService();
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'autoApprove' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.autoApprove === 'autoApprove');
+		await timeout(0);
+		const backendUri = agentHost.createdSessionUris.at(-1);
+		assert.ok(backendUri);
+
+		configurationService.setPolicyValue(false);
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.autoApprove === 'default');
+
+		assert.deepStrictEqual({
+			config: provider.getSessionConfig(session.sessionId)?.values,
+			action: agentHost.dispatchedActions.find(candidate => candidate.channel === backendUri.toString())?.action,
+			rememberedValues: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			config: { autoApprove: 'default' },
+			action: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+			rememberedValues: { autoApprove: 'autoApprove' },
+		});
+	}));
+
 	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('schema-write', { summary: 'Schema Write Session' }));
 		const provider = createProvider(disposables, agentHost);
