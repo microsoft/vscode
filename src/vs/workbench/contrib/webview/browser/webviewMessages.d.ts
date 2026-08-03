@@ -52,6 +52,10 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		// --- Start FusionIDE ---
+		/** Whether the inner frame may request the microphone (FusionVoice). */
+		fusionideAllowMicrophone: boolean;
+		// --- End FusionIDE ---
 	};
 	state: any;
 	cspSource: string;
