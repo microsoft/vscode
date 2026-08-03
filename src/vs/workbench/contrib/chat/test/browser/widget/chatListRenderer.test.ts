@@ -338,13 +338,13 @@ suite('ChatListRenderer', () => {
 
 		test('summarizes per-model token usage for the footer stat hover', () => {
 			const stats = formatResponseTokenStats([
-				{ model: 'claude-opus-4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
+				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			]);
 
 			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
-				markdown: '**Tokens used this turn**\n\nclaude-opus-4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
-				ariaLabel: 'Tokens used this turn. claude-opus-4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+				markdown: '**Tokens used this turn**\n\nClaude Opus 4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
+				ariaLabel: 'Tokens used this turn. Claude Opus 4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
 			});
 		});
 
