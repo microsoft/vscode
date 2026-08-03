@@ -17,7 +17,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import type { IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -303,7 +303,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
- * provider-qualified selection id `vendor/id`, matching what the renderer's
+ * provider-qualified selection id `vendor/[group/]id`, matching what the renderer's
  * `AgentHostByokLmHandler` resolves.
  *
  * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
@@ -329,14 +329,14 @@ export async function resolveByokSessionConfig(
 	if (byokModels.length === 0) {
 		return {};
 	}
-	// Deduplicate by selection id (`vendor/id`). The same BYOK model can be
+	// Deduplicate by group-qualified selection id (`vendor/[group/]id`). The same BYOK model can be
 	// reported more than once — e.g. when two renderer bridges are transiently
 	// serving during a window hand-off (continuing a chat into a new session) —
 	// and the runtime rejects a session config with duplicate BYOK model
 	// selection ids ("Duplicate BYOK model selection id ...").
 	const seenSelectionIds = new Set<string>();
 	byokModels = byokModels.filter(m => {
-		const selectionId = `${m.vendor}/${m.id}`;
+		const selectionId = `${m.vendor}/${getByokLmSelectionModelId(m)}`;
 		if (seenSelectionIds.has(selectionId)) {
 			return false;
 		}
@@ -361,7 +361,7 @@ export async function resolveByokSessionConfig(
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));
 	const models: ProviderModelConfig[] = byokModels.map(m => ({
-		id: m.id,
+		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),

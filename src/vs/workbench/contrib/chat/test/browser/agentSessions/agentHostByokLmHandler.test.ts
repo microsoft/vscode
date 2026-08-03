@@ -180,6 +180,26 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
+	test('chat resolves the configured provider group when models share a vendor and id', async () => {
+		const workIdentifier = 'google/Gemini Work/gemini-2.5-pro';
+		const service = new TestLanguageModelsService(
+			new Map([
+				['google/Gemini Personal/gemini-2.5-pro', byokModel('google', 'gemini-2.5-pro')],
+				[workIdentifier, byokModel('google', 'gemini-2.5-pro')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'google',
+			modelId: 'Gemini Work/gemini-2.5-pro',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.strictEqual(service.captured?.modelId, workIdentifier);
+	});
+
 	test('buffers ordered thinking, text, tool calls, continuation and usage', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
