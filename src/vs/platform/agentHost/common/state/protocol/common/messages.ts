@@ -220,8 +220,8 @@ export type AhpServerRequest<M extends keyof ServerCommandMap = keyof ServerComm
  * generic parameter when you know the method from the associated request:
  *
  * ```ts
- * const result: AhpSuccessResponse<'fetchTurns'> = ...;
- * result.result.turns; // typed as Turn[]
+ * const result: AhpSuccessResponse<'listSessions'> = ...;
+ * result.result.items; // typed as SessionSummary[]
  * ```
  */
 export type AhpSuccessResponse<M extends keyof CommandMap = keyof CommandMap> =

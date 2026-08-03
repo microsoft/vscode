@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
 
@@ -17,8 +18,8 @@ function getUrl(input: string | URL | Request): string {
 	return input instanceof URL ? input.href : input.url;
 }
 
-function makeService(fetchImpl: FetchFunction): AgentHostOctoKitService {
-	return new AgentHostOctoKitService(fetchImpl, new NullLogService());
+function makeService(fetchImpl: FetchFunction, enterpriseUri?: string): AgentHostOctoKitService {
+	return new AgentHostOctoKitService(fetchImpl, new NullLogService(), createTestGitHubEndpointService(enterpriseUri));
 }
 
 function signal(): AbortSignal {
@@ -106,6 +107,15 @@ suite('AgentHostOctoKitService', () => {
 		});
 	});
 
+	test('findPullRequestByHeadBranch qualifies a fork branch with its head owner', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]));
+		const service = makeService(fetch);
+
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal(), 'fork-owner');
+
+		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
+	});
+
 	test('createPullRequest throws on non-OK response', async () => {
 		const service = makeService(capturingFetch(new Response('{"message":"Validation Failed"}', { status: 422, statusText: 'Unprocessable Entity' })).fetch);
 
@@ -161,5 +171,23 @@ suite('AgentHostOctoKitService', () => {
 			() => service.enablePullRequestAutoMerge('PR_node_42', 'MERGE', 'tok', signal()),
 			/GitHub GraphQL request failed: Pull request is in clean status/,
 		);
+	});
+
+	test('routes REST calls to the GitHub Enterprise Server API base', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse({ html_url: 'https://ghe.acme.com/o/r/pull/7', number: 7, node_id: 'n' }));
+		const service = makeService(fetch, 'https://ghe.acme.com');
+
+		await service.createPullRequest('o', 'r', 'T', 'B', 'feature', 'main', false, 'tok', signal());
+
+		assert.strictEqual(captured().url, 'https://ghe.acme.com/api/v3/repos/o/r/pulls');
+	});
+
+	test('routes GraphQL calls to the GitHub Enterprise Server GraphQL endpoint', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse({ data: { enablePullRequestAutoMerge: { pullRequest: { id: 'PR_1' } } } }));
+		const service = makeService(fetch, 'https://ghe.acme.com');
+
+		await service.enablePullRequestAutoMerge('PR_1', 'MERGE', 'tok', signal());
+
+		assert.strictEqual(captured().url, 'https://ghe.acme.com/api/graphql');
 	});
 });

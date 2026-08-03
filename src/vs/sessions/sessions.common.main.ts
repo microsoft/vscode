@@ -143,7 +143,7 @@ import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
-import './services/agentHost/browser/agentHostEnablementService.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -226,6 +226,10 @@ import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+
+// Voice Mode (voice UI actions, settings and context keys)
+import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
+import './contrib/chat/browser/voiceBridge.contribution.js';
 
 // Interactive
 import '../workbench/contrib/interactive/browser/interactive.contribution.js';
@@ -450,13 +454,17 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsService.js';
+import './services/customView/browser/customViewService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/btwSlashCommand.contribution.js';
+import './contrib/chat/browser/sideChatProvider.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
@@ -479,12 +487,12 @@ import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/terminal/browser/terminalMetaActions.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
 // Onboarding: the engine + spotlight presentation (from the workbench layer) and
 // the Agents window scenario data.

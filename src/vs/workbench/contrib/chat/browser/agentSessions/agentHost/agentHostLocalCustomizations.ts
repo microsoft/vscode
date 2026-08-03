@@ -10,9 +10,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
@@ -21,7 +21,8 @@ import { IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTranspo
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
-import type { ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 
@@ -39,14 +40,22 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
 ];
 
 /**
- * Storage sources whose contents are auto-synced. Extension and built-in
- * customizations are included so the agent host has the same skills,
- * instructions, and agents available as the local VS Code client.
+ * Storage sources whose contents are auto-synced by default. Remote agent
+ * registrations can additionally include user storage.
+ *
+ * `builtin` only yields skills bundled with the Agents app (e.g. `/create-pr`,
+ * `/merge`); for every other prompt type the prompts service returns nothing,
+ * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.plugin,
-	PromptsStorage.extension
+	PromptsStorage.extension,
+	PromptsStorage.builtIn,
 ];
+
+export interface ILocalCustomizationSyncOptions {
+	readonly includeUserStorage?: boolean;
+}
 
 export interface ILocalCustomizationFile {
 	readonly uri: URI;
@@ -76,14 +85,18 @@ export async function enumerateLocalCustomizationsForHarness(
 	syncProvider: ICustomizationSyncProvider,
 	sessionType: string,
 	token: CancellationToken,
+	options?: ILocalCustomizationSyncOptions,
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
+	const storageSources = options?.includeUserStorage
+		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
+		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
 		const lists = await Promise.all(
-			SYNCABLE_STORAGE_SOURCES.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
+			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
-			const source = SYNCABLE_STORAGE_SOURCES[i];
+			const source = storageSources[i];
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType)) {
 					result.push({
@@ -96,33 +109,6 @@ export async function enumerateLocalCustomizationsForHarness(
 					});
 				}
 			}
-		}
-	}
-
-	// Built-in skills (e.g. `/create-pr`, `/merge`) are exposed via
-	// `BUILTIN_STORAGE`, which is not a member of the core `PromptsStorage`
-	// enum. The sessions-aware prompts service supports this extra storage,
-	// but the regular workbench prompts service throws on unknown storage
-	// values; treat that case as "no built-in skills available" so
-	// enumeration remains a no-op outside Sessions.
-	let builtinSkills: readonly IPromptPath[] = [];
-	try {
-		builtinSkills = await promptsService.listPromptFilesForStorage(
-			PromptsType.skill,
-			BUILTIN_STORAGE as unknown as PromptsStorage,
-			token,
-		);
-	} catch {
-		builtinSkills = [];
-	}
-	for (const file of builtinSkills) {
-		if (matchesSessionType(file.sessionTypes, sessionType)) {
-			result.push({
-				uri: file.uri,
-				type: PromptsType.skill,
-				source: BUILTIN_STORAGE,
-				disabled: syncProvider.isDisabled(file.uri),
-			});
 		}
 	}
 
@@ -207,6 +193,23 @@ async function resolveConfigurationForSync(
 }
 
 /**
+ * Whether folder-root `.mcp.json` servers from *every* workspace folder should
+ * be seeded into a session's synced customizations, rather than only the
+ * primary (working-directory) folder's — which the SDK already auto-discovers.
+ *
+ * True only for the local Copilot Agent Host harness, in a multi-root workspace,
+ * with the multi-root setting enabled. Kept as a pure function so the gate can
+ * be unit-tested independently of {@link AgentHostActiveClientService}'s wiring
+ * (a regression here would otherwise leave the feature tests — which call the
+ * collector with the flag hardcoded — green).
+ */
+export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCount: number, multiRootSettingEnabled: boolean): boolean {
+	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+		&& workspaceFolderCount > 1
+		&& multiRootSettingEnabled;
+}
+
+/**
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
@@ -220,8 +223,16 @@ async function resolveConfigurationForSync(
  * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
  * synced, but only when their config can be resolved without requiring user
  * interaction.
+ *
+ * When {@link includeWorkspaceDotMcp} is `true` (multi-root Copilot Agent Host
+ * gate), folder-root `.mcp.json` servers are additionally synced so servers
+ * from non-primary workspace folders reach the session — the agent host only
+ * auto-discovers the primary (working-directory) folder's `.mcp.json`, and
+ * relies on the SDK to de-duplicate the primary against the synced set. These
+ * are passed as-is: `.mcp.json` supports no `${...}` variables and already
+ * carries an explicit absolute `cwd`.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService): Promise<ISyncableMcpServer[]> {
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, includeWorkspaceDotMcp: boolean): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
@@ -242,14 +253,23 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 		}
 		const collection = definitions.collection;
 		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
-			if (!McpCollectionDefinition.isVscodeMcpJson(collection)) {
+			if (McpCollectionDefinition.isVscodeMcpJson(collection)) {
+				const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
+				if (!resolved) {
+					continue;
+				}
+				configuration = resolved;
+			} else if (includeWorkspaceDotMcp && McpCollectionDefinition.isWorkspaceDotMcpJson(collection)) {
+				// Folder-root `.mcp.json`: pass as-is (no variables to resolve; cwd is absolute).
+				// Intentional tradeoff: servers are keyed by name in the flat synced bundle
+				// (`SyncedCustomizationBundler`), so two folders defining the same server name
+				// collide and the last one wins. Accepted — matches the existing behavior for
+				// same-named `.vscode/mcp.json` servers across folders.
+			} else {
+				// `.cursor/mcp.json`, the `.code-workspace` workspace-level config,
+				// or the gate is off — leave discovery to the agent host.
 				continue;
 			}
-			const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
-			if (!resolved) {
-				continue;
-			}
-			configuration = resolved;
 		}
 		result.push({ name: server.definition.label, configuration });
 	}
@@ -274,13 +294,15 @@ export async function resolveCustomizationRefs(
 	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
+	includeWorkspaceDotMcp: boolean = false,
+	options?: ILocalCustomizationSyncOptions,
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
-	const looseFiles: { uri: URI; type: PromptsType }[] = [];
+	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
 		const key = plugin.uri.toString();
@@ -320,7 +342,7 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
 		}
 	}
 
@@ -344,7 +366,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, includeWorkspaceDotMcp);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

@@ -118,7 +118,7 @@ class HighlighterDocument {
 		this.#request(initialText);
 	}
 
-	update(edit: StringEdit, tx: ITransaction | undefined): void {
+	update(edit: StringEdit, tx: ITransaction): void {
 		const newText = edit.apply(this.#text);
 		const previousLength = this.#text.length;
 		this.#tokens = adjustTokens(this.#tokens, previousLength, newText.length);

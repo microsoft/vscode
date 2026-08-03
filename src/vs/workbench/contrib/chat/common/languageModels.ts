@@ -48,6 +48,11 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  */
 export const COPILOT_VENDOR_ID = 'copilot';
 
+/** Whether a missing model is conclusively absent from a vendor's live model list. Empty Copilot results remain transient while token-backed discovery completes. */
+export function isLanguageModelVendorAbsenceConclusive(vendor: string, hasLiveModels: boolean, hasResolved: boolean): boolean {
+	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID);
+}
+
 /**
  * Vendor ids of the BYOK language-model providers that ship in-built with the GitHub Copilot Chat
  * extension. Each provider's vendor id is `providerName.toLowerCase()` (see
@@ -293,6 +298,16 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly modelGroup?: { readonly id: string };
 	/**
+	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
+	 * original model is registered under in the renderer's LM service
+	 * (`toModelIdentifier(vendor, group, id)` — `<vendor>/<group>/<id>` or `<vendor>/<id>`).
+	 * This is exactly the id the "Manage Models" view keys visibility by; it is carried
+	 * across the agent-host bridge and surfaced here so the model picker can honour the
+	 * model's visibility toggle. Absent for native agent-host models and non-agent-host
+	 * models.
+	 */
+	readonly byokModelIdentifier?: string;
+	/**
 	 * An optional JSON schema describing the per-model configuration options.
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
@@ -302,6 +317,16 @@ export interface ILanguageModelChatMetadata {
 	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
 	 */
 	readonly warningText?: IStringDictionary<string>;
+	/**
+	 * Optional promotional information for this model. Positive discounts surface
+	 * promotional UI; non-positive discounts only feature the model in the picker.
+	 */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -319,6 +344,10 @@ export namespace ILanguageModelChatMetadata {
 			return true;
 		}
 		return name === asQualifiedName(metadata);
+	}
+
+	export function hasPromoDiscount(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent > 0;
 	}
 
 	/**
@@ -343,6 +372,24 @@ export namespace ILanguageModelChatMetadata {
 			return `${base} ${discount} ${learnMore}`;
 		}
 		return `${base} ${learnMore}`;
+	}
+
+	/**
+	 * The "Manage Models" identifier that an agent-host copy of an extension-provided
+	 * BYOK model is toggled under, or `undefined` when the model is not such a copy.
+	 *
+	 * Agent-host BYOK models make a round trip that rewrites their id (the node agent host
+	 * re-advertises the extension model under the agent-host vendor). Their original LM
+	 * service identifier — `toModelIdentifier(vendor, group, id)`, i.e. `<vendor>/<group>/<id>`
+	 * or `<vendor>/<id>`, which is what the Manage Models view stores when hiding the model —
+	 * is carried across the bridge and surfaced on {@link ILanguageModelChatMetadata.byokModelIdentifier}.
+	 * This returns it, so callers can match the copy against the user's visibility toggles.
+	 *
+	 * Returns `undefined` for models that are not agent-host BYOK copies (native harness
+	 * models and non-agent-host models), which are matched by their own identifier instead.
+	 */
+	export function getAgentHostByokManageModelsIdentifier(metadata: ILanguageModelChatMetadata): string | undefined {
+		return metadata.byokModelIdentifier;
 	}
 }
 
@@ -438,6 +485,7 @@ export interface ILanguageModelChatInfoOptions {
 export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
 	readonly configuration?: IStringDictionary<unknown>;
+	readonly includeEncryptedThinking?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }
@@ -623,6 +671,33 @@ export interface ILanguageModelsService {
 	 * Fetched from the chat control manifest.
 	 */
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
+}
+
+export function getLanguageModelProviderDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we have distinct vendors for Copilot CLI and Copilot Chat.
+		return localize('chat.languageModelProvider.copilot', "Copilot");
+	}
+	const descriptor = languageModelsService.getVendors().find(candidate => candidate.vendor === vendor);
+	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
+}
+
+export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string {
+	const { metadata } = model;
+	if (!metadata.isBYOK && !metadata.byokModelIdentifier) {
+		return metadata.name;
+	}
+
+	const originalIdentifier = metadata.byokModelIdentifier ?? model.identifier;
+	const originalMetadata = metadata.byokModelIdentifier ? languageModelsService.lookupLanguageModel(originalIdentifier) : metadata;
+	const providerVendor = originalMetadata?.vendor ?? metadata.modelGroup?.id ?? metadata.vendor;
+	const providerName = getLanguageModelProviderDisplayName(languageModelsService, providerVendor);
+	const groupName = languageModelsService.getLanguageModelGroups(providerVendor)
+		.find(group => group.modelIdentifiers.includes(originalIdentifier))
+		?.group?.name;
+	return groupName && groupName !== providerName
+		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, metadata.name)
+		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, metadata.name);
 }
 
 export interface IModelControlEntry {
@@ -1161,10 +1236,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			const wasResolved = this._modelsGroups.has(vendorId);
 			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			const oldModels = this._clearModelCache(vendorId);
-			let hasChanges = false;
+			let hasChanges = !wasResolved;
 			for (const model of allModels) {
 				if (this._modelCache.has(model.identifier)) {
 					this._logService.warn(`[LM] Model ${model.identifier} is already registered. Skipping.`);
@@ -2103,7 +2179,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			let value = configuration[key];
 			if (schema.properties?.[key]?.secret && isString(value)) {
 				const secretKey = `${LanguageModelsService.SECRET_KEY_PREFIX}${hash(generateUuid()).toString(16)}`;
-				await this._secretStorageService.set(secretKey, value);
+				await this._secretStorageService.set(secretKey, key === 'apiKey' ? value.trim() : value);
 				value = this.encodeSecretKey(secretKey);
 			}
 			result[key] = value;
@@ -2244,7 +2320,20 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const g of vendorGroups) {
 			const name = g.group?.name ?? fallbackName;
 			if (name === groupName) {
-				result.push(...g.modelIdentifiers);
+				for (const id of g.modelIdentifiers) {
+					// Exclude agent-host BYOK copies. They are not shown as rows in this
+					// group (they surface under their real provider), so group-level
+					// visibility toggles (`isGroupHidden` / `setGroupHidden`) must not
+					// touch them — otherwise hiding the agent-host group would flip the
+					// hidden state of these copies in the underlying model set even though
+					// the UI never lists them here. Their visibility is owned by the real
+					// provider row and honoured in the picker via the reconstructed id.
+					const metadata = this._modelCache.get(id);
+					if (metadata && ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+						continue;
+					}
+					result.push(id);
+				}
 			}
 		}
 		return result;

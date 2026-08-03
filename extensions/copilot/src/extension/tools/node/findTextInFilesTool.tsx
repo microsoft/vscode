@@ -37,6 +37,7 @@ interface IFindTextInFilesToolParams {
 	isRegexp?: boolean;
 	includePattern?: string;
 	maxResults?: number;
+	defaultMaxResults?: number;
 	/** Whether to include files that would normally be ignored according to .gitignore, other ignore files and `files.exclude` and `search.exclude` settings. */
 	includeIgnoredFiles?: boolean;
 }
@@ -100,7 +101,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 
 		checkCancellation(token);
 		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > maxResultsCap;
-		const maxResults = Math.min(options.input.maxResults ?? defaultMaxResults, maxResultsCap);
+		const maxResults = Math.min(options.input.maxResults ?? options.input.defaultMaxResults ?? defaultMaxResults, maxResultsCap);
 		const isRegExp = options.input.isRegexp ?? true;
 		const queryIsValidRegex = this.isValidRegex(options.input.query);
 		const includeIgnoredFiles = options.input.includeIgnoredFiles ?? false;
@@ -448,7 +449,7 @@ Then if you want to include those files you can call the tool again by setting "
 		}
 
 		return {
-			maxResults: mode === CopilotToolMode.FullContext ? 200 : 20,
+			defaultMaxResults: mode === CopilotToolMode.FullContext ? this.getMaxResultsCap() : this.getDefaultMaxResults(),
 			...input,
 			includePattern,
 		};
@@ -461,7 +462,7 @@ Then if you want to include those files you can call the tool again by setting "
 
 	private getDefaultMaxResults(): number {
 		const result =  this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
-		return Number.isFinite(result) ? Math.floor(result) : 20;
+		return Number.isFinite(result) ? Math.floor(result) : 100;
 	}
 
 	private getMaxResultsCap(): number {

@@ -14,6 +14,7 @@ import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionL
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -109,6 +110,18 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].origin, undefined);
 	});
 
+	test('emits session title changes and suppresses no-op assignments', () => {
+		manager.createSession(makeSessionSummary());
+
+		const changes: Array<{ session: string; title: string }> = [];
+		disposables.add(manager.onDidChangeSessionTitle(e => changes.push(e)));
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+
+		assert.deepStrictEqual(changes, [{ session: sessionUri, title: 'Updated' }]);
+	});
+
 	test('serverSeq increments monotonically', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -183,6 +196,39 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.serverSeq, 3);
 	});
 
+	test('root config replacement preserves provider-backed values', () => {
+		const rootState = manager.rootState;
+		assert.ok(rootState.config);
+		rootState.config.values['codex.personality'] = 'friendly';
+		rootState._meta = withAgentCustomizationSettings(rootState, [{
+			provider: 'codex',
+			title: 'Codex Settings',
+			description: 'Codex settings',
+			settings: [{ key: 'codex.personality', group: 'Personalization' }],
+		}]);
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		manager.dispatchClientAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { codexUsageSource: 'openai' },
+			replace: true,
+		}, { clientId: 'renderer-1', clientSeq: 1 });
+
+		assert.deepStrictEqual(manager.rootState.config?.values, {
+			codexUsageSource: 'openai',
+			'codex.personality': 'friendly',
+		});
+		assert.deepStrictEqual(envelopes[0].action, {
+			type: ActionType.RootConfigChanged,
+			config: {
+				codexUsageSource: 'openai',
+				'codex.personality': 'friendly',
+			},
+			replace: true,
+		});
+	});
+
 	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -227,12 +273,12 @@ suite('AgentHostStateManager', () => {
 		// has no per-chat working-directory override, so getSessionState must
 		// project the RESOLVED session working directory, never the stale
 		// create-time value that was seeded onto the default chat.
-		manager.createSession({ ...makeSessionSummary(), workingDirectory: 'file:///provisional' }, { emitNotification: false });
-		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectory: 'file:///resolved-worktree' });
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
 
 		assert.deepStrictEqual({
-			session: manager.getSessionState(sessionUri)?.workingDirectory,
-			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectory,
+			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
@@ -248,6 +294,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -272,6 +319,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -287,6 +335,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -296,6 +345,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 
 		const activeChanged = envelopes.filter(e => e.action.type === ActionType.RootActiveSessionsChanged);
@@ -314,11 +364,13 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 2);
@@ -326,12 +378,14 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
+			duration: 1000,
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 0);
 	});
@@ -342,6 +396,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -383,6 +438,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -390,6 +446,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
+			duration: 1000,
 		});
 
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -405,11 +462,13 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 
@@ -418,6 +477,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
+			duration: 1000,
 		});
 
 		assert.strictEqual(manager.rootState.activeSessions, 0);
@@ -433,15 +493,18 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
+			duration: 1000,
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
+			duration: 1000,
 			error: { errorType: 'failed', message: 'boom' },
 		});
 
@@ -463,15 +526,18 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
 		manager.removeSession(session2Uri);
@@ -517,6 +583,78 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	suite('unused-draft tracking', () => {
+
+		test('reports draft status by origin, addressable by session or chat URI', () => {
+			const restoredUri = URI.from({ scheme: 'copilot', path: '/restored-session' }).toString();
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(restoredUri), []);
+
+			assert.deepStrictEqual({
+				created: manager.isUnusedDraft(sessionUri),
+				createdViaChatUri: manager.isUnusedDraft(sessionChatUri),
+				restored: manager.isUnusedDraft(restoredUri),
+				restoredViaChatUri: manager.isUnusedDraft(buildDefaultChatUri(restoredUri)),
+				unknown: manager.isUnusedDraft(URI.from({ scheme: 'copilot', path: '/nope' }).toString()),
+			}, {
+				created: true,
+				createdViaChatUri: true,
+				restored: false,
+				restoredViaChatUri: false,
+				unknown: undefined,
+			});
+		});
+
+		test('a restored session that was first created is no longer a draft', () => {
+			// `restoreSession` short-circuits when the session is already in state.
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(), []);
+
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), true);
+		});
+
+		test('draft status is retired by a turn and does not come back on truncate', () => {
+			manager.createSession(makeSessionSummary());
+			const observed: (boolean | undefined)[] = [manager.isUnusedDraft(sessionUri)];
+
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			// Truncate-to-zero empties the chat but must not resurrect the draft.
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTruncated });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			assert.deepStrictEqual({
+				observed,
+				turnsAfterTruncate: manager.getDefaultChatState(sessionUri)?.turns.length,
+			}, {
+				observed: [true, false, false, false],
+				turnsAfterTruncate: 0,
+			});
+		});
+
+		test('seeding turns for a fork retires draft status', () => {
+			manager.createSession(makeSessionSummary());
+			manager.seedDefaultChatTurns(sessionUri, [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}]);
+
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), false);
+		});
 	});
 
 	test('emits sessionSummaryChanged when summary changes', () => {
@@ -615,6 +753,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
 
@@ -629,6 +768,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 
 			// Simulate eviction within the 100 ms debounce window.
@@ -993,6 +1133,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			const afterStart = manager.hasActiveTurn(sessionUri);
@@ -1000,6 +1141,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 			const afterComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1023,11 +1165,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(observed, [
@@ -1047,6 +1191,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			const afterDefaultStart = manager.hasActiveTurn(sessionUri);
@@ -1054,6 +1199,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const afterBothStart = manager.hasActiveTurn(sessionUri);
@@ -1062,6 +1208,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 			const afterDefaultComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1069,6 +1216,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 			const afterBothComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1089,6 +1237,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const whilePeerRuns = manager.getSessionState(sessionUri)?.status;
@@ -1097,6 +1246,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 			const afterPeerComplete = manager.getSessionState(sessionUri)?.status;
 
@@ -1131,6 +1281,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const runningCatalog = peerCatalogStatus();
@@ -1139,6 +1290,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1168,11 +1320,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhileBothRun = manager.rootState.activeSessions;
@@ -1180,12 +1334,14 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 			const activeAfterFirstCompletes = manager.rootState.activeSessions;
 
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1217,11 +1373,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhileBothRun = manager.hasActiveTurn(sessionUri);
@@ -1235,6 +1393,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1266,6 +1425,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhilePeerRuns = manager.hasActiveTurn(sessionUri);
@@ -1440,6 +1600,7 @@ suite('AgentHostStateManager', () => {
 				manager.dispatchServerAction(peerChat, {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-peer',
+					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'b', origin: { kind: MessageKind.User } },
 				});
 				const runningRollup = summaryHasInProgress();
@@ -1638,7 +1799,7 @@ suite('Subagent URI helpers', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 				chats: [],
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			};
 		}
 
@@ -1648,7 +1809,7 @@ suite('Subagent URI helpers', () => {
 				title: 'Peer',
 				status: SessionStatus.Idle,
 				modifiedAt: new Date().toISOString(),
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				turns: [],
 			};
 		}
@@ -1658,7 +1819,7 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState('file:///peer-worktree'),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///peer-worktree');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///peer-worktree');
 		});
 
 		test('falls back to the session working directory when the chat does not override it', () => {
@@ -1666,12 +1827,12 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState(undefined),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 		});
 
 		test('falls back to the session working directory when no chat state is hydrated', () => {
 			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 			assert.deepStrictEqual(merged.turns, []);
 		});
 	});

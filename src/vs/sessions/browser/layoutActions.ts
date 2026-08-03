@@ -16,8 +16,7 @@ import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRe
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../common/sessionConfig.js';
+import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -77,12 +76,13 @@ registerAction2(ToggleSidebarVisibilityAction);
 // `workbench.action.toggleAuxiliaryBar` command (registered by the workbench auxiliary bar
 // part, which is also loaded in the agents window), using two mutually-exclusive items to
 // avoid the toggled background. The single-pane "Toggle Details" item is a dedicated command
-// registered by `SinglePaneDesktopSessionLayoutController`.
+// registered by `SinglePaneLayoutController`.
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
+	CustomViewVisibleContext.negate(),
 	IsTopRightEditorGroupContext);
-const isSinglePaneDetailPanelDisabled = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true).negate();
+const isSinglePaneDetailPanelDisabled = SinglePaneLayoutEnabledContext.negate();
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 	command: {
@@ -107,7 +107,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 });
 
 // The single-pane "Toggle Details" editor-title item is registered by
-// `SinglePaneDesktopSessionLayoutController` (a dedicated command that toggles
+// `SinglePaneLayoutController` (a dedicated command that toggles
 // the detail panel and auto-hides / restores the sessions list in one gesture).
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {

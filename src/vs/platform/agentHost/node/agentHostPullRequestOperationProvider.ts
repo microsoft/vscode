@@ -8,16 +8,16 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
 	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService
 	) {
@@ -43,8 +43,15 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return store;
 	}
 
-	getOperations({ gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
-		if (gitHubState?.pullRequestUrl) {
+	getOperations({ sessionKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+		// New Session
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating) {
+			return undefined;
+		}
+
+		// Pull request already exists for the currently checked out branch
+		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return undefined;
 		}
 
@@ -104,7 +111,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry?.refreshSessionGitState(sessionKey);
 
 		this._gitStateService.setSessionGitHubState(sessionKey, {
-			pullRequestUrl: event.pullRequestUrl
+			pullRequestUrl: event.pullRequestUrl,
+			pullRequestBranchName: event.branchName
 		});
 	}
 }
