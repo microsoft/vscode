@@ -728,11 +728,12 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		const options = buildMicrophoneOptions(devices);
-		// Before permission is granted the browser reports the devices but not
-		// their names. Re-rendering a list of "Unknown device" rows and then
-		// swapping in the real names a moment later is worse than waiting: keep
-		// the row as it is until there is something worth showing.
-		if (this.options.length > 1 && !options.some(option => option.deviceId && option.label)) {
+		// Before microphone permission is granted the browser reports the
+		// devices but not their names. A picker full of "Unknown device" rows -
+		// or a blank selected label - is worse than showing nothing, so only
+		// render (or re-render) the picker once at least one microphone reports
+		// a real label. A single microphone never needs a picker at all.
+		if (options.length > 1 && !devices.some(device => device.kind === 'audioinput' && device.label)) {
 			return;
 		}
 
