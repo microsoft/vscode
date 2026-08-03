@@ -744,7 +744,7 @@ suite('WorktreeIsolation', () => {
 		}, {
 			matching: {
 				kind: ResponsePartKind.SystemNotification,
-				content: "Couldn't create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128`",
+				content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128`',
 				_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
 			},
 			copiedPartCount: 0,

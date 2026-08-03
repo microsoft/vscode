@@ -5473,11 +5473,11 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+				},
 			}, []);
-			localService.stateManager.dispatchServerAction(sessionResource, {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
-			});
 			localService.stateManager.dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
@@ -5502,7 +5502,7 @@ suite('AgentService (node dispatcher)', () => {
 				activity: undefined,
 				responseParts: [{
 					kind: ResponsePartKind.SystemNotification,
-					content: "Couldn't create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found`",
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found`',
 					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
 				}],
 				persistedFailure: {
@@ -5540,11 +5540,11 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+				},
 			}, []);
-			localService.stateManager.dispatchServerAction(sessionResource, {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
-			});
 			localService.stateManager.dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
@@ -5566,7 +5566,7 @@ suite('AgentService (node dispatcher)', () => {
 				resolved: [sourceDir.toString()],
 				responseParts: [{
 					kind: ResponsePartKind.SystemNotification,
-					content: "Couldn't create the isolated worktree. This session is continuing in the original folder.",
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.',
 					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
 				}],
 				persistedFailure: { sessionId: 'worktree-fallback' },
