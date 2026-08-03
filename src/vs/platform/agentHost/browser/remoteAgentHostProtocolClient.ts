@@ -913,6 +913,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
+			_meta: config?._meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
 			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,

@@ -27,7 +27,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -474,6 +474,7 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
 		});
+
 		const failedSession = AgentSession.uri('codex', 'failed-before-create');
 		failCreate = true;
 		await assert.rejects(localService.createSession({
@@ -493,6 +494,112 @@ suite('AgentService (node dispatcher)', () => {
 			providerCreateConfigs: [{}, {}],
 			pendingAfterCreate: true,
 			pendingAfterFailure: false,
+		});
+	});
+
+	test('createSession validates, exposes, persists, and inherits multi-root metadata', async () => {
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const multiRoot = {
+			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+			name: 'Demo Workspace',
+		};
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
+			_meta: { multiRoot, ignored: 'client value' },
+		});
+		const sourceChat = buildDefaultChatUri(session.toString());
+		localService.dispatchAction(sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		}, 'test-client', 1);
+		localService.dispatchAction(sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-turn',
+			duration: 0,
+		}, 'test-client', 2);
+		const inherited = await localService.createSession({
+			provider: agent.id,
+			_meta: { multiRoot: { workspaceFile: 'relative.code-workspace' } },
+			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+		});
+		const override = {
+			workspaceFile: 'file:///work/override.code-workspace',
+			name: 'Override',
+		};
+		const overridden = await localService.createSession({
+			provider: agent.id,
+			_meta: { multiRoot: override },
+			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+		});
+
+		assert.deepStrictEqual({
+			state: localService.stateManager.getSessionState(session.toString())?._meta,
+			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
+			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
+		}, {
+			state: { multiRoot },
+			persisted: JSON.stringify(override),
+			inherited: multiRoot,
+			overridden: override,
+		});
+	});
+
+	test('provisional materialization preserves and persists multi-root metadata', async () => {
+		class ProvisionalAgent extends MockAgent {
+			private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
+			readonly onDidMaterializeSession = this._onDidMaterialize.event;
+
+			override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				return { ...await super.createSession(config), provisional: true };
+			}
+
+			materialize(session: URI, workingDirectories: readonly URI[]): void {
+				this._onDidMaterialize.fire({ session, workingDirectories, project: undefined });
+			}
+
+			override dispose(): void {
+				this._onDidMaterialize.dispose();
+				super.dispose();
+			}
+		}
+
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new ProvisionalAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const multiRoot = {
+			workspaceFile: 'file:///work/demo.code-workspace',
+			name: 'Demo Workspace',
+		};
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
+			_meta: { multiRoot },
+		});
+		const before = readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta);
+		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+
+		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
+
+		assert.deepStrictEqual({
+			before,
+			persistedBefore,
+			after: readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta),
+			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+		}, {
+			before: multiRoot,
+			persistedBefore: undefined,
+			after: multiRoot,
+			persistedAfter: JSON.stringify(multiRoot),
 		});
 	});
 
@@ -1309,6 +1416,9 @@ suite('AgentService (node dispatcher)', () => {
 			// The agent returns the session with NO `_meta.workspaceless` of its own.
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -1317,6 +1427,29 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
+		});
+
+		test('listSessions restores persisted multi-root metadata', async () => {
+			const db = new TestSessionDatabase();
+			const multiRoot = {
+				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+				name: 'Demo Workspace',
+			};
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
+			const sessionId = 'test-session-multi-root';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
 		});
 
 		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
@@ -2446,6 +2579,27 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(localService.stateManager.getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
+		});
+
+		test('restores persisted multi-root metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			copilotAgent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+			};
+			const multiRoot = {
+				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+				name: 'Demo Workspace',
+			};
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(readSessionMultiRootMetadata(localService.stateManager.getSessionState(sessionResource.toString())?._meta), multiRoot);
 		});
 
 		test('restores a session with message history', async () => {

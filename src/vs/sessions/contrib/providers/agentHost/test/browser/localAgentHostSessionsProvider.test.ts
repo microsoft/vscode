@@ -17,7 +17,7 @@ import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHos
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -314,7 +314,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
+	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
@@ -322,7 +324,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		summary: opts?.summary,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
-		_meta: opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined,
+		_meta,
 	};
 }
 
@@ -1330,6 +1332,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			workspace: undefined,
 			isQuickChat: true,
+		});
+	}));
+
+	test('hydrated session preserves multi-root metadata after reload', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const multiRoot = {
+			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+			name: 'Demo Workspace',
+		};
+		await persistCachedSessions(disposables, storageService, [
+			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
+		]);
+		const snapshot = JSON.parse(storageService.get('localAgentHost.cachedSessions.v2', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+
+		const session = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+
+		assert.deepStrictEqual({
+			persisted: snapshot[0].multiRoot,
+			hydratedTitle: session.title.get(),
+		}, {
+			persisted: multiRoot,
+			hydratedTitle: 'Multi Root',
 		});
 	}));
 

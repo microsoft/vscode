@@ -4251,6 +4251,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
+				_meta: this._provisionalService.getInitialSessionMetadata(),
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -4270,6 +4271,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
+						_meta: this._provisionalService.getInitialSessionMetadata(),
 						model,
 						provider: this._config.provider,
 						workingDirectories,
