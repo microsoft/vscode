@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 .disable-animations {
-	* {
+	&,
+	*,
+	*::before,
+	*::after {
 		transition: none !important;
 		animation: none !important;
 	}

@@ -85,10 +85,6 @@ The Agents window contributes a built-in **Automations** client-tool set with `l
 
 For Agent Host client tools, a call made while the SDK is in **Allow all** mode carries `autoApproveBySetting` on its ready action. A plain `not-needed` confirmation reason is insufficient because client tools that did not consult the setting can use the same reason.
 
-Automation rows use dynamic heights. The management editor propagates both editor-pane and section visibility to the Automations widget; while hidden, the widget updates its view model but defers list splices and layout. Revealing the section commits the latest entries and forces a fresh row measurement so `display:none` cannot cache zero-height rows.
-
-The Automations empty-state CTA is centered and capped to the explanatory copy column while retaining the shared button's responsive width below that cap. A CI-blocking wide management-editor fixture covers this empty state in dark and light themes.
-
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
