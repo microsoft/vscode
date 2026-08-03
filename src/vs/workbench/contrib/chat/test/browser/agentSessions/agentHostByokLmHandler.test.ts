@@ -251,7 +251,14 @@ suite('AgentHostByokLmHandler', () => {
 					{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 					{ type: 'function_call_output', callId: 't1', output: 'sunny' },
 					{ type: 'custom_tool_call_output', callId: 't2', output: 'Done!' },
-					{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] },
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'hi' },
+							{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+						],
+					},
 				],
 			},
 			CancellationToken.None,
@@ -280,7 +287,13 @@ suite('AgentHostByokLmHandler', () => {
 				},
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
-				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
+				{
+					role: ChatMessageRole.User,
+					content: [
+						{ type: 'text', value: 'hi' },
+						{ type: 'image_url', value: { mimeType: 'image/png', data: VSBuffer.fromString('image') } },
+					],
+				},
 			],
 			options: {
 				modelOptions: { temperature: 0.5 },
