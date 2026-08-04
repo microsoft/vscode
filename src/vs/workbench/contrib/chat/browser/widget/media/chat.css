@@ -1336,11 +1336,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
 	transition: background-color 120ms ease;
-}
 
-.monaco-workbench .action-item.menu-entry.chat-submit-button:not(.disabled) > .action-label.codicon[class*='codicon-']:hover,
-.monaco-workbench .action-item.menu-entry.chat-submit-button:not(.disabled) > .action-label.codicon[class*='codicon-']:focus-visible {
-	background: var(--vscode-button-hoverBackground);
+	&:is(:hover, :focus-visible) {
+		background: var(--vscode-button-hoverBackground);
+	}
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
