@@ -1,0 +1,5 @@
+{
+  "rules": {
+    "find.dialogPosition": ["error", { "allowedValues": ["top", "bottom"] }]
+  }
+}
