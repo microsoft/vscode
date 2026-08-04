@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { isDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,6 +16,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { mergeInstalledPluginEnablementActions } from '../../../browser/aiCustomization/pluginListWidget.js';
 
 const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
 
@@ -59,7 +62,7 @@ class TestAgentHostCustomizationService extends NullAgentHostCustomizationServic
 function plugin(enablement?: CustomizationEnablement[]): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
-		id: 'plugin-1',
+		id: 'file:///plugin-1',
 		uri: 'file:///plugin-1',
 		name: 'Plugin One',
 		enabled: true,
@@ -99,7 +102,7 @@ suite('pluginListWidget', () => {
 		await actions[2].run();
 
 		assert.deepStrictEqual(service.calls, [{
-			rawId: 'plugin-1',
+			rawId: 'file:///plugin-1',
 			enablement: [
 				{ kind: CustomizationEnablementKind.Session, enabled: true },
 				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
@@ -116,7 +119,7 @@ suite('pluginListWidget', () => {
 		await (items[0].actions ?? [])[0].run();
 
 		assert.deepStrictEqual(service.calls, [{
-			rawId: 'plugin-1',
+			rawId: 'file:///plugin-1',
 			enablement: [
 				{ kind: CustomizationEnablementKind.Session, enabled: false },
 				{ kind: CustomizationEnablementKind.Global, enabled: false },
@@ -129,6 +132,157 @@ suite('pluginListWidget', () => {
 		const items = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
 
 		assert.deepStrictEqual((items[0].actions ?? []).map(action => action.label), [
+			'Disable',
+			'Disable (Session)',
+		]);
+	});
+
+	test('merges local and agent-host plugin enablement actions using the customization id', async () => {
+		const service = new TestAgentHostCustomizationService([plugin([
+			{ kind: CustomizationEnablementKind.Global, enabled: true },
+		])], ['file:///repo']);
+		const [remoteItem] = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
+		const localWrites: string[] = [];
+		const localAction = new Action(
+			'agentPlugin.disableForWorkspace',
+			'Disable (Workspace)',
+			undefined,
+			true,
+			() => {
+				localWrites.push('workspace');
+				return Promise.resolve();
+			},
+		);
+		disposables.add(localAction);
+
+		const [[workspaceAction, sessionAction]] = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[localAction]],
+			[remoteItem],
+		);
+		if (isDisposable(workspaceAction)) {
+			disposables.add(workspaceAction);
+		}
+		if (isDisposable(sessionAction)) {
+			disposables.add(sessionAction);
+		}
+
+		await workspaceAction.run();
+
+		assert.deepStrictEqual({
+			labels: [workspaceAction.label, sessionAction.label],
+			localWrites,
+			hostWrites: service.calls,
+		}, {
+			labels: ['Disable (Workspace)', 'Disable (Session)'],
+			localWrites: ['workspace'],
+			hostWrites: [{
+				rawId: 'file:///plugin-1',
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: false },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+			}],
+		});
+	});
+
+	// Regression: the host publishes only the inverse action for each scope, so
+	// keying the workspace filter on one specific id removed the local workspace
+	// action whenever local and host workspace states disagreed.
+	test('keeps the local workspace action when the host workspace state differs', async () => {
+		const service = new TestAgentHostCustomizationService([plugin([
+			{ kind: CustomizationEnablementKind.Global, enabled: true },
+		])], ['file:///repo']);
+		const [remoteItem] = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
+		const localWrites: string[] = [];
+		// Locally disabled, so the local menu offers "Enable (Workspace)" while the
+		// host - being workspace-enabled - offers "Disable (Workspace)".
+		const localAction = new Action('agentPlugin.enableForWorkspace', 'Enable (Workspace)', undefined, true, () => {
+			localWrites.push('workspace');
+			return Promise.resolve();
+		});
+		disposables.add(localAction);
+
+		const [group] = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[localAction]],
+			[remoteItem],
+		);
+		for (const action of group) {
+			if (isDisposable(action)) {
+				disposables.add(action);
+			}
+		}
+		const [workspaceAction] = group;
+
+		await workspaceAction.run();
+
+		assert.deepStrictEqual({
+			label: workspaceAction.label,
+			localWrites,
+			hostWrites: service.calls,
+		}, {
+			label: 'Enable (Workspace)',
+			localWrites: ['workspace'],
+			hostWrites: [],
+		});
+	});
+
+	test('leaves local plugin actions unchanged without an agent-host customization', async () => {
+		const localWrites: string[] = [];
+		const localAction = new Action(
+			'agentPlugin.disable',
+			'Disable',
+			undefined,
+			true,
+			() => {
+				localWrites.push('profile');
+				return Promise.resolve();
+			},
+		);
+		disposables.add(localAction);
+
+		const [[action]] = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[localAction]],
+			[],
+		);
+
+		await action.run();
+
+		assert.deepStrictEqual({
+			action,
+			localWrites,
+		}, {
+			action: localAction,
+			localWrites: ['profile'],
+		});
+	});
+
+	test('hides workspace enablement when the matching agent-host customization has no working directory', async () => {
+		const service = new TestAgentHostCustomizationService([plugin()], []);
+		const [remoteItem] = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
+		const profileAction = new Action('agentPlugin.disable', 'Disable', undefined, true, () => Promise.resolve());
+		const workspaceAction = new Action('agentPlugin.disableForWorkspace', 'Disable (Workspace)', undefined, true, () => Promise.resolve());
+		disposables.add(profileAction);
+		disposables.add(workspaceAction);
+
+		const groups = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[profileAction, workspaceAction]],
+			[remoteItem],
+		);
+		for (const action of groups.flat()) {
+			if (isDisposable(action)) {
+				disposables.add(action);
+			}
+		}
+
+		assert.deepStrictEqual(groups.flat().map(action => action.label), [
 			'Disable',
 			'Disable (Session)',
 		]);

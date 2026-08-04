@@ -25,6 +25,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
+import { fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -360,6 +361,104 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		marketplaceType: plugin.marketplaceType,
 		readmeUri: plugin.readmeUri,
 	};
+}
+
+const agentHostPluginEnablementActionIds: Readonly<Record<string, string>> = {
+	'agentPlugin.enable': 'plugin.agentHost.enable',
+	'agentPlugin.enableForWorkspace': 'plugin.agentHost.enableWorkspace',
+	'agentPlugin.disable': 'plugin.agentHost.disable',
+	'agentPlugin.disableForWorkspace': 'plugin.agentHost.disableWorkspace',
+};
+
+/**
+ * Maps the stable ids created by createEnablementActions to the scoped agent-host actions.
+ */
+function getAgentHostPluginEnablementActionId(action: IAction): string | undefined {
+	return agentHostPluginEnablementActionIds[action.id];
+}
+
+function findAgentHostPluginCustomization(pluginUri: URI, pluginName: string, customizations: readonly ICustomizationItem[]): ICustomizationItem | undefined {
+	const pluginCustomizations = customizations.filter(isPluginCustomizationItem);
+	const uriMatch = pluginCustomizations.find(customization =>
+		isEqual(pluginUri, fromAgentHostUri(customization.pluginUri ?? customization.uri)));
+	return uriMatch ?? pluginCustomizations.find(customization => customization.name.toLowerCase() === pluginName.toLowerCase());
+}
+
+function toCustomizationItemAction(itemAction: ICustomizationItemAction): IAction {
+	const action = new Action(
+		itemAction.id,
+		itemAction.label,
+		itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
+		itemAction.enabled !== false,
+		() => itemAction.run(),
+	);
+	if (itemAction.tooltip !== undefined) {
+		action.tooltip = itemAction.tooltip;
+	}
+	return action;
+}
+
+function withAgentHostPluginEnablement(action: IAction, agentHostAction: ICustomizationItemAction | undefined): IAction {
+	if (!agentHostAction) {
+		return action;
+	}
+
+	const wrapped = new Action(action.id, action.label, action.class, action.enabled, async () => {
+		try {
+			await action.run();
+		} finally {
+			await agentHostAction.run();
+		}
+	});
+	wrapped.tooltip = action.tooltip;
+	wrapped.checked = action.checked;
+	return wrapped;
+}
+
+export function mergeInstalledPluginEnablementActions(
+	pluginUri: URI,
+	pluginName: string,
+	actionGroups: readonly IAction[][],
+	agentHostCustomizations: readonly ICustomizationItem[],
+): IAction[][] {
+	const agentHostCustomization = findAgentHostPluginCustomization(pluginUri, pluginName, agentHostCustomizations);
+	if (!agentHostCustomization?.actions) {
+		return actionGroups.map(group => [...group]);
+	}
+
+	const actionsById = new Map(agentHostCustomization.actions.map(action => [action.id, action]));
+	// The host publishes only the inverse action for each scope, so presence of one
+	// specific id says nothing about whether the scope applies. Workspace scope is
+	// applicable when the host offers either variant; when it is not (a session with
+	// no working directory) the local workspace action is dropped too, since the
+	// merged action would silently only do half of what its label says.
+	const hostSupportsWorkspace = actionsById.has('plugin.agentHost.enableWorkspace') || actionsById.has('plugin.agentHost.disableWorkspace');
+	const sessionAction = actionsById.get('plugin.agentHost.enableSession') ?? actionsById.get('plugin.agentHost.disableSession');
+	let sessionActionAdded = false;
+	const mergedGroups = actionGroups.map(group => {
+		const mergedGroup = group
+			.filter(action => {
+				const agentHostActionId = getAgentHostPluginEnablementActionId(action);
+				return !agentHostActionId?.endsWith('Workspace') || hostSupportsWorkspace;
+			})
+			// A missing counterpart means the host is already in the state this action
+			// asks for, so the wrapper falls back to running the local write alone.
+			.map(action => withAgentHostPluginEnablement(
+				action,
+				actionsById.get(getAgentHostPluginEnablementActionId(action) ?? ''),
+			));
+		if (!sessionActionAdded && sessionAction && group.some(action => getAgentHostPluginEnablementActionId(action) !== undefined)) {
+			mergedGroup.push(toCustomizationItemAction(sessionAction));
+			sessionActionAdded = true;
+		}
+		return mergedGroup;
+	});
+
+	if (!sessionActionAdded && sessionAction) {
+		mergedGroups.push([toCustomizationItemAction(sessionAction)]);
+	}
+
+	return mergedGroups;
 }
 
 //#endregion
@@ -1202,7 +1301,13 @@ export class PluginListWidget extends Disposable {
 
 		if (entry.type === 'plugin-item') {
 			const groups = getInstalledPluginContextMenuActions(entry.item.plugin, this.instantiationService);
-			for (const menuActions of groups) {
+			const mergedGroups = mergeInstalledPluginEnablementActions(
+				entry.item.plugin.uri,
+				entry.item.name,
+				groups,
+				this.remoteItems,
+			);
+			for (const menuActions of mergedGroups) {
 				for (const menuAction of menuActions) {
 					actions.push(menuAction);
 					if (isDisposable(menuAction)) {
