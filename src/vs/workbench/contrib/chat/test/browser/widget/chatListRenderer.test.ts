@@ -19,6 +19,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
+import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
@@ -909,6 +910,105 @@ suite('ChatListRenderer', () => {
 		}, {
 			mountedWhileStreaming: true,
 			mountedAfterCompletion: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);
+		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		model.addRequest({
+			text: 'test',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const parentSubagent: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'subagent-1',
+			toolId: 'task',
+			source: ToolDataSource.Internal,
+			invocationMessage: 'Running subagent',
+			originMessage: undefined,
+			pastTenseMessage: undefined,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: false,
+			presentation: undefined,
+			toolSpecificData: { kind: 'subagent', description: 'Investigate', isActive: true },
+		};
+		const toolData = {
+			id: 'search',
+			displayName: 'Search',
+			modelDescription: 'Search files',
+			source: ToolDataSource.Internal,
+		};
+		const childTools: ChatToolInvocation[] = Array.from({ length: 128 }, (_, index) => new ChatToolInvocation(
+			{
+				invocationMessage: `Completed tool ${index}`,
+				pastTenseMessage: `Completed tool ${index}`,
+			},
+			toolData,
+			`child-${index}`,
+			parentSubagent.toolCallId,
+			{},
+		));
+		await Promise.all(childTools.map(tool => tool.didExecuteTool(undefined)));
+		const content: IChatRendererContent[] = [parentSubagent, ...childTools];
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const privateRenderer = renderer as unknown as {
+			renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void;
+			clearRenderedParts(templateData: IChatListItemTemplate): void;
+		};
+
+		privateRenderer.renderChatContentDiff(content, content, response, 0, template);
+		privateRenderer.clearRenderedParts(template);
+		privateRenderer.renderChatContentDiff(content, content, response, 0, template);
+
+		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(subagentPart);
+		const titleBeforeExpansion = subagentPart.domNode.textContent ?? '';
+		const expandButton = subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button');
+		assert.ok(expandButton);
+		expandButton.click();
+
+		assert.deepStrictEqual({
+			titleIncludesLatestTool: titleBeforeExpansion.includes('Completed tool 127'),
+			renderedToolCount: subagentPart.domNode.querySelectorAll('.chat-thinking-tool-wrapper').length,
+		}, {
+			titleIncludesLatestTool: true,
+			renderedToolCount: 128,
 		});
 
 		disposables.dispose();
