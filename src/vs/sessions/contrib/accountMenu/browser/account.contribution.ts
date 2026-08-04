@@ -42,8 +42,6 @@ import { IChatDashboardService } from '../../../browser/chatDashboardService.js'
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -555,15 +553,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				() => this.codexAccountService.signOut(),
 			)), { icon: true, label: false });
 			this.appendChatGPTUsage(accountSection);
-			const defaultRow = append(accountSection, $('label.sessions-account-titlebar-panel-provider-default'));
-			const defaultCheckbox = panelStore.add(new Checkbox(
-				localize('useAsDefaultForCodex', "Use as default for Codex"),
-				this.codexAccountService.useChatGPTByDefault,
-				{ ...defaultCheckboxStyles, size: 16 },
-			));
-			append(defaultRow, defaultCheckbox.domNode);
-			append(defaultRow, $('span', undefined, localize('useAsDefaultForCodex', "Use as default for Codex")));
-			panelStore.add(defaultCheckbox.onChange(() => this.codexAccountService.setUseChatGPTByDefault(defaultCheckbox.checked)));
 		}
 
 		if (this.shouldShowCopilotDashboardHover()) {
@@ -614,14 +603,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		if (quota && !quota.unlimited) {
 			const usedPercentage = Math.max(0, Math.floor(100 - quota.percentRemaining));
 			const usageValue = append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', { tabIndex: 0 }));
-			const percentageLabel = localize('copilotCreditsUsedPercentage', "{0}%", usedPercentage);
+			const percentageLabel = localize('copilotCreditsUsedPercentage', "{0}% credits used", usedPercentage);
 			usageValue.textContent = percentageLabel;
 			if (quota.entitlement) {
 				const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 				const used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
 					? quota.entitlement - quota.quotaRemaining
 					: quota.entitlement * (100 - quota.percentRemaining) / 100);
-				const creditsLabel = localize('copilotCreditsUsedRatio', "{0} / {1}", formatter.value.format(used), formatter.value.format(quota.entitlement));
+				const creditsLabel = localize('copilotCreditsUsedRatio', "{0} / {1} credits used", formatter.value.format(used), formatter.value.format(quota.entitlement));
 				const showCredits = () => usageValue.textContent = creditsLabel;
 				const showPercentage = () => usageValue.textContent = percentageLabel;
 				panelStore.add(addDisposableListener(usageValue, EventType.MOUSE_ENTER, showCredits));
@@ -629,11 +618,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				panelStore.add(addDisposableListener(usageValue, EventType.FOCUS, showCredits));
 				panelStore.add(addDisposableListener(usageValue, EventType.BLUR, showPercentage));
 			}
-		}
-		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row'));
-		append(detailRow, $('span', undefined, localize('copilotDefaultProviders', "Default for all Copilot, Local")));
-		if (quota && !quota.unlimited) {
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsed', "Credits used")));
 		}
 	}
 
@@ -648,25 +632,30 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', undefined, localize('chatGPTLimitUsedPercentage', "{0}%", percentageFormatter.value.format(account.rateLimit.usedPercent))));
-		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row'));
-		append(detailRow, $('span', undefined, this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins)));
+		const usedPercentage = percentageFormatter.value.format(account.rateLimit.usedPercent);
+		let usageLabel = localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage);
 		if (account.rateLimit.resetsAt) {
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined,
-				localize('chatGPTLimitResets', "Resets {0}", fromNow(account.rateLimit.resetsAt * 1000, false, true))));
+			usageLabel = localize(
+				'chatGPTLimitUsedPercentageWithReset',
+				"{0}% used · {1} resets {2}",
+				usedPercentage,
+				this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins),
+				fromNow(account.rateLimit.resetsAt * 1000, false, true),
+			);
 		}
+		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, usageLabel));
 	}
 
 	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {
 		if (windowDurationMins !== undefined) {
 			if (Math.abs(windowDurationMins - 7 * 24 * 60) <= 60) {
-				return localize('chatGPTWeeklyLimitUsed', "Weekly limit used");
+				return localize('chatGPTWeeklyLimitUsed', "Weekly limit");
 			}
 			if (Math.abs(windowDurationMins - 24 * 60) <= 60) {
-				return localize('chatGPTDailyLimitUsed', "Daily limit used");
+				return localize('chatGPTDailyLimitUsed', "Daily limit");
 			}
 		}
-		return localize('chatGPTUsageLimitUsed', "Usage limit used");
+		return localize('chatGPTUsageLimitUsed', "Usage limit");
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {

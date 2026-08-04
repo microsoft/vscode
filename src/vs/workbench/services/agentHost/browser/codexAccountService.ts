@@ -15,8 +15,6 @@ import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sess
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { isChatGPTDefaultForCodex, setChatGPTDefaultForCodex } from '../common/codexAccount.js';
 
 interface ICodexAccountVisibilityConfiguration {
 	getValue<T>(section: string): T | undefined;
@@ -28,10 +26,8 @@ export interface ICodexAccountService {
 	readonly _serviceBrand: undefined;
 	readonly account: ICodexAccountInfo;
 	readonly onDidChangeAccount: Event<ICodexAccountInfo>;
-	readonly useChatGPTByDefault: boolean;
 	signIn(): void;
 	signOut(): void;
-	setUseChatGPTByDefault(enabled: boolean): void;
 }
 
 export function shouldShowCodexAccount(configurationService: ICodexAccountVisibilityConfiguration, isSessionsWindow: boolean): boolean {
@@ -78,14 +74,9 @@ class CodexAccountService extends Disposable implements ICodexAccountService {
 		return this._account;
 	}
 
-	get useChatGPTByDefault(): boolean {
-		return isChatGPTDefaultForCodex(this._storageService);
-	}
-
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		const initialState = this._agentHostService.rootState.value;
@@ -107,10 +98,6 @@ class CodexAccountService extends Disposable implements ICodexAccountService {
 			type: ActionType.RootConfigChanged,
 			config: { [CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY]: generateUuid() },
 		});
-	}
-
-	setUseChatGPTByDefault(enabled: boolean): void {
-		setChatGPTDefaultForCodex(this._storageService, enabled);
 	}
 
 	private _updateAccount(account: ICodexAccountInfo): void {

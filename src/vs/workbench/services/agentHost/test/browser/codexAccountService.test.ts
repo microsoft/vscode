@@ -9,8 +9,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { isChatGPTDefaultForCodex, setChatGPTDefaultForCodex } from '../../common/codexAccount.js';
 import { ICodexAccountService, createCodexAccountMenuActions, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
 
 suite('CodexAccountService', () => {
@@ -21,12 +19,10 @@ suite('CodexAccountService', () => {
 			_serviceBrand: undefined,
 			account: { status, email },
 			onDidChangeAccount: Event.None,
-			useChatGPTByDefault: false,
 			signInCalls: 0,
 			signOutCalls: 0,
 			signIn() { this.signInCalls++; },
 			signOut() { this.signOutCalls++; },
-			setUseChatGPTByDefault() { },
 		};
 	}
 
@@ -104,12 +100,4 @@ suite('CodexAccountService', () => {
 		});
 	});
 
-	test('persists the explicit ChatGPT default for Codex', () => {
-		const storage = disposables.add(new InMemoryStorageService());
-		assert.strictEqual(isChatGPTDefaultForCodex(storage), false);
-		setChatGPTDefaultForCodex(storage, true);
-		assert.strictEqual(isChatGPTDefaultForCodex(storage), true);
-		setChatGPTDefaultForCodex(storage, false);
-		assert.strictEqual(isChatGPTDefaultForCodex(storage), false);
-	});
 });

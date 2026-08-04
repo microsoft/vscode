@@ -363,20 +363,6 @@
 	color: var(--vscode-foreground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-default {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	min-height: 22px;
-	font-size: var(--vscode-agents-fontSize-label1);
-	line-height: 20px;
-	cursor: pointer;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-default > .monaco-checkbox {
-	margin: 0;
-}
-
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage {
 	display: flex;
 	flex-direction: column;

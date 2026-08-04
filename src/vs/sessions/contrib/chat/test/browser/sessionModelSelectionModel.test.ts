@@ -13,7 +13,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
-import { CODEX_CHAT_SESSION_TYPE, setChatGPTDefaultForCodex } from '../../../../../workbench/services/agentHost/common/codexAccount.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -161,7 +160,8 @@ suite('SessionModelSelectionModel', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the explicit Codex provider default only for untitled sessions', () => {
+	test('new Codex sessions use the most recently selected provider model', () => {
+		const codexModelTarget = 'agent-host-codex';
 		const copilotModel = {
 			...model('codex:@provider=vscode-proxy:gpt-test'),
 			metadata: { ...model('codex:@provider=vscode-proxy:gpt-test').metadata, modelGroup: { id: 'copilot' } },
@@ -170,12 +170,13 @@ suite('SessionModelSelectionModel', () => {
 			...model('codex:@provider=openai:gpt-test'),
 			metadata: { ...model('codex:@provider=openai:gpt-test').metadata, modelGroup: { id: 'openai', source: 'chatgptSubscription' as const } },
 		};
-		const draft = createSession('provider', SessionStatus.Untitled, undefined, 'draft', CODEX_CHAT_SESSION_TYPE);
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, codexModelTarget, chatGPTModel.identifier);
+
+		const draft = createSession('provider', SessionStatus.Untitled, undefined, 'draft', codexModelTarget);
 		const provider = disposables.add(createProvider('provider', identifier => draft.modelId.set(identifier, undefined)));
 		provider.models = [copilotModel, chatGPTModel];
-		provider.modelTarget = CODEX_CHAT_SESSION_TYPE;
-		const storage = disposables.add(new InMemoryStorageService());
-		setChatGPTDefaultForCodex(storage, true);
+		provider.modelTarget = codexModelTarget;
 		const draftSelection = disposables.add(new SessionModelSelectionModel(
 			observableValue<IActiveSession | undefined>('draftSession', draft.session),
 			createProvidersService([provider]),
@@ -189,46 +190,20 @@ suite('SessionModelSelectionModel', () => {
 			writes: [chatGPTModel.identifier],
 		});
 
-		const restored = createSession('provider', SessionStatus.Completed, copilotModel.identifier, 'restored', CODEX_CHAT_SESSION_TYPE);
-		const restoredProvider = disposables.add(createProvider('provider'));
-		restoredProvider.models = [copilotModel, chatGPTModel];
-		restoredProvider.modelTarget = CODEX_CHAT_SESSION_TYPE;
-		const restoredSelection = disposables.add(new SessionModelSelectionModel(
-			observableValue<IActiveSession | undefined>('restoredSession', restored.session),
-			createProvidersService([restoredProvider]),
+		assert.strictEqual(draftSelection.selectModel(copilotModel.identifier), true);
+		const nextDraft = createSession('provider', SessionStatus.Untitled, undefined, 'nextDraft', codexModelTarget);
+		const nextProvider = disposables.add(createProvider('provider', identifier => nextDraft.modelId.set(identifier, undefined)));
+		nextProvider.models = [chatGPTModel, copilotModel];
+		nextProvider.modelTarget = codexModelTarget;
+		const nextSelection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('nextDraftSession', nextDraft.session),
+			createProvidersService([nextProvider]),
 			storage,
 			createConfigurationService(),
 			disposables.add(new NullLogService()),
 		));
 
-		assert.deepStrictEqual({ current: restoredSelection.state.get().currentModel?.identifier, writes: restoredProvider.writes }, {
-			current: copilotModel.identifier,
-			writes: [],
-		});
-	});
-
-	test('defaults new Codex sessions to Copilot when ChatGPT is unchecked', () => {
-		const copilotModel = {
-			...model('codex:@provider=vscode-proxy:gpt-test'),
-			metadata: { ...model('codex:@provider=vscode-proxy:gpt-test').metadata, modelGroup: { id: 'copilot' } },
-		};
-		const chatGPTModel = {
-			...model('codex:@provider=openai:gpt-test'),
-			metadata: { ...model('codex:@provider=openai:gpt-test').metadata, modelGroup: { id: 'openai', source: 'chatgptSubscription' as const } },
-		};
-		const draft = createSession('provider', SessionStatus.Untitled, undefined, 'draft', CODEX_CHAT_SESSION_TYPE);
-		const provider = disposables.add(createProvider('provider', identifier => draft.modelId.set(identifier, undefined)));
-		provider.models = [chatGPTModel, copilotModel];
-		provider.modelTarget = CODEX_CHAT_SESSION_TYPE;
-		const selection = disposables.add(new SessionModelSelectionModel(
-			observableValue<IActiveSession | undefined>('draftSession', draft.session),
-			createProvidersService([provider]),
-			disposables.add(new InMemoryStorageService()),
-			createConfigurationService(),
-			disposables.add(new NullLogService()),
-		));
-
-		assert.deepStrictEqual({ current: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
+		assert.deepStrictEqual({ current: nextSelection.state.get().currentModel?.identifier, writes: nextProvider.writes }, {
 			current: copilotModel.identifier,
 			writes: [copilotModel.identifier],
 		});
