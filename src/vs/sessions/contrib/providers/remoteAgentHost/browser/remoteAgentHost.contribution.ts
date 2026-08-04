@@ -47,7 +47,7 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
@@ -393,13 +393,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
 		let connectOnDemand: (() => Promise<void>) | undefined;
 		let disconnectOnDemand: (() => Promise<void>) | undefined;
+		let preferenceKey: string | undefined;
 		if (sshConnection) {
 			connectOnDemand = () => this._connectSSHOnDemand(sshConnection, entry.name, address);
 			disconnectOnDemand = () => this._disconnectSSHOnDemand(sshConnection);
+			// The stable key SSHRemoteAgentHostService reads its preference
+			// by (see computeSSHConnectionKey's docs) - NOT the live
+			// forwarded `address` above, which changes per-connection.
+			preferenceKey = computeSSHConnectionKey({
+				sshConfigHost: sshConnection.sshConfigHost,
+				username: sshConnection.user,
+				host: sshConnection.hostName,
+				port: sshConnection.port,
+			});
 		}
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
+			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand, preferenceKey });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));

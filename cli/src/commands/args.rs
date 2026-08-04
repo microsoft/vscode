@@ -188,7 +188,7 @@ pub enum Commands {
 
 	/// Manage agent host sessions.
 	#[clap(name = "agent")]
-	Agent(AgentArgs),
+	Agent(Box<AgentArgs>),
 }
 
 #[derive(Args, Debug, Clone)]

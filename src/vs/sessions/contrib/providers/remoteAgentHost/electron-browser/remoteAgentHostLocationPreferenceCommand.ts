@@ -19,6 +19,7 @@ import {
 	RemoteAgentHostEntryType,
 	RemoteAgentHostsEnabledSettingId,
 } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { computeSSHConnectionKey } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { ChangeRemoteAgentHostLocationPreferenceCommandId } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
@@ -31,7 +32,21 @@ import { changeRemoteAgentHostLocationPreference } from '../browser/remoteHostOp
 
 /** A remote host that can have a preferred agent run location, deduplicated by its stable preference key. */
 export interface IRemoteAgentHostLocationTarget {
-	readonly key: string;
+	/**
+	 * Stable key persisted via {@link IRemoteAgentHostLocationPreferenceService}
+	 * and read back by `SSHRemoteAgentHostService`/`TunnelAgentHostService`
+	 * (e.g. `ssh:<alias>` from {@link computeSSHConnectionKey}, or
+	 * `tunnel:<tunnelId>`). Distinct from {@link address}, which is the
+	 * live, connection-specific endpoint.
+	 */
+	readonly preferenceKey: string;
+	/**
+	 * The live provider/connection address used to resolve the currently
+	 * registered {@link IAgentHostSessionsProvider} (e.g. an SSH host's
+	 * forwarded `localhost:<port>` endpoint, or the same value as
+	 * {@link preferenceKey} for tunnels).
+	 */
+	readonly address: string;
 	readonly label: string;
 }
 
@@ -50,16 +65,21 @@ export function collectRemoteAgentHostLocationTargets(
 		if (entry.connection.type !== RemoteAgentHostEntryType.SSH) {
 			continue;
 		}
-		const key = getEntryAddress(entry);
-		if (!targets.has(key)) {
-			targets.set(key, { key, label: entry.name });
+		const preferenceKey = computeSSHConnectionKey({
+			sshConfigHost: entry.connection.sshConfigHost,
+			username: entry.connection.user,
+			host: entry.connection.hostName,
+			port: entry.connection.port,
+		});
+		if (!targets.has(preferenceKey)) {
+			targets.set(preferenceKey, { preferenceKey, address: getEntryAddress(entry), label: entry.name });
 		}
 	}
 
 	for (const tunnel of cachedTunnels) {
-		const key = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
-		if (!targets.has(key)) {
-			targets.set(key, { key, label: tunnel.name });
+		const preferenceKey = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		if (!targets.has(preferenceKey)) {
+			targets.set(preferenceKey, { preferenceKey, address: preferenceKey, label: tunnel.name });
 		}
 	}
 
@@ -90,20 +110,26 @@ export async function pickRemoteAgentHostLocationTarget(
 }
 
 /**
- * Resolve the live {@link IAgentHostSessionsProvider} for `targetKey`, i.e.
+ * Resolve the live {@link IAgentHostSessionsProvider} for `liveAddress`, i.e.
  * an agent host provider (per {@link isAgentHostProvider}) whose
  * `remoteAddress` exactly matches. Pure so provider resolution can be unit
  * tested without a {@link ISessionsProvidersService}. Returns `undefined`
  * when no such provider is currently registered - the exceptional race
  * where a configured/cached target has no corresponding live provider.
+ *
+ * `liveAddress` is the target's {@link IRemoteAgentHostLocationTarget.address},
+ * NOT its {@link IRemoteAgentHostLocationTarget.preferenceKey} - providers
+ * are looked up by their live connection address (e.g. an SSH host's
+ * forwarded `localhost:<port>` endpoint), which is not the same string as
+ * the stable preference key for SSH hosts.
  */
 export function findAgentHostProviderForTarget(
 	providers: readonly ISessionsProvider[],
-	targetKey: string,
+	liveAddress: string,
 ): IAgentHostSessionsProvider | undefined {
 	return providers
 		.filter(isAgentHostProvider)
-		.find(provider => provider.remoteAddress === targetKey);
+		.find(provider => provider.remoteAddress === liveAddress);
 }
 
 registerAction2(class extends Action2 {
@@ -142,9 +168,9 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const provider = findAgentHostProviderForTarget(sessionsProvidersService.getProviders(), target.key);
+		const provider = findAgentHostProviderForTarget(sessionsProvidersService.getProviders(), target.address);
 		await changeRemoteAgentHostLocationPreference({
-			address: target.key,
+			preferenceKey: target.preferenceKey,
 			hostLabel: target.label,
 			productName: productService.nameShort,
 			provider,

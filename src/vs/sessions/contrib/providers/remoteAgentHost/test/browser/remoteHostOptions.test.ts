@@ -88,12 +88,12 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('buildRemoteHostOptionItems', () => {
-		test('desktop: includes the location preference item for a supported SSH address', () => {
-			const items = buildRemoteHostOptionItems({ address: 'ssh:my-host-alias', isConnected: true, isWebPlatform: false });
+		test('desktop: includes the location preference item for a supported SSH preference key', () => {
+			const items = buildRemoteHostOptionItems({ address: 'localhost:4321', preferenceKey: 'ssh:my-host-alias', isConnected: true, isWebPlatform: false });
 			assert.ok(items.some(item => item.id === 'locationPreference'));
 		});
 
-		test('desktop: includes the location preference item for a supported tunnel address', () => {
+		test('desktop: includes the location preference item for a supported tunnel address (no separate preferenceKey)', () => {
 			const items = buildRemoteHostOptionItems({ address: 'tunnel:some-tunnel-id', isConnected: true, isWebPlatform: false });
 			assert.ok(items.some(item => item.id === 'locationPreference'));
 		});
@@ -101,6 +101,15 @@ suite('remoteHostOptions', () => {
 		test('desktop: omits the location preference item for an unsupported address', () => {
 			const items = buildRemoteHostOptionItems({ address: 'localhost:4321', isConnected: true, isWebPlatform: false });
 			assert.ok(!items.some(item => item.id === 'locationPreference'));
+		});
+
+		test('desktop: a real SSH host\'s forwarded remoteAddress alone (no preferenceKey) never matches - regression guard for the ssh: prefix bug', () => {
+			// Before the fix, supportsRemoteAgentHostLocationPreference() was
+			// called with the SSH provider's live remoteAddress (a forwarded
+			// localhost:<port> endpoint), which never starts with 'ssh:', so
+			// the item was silently omitted for every real SSH host.
+			const items = buildRemoteHostOptionItems({ address: 'localhost:4321', isConnected: true, isWebPlatform: false });
+			assert.ok(!items.some(item => item.id === 'locationPreference'), 'a forwarded SSH address alone must not be mistaken for a stable preference key');
 		});
 
 		test('web: omits the location preference item for a tunnel address', () => {
@@ -113,7 +122,7 @@ suite('remoteHostOptions', () => {
 		});
 
 		test('still includes reconnect/upgrade items alongside the location preference item', () => {
-			const items = buildRemoteHostOptionItems({ address: 'ssh:my-host-alias', isConnected: false, upgradeMethod: 'cli', isWebPlatform: false });
+			const items = buildRemoteHostOptionItems({ address: 'localhost:4321', preferenceKey: 'ssh:my-host-alias', isConnected: false, upgradeMethod: 'cli', isWebPlatform: false });
 			assert.ok(items.some(item => item.id === 'upgrade'));
 			assert.ok(items.some(item => item.id === 'reconnect'));
 			assert.ok(items.some(item => item.id === 'locationPreference'));
@@ -173,7 +182,7 @@ suite('remoteHostOptions', () => {
 			return { prompt: async () => ({ result }) } as unknown as IDialogService;
 		}
 
-		test('persists the chosen preference before reconnecting the resolved provider, then confirms', async () => {
+		test('persists the chosen preference under the stable ssh: key while reconnecting via the live SSH provider, then confirms', async () => {
 			const { service: locationPreferenceService, setCalls } = createLocationPreferenceService();
 			const { service: notificationService, infoMessages } = createNotificationService();
 			const { service: progressService } = createProgressService();
@@ -181,9 +190,12 @@ suite('remoteHostOptions', () => {
 			const dialogService = acceptDialogService('dedicated');
 
 			const order: string[] = [];
+			// Realistic SSH provider: its remoteAddress is the forwarded local
+			// endpoint (never the ssh: preference key), and it reconnects via
+			// its own connect() callback - not remoteAgentHostService.reconnect.
 			const provider: Partial<IAgentHostSessionsProvider> = {
 				label: 'my-host-alias',
-				remoteAddress: 'ssh:my-host-alias',
+				remoteAddress: 'localhost:4321',
 				connect: async () => { order.push('reconnect'); },
 			};
 			const trackedLocationPreferenceService: IRemoteAgentHostLocationPreferenceService = {
@@ -195,7 +207,7 @@ suite('remoteHostOptions', () => {
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -206,7 +218,7 @@ suite('remoteHostOptions', () => {
 				progressService,
 			});
 
-			assert.deepStrictEqual(setCalls, [{ hostKey: 'ssh:my-host-alias', preference: 'dedicated' }]);
+			assert.deepStrictEqual(setCalls, [{ hostKey: 'ssh:my-host-alias', preference: 'dedicated' }], 'must persist under the stable ssh: preference key, not the live forwarded address');
 			assert.deepStrictEqual(order, ['persist', 'reconnect'], 'must persist before reconnecting');
 			assert.strictEqual(infoMessages.length, 1);
 			assert.ok(infoMessages[0].includes('my-host-alias'));
@@ -222,12 +234,12 @@ suite('remoteHostOptions', () => {
 			let connectCalls = 0;
 			const provider: Partial<IAgentHostSessionsProvider> = {
 				label: 'my-host-alias',
-				remoteAddress: 'ssh:my-host-alias',
+				remoteAddress: 'localhost:4321',
 				connect: async () => { connectCalls++; },
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -242,6 +254,7 @@ suite('remoteHostOptions', () => {
 			assert.strictEqual(reconnectCalls.length, 0, 'must not fall back to remoteAgentHostService.reconnect when provider.connect exists');
 		});
 
+
 		test('reuses reconnectRemoteHost: falls back to remoteAgentHostService.reconnect(address) when the provider has no connect callback', async () => {
 			const { service: locationPreferenceService } = createLocationPreferenceService();
 			const { service: notificationService } = createNotificationService();
@@ -255,7 +268,7 @@ suite('remoteHostOptions', () => {
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'tunnel:abc123',
+				preferenceKey: 'tunnel:abc123',
 				hostLabel: 'My Tunnel',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -278,12 +291,12 @@ suite('remoteHostOptions', () => {
 
 			const provider: Partial<IAgentHostSessionsProvider> = {
 				label: 'my-host-alias',
-				remoteAddress: 'ssh:my-host-alias',
+				remoteAddress: 'localhost:4321',
 				connect: async () => { },
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -309,12 +322,12 @@ suite('remoteHostOptions', () => {
 
 			const provider: Partial<IAgentHostSessionsProvider> = {
 				label: 'my-host-alias',
-				remoteAddress: 'ssh:my-host-alias',
+				remoteAddress: 'localhost:4321',
 				connect: async () => { throw new Error('boom'); },
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -341,7 +354,7 @@ suite('remoteHostOptions', () => {
 			const dialogService = acceptDialogService('dedicated');
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: undefined,
@@ -375,7 +388,7 @@ suite('remoteHostOptions', () => {
 			};
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'tunnel:some-tunnel-id',
+				preferenceKey: 'tunnel:some-tunnel-id',
 				hostLabel: 'some-tunnel-id',
 				productName: 'Code - OSS',
 				provider: provider as IAgentHostSessionsProvider,
@@ -409,7 +422,7 @@ suite('remoteHostOptions', () => {
 			} as unknown as IDialogService;
 
 			await changeRemoteAgentHostLocationPreference({
-				address: 'ssh:my-host-alias',
+				preferenceKey: 'ssh:my-host-alias',
 				hostLabel: 'my-host-alias',
 				productName: 'Code - OSS',
 				provider: undefined,

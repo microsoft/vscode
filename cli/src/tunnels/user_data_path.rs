@@ -143,23 +143,25 @@ pub fn default_user_data_path_with(
 			let base = if let Some(appdata) = &env.appdata {
 				PathBuf::from(appdata)
 			} else if let Some(userprofile) = &env.userprofile {
-				PathBuf::from(userprofile).join("AppData").join("Roaming")
+				let base = join_component(PathBuf::from(userprofile), "AppData", os);
+				join_component(base, "Roaming", os)
 			} else {
 				home_dir_or_empty(env)
 			};
-			base.join(product_name)
+			join_component(base, product_name, os)
 		}
-		UserDataOs::MacOs => home_dir_or_empty(env)
-			.join("Library")
-			.join("Application Support")
-			.join(product_name),
+		UserDataOs::MacOs => {
+			let base = join_component(home_dir_or_empty(env), "Library", os);
+			let base = join_component(base, "Application Support", os);
+			join_component(base, product_name, os)
+		}
 		UserDataOs::Linux => {
 			let base = if let Some(xdg) = &env.xdg_config_home {
 				PathBuf::from(xdg)
 			} else {
-				home_dir_or_empty(env).join(".config")
+				join_component(home_dir_or_empty(env), ".config", os)
 			};
-			base.join(product_name)
+			join_component(base, product_name, os)
 		}
 	}
 }
@@ -233,9 +235,14 @@ mod tests {
 		let mut env = env_with_home(r"C:\Users\test");
 		env.appdata = Some(r"C:\Users\test\AppData\Roaming".to_string());
 		let path = default_user_data_path_with("Code - OSS", UserDataOs::Windows, &env);
+		// Compared as a raw string (not `PathBuf`) so the assertion still
+		// catches host-native (as opposed to target-OS-aware) joins on
+		// hosts where `Path`'s separator-normalizing `PartialEq` would
+		// otherwise mask a wrong separator (e.g. Windows treats `/` and
+		// `\` as equivalent component separators).
 		assert_eq!(
-			path,
-			PathBuf::from(r"C:\Users\test\AppData\Roaming\Code - OSS")
+			path.to_string_lossy(),
+			r"C:\Users\test\AppData\Roaming\Code - OSS"
 		);
 	}
 
@@ -245,8 +252,8 @@ mod tests {
 		env.userprofile = Some(r"C:\Users\test".to_string());
 		let path = default_user_data_path_with("Code - OSS", UserDataOs::Windows, &env);
 		assert_eq!(
-			path,
-			PathBuf::from(r"C:\Users\test\AppData\Roaming\Code - OSS")
+			path.to_string_lossy(),
+			r"C:\Users\test\AppData\Roaming\Code - OSS"
 		);
 	}
 
@@ -255,8 +262,8 @@ mod tests {
 		let env = env_with_home("/Users/test");
 		let path = default_user_data_path_with("Code - OSS", UserDataOs::MacOs, &env);
 		assert_eq!(
-			path,
-			PathBuf::from("/Users/test/Library/Application Support/Code - OSS")
+			path.to_string_lossy(),
+			"/Users/test/Library/Application Support/Code - OSS"
 		);
 	}
 
@@ -265,14 +272,14 @@ mod tests {
 		let mut env = env_with_home("/home/test");
 		env.xdg_config_home = Some("/home/test/.config".to_string());
 		let path = default_user_data_path_with("Code - OSS", UserDataOs::Linux, &env);
-		assert_eq!(path, PathBuf::from("/home/test/.config/Code - OSS"));
+		assert_eq!(path.to_string_lossy(), "/home/test/.config/Code - OSS");
 	}
 
 	#[test]
 	fn default_linux_path_falls_back_to_home_dot_config() {
 		let env = env_with_home("/home/test");
 		let path = default_user_data_path_with("Code - OSS", UserDataOs::Linux, &env);
-		assert_eq!(path, PathBuf::from("/home/test/.config/Code - OSS"));
+		assert_eq!(path.to_string_lossy(), "/home/test/.config/Code - OSS");
 	}
 
 	#[test]

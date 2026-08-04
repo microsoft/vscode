@@ -158,6 +158,41 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		await promptRemoteAgentHostLocationPreference(dialogService, 'host', productName);
 		assert.strictEqual(dialogService.lastPrompt?.token, undefined);
 	});
+
+	test('marks the current preference\'s detail with "(Current)", reordered first, when the host currently prefers "editor"', async () => {
+		const dialogService = new CapturingDialogService(0);
+		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, 'editor');
+
+		const prompt = dialogService.lastPrompt!;
+		assert.deepStrictEqual(prompt.buttons!.map(b => b.label), [
+			'Stop My Agents if I Close Test Product',
+			'Keep My Agents Running in a Dedicated Process',
+		], 'the current preference is still reordered first');
+		assert.deepStrictEqual((prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails, [
+			'Agents are available only while the remote Test Product window is open. (Current)',
+			'Agents continue after you close Test Product and stop when their work finishes.',
+		]);
+	});
+
+	test('marks the current preference\'s detail with "(Current)" when the host currently prefers "dedicated"', async () => {
+		const dialogService = new CapturingDialogService(0);
+		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, 'dedicated');
+
+		const prompt = dialogService.lastPrompt!;
+		assert.deepStrictEqual((prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails, [
+			'Agents continue after you close Test Product and stop when their work finishes. (Current)',
+			'Agents are available only while the remote Test Product window is open.',
+		]);
+	});
+
+	test('adds no "(Current)" marker to either option when there is no current preference', async () => {
+		const dialogService = new CapturingDialogService(0);
+		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, undefined);
+
+		const prompt = dialogService.lastPrompt!;
+		const details = (prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails;
+		assert.ok(details.every(detail => !detail.includes('Current')), 'no detail should mention "Current" when there is no saved preference');
+	});
 });
 
 suite('orderRemoteAgentHostLocationOptions', () => {
@@ -186,5 +221,22 @@ suite('orderRemoteAgentHostLocationOptions', () => {
 			assert.strictEqual(options.length, 2);
 			assert.deepStrictEqual(new Set(options.map(o => o.preference)), new Set(['dedicated', 'editor']));
 		}
+	});
+
+	test('marks the current option\'s detail with "(Current)" after reordering, for both "dedicated" and "editor"', () => {
+		const dedicatedFirst = orderRemoteAgentHostLocationOptions(productName, 'dedicated');
+		assert.strictEqual(dedicatedFirst[0].preference, 'dedicated');
+		assert.ok(dedicatedFirst[0].detail.endsWith('(Current)'));
+		assert.ok(!dedicatedFirst[1].detail.includes('Current'));
+
+		const editorFirst = orderRemoteAgentHostLocationOptions(productName, 'editor');
+		assert.strictEqual(editorFirst[0].preference, 'editor');
+		assert.ok(editorFirst[0].detail.endsWith('(Current)'));
+		assert.ok(!editorFirst[1].detail.includes('Current'));
+	});
+
+	test('adds no "(Current)" marker to any option when there is no current preference', () => {
+		const options = orderRemoteAgentHostLocationOptions(productName, undefined);
+		assert.ok(options.every(option => !option.detail.includes('Current')));
 	});
 });
