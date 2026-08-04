@@ -253,7 +253,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 
-			this._telemetryReporter.chatModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
+			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
 		}));
 
 		// Whenever the agents observable changes, publish to root state.

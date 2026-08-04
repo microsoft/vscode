@@ -1502,7 +1502,10 @@ suite('CopilotAgentSession', () => {
 				inputTokens: 4500,
 				outputTokens: 0,
 				model: undefined,
-				_meta: { copilotUsage: { totalNanoAiu: 250_000_000, sessionTotalNanoAiu: 250_000_000 } },
+				_meta: {
+					copilotUsage: { totalNanoAiu: 250_000_000, sessionTotalNanoAiu: 250_000_000 },
+					turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 9000, cachedTokens: 0, outputTokens: 400 }],
+				},
 			},
 		});
 	});
@@ -1532,7 +1535,11 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			model: 'claude-sonnet-4.6',
 			cacheReadTokens: undefined,
-			_meta: { copilotUsage: { totalNanoAiu: 750_000_000, sessionTotalNanoAiu: 750_000_000 } },
+			_meta: {
+				copilotUsage: { totalNanoAiu: 750_000_000, sessionTotalNanoAiu: 750_000_000 },
+				// The compaction call reported no tokens of its own, so only the model call shows.
+				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+			},
 		});
 	});
 
@@ -1579,8 +1586,11 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			model: 'claude-opus-4.6',
 			cacheReadTokens: undefined,
-			// The turn bills only its own call; the compaction is visible in the session total.
-			_meta: { copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 133_968_375_000 } },
+			_meta: {
+				// The turn bills only its own call; the compaction is visible in the session total.
+				copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 133_968_375_000 },
+				turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+			},
 		});
 	});
 
@@ -1606,6 +1616,7 @@ suite('CopilotAgentSession', () => {
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, {
 			copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 },
+			turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
 		});
 	});
 
@@ -1991,6 +2002,7 @@ suite('CopilotAgentSession', () => {
 			_meta: {
 				cost: 2,
 				copilotUsage: { totalNanoAiu: 1_250_000_000, sessionTotalNanoAiu: 1_250_000_000 },
+				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 5, outputTokens: 60 }],
 			},
 		});
 	});
@@ -2211,11 +2223,88 @@ suite('CopilotAgentSession', () => {
 					outputTokens: 20,
 					model: 'claude-opus-4.8',
 					cacheReadTokens: undefined,
-					_meta: { cost: 2, autoModeResolved },
+					_meta: {
+						cost: 2,
+						autoModeResolved,
+						turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+					},
 				},
 			],
 			parsed: autoModeResolved,
 		});
+	});
+
+	test('accumulates whole-turn token totals per model across parent and subagent calls', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			cacheReadTokens: 4,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 200,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		// A subagent's call counts toward the turn under the subagent's own model,
+		// exactly once, even though the event produces a parent and a child emit.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const usageSignals = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? [{ parentToolCallId: signal.parentToolCallId, turnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals }]
+				: []);
+
+		assert.deepStrictEqual(usageSignals, [
+			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }] },
+			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }] },
+			{
+				parentToolCallId: undefined,
+				turnTokenTotals: [
+					{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 },
+					{ model: 'gpt-5.5', inputTokens: 5, cachedTokens: 0, outputTokens: 7 },
+				],
+			},
+			// The subagent's own report describes just its component of the turn.
+			{ parentToolCallId: 'tc-subagent', turnTokenTotals: undefined },
+		]);
+	});
+
+	test('starts whole-turn token totals over for each turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 3,
+			outputTokens: 4,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.deepStrictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 3, cachedTokens: 0, outputTokens: 4 },
+		]);
 	});
 
 	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
