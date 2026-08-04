@@ -4537,53 +4537,49 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _isEnabled(customization: Customization): boolean {
-		if (customization.type === CustomizationType.Plugin) {
-			// Resolved purely from host policy (plus any session decision): the host
-			// is the only source of plugin disablement, and every client publisher
-			// hardcodes `enabled: true`. If a client ever publishes a disabled
-			// plugin, that intent would be dropped here and must be folded in.
-			return this._applyMcpEnablement(customization, undefined).enabled !== false;
-		}
-		return this._desiredEnabled(customization) ?? customization.enabled !== false;
+		return this._resolveEnablement(customization, undefined).enabled !== false;
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
-		if (customization.type === CustomizationType.McpServer) {
-			return this._applyMcpEnablement(customization, undefined) as T;
+		const container = this._resolveEnablement(customization, undefined);
+		if (container.type === CustomizationType.McpServer) {
+			return container;
 		}
-		const container = customization.type === CustomizationType.Plugin
-			? this._applyMcpEnablement(customization, undefined)
-			: customization;
-		const enabled = container.type === CustomizationType.Plugin ? container.enabled : this._isEnabled(container);
-		const source = customization.type === CustomizationType.Plugin ? customization.uri : undefined;
-		let changed = container !== customization || container.enabled !== enabled;
-		const children = customization.children?.map(child => {
-			const next = child.type === CustomizationType.McpServer ? this._applyMcpEnablement(child, source) : this._applyChildEnablement(child);
+		// Only a plugin contributes a stable source identity to its children's
+		// policy keys; other containers have no durable identity of their own.
+		const source = container.type === CustomizationType.Plugin ? container.uri : undefined;
+		let changed = container !== customization;
+		const children = container.children?.map(child => {
+			const next = this._resolveEnablement(child, source);
 			changed ||= next !== child;
 			return next;
 		});
-		return changed ? { ...container, enabled, children } : container;
-	}
-
-	private _applyChildEnablement<T extends ChildCustomization>(child: T): T {
-		const desiredEnabled = this._desiredEnabled(child);
-		return desiredEnabled === undefined || desiredEnabled === child.enabled ? child : { ...child, enabled: desiredEnabled };
+		return changed ? { ...container, children } : customization;
 	}
 
 	/**
-	 * Resolves a customization against the host's durable (global /
-	 * workspace) enablement policy, layering on any session-scoped decision
-	 * carried by the reducer-backed session state. Unlike other customization
-	 * types, MCP enablement outlives the session, so the published value has to
-	 * be derived from the policy rather than from session state alone —
-	 * otherwise a freshly created session publishes the raw discovered value
-	 * and appears enabled despite a persisted workspace or global disable.
+	 * The effective enablement for a single customization: the host's durable
+	 * (global / workspace) policy where the type has one, with any session-scoped
+	 * decision from the reducer-backed session state layered on top.
 	 *
-	 * @param source stable source URI of the containing plugin, which the
-	 * policy key is derived from. Must match what the toggle path persists.
+	 * MCP servers and plugins outlive the session, so their published value has
+	 * to be derived from the policy — a freshly created session would otherwise
+	 * publish the raw discovered value and appear enabled despite a persisted
+	 * workspace or global disable. Every other type has only session scope, so it
+	 * keeps whatever was discovered unless the session says otherwise. Object
+	 * identity is preserved when nothing changes, and an absent `enabled` on a
+	 * leaf child stays absent (absent means enabled).
+	 *
+	 * @param source stable source URI of the containing plugin, which the policy
+	 * key is derived from. Must match what the toggle path persists.
 	 */
-	private _applyMcpEnablement<T extends Customization | ChildCustomization>(customization: T, source: string | undefined): T {
+	private _resolveEnablement<T extends Customization | ChildCustomization>(customization: T, source: string | undefined): T {
 		const desired = this._desiredCustomization(customization);
+		if (customization.type !== CustomizationType.McpServer && customization.type !== CustomizationType.Plugin) {
+			return desired?.enabled === undefined || desired.enabled === customization.enabled
+				? customization
+				: { ...customization, enabled: desired.enabled };
+		}
 		const resolved = this._customizationEnablementService.resolveEnablement(
 			desired?.enablement ? { ...customization, enablement: desired.enablement } : customization,
 			// Falls back to this controller's anchor directory: publishes can run
@@ -4595,10 +4591,6 @@ class SessionPluginController extends Disposable {
 		return customization.enabled === resolved.enabled && customizationEnablementEquals(customization.enablement, resolved.enablement)
 			? customization
 			: { ...customization, ...resolved };
-	}
-
-	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
-		return this._desiredCustomization(customization)?.enabled;
 	}
 
 	private _desiredCustomization(customization: Customization | ChildCustomization): Customization | ChildCustomization | undefined {
