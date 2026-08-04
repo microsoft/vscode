@@ -128,6 +128,8 @@ import type {
 	ChatQueuedMessagesReorderedAction,
 	SessionIsReadChangedAction,
 	SessionIsArchivedChangedAction,
+	SessionWorkingDirectorySetAction,
+	SessionWorkingDirectoryRemovedAction,
 	RootConfigChangedAction,
 } from './protocol/actions.js';
 
@@ -196,8 +198,8 @@ export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
 
 /** Session-level working-directory mutations. */
 export type SessionWorkingDirectoryAction =
-	| import('./protocol/actions.js').SessionWorkingDirectorySetAction
-	| import('./protocol/actions.js').SessionWorkingDirectoryRemovedAction;
+	| SessionWorkingDirectorySetAction
+	| SessionWorkingDirectoryRemovedAction;
 
 // Notifications
 export type INotification = ProtocolNotification;
