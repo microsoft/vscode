@@ -152,4 +152,21 @@ suite('UpdateTitleBarEntry', () => {
 		await action.run();
 		assert.strictEqual(executedCommand, 'update.restart');
 	});
+
+	test('restart menu items stay unavailable while chat is in progress', () => {
+		const key = 'updateTitleBarChatRequestInProgress';
+		const ready = 'updateState == ready';
+		const restartCommandIds = ['update.restart', 'update.restartToUpdate'];
+
+		for (const menuId of [MenuId.GlobalActivity, MenuId.CommandPalette]) {
+			for (const item of MenuRegistry.getMenuItems(menuId)) {
+				if ('submenu' in item || !restartCommandIds.includes(item.command.id)) {
+					continue;
+				}
+				assert.ok(item.when);
+				assert.ok(item.when.serialize().includes(ready));
+				assert.ok(item.when.serialize().includes(key), `${item.command.id} must be hidden during chat`);
+			}
+		}
+	});
 });

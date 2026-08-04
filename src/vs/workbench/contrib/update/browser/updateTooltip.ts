@@ -15,6 +15,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, Restarting, State, StateType, Updating } from '../../../../platform/update/common/update.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
 import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
@@ -65,6 +66,7 @@ export class UpdateTooltip extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 		@IProductService private readonly productService: IProductService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -350,6 +352,13 @@ export class UpdateTooltip extends Disposable {
 	}
 
 	private renderReady({ update }: Ready) {
+		if (this.chatService.requestInProgressObs.get()) {
+			// Keep Update discoverable during chat but never offer a one-click quit (#322857 / #328473).
+			this.renderTitleAndInfo(localize('updateTooltip.readyDuringChatTitle', "Update Ready"), update);
+			this.renderMessage(localize('updateTooltip.readyDuringChatMessage', "Finish the current session, then restart to update."));
+			return;
+		}
+
 		if (this.configurationService.getValue<string>('update.mode') === 'manual') {
 			this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
 			this.renderActionButton(localize('updateTooltip.restartButton', "Restart"), 'update.restart');
