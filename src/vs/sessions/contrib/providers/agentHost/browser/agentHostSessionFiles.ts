@@ -150,13 +150,16 @@ export function createSessionOutputObs(
 			constObservable(chatUri),
 		);
 		const parse = createIncrementalChatFileEditsParser(mapDiffUri);
-		return derivedOpts<IChatFileEdits & { readonly chatUri: URI }>({ equalsFn: (a, b) => isEqual(a.chatUri, b.chatUri) && chatFileEditsEqual(a, b) }, reader => {
-			const chatState = chatStateObs.read(reader).read(reader);
-			if (!chatState || chatState instanceof Error) {
-				return { chatUri, allEdits: [], lastTurnEdits: [] };
-			}
-			return { chatUri, ...parse(chatState) };
-		});
+		return {
+			chatUri,
+			edits: derivedOpts<IChatFileEdits>({ equalsFn: chatFileEditsEqual }, reader => {
+				const chatState = chatStateObs.read(reader).read(reader);
+				if (!chatState || chatState instanceof Error) {
+					return { allEdits: [], lastTurnEdits: [] };
+				}
+				return parse(chatState);
+			}),
+		};
 	}, chatUri => chatUri.toString());
 
 	const externalFiles = derivedOpts<readonly ISessionFile[]>({ equalsFn: sessionFilesEqual }, reader => {
@@ -164,8 +167,8 @@ export function createSessionOutputObs(
 		const folderRoots = (workspace?.folders ?? []).map(f => f.workingDirectory);
 
 		const allEdits: IParsedFileEdit[] = [];
-		for (const chatEditsObs of editsPerChatObs.read(reader)) {
-			allEdits.push(...chatEditsObs.read(reader).allEdits);
+		for (const chatEdits of editsPerChatObs.read(reader)) {
+			allEdits.push(...chatEdits.edits.read(reader).allEdits);
 		}
 
 		return reduceSessionFiles(allEdits, folderRoots);
@@ -174,11 +177,9 @@ export function createSessionOutputObs(
 	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionTurnFileChange[]> =>
 		derivedOpts<readonly ISessionTurnFileChange[]>({ equalsFn: sessionTurnFileChangesEqual }, reader => {
 			const folderRoots = getWorkspaceAndWorktreeRoots(workspaceObs.read(reader));
-			for (const chatEditsObs of editsPerChatObs.read(reader)) {
-				const chatEdits = chatEditsObs.read(reader);
-				if (isEqual(chatEdits.chatUri, chatUri)) {
-					return reduceTurnChanges(chatEdits.lastTurnEdits, folderRoots, cache);
-				}
+			const chatEdits = editsPerChatObs.read(reader).find(entry => isEqual(entry.chatUri, chatUri));
+			if (chatEdits) {
+				return reduceTurnChanges(chatEdits.edits.read(reader).lastTurnEdits, folderRoots, cache);
 			}
 			return [];
 		});
