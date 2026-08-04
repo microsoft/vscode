@@ -807,12 +807,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 				selectBackground: undefined,
 				selectBorder: undefined,
 				selectForeground: undefined,
-				// The closed control is transparent (above), but the opened
-				// dropdown must stay opaque. `dropdown.listBackground` is unset
-				// in the default light/dark themes and normally falls back to
-				// `selectBackground` - which we've cleared - so give it an
-				// explicit fallback to the dropdown background to avoid the list
-				// rendering see-through over the content behind it.
 				selectListBackground: asCssVariableWithDefault(selectListBackground, asCssVariable(selectBackground)),
 			},
 			{ ariaLabel: localize('voiceMode.onboarding.microphone', "Microphone"), useCustomDrawn: true },
