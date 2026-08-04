@@ -40,6 +40,42 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 
+function createPermissionSession(sessionId: string, primary = testWorkingDirectory.fsPath, configureError?: Error): {
+	readonly session: CopilotSession;
+	readonly configuredAdditionalDirectories: () => readonly string[];
+	readonly disconnectCalls: () => number;
+} {
+	let additionalDirectories: string[] = [];
+	let disconnectCalls = 0;
+	const session = {
+		sessionId,
+		rpc: {
+			options: {
+				update: async () => ({ success: true }),
+			},
+			permissions: {
+				configure: async (params: Parameters<CopilotSession['rpc']['permissions']['configure']>[0]) => {
+					if (configureError) {
+						throw configureError;
+					}
+					additionalDirectories = [...(params.paths?.additionalDirectories ?? [])];
+					return { success: true };
+				},
+				paths: {
+					list: async () => ({ directories: [primary, ...additionalDirectories], primary }),
+				},
+			},
+		},
+		on: () => () => { },
+		disconnect: async () => { disconnectCalls++; },
+	} as unknown as CopilotSession;
+	return {
+		session,
+		configuredAdditionalDirectories: () => additionalDirectories,
+		disconnectCalls: () => disconnectCalls,
+	};
+}
+
 function createTestLauncher(): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: () => undefined,
@@ -324,11 +360,7 @@ suite('CopilotSessionLauncher client identity', () => {
 	test('passes the Agent Host client name to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
-		const session = {
-			sessionId: 'session-1',
-			on: () => () => { },
-			disconnect: async () => { },
-		} as unknown as CopilotSession;
+		const { session } = createPermissionSession('session-1');
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
 				createConfigs.push(config);
@@ -412,6 +444,110 @@ suite('CopilotSessionLauncher client identity', () => {
 	});
 });
 
+suite('CopilotSessionLauncher additional root permissions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies complete create and resume snapshots through permissions.configure, including removal', async () => {
+		const roots = [URI.file('/workspace/secondary-a'), URI.file('/workspace/secondary-b')];
+		const rawSessions = [
+			createPermissionSession('session-1'),
+			createPermissionSession('session-1'),
+			createPermissionSession('session-1'),
+		];
+		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
+		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		let launchIndex = 0;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				createConfigs.push(config);
+				return rawSessions[launchIndex++].session;
+			},
+			resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+				resumeConfigs.push(config);
+				return rawSessions[launchIndex++].session;
+			},
+		};
+		const basePlan = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+		};
+		const launcher = createTestLauncher();
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined, additionalDirectories: roots }, testRuntime));
+			sessions.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined }, additionalDirectories: [roots[1]] }, testRuntime));
+			sessions.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined }, additionalDirectories: [] }, testRuntime));
+
+			assert.deepStrictEqual({
+				highLevelCreateAdditionalDirectories: (createConfigs[0] as { additionalDirectories?: string[] }).additionalDirectories,
+				highLevelResumeAdditionalDirectories: resumeConfigs.map(config => (config as { additionalDirectories?: string[] }).additionalDirectories),
+				permissionSnapshots: rawSessions.map(raw => raw.configuredAdditionalDirectories()),
+				listedDirectories: await Promise.all(rawSessions.map(raw => raw.session.rpc.permissions.paths.list().then(result => result.directories))),
+			}, {
+				highLevelCreateAdditionalDirectories: undefined,
+				highLevelResumeAdditionalDirectories: [undefined, undefined],
+				permissionSnapshots: [roots.map(root => root.fsPath), [roots[1].fsPath], []],
+				listedDirectories: [
+					[testWorkingDirectory.fsPath, roots[0].fsPath, roots[1].fsPath],
+					[testWorkingDirectory.fsPath, roots[1].fsPath],
+					[testWorkingDirectory.fsPath],
+				],
+			});
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('disconnects a partially configured session and permits a later launch retry', async () => {
+		const configureError = new Error('permission configure failed');
+		const failedRaw = createPermissionSession('session-1', testWorkingDirectory.fsPath, configureError);
+		const retriedRaw = createPermissionSession('session-1');
+		let createCalls = 0;
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client: {
+				createSession: async () => createCalls++ === 0 ? failedRaw.session : retriedRaw.session,
+				resumeSession: async () => { throw new Error('Unexpected resume'); },
+			},
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			additionalDirectories: [URI.file('/workspace/secondary')],
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			model: undefined,
+		};
+		const launcher = createTestLauncher();
+		let retriedSession: Awaited<ReturnType<CopilotSessionLauncher['launch']>> | undefined;
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), configureError);
+			retriedSession = await launcher.launch(plan, testRuntime);
+			assert.deepStrictEqual({
+				createCalls,
+				failedDisconnectCalls: failedRaw.disconnectCalls(),
+				retriedPermissions: retriedRaw.configuredAdditionalDirectories(),
+			}, {
+				createCalls: 2,
+				failedDisconnectCalls: 1,
+				retriedPermissions: [URI.file('/workspace/secondary').fsPath],
+			});
+		} finally {
+			retriedSession?.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+});
+
 suite('CopilotSessionLauncher resume fallback', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -424,11 +560,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 
 	function createResumeFailingLaunch(message: string, code = -32603): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
 		let createSessionCalls = 0;
-		const session = {
-			sessionId: 'session-1',
-			on: () => () => { },
-			disconnect: async () => { },
-		} as unknown as CopilotSession;
+		const { session } = createPermissionSession('session-1');
 		const client = {
 			createSession: async () => {
 				createSessionCalls++;

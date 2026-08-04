@@ -17,7 +17,7 @@ import { IAgentHostEnablementService } from '../../../../../platform/agentHost/c
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type SessionAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -140,7 +140,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		let createdWorkingDirectories: readonly URI[] | undefined;
-		let dispatchedDirectory: string | undefined;
+		const dispatchedActions: { channel: string; action: SessionAction }[] = [];
 		const protocolClient = {
 			clientId: 'test-client',
 			connect: async () => { },
@@ -161,9 +161,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				createdWorkingDirectories = config.workingDirectories;
 				return URI.parse('copilot:/session');
 			},
-			dispatchSessionWorkingDirectoryAction: async (session: string, action: { type: ActionType.SessionWorkingDirectorySet; directory: string }) => {
-				dispatchedDirectory = action.directory;
-				return { channel: session, action, serverSeq: 1, origin: { clientId: 'test', clientSeq: 1 } };
+			dispatch: (channel: string, action: SessionAction) => {
+				dispatchedActions.push({ channel, action });
 			},
 			listSessions: async () => [{
 				session: URI.parse('copilot:/session'),
@@ -187,16 +186,22 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const remoteTwo = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test', path: '/workspace/two' });
 
 		await service.createSession({ provider: 'copilot', workingDirectories: [remoteOne, remoteTwo] });
-		await service.dispatchSessionWorkingDirectoryAction('copilot:/session', {
+		service.dispatch('copilot:/session', {
 			type: ActionType.SessionWorkingDirectorySet,
 			directory: remoteTwo.toString(),
 		});
+		service.dispatch('copilot:/session', {
+			type: ActionType.SessionWorkingDirectoryRemoved,
+			directory: remoteOne.toString(),
+		});
+		const unrelatedAction = { type: ActionType.SessionTitleChanged, title: 'Unchanged' } as const;
+		service.dispatch('copilot:/session', unrelatedAction);
 		const listed = await service.listSessions();
 
 		assert.deepStrictEqual({
 			created: createdWorkingDirectories?.map(directory => directory.toString()),
 			listed: listed[0].workingDirectories?.map(directory => directory.toString()),
-			dispatchedDirectory,
+			dispatched: dispatchedActions,
 			roundTrip: fromRemoteAgentHostWorkingDirectory(
 				toRemoteAgentHostWorkingDirectory(remoteOne, 'ssh-remote+test'),
 				'ssh-remote+test',
@@ -204,11 +209,31 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		}, {
 			created: [URI.file('/workspace/one').toString(), URI.file('/workspace/two').toString()],
 			listed: [remoteOne.toString(), remoteTwo.toString()],
-			dispatchedDirectory: URI.file('/workspace/two').toString(),
+			dispatched: [
+				{
+					channel: 'copilot:/session',
+					action: {
+						type: ActionType.SessionWorkingDirectorySet,
+						directory: URI.file('/workspace/two').toString(),
+					},
+				},
+				{
+					channel: 'copilot:/session',
+					action: {
+						type: ActionType.SessionWorkingDirectoryRemoved,
+						directory: URI.file('/workspace/one').toString(),
+					},
+				},
+				{ channel: 'copilot:/session', action: unrelatedAction },
+			],
 			roundTrip: remoteOne.toString(),
 		});
+		assert.strictEqual(dispatchedActions[2].action, unrelatedAction, 'unrelated action should be forwarded unchanged');
 		assert.throws(
-			() => toRemoteAgentHostWorkingDirectory(remoteOne.with({ authority: 'ssh-remote+other' }), 'ssh-remote+test'),
+			() => service.dispatch('copilot:/session', {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: remoteOne.with({ authority: 'ssh-remote+other' }).toString(),
+			}),
 			/does not belong to remote authority/,
 		);
 	});

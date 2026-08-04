@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,7 +15,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
-import { SessionActionAbandonedError, SessionActionRejectedError, SessionActionStateRebasedError } from '../../common/state/agentSubscription.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
@@ -1588,7 +1586,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
-	suite('dispatchSessionWorkingDirectoryAction', () => {
+	suite('ordinary working-directory dispatch', () => {
 
 		function workingDirectorySetAction(directory: string) {
 			return { type: ActionType.SessionWorkingDirectorySet as const, directory };
@@ -1621,23 +1619,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 			return match;
 		}
 
-		test('rejects (without sending) when no active session subscription exists for the channel', async () => {
-			const { client, transport } = createClient();
-			const sessionUri = URI.parse('copilot:/test-session');
-			const beforeCount = transport.sentMessages.length;
-			await assert.rejects(client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2')));
-			assert.strictEqual(transport.sentMessages.length, beforeCount);
-		});
-
-		test('resolves with the accepted envelope', async () => {
+		test('optimistically applies and confirms an accepted action', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport);
 			const sessionUri = URI.parse('copilot:/test-session');
+			const sub = client.getSubscription<{ workingDirectories?: readonly string[] }>(StateComponents.Session, sessionUri, 'test');
 			await subscribeToSession(client, transport, sessionUri);
 
-			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			client.dispatch(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
 			const sent = findLastDispatchAction(transport);
 			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+			assert.deepStrictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
 
 			transport.fireMessage({
 				jsonrpc: '2.0',
@@ -1645,19 +1638,22 @@ suite('RemoteAgentHostProtocolClient', () => {
 				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq } },
 			});
 
-			const envelope = await promise;
-			assert.strictEqual(envelope.origin?.clientSeq, clientSeq);
+			assert.deepStrictEqual(sub.object.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.object.value, sub.object.verifiedValue);
+			sub.dispose();
 		});
 
-		test('rejects with SessionActionRejectedError when the server rejects the action', async () => {
+		test('rolls optimistic state back when the server rejects an action', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport);
 			const sessionUri = URI.parse('copilot:/test-session');
+			const sub = client.getSubscription<{ workingDirectories?: readonly string[] }>(StateComponents.Session, sessionUri, 'test');
 			await subscribeToSession(client, transport, sessionUri);
 
-			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			client.dispatch(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
 			const sent = findLastDispatchAction(transport);
 			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+			assert.deepStrictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, ['file:///ws2']);
 
 			transport.fireMessage({
 				jsonrpc: '2.0',
@@ -1665,60 +1661,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq }, rejectionReason: 'denied' },
 			});
 
-			await assert.rejects(promise, (error: unknown) => {
-				assert.ok(error instanceof SessionActionRejectedError);
-				assert.strictEqual(error.rejectionReason, 'denied');
-				return true;
-			});
-		});
-
-		test('rejects with CancellationError when the token is cancelled before the echo arrives', async () => {
-			const { client, transport } = createClient();
-			await connectClient(client, transport);
-			const sessionUri = URI.parse('copilot:/test-session');
-			await subscribeToSession(client, transport, sessionUri);
-
-			const cts = new CancellationTokenSource();
-			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'), cts.token);
-			cts.cancel();
-
-			await assert.rejects(promise, CancellationError);
-			cts.dispose();
-		});
-
-		test('rejects with CancellationError immediately when the token is already cancelled', async () => {
-			const { client, transport } = createClient();
-			await connectClient(client, transport);
-			const sessionUri = URI.parse('copilot:/test-session');
-			await subscribeToSession(client, transport, sessionUri);
-
-			const cts = new CancellationTokenSource();
-			cts.cancel();
-			const beforeCount = transport.sentMessages.length;
-
-			await assert.rejects(
-				client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'), cts.token),
-				CancellationError,
-			);
-			// Already-cancelled dispatch must not even reach the wire.
-			assert.strictEqual(transport.sentMessages.length, beforeCount);
-			cts.dispose();
-		});
-
-		test('rejects pending and subsequent dispatches after permanent connection closure', async () => {
-			const { client, transport } = createClient();
-			await connectClient(client, transport);
-			const sessionUri = URI.parse('copilot:/test-session');
-			await subscribeToSession(client, transport, sessionUri);
-
-			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
-			client.dispose();
-			const afterDispose = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws3'));
-
-			await Promise.all([
-				assert.rejects(promise, ProtocolError),
-				assert.rejects(afterDispose, ProtocolError),
-			]);
+			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, undefined);
+			sub.dispose();
 		});
 	});
 
@@ -2165,7 +2110,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 		});
 
-		test('reconnect snapshot rebase rejects an outstanding dispatchSessionWorkingDirectoryAction waiter', async function () {
+		test('reconnect snapshot replaces pending optimistic working-directory state', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 				const { client, transports } = createFactoryClient();
@@ -2179,12 +2124,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 					jsonrpc: '2.0', id: subscribeReq.id,
 					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
 				});
-				await Promise.resolve();
+				await flushMicrotasks();
 
-				const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), {
+				client.dispatch(sessionUri.toString(), {
 					type: ActionType.SessionWorkingDirectorySet,
 					directory: 'file:///ws2',
 				});
+				assert.deepStrictEqual((subRef.object.value as { workingDirectories?: string[] }).workingDirectories, ['file:///ws2']);
 
 				// Drop the transport before the server ever echoes the action back.
 				transports[0].fireClose();
@@ -2199,19 +2145,21 @@ suite('RemoteAgentHostProtocolClient', () => {
 					jsonrpc: '2.0', id: reconnect.id,
 					result: {
 						type: ReconnectResultType.Snapshot,
-						snapshots: [{ resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 9 }],
+						snapshots: [{ resource: sessionUri.toString(), state: { turns: [], workingDirectories: ['file:///fresh'] }, fromSeq: 9 }],
 					},
 				});
 				await flushMicrotasks();
 
-				await assert.rejects(promise, SessionActionStateRebasedError);
+				assert.deepStrictEqual((subRef.object.value as { workingDirectories?: string[] }).workingDirectories, ['file:///fresh']);
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionWorkingDirectorySet), undefined,
+					'action cleared by a fresh snapshot must not be replayed');
 
 				subRef.dispose();
 				client.dispose();
 			});
 		});
 
-		test('reconnect "missing" replay result rejects an outstanding dispatchSessionWorkingDirectoryAction waiter as abandoned', async function () {
+		test('reconnect missing result clears pending optimistic working-directory state', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 				const { client, transports } = createFactoryClient();
@@ -2227,7 +2175,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				});
 				await Promise.resolve();
 
-				const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), {
+				client.dispatch(sessionUri.toString(), {
 					type: ActionType.SessionWorkingDirectorySet,
 					directory: 'file:///ws2',
 				});
@@ -2245,7 +2193,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 
-				await assert.rejects(promise, SessionActionAbandonedError);
+				assert.ok(subRef.object.value instanceof Error);
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionWorkingDirectorySet), undefined,
+					'action for a missing subscription must not be replayed');
 
 				subRef.dispose();
 				client.dispose();

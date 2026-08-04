@@ -20,7 +20,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -1276,11 +1276,11 @@ export interface IAgentChats {
 	disposeChat(chat: URI): Promise<void>;
 
 	/**
-	 * Send a user message into `chat`; on first send, the host passes the resolved
-	 * working directories (index 0 = the process root / resolved worktree, followed
-	 * by any additional roots). `undefined` for workspace-less sessions. Providers
-	 * launch their subprocess in index 0; the full set is recorded in the
-	 * materialization receipt.
+	 * Send a user message into `chat`. On every send, the host passes the complete
+	 * resolved, ordered working-directory snapshot (index 0 = the process root /
+	 * resolved worktree, followed by any additional roots), or `undefined` for
+	 * workspace-less sessions. Providers must make that snapshot effective before
+	 * the prompt enters their runtime.
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
@@ -1637,6 +1637,7 @@ export interface IAgent {
 	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
+<<<<<<< HEAD
 	/**
 	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
 	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
@@ -1647,9 +1648,6 @@ export interface IAgent {
 	 * format omit it.
 	 */
 	ensureSessionAdopted?(session: URI): Promise<boolean>;
-
-	/** Strictly persist the complete desired primary-first working-directory set. */
-	setDesiredWorkingDirectories?(session: URI, workingDirectories: readonly URI[]): Promise<void>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
@@ -2254,9 +2252,6 @@ export interface IAgentConnection {
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
-
-	/** Dispatch a working-directory action and await its accepted or rejected echo. */
-	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope>;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

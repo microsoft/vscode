@@ -410,12 +410,17 @@ interface IFakeAgentSession {
 
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	readonly configuredAdditionalDirectories: string[][] = [];
 	readonly rpc = {
 		options: {
 			update: async () => ({ success: true }),
 		},
 		permissions: {
 			setAllowAll: async ({ mode }: { mode: PermissionAllowAllMode }) => ({ success: true, mode }),
+			configure: async (params: Parameters<CopilotSession['rpc']['permissions']['configure']>[0]) => {
+				this.configuredAdditionalDirectories.push([...(params.paths?.additionalDirectories ?? [])]);
+				return { success: true };
+			},
 		},
 	};
 	private readonly _handlers = new Set<SessionEventHandler>();
@@ -564,7 +569,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		this._fakeSessions.set(sessionId, fake);
 	}
 
-	protected override async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected override async _resumeSession(sessionId: string, _workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		this.resumeCalls.push(sessionId);
 		const fake = this._fakeSessions.get(sessionId);
 		if (!fake) {
@@ -5507,6 +5512,34 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('config-driven session refresh', () => {
+		interface IRefreshSessionStub {
+			sessionId: string;
+			appliedSnapshot: IActiveClientSnapshot;
+			appliedAdditionalDirectories: readonly URI[];
+			hasActiveTurn: boolean;
+			destroyCalls: number;
+			disposeCalls: number;
+			sendCalls: string[];
+			destroySession(): Promise<void>;
+			dispose(): void;
+			send(prompt: string): Promise<void>;
+		}
+
+		function refreshSessionStub(additionalDirectories: readonly URI[], hasActiveTurn = false): IRefreshSessionStub {
+			return {
+				sessionId: 'config-refresh-session',
+				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} },
+				appliedAdditionalDirectories: additionalDirectories,
+				hasActiveTurn,
+				destroyCalls: 0,
+				disposeCalls: 0,
+				sendCalls: [],
+				async destroySession() { this.destroyCalls++; },
+				dispose() { this.disposeCalls++; },
+				async send(prompt: string) { this.sendCalls.push(prompt); },
+			};
+		}
+
 		test('waits for the previous SDK session to disconnect before resuming', async () => {
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { copilotClient: client });
@@ -5560,6 +5593,250 @@ suite('CopilotAgent', () => {
 				]);
 			} finally {
 				allowDisconnect.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('coalesces root and structural divergence into one same-conversation resume before send', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const primary = URI.file('/workspace/primary');
+			const oldSecondary = URI.file('/workspace/old');
+			const newSecondary = URI.file('/workspace/new');
+			const previousSession = refreshSessionStub([oldSecondary]);
+			const resumedSession = refreshSessionStub([newSecondary]);
+			const resumeCalls: { sessionId: string; workingDirectories: readonly URI[] | undefined }[] = [];
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			agent.getOrCreateActiveClient(session, { clientId: 'client' }).tools = [
+				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
+			];
+			internals._resumeSession = async (id, workingDirectories) => {
+				resumeCalls.push({ sessionId: id, workingDirectories });
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+
+			try {
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [primary, newSecondary]);
+
+				assert.deepStrictEqual({
+					previousDestroyCalls: previousSession.destroyCalls,
+					previousDisposeCalls: previousSession.disposeCalls,
+					resumeCalls: resumeCalls.map(call => ({
+						sessionId: call.sessionId,
+						workingDirectories: call.workingDirectories?.map(directory => directory.toString()),
+					})),
+					resumedSends: resumedSession.sendCalls,
+				}, {
+					previousDestroyCalls: 1,
+					previousDisposeCalls: 1,
+					resumeCalls: [{ sessionId, workingDirectories: [primary.toString(), newSecondary.toString()] }],
+					resumedSends: ['hello'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not refresh an identical root snapshot', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const currentSession = refreshSessionStub([secondary]);
+			let resumeCalls = 0;
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+
+			setDefaultSessionStub(agent, sessionId, currentSession);
+			agent.getOrCreateActiveClient(session, { clientId: 'client' });
+			internals._resumeSession = async () => {
+				resumeCalls++;
+				throw new Error('Identical roots must not resume');
+			};
+
+			try {
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [primary, secondary]);
+				assert.deepStrictEqual({
+					destroyCalls: currentSession.destroyCalls,
+					resumeCalls,
+					sends: currentSession.sendCalls,
+				}, {
+					destroyCalls: 0,
+					resumeCalls: 0,
+					sends: ['hello'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('parks a root refresh across a steering-promoted active turn without disposing the live session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const primary = URI.file('/workspace/primary');
+			const newSecondary = URI.file('/workspace/new');
+			const previousSession = refreshSessionStub([URI.file('/workspace/old')], true);
+			const resumedSession = refreshSessionStub([newSecondary]);
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+				_onChatTurnEnded: (session: CopilotAgentSession) => void;
+			};
+			internals._resumeSession = async () => {
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			agent.getOrCreateActiveClient(session, { clientId: 'client' });
+
+			try {
+				const send = agent.chats.sendMessage(defaultChatUri(session), 'after idle', [primary, newSecondary]);
+				await Promise.resolve();
+				await Promise.resolve();
+				const whileActive = {
+					destroyCalls: previousSession.destroyCalls,
+					disposeCalls: previousSession.disposeCalls,
+					sends: resumedSession.sendCalls.length,
+				};
+
+				previousSession.hasActiveTurn = false;
+				internals._onChatTurnEnded(previousSession as unknown as CopilotAgentSession);
+				previousSession.hasActiveTurn = true;
+				await Promise.resolve();
+				await Promise.resolve();
+				const whileSteeringActive = {
+					destroyCalls: previousSession.destroyCalls,
+					disposeCalls: previousSession.disposeCalls,
+					sends: resumedSession.sendCalls.length,
+				};
+
+				previousSession.hasActiveTurn = false;
+				internals._onChatTurnEnded(previousSession as unknown as CopilotAgentSession);
+				await send;
+
+				assert.deepStrictEqual({
+					whileActive,
+					whileSteeringActive,
+					afterTurn: {
+						destroyCalls: previousSession.destroyCalls,
+						disposeCalls: previousSession.disposeCalls,
+						sends: resumedSession.sendCalls,
+					},
+				}, {
+					whileActive: { destroyCalls: 0, disposeCalls: 0, sends: 0 },
+					whileSteeringActive: { destroyCalls: 0, disposeCalls: 0, sends: 0 },
+					afterTurn: { destroyCalls: 1, disposeCalls: 1, sends: ['after idle'] },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('leaves a failed root refresh retryable on the next send', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const roots = [URI.file('/workspace/primary'), URI.file('/workspace/new')];
+			const previousSession = refreshSessionStub([URI.file('/workspace/old')]);
+			const resumedSession = refreshSessionStub(roots.slice(1));
+			let resumeCalls = 0;
+			let providerChatErrors = 0;
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+			disposables.add(agent.onDidSessionProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatError) {
+					providerChatErrors++;
+				}
+			}));
+			internals._resumeSession = async () => {
+				resumeCalls++;
+				if (resumeCalls === 1) {
+					throw new Error('permission configure failed');
+				}
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			agent.getOrCreateActiveClient(session, { clientId: 'client' });
+
+			try {
+				await assert.rejects(() => agent.chats.sendMessage(defaultChatUri(session), 'first', roots), /permission configure failed/);
+				await agent.chats.sendMessage(defaultChatUri(session), 'retry', roots);
+
+				assert.deepStrictEqual({
+					resumeCalls,
+					previousDestroyCalls: previousSession.destroyCalls,
+					resumedSends: resumedSession.sendCalls,
+					providerChatErrors,
+				}, {
+					resumeCalls: 2,
+					previousDestroyCalls: 1,
+					resumedSends: ['retry'],
+					providerChatErrors: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('cold resume applies and persists the complete send snapshot including root removal', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-roots-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const sessionId = 'config-refresh-cold';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const primary = URI.file(workingDirectory);
+			const persistedSecondary = URI.file('/workspace/persisted');
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', primary.toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([primary, persistedSecondary].map(directory => directory.toString())));
+			} finally {
+				dbRef.dispose();
+			}
+
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const mockSession = new MockCopilotSession();
+			const resumeCalls: string[] = [];
+			client.resumeSession = async id => {
+				resumeCalls.push(id);
+				return mockSession as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [primary]);
+				const persistedDbRef = sessionDataService.openDatabase(session);
+				let persistedWorkingDirectories: string | undefined;
+				try {
+					persistedWorkingDirectories = await persistedDbRef.object.getMetadata('copilot.workingDirectories');
+				} finally {
+					persistedDbRef.dispose();
+				}
+
+				assert.deepStrictEqual({
+					resumeCalls,
+					permissionSnapshots: mockSession.configuredAdditionalDirectories,
+					persistedWorkingDirectories: persistedWorkingDirectories ? JSON.parse(persistedWorkingDirectories) : undefined,
+				}, {
+					resumeCalls: [sessionId],
+					permissionSnapshots: [[]],
+					persistedWorkingDirectories: [primary.toString()],
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});

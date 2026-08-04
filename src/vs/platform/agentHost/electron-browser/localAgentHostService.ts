@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
@@ -55,7 +54,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
-import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
@@ -229,10 +228,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this._requireClient().dispatch(channel, action);
-	}
-
-	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope> {
-		return this._requireClient().dispatchSessionWorkingDirectoryAction(channel, action, token);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

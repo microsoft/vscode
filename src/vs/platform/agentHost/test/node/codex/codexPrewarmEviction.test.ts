@@ -674,7 +674,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('changed workspace roots apply to the next turn on the existing thread', async () => {
+	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
 		const agent = await createAgent(disposables, { multiRootEnabled: true });
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
@@ -701,22 +701,42 @@ suite('CodexAgent prewarm eviction', () => {
 			peer.push({ id: firstTurn.id, result: {} });
 			await firstSend;
 
-			await agent.setDesiredWorkingDirectories(created.session, [repoA, repoC]);
 			const secondSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'second', [repoA, repoC], undefined, 'turn-2');
 			const secondTurn = await readNextRequest(peer.outbound);
 			peer.push({ id: secondTurn.id, result: {} });
 			await secondSend;
 
+			const thirdSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'third', [repoA], undefined, 'turn-3');
+			const thirdTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: thirdTurn.id, result: {} });
+			await thirdSend;
+
 			assert.deepStrictEqual({
-				method: secondTurn.method,
-				threadId: secondTurn.params.threadId,
-				runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
-				writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+				second: {
+					method: secondTurn.method,
+					threadId: secondTurn.params.threadId,
+					runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
+					writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+				third: {
+					method: thirdTurn.method,
+					threadId: thirdTurn.params.threadId,
+					runtimeWorkspaceRoots: thirdTurn.params.runtimeWorkspaceRoots,
+					writableRoots: thirdTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? thirdTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
 			}, {
-				method: 'turn/start',
-				threadId: 'thread',
-				runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
-				writableRoots: [repoA.fsPath, repoC.fsPath],
+				second: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
+					writableRoots: [repoA.fsPath, repoC.fsPath],
+				},
+				third: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath],
+					writableRoots: [repoA.fsPath],
+				},
 			});
 		} finally {
 			peer.exit();

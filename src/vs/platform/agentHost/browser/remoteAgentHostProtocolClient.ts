@@ -8,7 +8,6 @@
 // higher-level API matching IAgentService.
 
 import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
-import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -26,7 +25,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -878,19 +877,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
 
-	/** Dispatch a working-directory mutation and await its accepted or rejected echo. */
-	async dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope> {
-		if (this._state.kind === AgentHostClientState.Closed) {
-			throw this._state.error;
-		}
-		if (token?.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		const { clientSeq, promise } = this._subscriptionManager.dispatchSessionWorkingDirectoryAction(channel, action, token);
-		this.dispatchAction(channel, action, this._clientId, clientSeq);
-		return promise;
-	}
-
 	/**
 	 * Subscribe to state at a URI. Returns the current state snapshot.
 	 *
@@ -1370,8 +1356,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
-		// No action echo can arrive after permanent connection closure.
-		this._subscriptionManager.rejectAllPendingActionWaiters(error);
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);

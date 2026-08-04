@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, ResourceQueue, SequencerByKey } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -29,6 +29,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -1414,11 +1415,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return session;
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
-		return this._sessionTopologyQueue.queue(session.toString(), () => this._createChatForSession(session, chat, options));
-	}
-
-	private async _createChatForSession(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		if (!provider) {
@@ -2134,11 +2131,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._completions.triggerCharacters;
 	}
 
-	disposeSession(session: URI): Promise<void> {
-		return this._sessionTopologyQueue.queue(session.toString(), () => this._disposeSessionAndData(session));
-	}
-
-	private async _disposeSessionAndData(session: URI): Promise<void> {
+	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		this._stateManager.invalidateSessionChatResolutions(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
@@ -2566,7 +2559,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * todo@connor4312: we can drop this when sending a message become a command
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
-	private readonly _sessionTopologyQueue = new SequencerByKey<string>();
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType = AgentHostClientType.Unknown): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
@@ -2580,18 +2572,6 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
-		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
-			if (clientType !== AgentHostClientType.EditorWindow) {
-				this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Session working-directory actions require an Editor Window client.');
-				return;
-			}
-			if (chatChannel) {
-				this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Session working-directory actions require a session channel.');
-				return;
-			}
-			this._dispatchWorkingDirectoryAction(sessionChannel, action, clientId, clientSeq);
-			return;
-		}
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !requiresPeerResolution && !requiresAttachmentRewrite) {
@@ -2618,26 +2598,15 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
 
-		this._clientDispatchQueues.set(clientId, next.finally(() => {
+		this._clientDispatchQueues.set(clientId, next);
+		void next.finally(() => {
 			if (this._clientDispatchQueues.get(clientId) === next) {
 				this._clientDispatchQueues.delete(clientId);
 			}
-		}));
+		});
 	}
 
-	private _dispatchWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction, clientId: string, clientSeq: number): void {
-		const origin = { clientId, clientSeq };
-		void this._sessionTopologyQueue.queue(session, async () => {
-			try {
-				const accepted = await this._prepareWorkingDirectoryAction(session, action);
-				this._stateManager.dispatchClientAction(session, accepted, origin);
-			} catch (error) {
-				this._stateManager.rejectClientAction(session, action, origin, toErrorMessage(error));
-			}
-		}).catch(error => this._logService.error(`[AgentService] Failed to settle working-directory action: ${toErrorMessage(error)}`));
-	}
-
-	private async _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): Promise<SessionWorkingDirectoryAction> {
+	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
 		const state = this._stateManager.getSessionState(session);
 		if (!state || state.lifecycle !== SessionLifecycle.Ready || !state.workingDirectories?.length) {
 			throw new Error(`Session is not ready for working-directory changes: ${session}`);
@@ -2654,47 +2623,31 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionUri = URI.parse(session);
 		const provider = this._findProviderForSession(sessionUri);
 		const capability = provider?.getDescriptor().capabilities?.multipleWorkingDirectories;
-		if (!provider || capability?.immutablePrimary !== true || !provider.setDesiredWorkingDirectories) {
+		if (!provider || capability?.immutablePrimary !== true) {
 			throw new Error(`Provider does not support dynamic working-directory changes: ${AgentSession.provider(sessionUri) ?? '(unknown)'}`);
 		}
 
-		const originalWorkingDirectories = state.workingDirectories;
-		const directory = URI.parse(action.directory, true);
-		if (directory.scheme !== Schemas.file) {
-			throw new Error(`Working directory must be a file URI: ${action.directory}`);
-		}
-		const current = originalWorkingDirectories.map(value => URI.parse(value, true));
-		const index = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, directory));
-		let acceptedDirectory = directory;
-		let candidate = current;
-		if (action.type === ActionType.SessionWorkingDirectorySet) {
-			if (index >= 0) {
-				acceptedDirectory = current[index];
-			} else {
-				candidate = [...current, directory];
-			}
-		} else if (index === 0) {
-			throw new Error('The primary working directory cannot be removed.');
-		} else if (index > 0) {
-			acceptedDirectory = current[index];
-			candidate = current.filter((_, candidateIndex) => candidateIndex !== index);
-		}
-
-		if (candidate !== current) {
-			await provider.setDesiredWorkingDirectories(sessionUri, candidate);
-			const latest = this._stateManager.getSessionState(session);
-			if (!latest
-				|| latest.lifecycle !== SessionLifecycle.Ready
-				|| latest.workingDirectories?.length !== originalWorkingDirectories.length
-				|| latest.workingDirectories.some((value, candidateIndex) => value !== originalWorkingDirectories[candidateIndex])) {
-				throw new Error(`Session changed while persisting working directories: ${session}`);
-			}
-		}
-		return { ...action, directory: acceptedDirectory.toString() };
+		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories);
 	}
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType: AgentHostClientType): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
+			if (clientType !== AgentHostClientType.EditorWindow) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
+				return;
+			}
+			if (channel !== sessionChannel) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require a session channel.');
+				return;
+			}
+			try {
+				action = this._prepareWorkingDirectoryAction(sessionChannel, action);
+			} catch (error) {
+				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+				return;
+			}
+		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();

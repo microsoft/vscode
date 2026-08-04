@@ -194,7 +194,7 @@ export type IQueuedMessagesReorderedAction = ChatQueuedMessagesReorderedAction;
 export type IIsReadChangedAction = SessionIsReadChangedAction;
 export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
 
-/** Session-level working-directory mutations accepted by awaitable dispatch. */
+/** Session-level working-directory mutations. */
 export type SessionWorkingDirectoryAction =
 	| import('./protocol/actions.js').SessionWorkingDirectorySetAction
 	| import('./protocol/actions.js').SessionWorkingDirectoryRemovedAction;

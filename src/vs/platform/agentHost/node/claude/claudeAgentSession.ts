@@ -577,8 +577,8 @@ export class ClaudeAgentSession extends Disposable {
 
 		// Fresh sessions persist their customization-directory / model /
 		// permissionMode overlay so a later resume re-reads them. Resume
-		// sessions skip the write because they READ from the overlay
-		// upstream and would otherwise overwrite their source.
+		// sessions do not rewrite those fields because they read them from the
+		// overlay upstream; only an explicit host root snapshot advances below.
 		if (!ctx.isResume) {
 			try {
 				await this._metadataStore.write(this._storageUri, {
@@ -596,6 +596,11 @@ export class ClaudeAgentSession extends Disposable {
 				this._logService.error(`[Claude] Failed to persist customization directory; aborting materialize`, err);
 				throw err;
 			}
+		} else if (ctx.workingDirectories && this.workingDirectories) {
+			// A host-supplied resume snapshot is newer than the cold overlay
+			// seed. Persist it only after startup accepted the runtime options so
+			// a future cold fallback cannot resurrect a removed directory.
+			await this._metadataStore.write(this._storageUri, { workingDirectories: this.workingDirectories });
 		}
 
 		// Final pre-commit abort gate. The first gate above caught aborts
@@ -778,8 +783,11 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, workingDirectories?: readonly URI[]): Promise<void> {
 		const pipeline = this._requirePipeline();
+		if (workingDirectories) {
+			this._replaceDesiredWorkingDirectories(workingDirectories);
+		}
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
@@ -795,7 +803,7 @@ export class ClaudeAgentSession extends Disposable {
 		return pipeline.send(prompt, turnId);
 	}
 
-	setDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {
+	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {
 		const primary = this.workingDirectory;
 		if (!primary || !isEqual(primary, workingDirectories[0])) {
 			throw new Error(`Cannot change Claude session primary working directory: ${this.sessionId}`);

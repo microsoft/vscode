@@ -149,6 +149,13 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 
 export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 
+function additionalWorkingDirectoriesEqual(appliedDirectories: readonly URI[] | undefined, desiredWorkingDirectories: readonly URI[]): boolean {
+	const applied = appliedDirectories ?? [];
+	const desired = desiredWorkingDirectories.slice(1);
+	return applied.length === desired.length
+		&& desired.every((directory, index) => isEqual(directory, applied[index]));
+}
+
 /**
  * A session that has been requested by a client but has not yet been
  * materialized into a real Copilot SDK session, worktree, or persisted
@@ -615,6 +622,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _mcpNotificationSubs = this._register(new DisposableMap<string>());
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
+	/** Idle gates for sends parked behind a structural refresh of a busy chat. */
+	private readonly _turnEndedWaiters = new Map<CopilotAgentSession, DeferredPromise<void>>();
 	/**
 	 * Sessions created by a client but not yet materialized into a Copilot
 	 * SDK session + worktree + on-disk metadata. Materialization is deferred
@@ -867,7 +876,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * the current stack because the callback fires from inside that session's
 	 * SDK event handling and the restart disposes the session making the call.
 	 */
-	private _onChatTurnEnded(): void {
+	private _onChatTurnEnded(session?: CopilotAgentSession): void {
+		if (session) {
+			this._turnEndedWaiters.get(session)?.complete();
+			this._turnEndedWaiters.delete(session);
+		}
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -876,6 +889,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
 			);
 		});
+	}
+
+	/**
+	 * Waits for the session's existing turn-ended signal without introducing a
+	 * second send queue. The caller remains in the existing per-session
+	 * sequencer and reconfigures only after the live SDK session is idle.
+	 */
+	private async _waitForTurnToEnd(session: CopilotAgentSession): Promise<void> {
+		if (!session.hasActiveTurn) {
+			return;
+		}
+		let waiter = this._turnEndedWaiters.get(session);
+		if (!waiter) {
+			waiter = new DeferredPromise<void>();
+			this._turnEndedWaiters.set(session, waiter);
+		}
+		await waiter.p;
 	}
 
 	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
@@ -2630,24 +2660,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 				entry = this._getChatContext(chat).target;
 			}
 
-			// If the active client's config changed (tools or plugins),
-			// dispose this session so it gets resumed with the updated config.
-			const activeClient = this._activeClients.get(context.session);
 			const hadCachedEntry = !!entry;
-			this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
-			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${context.sessionId}] Session config changed (requiresRestart=true), refreshing session. clients=[${[...activeClient.toolSet.clientIds()].join(', ') || '(none)'}]`);
-				// Finish disconnecting before resuming the same SDK session id.
+			entry ??= await this._resumeSession(context.sessionId, workingDirectories);
+
+			// Roots join tools/plugins/MCP servers in one structural staleness
+			// decision. If a turn is live, park on its existing terminal signal;
+			// never disconnect a runtime that is still producing the prior turn.
+			while (entry) {
+				const activeClient = this._activeClients.get(context.session);
+				const rootsChanged = workingDirectories !== undefined && !additionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, workingDirectories);
+				const structuralConfigChanged = !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot);
+				this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, rootsChanged=${rootsChanged}, structuralConfigChanged=${structuralConfigChanged}`);
+				if (!rootsChanged && !structuralConfigChanged) {
+					break;
+				}
+				if (entry.hasActiveTurn) {
+					this._logService.info(`[Copilot:${context.sessionId}] Deferring session refresh until the active turn finishes`);
+					await this._waitForTurnToEnd(entry);
+					continue;
+				}
+
+				// A process-wide restart may have replaced the session while this
+				// send waited for idle. Re-evaluate that replacement before
+				// deciding whether another refresh is necessary.
+				const currentEntry = this._findAnySession(context.sessionId);
+				if (currentEntry !== entry) {
+					entry = currentEntry ?? await this._resumeSession(context.sessionId, workingDirectories);
+					continue;
+				}
+
+				this._logService.info(`[Copilot:${context.sessionId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				this._sdkSessionsById.delete(entry.sessionId);
 				await entry.destroySession();
 				this._sessions.get(context.sessionId)?.clearDefaultChat();
-				entry = undefined;
+				entry = await this._resumeSession(context.sessionId, workingDirectories);
+				break;
 			}
-
-			if (!entry) {
-				this._logService.info(`[Copilot:${context.sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
-			}
-			entry ??= await this._resumeSession(context.sessionId);
 
 			// Reset per-turn streaming state on the session so that the
 			// next text/reasoning chunk (and any host-emitted announcement)
@@ -3607,7 +3655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
 				isLaunchTokenCurrent: () => this._githubToken === launchPlan.githubToken,
-				onTurnEnded: () => this._onChatTurnEnded(),
+				onTurnEnded: () => this._onChatTurnEnded(agentSession),
 			},
 		);
 
@@ -3704,7 +3752,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._applyPendingClientRestart();
 	}
 
-	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected _resumeSession(sessionId: string, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
 			return Promise.reject(new CancellationError());
@@ -3715,14 +3763,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new CancellationError();
 			}
 			try {
-				return await this._doResumeSession(sessionId);
+				return await this._doResumeSession(sessionId, workingDirectories);
 			} finally {
 				lease.dispose();
 			}
 		});
 	}
 
-	private async _doResumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	private async _doResumeSession(sessionId: string, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
@@ -3755,9 +3803,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// registered an active-client handle yet.
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
 		activeClient.pluginController.reanchor(customizationDirectory);
-		// Multi-root: re-attach the persisted non-primary roots so discovery spans
-		// every root on resume. Empty when single-root / gated off.
-		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(storedMetadata.workingDirectories));
+		// A send-time snapshot supersedes the persisted restoration seed.
+		const launchWorkingDirectories = workingDirectories ?? storedMetadata.workingDirectories;
+		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(launchWorkingDirectories));
 		const snapshot = await activeClient.snapshot();
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
@@ -3770,7 +3818,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			client,
 			sessionId,
 			workingDirectory: resolvedWorkingDirectory,
-			additionalDirectories: this._additionalCustomizationDirectories(storedMetadata.workingDirectories),
+			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
 			snapshot,
 			activeClientToolSet: activeClient.toolSet,
@@ -3787,6 +3835,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 		try {
 			await agentSession.initializeSession();
+			await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (err) {
 			agentSession.dispose();

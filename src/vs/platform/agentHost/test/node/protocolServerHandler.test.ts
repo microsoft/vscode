@@ -23,7 +23,7 @@ import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
-import { agentsWindowAgentHostClientInfo, type AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 
@@ -586,7 +586,7 @@ suite('ProtocolServerHandler', () => {
 	test('session working-directory actions reach the agent service', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
-		const transport = connectClient('working-directory-client', [sessionUri]);
+		const transport = connectClient('working-directory-client', [sessionUri], editorWindowAgentHostClientInfo);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
@@ -599,9 +599,11 @@ suite('ProtocolServerHandler', () => {
 		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
 		assert.deepStrictEqual({
 			action,
+			clientType: agentService.handledClientTypes.at(-1),
 			rejectionReason: envelope?.rejectionReason,
 		}, {
 			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+			clientType: AgentHostClientType.EditorWindow,
 			rejectionReason: undefined,
 		});
 	});

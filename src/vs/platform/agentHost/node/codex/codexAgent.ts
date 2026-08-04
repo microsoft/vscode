@@ -470,7 +470,7 @@ interface ICodexSession {
 	 * existing thread.
 	 */
 	workingDirectories?: readonly URI[];
-	multiRootEnabled: boolean;
+	readonly multiRootEnabled: boolean;
 	/**
 	 * Set to the temp folder created for this session when no working
 	 * directory was supplied, so {@link CodexAgent.disposeSession} can remove
@@ -798,7 +798,6 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
-	private readonly _desiredWorkingDirectories = new Map<string, readonly URI[]>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
 	private readonly _sessionIdByThreadId = new Map<string, string>();
 	/**
@@ -2764,29 +2763,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async setDesiredWorkingDirectories(sessionUri: URI, workingDirectories: readonly URI[]): Promise<void> {
-		const sessionId = AgentSession.id(sessionUri);
-		const session = this._sessions.get(sessionId);
-		let primary = session?.workingDirectory;
-		if (!primary) {
-			const read = await this._readSession(sessionUri);
-			primary = read?.thread.cwd ? URI.file(read.thread.cwd) : read?.persistedWorkingDirectories?.[0];
-		}
-		if (!primary || !isEqual(primary, workingDirectories[0])) {
-			throw new Error(`Cannot change Codex session primary working directory: ${sessionId}`);
-		}
-		const desired = distinctWorkingDirectories(workingDirectories);
-		if (!desired?.length) {
-			throw new Error(`Codex session requires a working directory: ${sessionId}`);
-		}
-		this._desiredWorkingDirectories.set(sessionId, desired);
-		if (session) {
-			session.workingDirectory = desired[0];
-			session.workingDirectories = desired;
-			session.multiRootEnabled = this._isMultiRootEnabled();
-		}
-	}
-
 	private _isMultiRootEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
@@ -2984,7 +2960,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _createResumedSessionEntry(sessionId: string, threadId: string, sessionUri: URI, workingDirectory: URI | undefined, model: ModelSelection | undefined, workingDirectories?: readonly URI[], multiRootEnabled?: boolean, agent?: AgentSelection): ICodexSession {
 		const clientToolSet = new ActiveClientToolSet();
-		const effectiveWorkingDirectories = distinctWorkingDirectories(this._desiredWorkingDirectories.get(sessionId) ?? workingDirectories);
+		const effectiveWorkingDirectories = distinctWorkingDirectories(workingDirectories);
 		return {
 			sessionId,
 			threadId,
@@ -3518,15 +3494,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
 		this._ensureModelProviderAuthenticated(session.model);
-		// The host hands us the resolved working directories (index 0 = the process
-		// root) on the first send; adopt index 0 as the codex subprocess cwd before
-		// materialize locks it. The agent stays unaware of worktrees.
+		// The host hands us the complete resolved snapshot (index 0 = the process
+		// root) on every send. Adopt index 0 before first materialization locks the
+		// subprocess cwd; an existing thread keeps its cwd and receives the full
+		// replacement below through native turn/start options.
 		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectories?.[0]);
-		// Record the full set for the materialization receipt OUTSIDE the adoption
-		// path: a prewarm may have already materialized the thread, yet the receipt
-		// is fired on this first send and must still carry the resolved set. Only
-		// assign when the send supplied one, so the resume path keeps emitting the
-		// singular working directory.
+		// Replace, rather than merge, the previous snapshot before any start,
+		// resume, or turn request is constructed. A missing snapshot is retained
+		// only for legacy cold-resume callers that rely on restored metadata.
 		if (workingDirectories) {
 			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
 				? distinctWorkingDirectories([
@@ -3764,7 +3739,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	async disposeSession(sessionUri: URI): Promise<void> {
 		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
-		this._desiredWorkingDirectories.delete(sessionId);
 		const session = this._sessions.get(sessionId);
 		if (session) {
 			await this._teardownSessionInMemory(session, sessionId);

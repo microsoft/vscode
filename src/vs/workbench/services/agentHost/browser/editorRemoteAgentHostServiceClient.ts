@@ -9,7 +9,6 @@
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
-import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
@@ -23,7 +22,7 @@ import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/br
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -210,12 +209,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+		switch (action.type) {
+			case ActionType.SessionWorkingDirectorySet:
+			case ActionType.SessionWorkingDirectoryRemoved: {
+				const directory = toRemoteAgentHostWorkingDirectory(URI.parse(action.directory), this._requireRemoteAuthority());
+				this._protocolClient?.dispatch(channel, { ...action, directory: directory.toString() });
+				return;
+			}
+		}
 		this._protocolClient?.dispatch(channel, action);
-	}
-
-	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope> {
-		const directory = toRemoteAgentHostWorkingDirectory(URI.parse(action.directory), this._requireRemoteAuthority());
-		return this._requireClient().dispatchSessionWorkingDirectoryAction(channel, { ...action, directory: directory.toString() }, token);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

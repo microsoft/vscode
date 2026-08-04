@@ -6,11 +6,11 @@
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentSubscription, SessionActionStateRebasedError } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMultiRootMetadata, readSessionWorkspaceless, SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -23,8 +23,6 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { fromRemoteAgentHostWorkingDirectory } from '../../../../../services/agentHost/common/agentHostWorkingDirectoryUri.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { computeDesiredWorkingDirectories } from './agentHostNewSessionFolderService.js';
-
-const COPILOT_CLI_PROVIDER = 'copilotcli';
 
 export const IAgentHostSessionWorkingDirectorySynchronizer = createDecorator<IAgentHostSessionWorkingDirectorySynchronizer>('agentHostSessionWorkingDirectorySynchronizer');
 
@@ -41,11 +39,19 @@ export interface IAgentHostSessionWorkingDirectorySynchronizer {
 	reconcile(session: URI, token: CancellationToken): Promise<void>;
 }
 
+interface IAgentHostWorkingDirectoryRegistrationEntry extends IAgentHostWorkingDirectoryRegistration {
+	readonly store: DisposableStore;
+	applyingRejectedAction: boolean;
+	automaticReconcileAgain: boolean;
+	automaticReconcileScheduled: boolean;
+	dispatching: boolean;
+}
+
 export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable implements IAgentHostSessionWorkingDirectorySynchronizer {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _registrations = new Map<string, IAgentHostWorkingDirectoryRegistration>();
-	private readonly _sequencer = new SequencerByKey<string>();
+	private readonly _registrations = new Map<string, IAgentHostWorkingDirectoryRegistrationEntry>();
+	private readonly _reconciler = new SequencerByKey<string>();
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -55,13 +61,9 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			for (const registration of this._registrations.values()) {
-				void this.reconcile(registration.session, CancellationToken.None).catch(error => {
-					this._logService.warn('[AgentHostWorkingDirectories] Failed to reconcile workspace folder change', error);
-				});
-			}
-		}));
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._scheduleAll('workspace folder change')));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(() => this._scheduleAll('workspace trust change')));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._scheduleAll('trusted folders change')));
 	}
 
 	register(registration: IAgentHostWorkingDirectoryRegistration): IDisposable {
@@ -69,71 +71,139 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return Disposable.None;
 		}
 		const key = registration.session.toString();
-		this._registrations.set(key, registration);
-		return toDisposable(() => {
-			if (this._registrations.get(key) === registration) {
+		this._registrations.get(key)?.store.dispose();
+
+		const store = new DisposableStore();
+		const entry: IAgentHostWorkingDirectoryRegistrationEntry = {
+			...registration,
+			store,
+			applyingRejectedAction: false,
+			automaticReconcileAgain: false,
+			automaticReconcileScheduled: false,
+			dispatching: false,
+		};
+		store.add(registration.subscription.onWillApplyAction(envelope => {
+			entry.applyingRejectedAction = !!envelope.rejectionReason;
+		}));
+		store.add(registration.subscription.onDidApplyAction(() => {
+			entry.applyingRejectedAction = false;
+		}));
+		store.add(registration.subscription.onDidChange(() => {
+			if (!entry.applyingRejectedAction && !entry.dispatching) {
+				this._scheduleReconcile(entry, 'subscription change');
+			}
+		}));
+		store.add(toDisposable(() => {
+			if (this._registrations.get(key) === entry) {
 				this._registrations.delete(key);
 			}
-		});
+		}));
+		this._registrations.set(key, entry);
+		this._scheduleReconcile(entry, 'registration');
+		return store;
+	}
+
+	private _scheduleAll(reason: string): void {
+		for (const registration of this._registrations.values()) {
+			this._scheduleReconcile(registration, reason);
+		}
 	}
 
 	reconcile(session: URI, token: CancellationToken): Promise<void> {
-		return this._sequencer.queue(session.toString(), () => this._reconcile(session, token));
+		return this._reconciler.queue(session.toString(), () => this._reconcile(session, token));
+	}
+
+	private _scheduleReconcile(registration: IAgentHostWorkingDirectoryRegistrationEntry, reason: string): void {
+		if (registration.automaticReconcileScheduled) {
+			registration.automaticReconcileAgain = true;
+			return;
+		}
+		registration.automaticReconcileScheduled = true;
+		const run = () => {
+			registration.automaticReconcileAgain = false;
+			void this.reconcile(registration.session, CancellationToken.None).then(
+				() => finish(),
+				error => {
+					this._logService.warn(`[AgentHostWorkingDirectories] Failed to reconcile ${reason}`, error);
+					finish();
+				},
+			);
+		};
+		const finish = () => {
+			if (this._registrations.get(registration.session.toString()) !== registration) {
+				return;
+			}
+			if (registration.automaticReconcileAgain) {
+				run();
+			} else {
+				registration.automaticReconcileScheduled = false;
+			}
+		};
+		run();
 	}
 
 	private async _reconcile(session: URI, token: CancellationToken): Promise<void> {
-		while (true) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			const registration = this._registrations.get(session.toString());
-			const state = registration?.subscription.verifiedValue;
-			if (!registration || !state || !this._isEligible(registration, state)) {
-				return;
-			}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const registration = this._registrations.get(session.toString());
+		const value = registration?.subscription.value;
+		const state = value && !(value instanceof Error) ? value : undefined;
+		if (!registration || !state || !this._isEligible(registration, state)) {
+			return;
+		}
 
-			const current = state.workingDirectories?.map(directory => this._toEditorWorkingDirectory(URI.parse(directory))) ?? [];
-			if (current.length === 0) {
-				return;
-			}
-			const desired = computeDesiredWorkingDirectories(
-				current[0],
-				current,
-				this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
-				this._uriIdentityService.extUri,
-			);
-			const additions = desired.slice(1).filter(directory => !current.some(existing => this._uriIdentityService.extUri.isEqual(existing, directory)));
-			const removals = current.slice(1).filter(directory => !desired.some(expected => this._uriIdentityService.extUri.isEqual(expected, directory)));
-			if (additions.length === 0 && removals.length === 0) {
-				return;
-			}
+		const current = state.workingDirectories?.map(directory => this._toEditorWorkingDirectory(URI.parse(directory))) ?? [];
+		if (current.length === 0) {
+			return;
+		}
+		const desired = computeDesiredWorkingDirectories(
+			current[0],
+			current,
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			this._uriIdentityService.extUri,
+		);
+		const additions = desired.slice(1).filter(directory => !current.some(existing => this._uriIdentityService.extUri.isEqual(existing, directory)));
+		const removals = current.slice(1).filter(directory => !desired.some(expected => this._uriIdentityService.extUri.isEqual(expected, directory)));
+		if (additions.length === 0 && removals.length === 0) {
+			return;
+		}
 
-			await this._ensureTrusted(additions);
-			try {
+		const trustError = await this._getAdditionTrustError(additions, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this._registrations.get(session.toString()) !== registration) {
+			return;
+		}
+
+		registration.dispatching = true;
+		try {
+			if (!trustError) {
 				for (const directory of additions) {
-					await registration.connection.dispatchSessionWorkingDirectoryAction(session.toString(), {
+					registration.connection.dispatch(session.toString(), {
 						type: ActionType.SessionWorkingDirectorySet,
 						directory: directory.toString(),
-					}, token);
+					});
 				}
-				for (const directory of removals) {
-					await registration.connection.dispatchSessionWorkingDirectoryAction(session.toString(), {
-						type: ActionType.SessionWorkingDirectoryRemoved,
-						directory: directory.toString(),
-					}, token);
-				}
-			} catch (error) {
-				if (error instanceof SessionActionStateRebasedError) {
-					continue;
-				}
-				throw error;
 			}
+			for (const directory of removals) {
+				registration.connection.dispatch(session.toString(), {
+					type: ActionType.SessionWorkingDirectoryRemoved,
+					directory: directory.toString(),
+				});
+			}
+		} finally {
+			registration.dispatching = false;
+		}
+
+		if (trustError) {
+			throw trustError;
 		}
 	}
 
 	private _isEligible(registration: IAgentHostWorkingDirectoryRegistration, state: SessionState): boolean {
 		if (state.lifecycle !== SessionLifecycle.Ready
-			|| registration.provider === COPILOT_CLI_PROVIDER
 			|| readSessionWorkspaceless(state._meta)
 			|| state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 			|| state.chats.length !== 1
@@ -158,13 +228,17 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		return remoteAuthority ? fromRemoteAgentHostWorkingDirectory(directory, remoteAuthority) : directory;
 	}
 
-	private async _ensureTrusted(additions: readonly URI[]): Promise<void> {
+	private async _getAdditionTrustError(additions: readonly URI[], token: CancellationToken): Promise<Error | undefined> {
 		for (const directory of additions) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(directory);
 			if (!trusted) {
-				throw new Error(localize('agentHostWorkingDirectories.untrusted', "The workspace folder '{0}' is not trusted.", directory.path));
+				return new Error(localize('agentHostWorkingDirectories.untrusted', "The workspace folder '{0}' is not trusted.", directory.path));
 			}
 		}
+		return undefined;
 	}
 }
 

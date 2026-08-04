@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../base/common/assert.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import type { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IReference, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
@@ -258,40 +255,6 @@ export interface IPendingDispatchAction {
 	readonly channel: string;
 }
 
-/** The host rejected an optimistic session action. */
-export class SessionActionRejectedError extends Error {
-	constructor(
-		readonly channel: string,
-		readonly clientSeq: number,
-		readonly rejectionReason: string,
-	) {
-		super(`Session action on ${channel} (clientSeq ${clientSeq}) was rejected: ${rejectionReason}`);
-		this.name = 'SessionActionRejectedError';
-	}
-}
-
-/** A reconnect snapshot replaced the state underlying an optimistic action. */
-export class SessionActionStateRebasedError extends Error {
-	constructor(readonly channel: string) {
-		super(`Session state for ${channel} was rebased by a reconnect before the dispatched action could be confirmed; recompute against the rebased state and re-issue if still needed.`);
-		this.name = 'SessionActionStateRebasedError';
-	}
-}
-
-/** The subscription disappeared before an optimistic action was confirmed. */
-export class SessionActionAbandonedError extends Error {
-	constructor(readonly channel: string) {
-		super(`Session subscription for ${channel} was abandoned before the dispatched action could be confirmed.`);
-		this.name = 'SessionActionAbandonedError';
-	}
-}
-
-/** A registered waiter for {@link SessionStateSubscription.applyOptimisticAwaitable}. */
-interface IPendingAwaitableAction {
-	readonly deferred: DeferredPromise<ActionEnvelope>;
-	readonly cancellationListener: IDisposable | undefined;
-}
-
 /**
  * Subscription to a session at `copilot:/<uuid>`.
  * Supports write-ahead reconciliation for client-dispatchable actions.
@@ -299,7 +262,6 @@ interface IPendingAwaitableAction {
 export class SessionStateSubscription extends BaseAgentSubscription<SessionState> {
 
 	private readonly _pendingActions: IPendingAction[] = [];
-	private readonly _awaitableActions = new Map<number, IPendingAwaitableAction>();
 	private _optimisticState: SessionState | undefined;
 	private readonly _sessionUri: string;
 	private readonly _seqAllocator: () => number;
@@ -331,20 +293,6 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		return clientSeq;
 	}
 
-	/** Optimistically apply a working-directory action and await its server echo. */
-	applyOptimisticAwaitable(action: SessionWorkingDirectoryAction, token: CancellationToken | undefined): { clientSeq: number; promise: Promise<ActionEnvelope> } {
-		const clientSeq = this.applyOptimistic(action);
-		const deferred = new DeferredPromise<ActionEnvelope>();
-		const cancellationListener = token?.onCancellationRequested(() => {
-			if (this._awaitableActions.delete(clientSeq)) {
-				cancellationListener?.dispose();
-				deferred.error(new CancellationError());
-			}
-		});
-		this._awaitableActions.set(clientSeq, { deferred, cancellationListener });
-		return { clientSeq, promise: deferred.p };
-	}
-
 	protected override _getOptimisticState(): SessionState | undefined {
 		return this._optimisticState;
 	}
@@ -370,7 +318,6 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		// apply branches also prevents a broadcast rejection from leaking the
 		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
-			this._settleAwaitableAction(envelope.origin.clientSeq, envelope);
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
 				if (!envelope.rejectionReason) {
@@ -384,24 +331,6 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
-	}
-
-	/** Settle the awaitable action matching this echoed client sequence. */
-	private _settleAwaitableAction(clientSeq: number | undefined, envelope: ActionEnvelope): void {
-		if (clientSeq === undefined) {
-			return;
-		}
-		const waiter = this._awaitableActions.get(clientSeq);
-		if (!waiter) {
-			return;
-		}
-		this._awaitableActions.delete(clientSeq);
-		waiter.cancellationListener?.dispose();
-		if (envelope.rejectionReason) {
-			waiter.deferred.error(new SessionActionRejectedError(this._sessionUri, clientSeq, envelope.rejectionReason));
-		} else {
-			waiter.deferred.complete(envelope);
-		}
 	}
 
 	private _confirmedApply(action: StateAction): void {
@@ -431,23 +360,12 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		this._onDidChange.fire(state);
 	}
 
-	/** Clear optimistic actions and reject outstanding waiters. */
-	clearPending(reason: Error = new SessionActionAbandonedError(this._sessionUri)): void {
+	/**
+	 * Clear pending actions for this session (e.g., on unsubscribe).
+	 */
+	clearPending(): void {
 		this._pendingActions.length = 0;
 		this._optimisticState = undefined;
-		this._rejectAwaitableActions(reason);
-	}
-
-	/** Reject every outstanding {@link applyOptimisticAwaitable} waiter with `reason`. */
-	private _rejectAwaitableActions(reason: Error): void {
-		if (this._awaitableActions.size === 0) {
-			return;
-		}
-		for (const waiter of this._awaitableActions.values()) {
-			waiter.cancellationListener?.dispose();
-			waiter.deferred.error(reason);
-		}
-		this._awaitableActions.clear();
 	}
 
 	/**
@@ -473,15 +391,6 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		}
 		this._pendingActions.splice(idx, 1);
 		return true;
-	}
-
-	override dispose(): void {
-		// Covers subscription teardown paths that don't go through
-		// clearPending() first (e.g. the connection-level "reject everything"
-		// sweep on permanent failure/dispose already settled these — this is
-		// a no-op then — but also any future disposal path that doesn't).
-		this._rejectAwaitableActions(new SessionActionAbandonedError(this._sessionUri));
-		super.dispose();
 	}
 }
 
@@ -1105,24 +1014,6 @@ export class AgentSubscriptionManager extends Disposable {
 		return this._seqAllocator();
 	}
 
-	/** Register an awaitable optimistic mutation on an active session subscription. */
-	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token: CancellationToken | undefined): { clientSeq: number; promise: Promise<ActionEnvelope> } {
-		const entry = this._subscriptions.get(URI.parse(channel));
-		if (!(entry?.sub instanceof SessionStateSubscription)) {
-			throw new Error(`No active session subscription for ${channel}; a working-directory action cannot be awaited without one.`);
-		}
-		return entry.sub.applyOptimisticAwaitable(action, token);
-	}
-
-	/** Reject all awaitable mutations because their connection is permanently unavailable. */
-	rejectAllPendingActionWaiters(error: Error): void {
-		for (const { sub } of this._subscriptions.values()) {
-			if (sub instanceof SessionStateSubscription) {
-				sub.clearPending(error);
-			}
-		}
-	}
-
 	/**
 	 * URIs currently subscribed to via {@link getSubscription}. Used to
 	 * build the `subscriptions` payload for a `reconnect` RPC so the
@@ -1208,13 +1099,8 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
-		// state and won't reconcile correctly against a fresh snapshot. Any
-		// outstanding applyOptimisticAwaitable waiter for this channel is
-		// rejected with a "state rebased" error rather than left to hang —
-		// the caller must recompute against the fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription) {
-			entry.sub.clearPending(new SessionActionStateRebasedError(resource));
-		} else if (entry.sub instanceof ChatStateSubscription) {
+		// state and won't reconcile correctly against a fresh snapshot.
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
@@ -1230,20 +1116,13 @@ export class AgentSubscriptionManager extends Disposable {
 		for (const resource of missing) {
 			const entry = this._subscriptions.get(resource);
 			if (entry) {
-				// No fresher state to recompute against here (unlike
-				// applyReconnectSnapshot) — the subscription is simply
-				// no-longer-resumable, so any outstanding
-				// applyOptimisticAwaitable waiter is abandoned.
-				if (entry.sub instanceof SessionStateSubscription) {
-					entry.sub.clearPending(new SessionActionAbandonedError(resource.toString()));
-				} else if (entry.sub instanceof ChatStateSubscription) {
+				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 					entry.sub.clearPending();
 				}
 				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
 			}
 		}
 	}
-
 
 	private _createSubscription(kind: StateComponents, key: string): ManagedSubscription {
 		switch (kind) {

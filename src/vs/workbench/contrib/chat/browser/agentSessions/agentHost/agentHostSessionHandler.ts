@@ -2457,6 +2457,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		// This waits only for local trust checks and ordered optimistic dispatch;
+		// working-directory action envelopes are not a turn-start barrier.
 		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
 		if (cancellationToken.isCancellationRequested) {
 			return;

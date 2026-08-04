@@ -4,39 +4,83 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentSubscription, SessionActionStateRebasedError } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType, SessionWorkingDirectoryAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createDefaultChatSummary, createSessionState, RootState, SessionLifecycle, SessionState, SessionStatus, withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 
-class MutableSessionSubscription implements IAgentSubscription<SessionState> {
-	readonly onDidChange = Event.None;
-	readonly onWillApplyAction = Event.None;
-	readonly onDidApplyAction = Event.None;
+class MutableSessionSubscription extends Disposable implements IAgentSubscription<SessionState> {
+	private readonly _onDidChange = this._register(new Emitter<SessionState>());
+	readonly onDidChange = this._onDidChange.event;
+	private readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onWillApplyAction = this._onWillApplyAction.event;
+	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidApplyAction = this._onDidApplyAction.event;
 
-	constructor(private _state: SessionState) { }
+	private _state: SessionState | undefined;
 
-	get value(): SessionState { return this._state; }
-	get verifiedValue(): SessionState { return this._state; }
-	set state(value: SessionState) { this._state = value; }
+	constructor(private _verifiedState: SessionState | undefined) {
+		super();
+		this._state = _verifiedState;
+	}
+
+	get value(): SessionState | undefined { return this._state; }
+	get verifiedValue(): SessionState | undefined { return this._verifiedState; }
+
+	refresh(value: SessionState): void {
+		this._verifiedState = value;
+		this._state = value;
+		this._onDidChange.fire(value);
+	}
+
+	applyOptimistic(action: SessionWorkingDirectoryAction): void {
+		const state = this._state;
+		if (!state) {
+			return;
+		}
+		const workingDirectories = state.workingDirectories ?? [];
+		this._state = {
+			...state,
+			workingDirectories: action.type === ActionType.SessionWorkingDirectorySet
+				? [...workingDirectories, action.directory]
+				: workingDirectories.filter(directory => directory !== action.directory),
+		};
+		this._onDidChange.fire(this._state);
+	}
+
+	reject(action: SessionWorkingDirectoryAction): void {
+		const envelope: ActionEnvelope = {
+			channel: 'copilot:/session',
+			action,
+			serverSeq: 1,
+			origin: { clientId: 'test', clientSeq: 1 },
+			rejectionReason: 'rejected',
+		};
+		this._onWillApplyAction.fire(envelope);
+		this._state = this._verifiedState;
+		if (this._state) {
+			this._onDidChange.fire(this._state);
+		}
+		this._onDidApplyAction.fire(envelope);
+	}
 }
 
 class TestConnection extends mock<IAgentConnection>() {
 	readonly dispatched: SessionWorkingDirectoryAction[] = [];
-	rebaseFirstAction = false;
-	private _serverSeq = 0;
 
 	override readonly rootState: IAgentSubscription<RootState>;
 
@@ -59,21 +103,11 @@ class TestConnection extends mock<IAgentConnection>() {
 		};
 	}
 
-	override async dispatchSessionWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): Promise<ActionEnvelope> {
-		this.dispatched.push(action);
-		const state = this.subscription.verifiedValue;
-		const workingDirectories = state.workingDirectories ?? [];
-		this.subscription.state = {
-			...state,
-			workingDirectories: action.type === ActionType.SessionWorkingDirectorySet
-				? [...workingDirectories, action.directory]
-				: workingDirectories.filter(directory => directory !== action.directory),
-		};
-		if (this.rebaseFirstAction) {
-			this.rebaseFirstAction = false;
-			throw new SessionActionStateRebasedError(session);
+	override dispatch(_channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
+			this.dispatched.push(action);
+			this.subscription.applyOptimistic(action);
 		}
-		return { channel: session, action, serverSeq: ++this._serverSeq, origin: { clientId: 'test', clientSeq: this._serverSeq } };
 	}
 }
 
@@ -87,10 +121,14 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 	const added = URI.file('/workspace/added');
 	const workspaceFile = URI.file('/workspace/demo.code-workspace');
 
-	function createSynchronizer(trusted = true) {
-		const folders = [retained, added];
+	function createSynchronizer(
+		trusted: boolean | (() => boolean | Promise<boolean>) = true,
+		folders = [retained, added],
+		onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = Event.None,
+		onDidChangeTrustedFolders: Event<void> = Event.None,
+	) {
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
-			override readonly onDidChangeWorkspaceFolders = Event.None;
+			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders;
 			override getWorkspace(): IWorkspace {
 				return {
 					id: 'workspace',
@@ -100,7 +138,9 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			}
 		};
 		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
-			override async getUriTrustInfo(uri: URI) { return { uri, trusted }; }
+			override readonly onDidChangeTrust = Event.None;
+			override readonly onDidChangeTrustedFolders = onDidChangeTrustedFolders;
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: await (typeof trusted === 'function' ? trusted() : trusted) }; }
 		};
 		const environmentService = { isSessionsWindow: false, remoteAuthority: undefined } as Partial<IWorkbenchEnvironmentService> as IWorkbenchEnvironmentService;
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -115,7 +155,7 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 		));
 	}
 
-	function createSubscription(): MutableSessionSubscription {
+	function createSubscription(hydrated = true): MutableSessionSubscription {
 		const summary = {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -133,41 +173,129 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			chats: [createDefaultChatSummary(summary, defaultChat)],
 			defaultChat,
 		};
-		return new MutableSessionSubscription(state);
+		return disposables.add(new MutableSessionSubscription(hydrated ? state : undefined));
 	}
 
-	test('applies the secondary-root diff and recomputes after a reconnect rebase', async () => {
+	test('uses ordinary optimistic dispatch and pending state suppresses duplicate deltas', async () => {
 		const synchronizer = createSynchronizer();
 		const subscription = createSubscription();
 		const connection = new TestConnection(subscription);
-		connection.rebaseFirstAction = true;
 		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
 
+		await synchronizer.reconcile(session, CancellationToken.None);
 		await synchronizer.reconcile(session, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			actions: connection.dispatched,
-			confirmed: subscription.verifiedValue.workingDirectories,
+			effective: subscription.value?.workingDirectories,
+			confirmed: subscription.verifiedValue?.workingDirectories,
 		}, {
 			actions: [
 				{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
 			],
-			confirmed: [primary.toString(), retained.toString(), added.toString()],
+			effective: [primary.toString(), retained.toString(), added.toString()],
+			confirmed: [primary.toString(), retained.toString(), stale.toString()],
 		});
 	});
 
-	test('rejects an untrusted added root before dispatch', async () => {
-		const synchronizer = createSynchronizer(false);
+	test('subscription refresh converges without another workspace event or user send', async () => {
+		const synchronizer = createSynchronizer();
+		const subscription = createSubscription(false);
+		const state = createSubscription().verifiedValue!;
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		subscription.refresh(state);
+		await timeout(0);
+
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+	});
+
+	test('registration and workspace changes schedule reconciliation', async () => {
+		const folders = [retained];
+		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const synchronizer = createSynchronizer(true, folders, onDidChangeWorkspaceFolders.event);
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await timeout(0);
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+
+		folders.push(added);
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		await timeout(0);
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+		]);
+	});
+
+	test('rejects untrusted additions but still dispatches safe removals', async () => {
+		let trusted = false;
+		const onDidChangeTrustedFolders = disposables.add(new Emitter<void>());
+		const synchronizer = createSynchronizer(() => trusted, undefined, undefined, onDidChangeTrustedFolders.event);
 		const subscription = createSubscription();
 		const connection = new TestConnection(subscription);
 		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
 
 		await assert.rejects(synchronizer.reconcile(session, CancellationToken.None), /is not trusted/);
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+
+		trusted = true;
+		onDidChangeTrustedFolders.fire();
+		await timeout(0);
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+		]);
+	});
+
+	test('does not dispatch through a registration disposed while folder trust is pending', async () => {
+		let releaseTrust!: () => void;
+		const trustPending = new Promise<void>(resolve => releaseTrust = resolve);
+		let reportTrustStarted!: () => void;
+		const trustStarted = new Promise<void>(resolve => reportTrustStarted = resolve);
+		const synchronizer = createSynchronizer(async () => {
+			reportTrustStarted();
+			await trustPending;
+			return true;
+		});
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription);
+		const registration = synchronizer.register({ session, provider: 'claude', connection, subscription });
+
+		await trustStarted;
+		registration.dispose();
+		const queuedReconcile = synchronizer.reconcile(session, CancellationToken.None);
+		releaseTrust();
+		await queuedReconcile;
+
 		assert.deepStrictEqual(connection.dispatched, []);
 	});
 
-	test('does not reconcile Copilot sessions until the SDK can apply root changes', async () => {
+	test('does not immediately redispatch an action rejected by the host', async () => {
+		const synchronizer = createSynchronizer();
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+		subscription.reject(connection.dispatched[0]);
+		await timeout(0);
+
+		assert.strictEqual(connection.dispatched.length, 2);
+	});
+
+	test('reconciles Copilot sessions through the provider-neutral capability', async () => {
 		const synchronizer = createSynchronizer();
 		const subscription = createSubscription();
 		const connection = new TestConnection(subscription, 'copilotcli');
@@ -175,6 +303,9 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 
 		await synchronizer.reconcile(session, CancellationToken.None);
 
-		assert.deepStrictEqual(connection.dispatched, []);
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
 	});
 });
