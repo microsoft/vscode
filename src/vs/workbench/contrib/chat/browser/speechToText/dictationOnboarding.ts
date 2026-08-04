@@ -927,13 +927,7 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	}
 
 	show(): boolean {
-		const shown = this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
-		if (shown) {
-			// The user explicitly asked to see the introduction, so move focus onto
-			// the card and announce its name rather than leaving them to hunt for it.
-			this.onboarding.focusCard();
-		}
-		return shown;
+		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true), true);
 	}
 
 	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void {

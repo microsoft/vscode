@@ -79,7 +79,6 @@ export class ChatInputOnboarding extends Disposable {
 
 	private readonly hosts = new Set<IChatInputOnboardingHost>();
 	private readonly currentOnboarding = this._register(new MutableDisposable<IDisposable>());
-	private currentBanner: IChatInputOnboardingBanner | undefined;
 	private activeHost: IChatInputOnboardingHost | undefined;
 
 	get isVisible(): boolean {
@@ -127,7 +126,11 @@ export class ChatInputOnboarding extends Disposable {
 		return this.show(createOnboarding);
 	}
 
-	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
+	/**
+	 * Shows the card. When `focus` is set, focus moves onto the card and it is
+	 * announced there; otherwise the card is announced without moving focus.
+	 */
+	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner, focus?: boolean): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -153,33 +156,16 @@ export class ChatInputOnboarding extends Disposable {
 			throw error;
 		}
 
-		this.currentBanner = banner;
-		onboardingStore.add(toDisposable(() => {
-			if (this.currentBanner === banner) {
-				this.currentBanner = undefined;
-			}
-		}));
 		this.currentOnboarding.value = onboardingStore;
 		this.setTipsVisible(host, false);
 		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 
-		// Let screen reader users know a card just opened. Focus is left where it
-		// was so the user is not pulled away; a command moves focus onto the card
-		// on demand and reads its label.
-		banner.announce();
-		return true;
-	}
-
-	/**
-	 * Move focus onto the visible card so its label is announced. Returns `false`
-	 * when there is no card to focus.
-	 */
-	focusCard(): boolean {
-		if (!this.currentBanner) {
-			return false;
+		if (focus) {
+			banner.focus();
+		} else {
+			banner.announce();
 		}
-		this.currentBanner.focus();
 		return true;
 	}
 
@@ -239,9 +225,7 @@ export class ChatInputOnboardingCard extends Disposable {
 		options.container.appendChild(this.domNode);
 		this._register(toDisposable(() => this.domNode.remove()));
 
-		// Make the card a focus target so a command (or the controller when the
-		// card is shown) can move focus onto it, letting the screen reader read
-		// the region label and description. `-1` keeps it out of the Tab order.
+		// `-1` makes the card focusable by command while keeping it out of the Tab order.
 		this.domNode.tabIndex = -1;
 
 		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, event => {

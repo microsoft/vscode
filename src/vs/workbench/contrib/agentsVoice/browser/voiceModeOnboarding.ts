@@ -701,6 +701,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 			container: options.container,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
+			ariaDescription: localize('voiceMode.onboarding.regionDescription', "Choose how your agent speaks to you. Adjust settings anytime."),
 			focusHint: focusHintForCommand(keybindingService, SHOW_VOICE_MODE_ONBOARDING_COMMAND),
 			onEscape: () => {
 				this.logAction('escape');
@@ -1207,13 +1208,7 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 	}
 
 	show(): boolean {
-		const shown = this.onboarding.show(context => this.createBanner(context, 'manual'));
-		if (shown) {
-			// The user explicitly asked to see the introduction, so move focus onto
-			// the card and announce its name rather than leaving them to hunt for it.
-			this.onboarding.focusCard();
-		}
-		return shown;
+		return this.onboarding.show(context => this.createBanner(context, 'manual'), true);
 	}
 
 	private createBanner(context: IChatInputOnboardingContext, source: 'automatic' | 'manual'): VoiceModeOnboardingBanner {

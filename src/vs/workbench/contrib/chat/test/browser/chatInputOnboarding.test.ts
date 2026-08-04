@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -111,19 +112,41 @@ suite('Chat input onboarding', () => {
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
 	});
 
-	test('announces on show and focuses the card on demand', () => {
+	test('announces once on show and focuses instead when asked', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
 		const host = createHost(disposables);
 		disposables.add(onboarding.registerHost(host.container, host.root));
 
-		const focusedWhenHidden = onboarding.focusCard();
 		const shown = onboarding.show(createCard);
-		const focusedWhileVisible = onboarding.focusCard();
 		onboarding.showIfNeeded(createCard); // no-op while already visible, must not re-announce
+		const shownWithFocus = onboarding.show(createCard, true);
 
 		assert.deepStrictEqual(
-			{ focusedWhenHidden, shown, focusedWhileVisible, announceCalls, focusCardCalls },
-			{ focusedWhenHidden: false, shown: true, focusedWhileVisible: true, announceCalls: 1, focusCardCalls: 1 });
+			{ shown, shownWithFocus, announceCalls, focusCardCalls },
+			{ shown: true, shownWithFocus: true, announceCalls: 1, focusCardCalls: 1 });
+	});
+
+	test('announces the label and description when focused', () => {
+		const host = createHost(disposables);
+		const ariaContainer = dom.append(host.root, dom.$('div'));
+		setARIAContainer(ariaContainer);
+		const card = disposables.add(new ChatInputOnboardingCard({
+			container: host.container,
+			className: 'chat-input-onboarding-card',
+			ariaLabel: 'Test onboarding',
+			ariaDescription: 'Test description.',
+			focusHint: 'Press F1 to focus the introduction.',
+			onEscape: () => { },
+		}));
+
+		card.announce();
+		const announced = ariaContainer.textContent;
+		card.focus();
+		const focusAnnounced = ariaContainer.textContent;
+
+		assert.deepStrictEqual(
+			{ announced, focusAnnounced },
+			{ announced: 'Test onboarding. Press F1 to focus the introduction.', focusAnnounced: 'Test onboarding. Test description.' });
 	});
 
 	test('handles unmodified keyboard dismissal and action activation', () => {
