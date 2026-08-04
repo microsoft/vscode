@@ -10,7 +10,7 @@ import { autorun, constObservable, derivedOpts, IObservable } from '../../../../
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
@@ -270,7 +270,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 
-		if (this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+		if (this.toolInvocation.toolSpecificData?.kind === 'sessionCreated' && isResponseVM(this.context.element) && this.context.element.isComplete) {
 			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
