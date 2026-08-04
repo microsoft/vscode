@@ -140,13 +140,15 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	word-break: break-word;
 }
 
 .automations-card-name-text {
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .automations-card-disabled-badge {
