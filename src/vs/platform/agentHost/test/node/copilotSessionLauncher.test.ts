@@ -17,6 +17,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -50,6 +51,12 @@ function createTestLauncher(): CopilotSessionLauncher {
 		{} as IFileService,
 		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
+		{
+			_serviceBrand: undefined,
+			getSessionTraceContext: () => undefined,
+			releaseSessionTraceContext: () => { },
+			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
+		} as unknown as IAgentHostOTelService,
 	);
 }
 
@@ -156,6 +163,23 @@ suite('resolveByokSessionConfig', () => {
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
 		});
+	});
+
+	test('preserves provider groups when models share a vendor and id', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro' },
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Work/gemini-2.5-pro' },
+		]));
+		const proxy = countingProxy();
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [
+			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
+			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+		]);
 	});
 
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {

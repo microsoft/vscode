@@ -20,6 +20,12 @@
 	overflow: hidden;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account {
+	width: 28px;
+	min-width: 28px;
+	overflow: visible;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-widget:hover,
 .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
 	background: var(--vscode-toolbar-hoverBackground);
@@ -59,6 +65,37 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-avatar.visible {
 	display: block;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-avatar,
+.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-icon {
+	position: absolute;
+	left: 1px;
+	z-index: 2;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	font-size: 15px;
+	border: 1px solid var(--vscode-titleBar-activeBackground);
+	border-radius: 50%;
+	background: var(--vscode-titleBar-activeBackground);
+	color: var(--vscode-foreground);
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon.visible {
+	display: flex;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-icon {
+	position: absolute;
+	right: 0;
+	z-index: 1;
 }
 
 .monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
@@ -140,38 +177,17 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel {
 	display: flex;
 	flex-direction: column;
-	width: 360px;
-	max-width: 360px;
+	width: 400px;
+	max-width: min(400px, calc(100vw - 16px));
+	overflow-x: hidden;
 	color: var(--vscode-foreground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-header {
 	display: flex;
-	align-items: center;
-	gap: 6px;
+	justify-content: flex-end;
 	min-height: 28px;
-	padding: 4px 8px;
-	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-avatar {
-	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
-	border-radius: 50%;
-	object-fit: cover;
-	border: 1px solid var(--vscode-commandCenter-border, var(--vscode-contrastBorder, transparent));
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-title {
-	flex: 1 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	line-height: 18px;
+	padding: 4px 8px 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-header-actions {
@@ -226,6 +242,13 @@
 	min-height: 0;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-identities {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-summary {
 	padding: 12px 16px;
 	font-size: var(--vscode-agents-fontSize-label1);
@@ -238,6 +261,181 @@
 	flex-direction: column;
 	gap: 0;
 	padding: 2px 0 6px 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+	padding: 12px 16px 14px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account + .sessions-account-titlebar-panel-provider-account {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-identity {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	min-height: 26px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon {
+	box-sizing: border-box;
+	flex: 0 0 22px;
+	width: 22px;
+	height: 22px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar {
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 15px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+	border-radius: 50%;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-details {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	line-height: 20px;
+	color: var(--vscode-foreground);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-description {
+	overflow: hidden;
+	font-size: var(--vscode-agents-fontSize-label2);
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions .action-item .action-label.codicon {
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	padding: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions > .monaco-action-bar .actions-container {
+	width: max-content;
+	gap: 2px;
+	padding: 1px 2px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-menu-separatorBackground));
+	border-radius: 14px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions .action-item {
+	margin: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-plan {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 20px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-metric-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	min-width: 0;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 20px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-metric-row > :first-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value {
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-label {
+	flex: 0 0 auto;
+	text-align: right;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer {
+	min-width: 0;
+	padding: 10px 16px;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip {
+	min-width: 0;
+	padding: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip > :not(.contributed-section),
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .contributed-section > div.header,
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .collapsible-content,
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .contributed-detail {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .contributed-section,
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 20px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .actions-container {

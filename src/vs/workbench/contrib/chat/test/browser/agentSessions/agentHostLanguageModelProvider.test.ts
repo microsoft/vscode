@@ -116,6 +116,24 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(info.metadata.modelGroup, undefined);
 	});
 
+	test('keeps duplicate Codex model names distinct and provider scoped', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
+		provider.updateModels([
+			{ id: '@provider=vscode-proxy:gpt-5.6-sol', provider: 'copilot', name: 'GPT-5.6 Sol' },
+			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			identifier: info.identifier,
+			name: info.metadata.name,
+			group: info.metadata.modelGroup,
+		})), [
+			{ identifier: 'codex:@provider=vscode-proxy:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'copilot' } },
+			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', source: 'chatgptSubscription' } },
+		]);
+	});
+
 	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {
 		const provider = createProvider();
 		// A grouped BYOK copy: the node agent host carried the original LM service identifier

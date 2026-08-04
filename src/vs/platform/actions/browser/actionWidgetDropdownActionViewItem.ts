@@ -84,11 +84,15 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		this.actionWidgetDropdown?.show();
 	}
 
+	protected setDropdownEnabled(enabled: boolean): void {
+		this.actionWidgetDropdown?.setEnabled(enabled && this.action.enabled);
+	}
+
 	protected override updateEnabled(): void {
 		const disabled = !this.action.enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
-		this.actionWidgetDropdown?.setEnabled(!disabled);
+		this.setDropdownEnabled(true);
 	}
 
 }
