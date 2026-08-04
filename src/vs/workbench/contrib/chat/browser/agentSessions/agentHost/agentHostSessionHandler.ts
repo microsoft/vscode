@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -1164,6 +1165,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								this._config.connectionAuthority,
 								sessionResource.authority,
 								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
+								lookup,
 							);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
@@ -2385,7 +2387,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// calls plus every subagent's calls (the agent host folds
 				// subagent usage into the parent turn under scope `''`), so it is
 				// emitted as-is — no separate re-aggregation of subagent credits.
-				const usage = usageInfoToChatUsage(rawUsage);
+				const usage = usageInfoToChatUsage(rawUsage, modelLookup.toModelDisplayName);
 				if (!usage) {
 					return;
 				}
@@ -2401,11 +2403,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
-					// The session total moves independently of this turn's own cost —
-					// it also covers work billed while no turn was active — so it has
-					// to be compared, or a session-cost update would be dropped here.
 					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
-					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
+					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)
+					// A subagent's call leaves the parent's own token counts unchanged, so
+					// without comparing the whole-turn totals its contribution never lands.
+					&& equals(lastUsage.modelTotals, usage.modelTotals)) {
 					return;
 				}
 				lastUsage = usage;
@@ -3945,13 +3947,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const isActive = !!state.activeTurn;
 				if (parentInvocation.toolSpecificData?.kind === 'subagent') {
 					const timing = getSubagentTiming(state);
+					const lastResponsePart = state.activeTurn?.responseParts.at(-1);
+					const activity = lastResponsePart?.kind === ResponsePartKind.Markdown
+						? 'markdown'
+						: lastResponsePart?.kind === ResponsePartKind.Reasoning
+							? 'reasoning'
+							: undefined;
 					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
 					if (parentInvocation.toolSpecificData.isActive !== isActive
+						|| parentInvocation.toolSpecificData.activity !== activity
 						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
 						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
 						parentInvocation.toolSpecificData.isActive = isActive;
+						if (activity) {
+							parentInvocation.toolSpecificData.activity = activity;
+						} else {
+							delete parentInvocation.toolSpecificData.activity;
+						}
 						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
 						parentInvocation.toolSpecificData.duration = fallbackDuration;
 						parentInvocation.notifyToolSpecificDataChanged();
@@ -4251,6 +4265,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
+				_meta: this._provisionalService.getInitialSessionMetadata(),
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -4270,6 +4285,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
+						_meta: this._provisionalService.getInitialSessionMetadata(),
 						model,
 						provider: this._config.provider,
 						workingDirectories,
@@ -4637,16 +4653,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
-		// Try the raw billed id, its dots-normalised form (slug mismatch: `claude-sonnet-4-6` → `.6`),
-		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
-		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
-		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+		// Try the raw billed id and its dots-normalised form (slug mismatch:
+		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
+		const lookupRawModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
 			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
 			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
 				if (model) { return { identifier: modelId, model, resolvedFromRaw: true }; }
+			}
+			return undefined;
+		};
+		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			const rawModel = lookupRawModel(rawModelId);
+			if (rawModel) {
+				return rawModel;
 			}
 			const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
 			if (fallbackModelId) {
@@ -4657,6 +4679,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
+			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
 				const resolved = lookupModel(rawModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
@@ -5226,8 +5249,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the requested directory, or either side is unavailable.
 	 */
 	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
-		const requestedDir = this._resolveRequestedWorkingDirectory(sessionResource);
+		const requestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+		const requestedDir = requestedDirectories?.[0];
 		if (!requestedDir || requestedDir.scheme !== 'file') {
+			return uri;
+		}
+		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(uri, requestedDirectories);
+		if (!owningRequestedDirectory || !extUriBiasedIgnorePathCase.isEqual(owningRequestedDirectory, requestedDir)) {
 			return uri;
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
@@ -5237,9 +5265,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return uri;
 		}
 		if (extUriBiasedIgnorePathCase.isEqual(requestedDir, resolvedDir)) {
-			return uri;
-		}
-		if (!extUriBiasedIgnorePathCase.isEqualOrParent(uri, requestedDir)) {
 			return uri;
 		}
 		const rel = extUriBiasedIgnorePathCase.relativePath(requestedDir, uri);

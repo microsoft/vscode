@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readSessionWorkspaceless, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { parseSessionMultiRootMetadata, readSessionMultiRootMetadata, readSessionWorkspaceless, SESSION_META_MULTI_ROOT_KEY, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubState, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 
 suite('Session workspace-less meta', () => {
 
@@ -16,6 +16,35 @@ suite('Session workspace-less meta', () => {
 		assert.strictEqual(readSessionWorkspaceless({}), false);
 		assert.strictEqual(readSessionWorkspaceless({ [SESSION_META_WORKSPACELESS_KEY]: false }), false);
 		assert.strictEqual(readSessionWorkspaceless({ [SESSION_META_WORKSPACELESS_KEY]: 'true' }), false);
+	});
+
+	suite('Session multi-root meta', () => {
+
+		test('round-trips workspace provenance and preserves other slots', () => {
+			const multiRoot = {
+				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+				name: 'Demo Workspace',
+			};
+			const tagged = withSessionMultiRootMetadata({ other: true }, multiRoot);
+
+			assert.deepStrictEqual({
+				multiRoot: readSessionMultiRootMetadata(tagged),
+				persisted: parseSessionMultiRootMetadata(JSON.stringify(multiRoot)),
+				other: tagged?.other,
+			}, {
+				multiRoot,
+				persisted: multiRoot,
+				other: true,
+			});
+		});
+
+		test('rejects malformed workspace provenance', () => {
+			assert.deepStrictEqual([
+				readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'relative.code-workspace' } }),
+				readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///demo.code-workspace', name: 42 } }),
+				parseSessionMultiRootMetadata('{'),
+			], [undefined, undefined, undefined]);
+		});
 	});
 
 	test('withSessionWorkspaceless round-trips the marker and preserves other slots', () => {

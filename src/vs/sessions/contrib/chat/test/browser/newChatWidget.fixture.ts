@@ -160,6 +160,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
+				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
