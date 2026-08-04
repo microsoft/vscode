@@ -104,7 +104,7 @@ suite('ConfigurationModelParser', () => {
 
 		testObject.parse(JSON.stringify({ '__proto__': { 'editor.fontSize': 100 } }));
 
-		assert.strictEqual(({} as any)['editor.fontSize'], undefined, '__proto__ must not pollute Object.prototype');
+		assert.strictEqual((Object.prototype as Record<string, unknown>)['editor.fontSize'], undefined, '__proto__ must not pollute Object.prototype');
 		const raw = testObject.configurationModel.getValue('__proto__') as Record<string, unknown>;
 		assert.deepStrictEqual(raw, { 'editor.fontSize': 100 });
 	});
