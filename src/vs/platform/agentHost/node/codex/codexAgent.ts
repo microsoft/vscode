@@ -1235,7 +1235,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _turnStartOptions(session: ICodexSession, modelId: string): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
+	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
 		const config = this._readSessionConfig(session);
 		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(session);
 		const sandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
@@ -1253,7 +1253,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const mode = collaborationModeKind(config[SessionConfigKey.Mode]);
 		const collaborationMode: TurnStartParams['collaborationMode'] = {
 			mode,
-			settings: { model: modelId, reasoning_effort: effort ?? null, developer_instructions: null },
+			settings: { model: modelId, reasoning_effort: effort ?? null, developer_instructions: developerInstructions ?? null },
 		};
 		return {
 			approvalPolicy,
@@ -3601,7 +3601,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._startTurnStopWatch(session);
 		try {
 			const model = await this._resolveModel(session);
-			const turnOptions = this._turnStartOptions(session, model.id);
+			const turnOptions = this._turnStartOptions(session, model.id, customizationLaunch.developerInstructions);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
 				input: input.slice(),

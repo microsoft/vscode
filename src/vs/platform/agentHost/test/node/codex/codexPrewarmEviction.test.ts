@@ -56,6 +56,7 @@ interface ITestWireRequest {
 		readonly sandboxPolicy?: SandboxPolicy;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
+		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
 	};
 }
 
@@ -339,6 +340,7 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: start.params.config?.['mcp_servers'],
 			agentDescription: agents.Reviewer.description,
 			developerInstructions: start.params.developerInstructions,
+			turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
 			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
 			roleFile,
 			roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
@@ -346,6 +348,7 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
 			developerInstructions: 'Run focused tests.\n\nReview carefully.',
+			turnDeveloperInstructions: 'Run focused tests.\n\nReview carefully.',
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,

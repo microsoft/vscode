@@ -33,6 +33,13 @@ interface ICapturedRequest {
 	readonly body: unknown;
 }
 
+function developerInputText(body: unknown): string {
+	const input = (body as { readonly input?: unknown } | undefined)?.input;
+	return Array.isArray(input)
+		? JSON.stringify(input.filter(item => item && typeof item === 'object' && (item as { readonly role?: unknown }).role === 'developer'))
+		: '';
+}
+
 async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
 	const deadline = Date.now() + 60_000;
 	let lastPlugin: PluginCustomization | undefined;
@@ -155,8 +162,9 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			writeFile(mcpConfigFile, JSON.stringify({
 				mcpServers: {
 					customization_test: {
-						command: 'node',
+						command: process.execPath,
 						args: [mcpScript],
+						env: { ELECTRON_RUN_AS_NODE: '1' },
 					},
 				},
 			})),
@@ -223,8 +231,9 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		const responsesRequest = [...requests].reverse().find(request => request.path.includes('/responses'));
 		assert.ok(responsesRequest, `expected a Codex /responses request; got paths: ${requests.map(request => request.path).join(', ')}`);
 		const requestText = JSON.stringify(responsesRequest.body);
-		assert.ok(requestText.includes(AGENT_MARKER), 'selected custom-agent instructions must reach the Codex model request');
-		assert.ok(requestText.includes(RULE_MARKER), 'plugin instructions must reach the Codex model request');
+		const developerText = developerInputText(responsesRequest.body);
+		assert.ok(developerText.includes(AGENT_MARKER), 'selected custom-agent instructions must reach the Codex developer message');
+		assert.ok(developerText.includes(RULE_MARKER), 'plugin instructions must reach the Codex developer message');
 		assert.ok(requestText.includes(SKILL_MARKER), 'plugin skills must be advertised in the Codex model request');
 		assert.ok(requestText.includes(MCP_MARKER), 'plugin MCP tools must be advertised in the Codex model request');
 	});

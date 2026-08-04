@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname } from '../../../../base/common/path.js';
-import { extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -203,6 +204,7 @@ export async function codexCustomizationConfigFromPlugins(
 	const agentRoles = new Map<string, ICodexAgentRoleSource>();
 	const pluginInstructions: string[] = [];
 	let selectedAgentInstructions: string | undefined;
+	let selectedAgentMatch = SelectedAgentMatch.None;
 	const selectedAgentUri = selectedAgent?.uri;
 
 	for (const plugin of plugins) {
@@ -217,8 +219,10 @@ export async function codexCustomizationConfigFromPlugins(
 				if (!agentRoles.has(name)) {
 					agentRoles.set(name, { name, description, instructions, ...(model ? { model } : {}) });
 				}
-				if (selectedAgentUri && isSelectedAgent(plugin, agent.uri, selectedAgentUri)) {
+				const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
+				if (match > selectedAgentMatch) {
 					selectedAgentInstructions = instructions;
+					selectedAgentMatch = match;
 				}
 			} catch { }
 		}
@@ -257,22 +261,44 @@ function isAlwaysOnRule(globs: readonly string[] | undefined, alwaysApply: boole
 	return globs.some(glob => glob.trim() === '**' || glob.trim() === '**/*');
 }
 
-function isSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): boolean {
+const enum SelectedAgentMatch {
+	None,
+	SyntheticBundleSource,
+	Exact,
+}
+
+function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): SelectedAgentMatch {
 	const selectedUri = URI.parse(selectedAgentUri);
 	if (extUri.isEqual(agentUri, selectedUri)) {
-		return true;
+		return SelectedAgentMatch.Exact;
 	}
 	const pluginDir = plugin.synced.pluginDir;
 	if (!pluginDir) {
-		return false;
+		return SelectedAgentMatch.None;
 	}
 	const relativeAgentPath = relativePath(pluginDir, agentUri);
 	if (relativeAgentPath === undefined) {
-		return false;
+		return SelectedAgentMatch.None;
 	}
 	const sourcePluginUri = URI.parse(plugin.synced.customization.uri);
 	const sourceAgentUri = relativeAgentPath ? joinPath(sourcePluginUri, relativeAgentPath) : sourcePluginUri;
-	return extUri.isEqual(sourceAgentUri, selectedUri);
+	if (extUri.isEqual(sourceAgentUri, selectedUri)) {
+		return SelectedAgentMatch.Exact;
+	}
+
+	// The workbench's synthetic bundle flattens loose custom agents into its
+	// `agents/` directory, while the Agents window intentionally exposes each
+	// agent's original workspace/user URI. The host cannot reconstruct that
+	// original parent path, but the filename remains stable and is unique in
+	// the flattened bundle. Keep this as a lower-priority fallback so an exact
+	// match from another plugin always wins.
+	if (sourcePluginUri.scheme === SYNCED_CUSTOMIZATION_SCHEME
+		&& relativeAgentPath.startsWith('agents/')
+		&& basename(agentUri) === basename(selectedUri)) {
+		return SelectedAgentMatch.SyntheticBundleSource;
+	}
+
+	return SelectedAgentMatch.None;
 }
 
 export function codexAgentRoleToml(role: ICodexAgentRoleSource): string {

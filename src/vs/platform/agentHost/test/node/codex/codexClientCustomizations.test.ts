@@ -14,6 +14,7 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { NullLogService } from '../../../../log/common/log.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
@@ -199,6 +200,62 @@ suite('codexClientCustomizations', () => {
 		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: sourceAgentUri.toString() }, fileService);
 
 		assert.strictEqual(config.developerInstructions, 'Apply synced reviewer instructions.');
+	});
+
+	test('matches an original loose-agent URI to its synthetic bundle copy', async () => {
+		const sourceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const syncedPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/synced/plugin' });
+		const syncedAgentUri = URI.joinPath(syncedPluginUri, 'agents', 'reviewer.agent.md');
+		await fileService.writeFile(syncedAgentUri, VSBuffer.fromString(`---\nname: Reviewer\ndescription: Reviews carefully\n---\nApply loose reviewer instructions.`));
+		const synced: ISyncedCustomization = {
+			customization: {
+				type: CustomizationType.Plugin,
+				id: 'synthetic-plugin',
+				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`,
+				name: 'VS Code Synced Data',
+				enabled: true,
+			},
+			pluginDir: syncedPluginUri,
+		};
+		const plugins: ICodexClientPlugin[] = [{
+			synced,
+			parsed: parsed({ agents: [agentDef(syncedAgentUri, 'reviewer')] }),
+		}];
+
+		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: sourceAgentUri.toString() }, fileService);
+
+		assert.strictEqual(config.developerInstructions, 'Apply loose reviewer instructions.');
+	});
+
+	test('prefers an exact selected agent over a synthetic filename fallback', async () => {
+		const selectedPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/source/plugin' });
+		const selectedSyncedPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/synced/selected-plugin' });
+		const selectedAgentUri = URI.joinPath(selectedPluginUri, 'agents', 'reviewer.agent.md');
+		const selectedSyncedAgentUri = URI.joinPath(selectedSyncedPluginUri, 'agents', 'reviewer.agent.md');
+		const syntheticPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/synced/synthetic-plugin' });
+		const syntheticAgentUri = URI.joinPath(syntheticPluginUri, 'agents', 'reviewer.agent.md');
+		await fileService.writeFile(selectedSyncedAgentUri, VSBuffer.fromString('Apply exact reviewer instructions.'));
+		await fileService.writeFile(syntheticAgentUri, VSBuffer.fromString('Do not apply synthetic reviewer instructions.'));
+		const plugins: ICodexClientPlugin[] = [
+			{
+				synced: {
+					customization: { type: CustomizationType.Plugin, id: 'selected-plugin', uri: selectedPluginUri.toString(), name: 'Selected Plugin', enabled: true },
+					pluginDir: selectedSyncedPluginUri,
+				},
+				parsed: parsed({ agents: [agentDef(selectedSyncedAgentUri, 'selected-reviewer')] }),
+			},
+			{
+				synced: {
+					customization: { type: CustomizationType.Plugin, id: 'synthetic-plugin', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`, name: 'VS Code Synced Data', enabled: true },
+					pluginDir: syntheticPluginUri,
+				},
+				parsed: parsed({ agents: [agentDef(syntheticAgentUri, 'synthetic-reviewer')] }),
+			},
+		];
+
+		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: selectedAgentUri.toString() }, fileService);
+
+		assert.strictEqual(config.developerInstructions, 'Apply exact reviewer instructions.');
 	});
 
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {
