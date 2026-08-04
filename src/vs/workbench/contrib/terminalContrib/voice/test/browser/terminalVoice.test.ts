@@ -19,7 +19,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService } from '../../../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { ISpeechService } from '../../../../speech/common/speechService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { postProcessTerminalDictation, TerminalVoiceSession } from '../../browser/terminalVoice.js';
 
 suite('postProcessTerminalDictation', () => {
@@ -68,7 +68,7 @@ suite('TerminalVoiceSession', () => {
 			override async sendText(text: string): Promise<void> { sentTexts.push(text); }
 			override xterm = undefined;
 			override registerMarker() { return undefined; }
-			getContribution() { return undefined; }
+			override getContribution<T extends ITerminalContribution>(): T | null { return null; }
 		};
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidChangeActiveInstance = activeInstanceChanged.event;
