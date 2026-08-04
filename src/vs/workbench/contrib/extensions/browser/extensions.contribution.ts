@@ -364,13 +364,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[ExtensionGalleryAuthProviderConfigKey]: {
 				type: 'string',
-				// The enum and its descriptions are intentionally NOT gated on
-				// `product.enableExtensionGalleryEntraAuth`: the policy metadata below always
-				// exports both enum descriptions, and the policy-artifact generator requires the
-				// schema `enum` and `enumDescriptions` to have equal length, so gating the enum
-				// would make a clean policy export invalid. The Entra product gate is enforced at
-				// runtime in `getEffectiveAuthProvider()` instead, and this setting is hidden
-				// (`included: false`), so listing `microsoft` here does not advertise it in the UI.
 				enum: ['github', 'microsoft'],
 				enumDescriptions: [
 					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
@@ -380,27 +373,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: '',
 				scope: ConfigurationScope.APPLICATION,
 				included: false,
-				policy: {
-					name: 'ExtensionGalleryAuthProvider',
-					category: PolicyCategory.Extensions,
-					minimumVersion: '1.121',
-					localization: {
-						description: {
-							key: 'extensions.gallery.authProvider',
-							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
-						},
-						enumDescriptions: [
-							{
-								key: 'extensions.gallery.authProvider.github',
-								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
-							},
-							{
-								key: 'extensions.gallery.authProvider.microsoft',
-								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
-							},
-						]
-					}
-				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
 				type: 'boolean',
