@@ -9,6 +9,8 @@ import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEv
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../nls.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 
 interface IChatInputOnboardingHost {
@@ -40,11 +42,29 @@ export interface IChatInputOnboardingBanner extends IDisposable {
 	focus(): void;
 }
 
+/**
+ * Builds the announcement hint that tells screen reader users how to move focus
+ * onto the card by running `commandId`, including its keybinding when one is
+ * bound. Returned as a sentence so it can be appended to the card label.
+ */
+export function focusHintForCommand(keybindingService: IKeybindingService, commandId: string): string {
+	const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
+	return keybinding
+		? localize('chatInputOnboarding.focusHint.keybinding', "Press {0} to focus the introduction.", keybinding)
+		: localize('chatInputOnboarding.focusHint.command', "Run the Show Introduction command to focus it.");
+}
+
 export interface IChatInputOnboardingCardOptions {
 	readonly container: HTMLElement;
 	readonly className: string;
 	readonly ariaLabel: string;
 	readonly ariaDescription?: string;
+	/**
+	 * Optional hint appended to the open announcement telling screen reader
+	 * users how to move focus onto the card (e.g. which command to run), since
+	 * the card is out of the Tab order and cannot otherwise be reached.
+	 */
+	readonly focusHint?: string;
 	readonly onEscape: () => void;
 }
 
@@ -199,12 +219,14 @@ export class ChatInputOnboardingCard extends Disposable {
 
 	private readonly ariaLabel: string;
 	private readonly ariaDescription: string | undefined;
+	private readonly focusHint: string | undefined;
 
 	constructor(options: IChatInputOnboardingCardOptions) {
 		super();
 
 		this.ariaLabel = options.ariaLabel;
 		this.ariaDescription = options.ariaDescription;
+		this.focusHint = options.focusHint;
 
 		this.domNode = options.container.ownerDocument.createElement('div');
 		this.domNode.classList.add(options.className);
@@ -234,10 +256,11 @@ export class ChatInputOnboardingCard extends Disposable {
 
 	/**
 	 * Announce that the card opened without moving focus, so screen reader users
-	 * are told something appeared while staying where they are.
+	 * are told something appeared while staying where they are. Includes the
+	 * focus hint, if provided, so they know how to reach the card on demand.
 	 */
 	announce(): void {
-		alert(this.ariaLabel);
+		alert(this.focusHint ? `${this.ariaLabel}. ${this.focusHint}` : this.ariaLabel);
 	}
 
 	/**
