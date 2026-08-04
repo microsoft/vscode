@@ -342,6 +342,16 @@ export interface ISessionsManagementService {
 	readonly automationSession: IObservable<ISession | undefined>;
 
 	/**
+	 * Create and track an automation-dialog session draft for the given folder.
+	 */
+	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
+
+	/**
+	 * Discard the matching automation-dialog session draft.
+	 */
+	discardAutomationSession(session?: ISession): void;
+
+	/**
 	 * Create a new session for the given folder.
 	 *
 	 * When `options.providerId` is omitted, iterates registered providers and

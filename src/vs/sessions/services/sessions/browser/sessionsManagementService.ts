@@ -182,6 +182,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (current && e.removed.some(r => r.sessionId === current.sessionId)) {
 				this._newSession.set(undefined, undefined);
 			}
+			const automationSession = this._automationSession.get();
+			if (automationSession && e.removed.some(r => r.sessionId === automationSession.sessionId)) {
+				this._automationSession.set(undefined, undefined);
+			}
 		}
 
 		// The view service reacts to this event to drop removed sessions from
@@ -330,6 +334,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidDiscardNewSession.fire(current);
 	}
 
+	discardAutomationSession(session?: ISession): void {
+		const current = this._automationSession.get();
+		if (!current || (session && session.sessionId !== current.sessionId)) {
+			return;
+		}
+		this._automationSession.set(undefined, undefined);
+		this._getProvider(current)?.deleteNewSession(current.sessionId);
+	}
+
 	/**
 	 * Resolve the provider and session type to use for a new session in the
 	 * given folder. Includes that provider's resolved workspace so headless
@@ -399,6 +412,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
 		this._newSession.set(session, undefined);
+		return session;
+	}
+
+	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
+		const previousAutomationSession = this._automationSession.get();
+		const session = provider.createNewSession(folderUri, sessionTypeId);
+		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
+			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
+		}
+		this._automationSession.set(session, undefined);
 		return session;
 	}
 

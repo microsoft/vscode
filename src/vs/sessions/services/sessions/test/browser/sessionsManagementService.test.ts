@@ -1797,6 +1797,38 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('automation draft lifecycle is isolated from the new-session draft', () => {
+		const drafts = [
+			stubSession({ sessionId: 'automation-1', providerId: 'test' }),
+			stubSession({ sessionId: 'new-session', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-2', providerId: 'test' }),
+		];
+		const deleted: string[] = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+
+		const firstAutomationSession = service.createAutomationSession(URI.parse('test:///folder'));
+		service.createNewSession(URI.parse('test:///folder'));
+		service.createAutomationSession(URI.parse('test:///folder'));
+		service.discardAutomationSession(firstAutomationSession);
+		service.discardAutomationSession();
+
+		assert.deepStrictEqual({
+			newSession: service.newSession.get()?.sessionId,
+			automationSession: service.automationSession.get()?.sessionId,
+			deleted,
+		}, {
+			newSession: 'new-session',
+			automationSession: undefined,
+			deleted: ['automation-1', 'automation-2'],
+		});
+	});
+
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
