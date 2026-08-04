@@ -18,7 +18,18 @@ export interface ICodexLaunchConfig {
 	readonly args: readonly string[];
 }
 
-export function buildCodexResumeParams(modelProvider: string, threadId: string, mcpServers: Readonly<Record<string, unknown>>, workingDirectories?: readonly string[]): ThreadResumeParams {
+export function buildCodexResumeParams(
+	modelProvider: string,
+	threadId: string,
+	mcpServers: Readonly<Record<string, unknown>>,
+	workingDirectories?: readonly string[],
+	configOverrides: Readonly<Record<string, JsonValue>> = {},
+	developerInstructions?: string,
+): ThreadResumeParams {
+	const config = {
+		...configOverrides,
+		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
+	};
 	return {
 		threadId,
 		modelProvider,
@@ -26,7 +37,8 @@ export function buildCodexResumeParams(modelProvider: string, threadId: string, 
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
 		} : {}),
-		...(Object.keys(mcpServers).length > 0 ? { config: { mcp_servers: mcpServers as JsonValue } } : {}),
+		...(Object.keys(config).length > 0 ? { config } : {}),
+		...(developerInstructions ? { developerInstructions } : {}),
 	};
 }
 

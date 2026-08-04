@@ -627,6 +627,30 @@ suite('Response', () => {
 		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
+	test('mergeable markdown across nested subagent progress', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('I'), kind: 'markdownContent' });
+		response.updateContent(ChatToolInvocation.createStreaming({
+			toolCallId: 'child-tool',
+			toolId: 'view',
+			toolData: {
+				id: 'view',
+				modelDescription: 'Read a file',
+				displayName: 'Reading',
+				source: ToolDataSource.Internal,
+			},
+			subagentInvocationId: 'parent-tool',
+		}));
+		response.updateContent({ content: new MarkdownString('\'ve launched a background agent.'), kind: 'markdownContent' });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent'
+			? { kind: part.kind, content: part.content.value }
+			: { kind: part.kind }), [
+			{ kind: 'markdownContent', content: 'I\'ve launched a background agent.' },
+			{ kind: 'toolInvocation' },
+		]);
+	});
+
 	test('not mergeable markdown', async () => {
 		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');

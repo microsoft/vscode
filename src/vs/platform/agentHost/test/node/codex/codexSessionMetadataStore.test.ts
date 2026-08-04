@@ -18,17 +18,19 @@ suite('CodexSessionMetadataStore', () => {
 		const session = URI.parse('codex:/session');
 		const workingDirectories = [URI.file('/repo-a'), URI.file('/repo-b')];
 
-		await store.write(session, { threadId: 'thread', cwd: workingDirectories[0], workingDirectories });
+		await store.write(session, { threadId: 'thread', cwd: workingDirectories[0], workingDirectories, agent: { uri: 'file:///agents/reviewer.agent.md' } });
 
 		const overlay = await store.read(session);
 		assert.deepStrictEqual({
 			threadId: overlay.threadId,
 			cwd: overlay.cwd?.toString(),
 			workingDirectories: overlay.workingDirectories?.map(directory => directory.toString()),
+			agent: overlay.agent,
 		}, {
 			threadId: 'thread',
 			cwd: workingDirectories[0].toString(),
 			workingDirectories: workingDirectories.map(directory => directory.toString()),
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
 		});
 	});
 
@@ -48,6 +50,14 @@ suite('CodexSessionMetadataStore', () => {
 			copilot: '@provider=vscode-proxy:gpt-5',
 			chatGPT: '@provider=openai:gpt-5',
 		});
+	});
+
+	test('clears a persisted agent selection', async () => {
+		const store = new CodexSessionMetadataStore(createSessionDataService(), new NullLogService());
+		const session = URI.parse('codex:/session');
+		await store.write(session, { agent: { uri: 'file:///agents/reviewer.agent.md' } });
+		await store.write(session, { agent: null });
+		assert.strictEqual((await store.read(session)).agent, undefined);
 	});
 
 	test('ignores malformed working directory metadata', async () => {

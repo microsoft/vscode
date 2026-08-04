@@ -211,18 +211,18 @@ suite('AgentHostStateManager', () => {
 		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 		manager.dispatchClientAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
-			config: { codexUsageSource: 'openai' },
+			config: { someProviderSetting: 'openai' },
 			replace: true,
 		}, { clientId: 'renderer-1', clientSeq: 1 });
 
 		assert.deepStrictEqual(manager.rootState.config?.values, {
-			codexUsageSource: 'openai',
+			someProviderSetting: 'openai',
 			'codex.personality': 'friendly',
 		});
 		assert.deepStrictEqual(envelopes[0].action, {
 			type: ActionType.RootConfigChanged,
 			config: {
-				codexUsageSource: 'openai',
+				someProviderSetting: 'openai',
 				'codex.personality': 'friendly',
 			},
 			replace: true,

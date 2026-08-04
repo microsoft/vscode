@@ -57,6 +57,14 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'vscode-proxy',
 			config: { mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
+		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, undefined, {
+			agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } },
+		}, 'Use the selected reviewer instructions.'), {
+			threadId: 'thread-c',
+			modelProvider: 'openai',
+			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } } },
+			developerInstructions: 'Use the selected reviewer instructions.',
+		});
 		assert.deepStrictEqual(buildCodexResumeParams('custom-provider', 'thread-c', {}, ['/repo-a', '/repo-b']), {
 			threadId: 'thread-c',
 			modelProvider: 'custom-provider',

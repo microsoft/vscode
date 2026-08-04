@@ -130,6 +130,10 @@
 	transition: border-color 100ms ease-out;
 }
 
+.dictation-onboarding-picker[hidden] {
+	display: none;
+}
+
 .dictation-onboarding-picker:hover {
 	border-color: var(--vscode-focusBorder);
 }
