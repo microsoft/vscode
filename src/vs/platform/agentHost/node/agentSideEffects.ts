@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorCode } from '../../../base/common/errors.js';
+import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
@@ -16,7 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -62,12 +63,14 @@ import {
 	type Turn
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -136,6 +139,22 @@ interface ISubagentSessionRef {
 	readonly turnStopWatch: StopWatch;
 }
 
+function getSessionMode(mode: unknown): SessionMode | undefined {
+	switch (mode) {
+		case 'interactive':
+		case 'plan':
+		case 'autopilot':
+			return mode;
+		default:
+			return undefined;
+	}
+}
+
+function getConfiguredSessionMode(config: SessionState['config']): SessionMode | undefined {
+	const value = config?.values[SessionConfigKey.Mode] ?? config?.schema.properties[SessionConfigKey.Mode]?.default;
+	return getSessionMode(value);
+}
+
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
 
 /**
@@ -179,7 +198,14 @@ export class AgentSideEffects extends Disposable {
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
 	private readonly _toolCallTracker: AgentHostToolCallTracker;
+	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	private readonly _titleController: AgentHostSessionTitleController;
+	/**
+	 * Fires with the provider id whenever a turn starts. Surfaced so
+	 * process-lifetime background jobs (notably {@link AgentModelRefreshScheduler})
+	 * can gate work on real agent usage.
+	 */
+	readonly onDidStartTurn: Event<string>;
 	/** Host-owned worktree isolation controller; injected post-construction. */
 	private _worktree: WorktreeIsolation | undefined;
 
@@ -195,8 +221,10 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
-		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
+		this._turnTracker = this._register(new AgentHostTurnTracker(this._telemetryReporter));
+		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
+		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
@@ -212,6 +240,21 @@ export class AgentSideEffects extends Disposable {
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
 			copilotApiService: this._options.copilotApiService,
 		}));
+		this._register(this._stateManager.onDidChangeSessionConfig(e => {
+			const previousMode = getConfiguredSessionMode(e.previous);
+			const currentMode = getConfiguredSessionMode(e.current);
+			if (!previousMode || !currentMode || previousMode === currentMode) {
+				return;
+			}
+
+			const agent = this._options.getAgent(e.session);
+			const sessionState = this._stateManager.getSessionState(e.session);
+			if (!agent || !sessionState) {
+				return;
+			}
+
+			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
+		}));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -223,6 +266,29 @@ export class AgentSideEffects extends Disposable {
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
+				const chatState = this._stateManager.getChatState(envelope.channel);
+				const action = envelope.action;
+				switch (action.type) {
+					case ActionType.ChatInputRequested: {
+						const turnId = chatState?.activeTurn?.id;
+						const provider = this._options.getAgent(parseRequiredSessionUriFromChatUri(envelope.channel))?.id;
+						if (turnId && provider) {
+							this._inputRequestTracker.inputRequested(provider, envelope.channel, turnId, action.request);
+						}
+						break;
+					}
+					case ActionType.ChatInputCompleted:
+						this._inputRequestTracker.inputCompleted(envelope.channel, action, chatState);
+						break;
+					case ActionType.ChatTurnComplete:
+					case ActionType.ChatTurnCancelled:
+					case ActionType.ChatError:
+						this._inputRequestTracker.clearTurn(envelope.channel, action.turnId);
+						break;
+					case ActionType.ChatTruncated:
+						this._inputRequestTracker.clearChat(envelope.channel);
+						break;
+				}
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
 					let turnIds = this._cancelledTurnIds.get(envelope.channel);
 					if (!turnIds) {
@@ -419,12 +485,11 @@ export class AgentSideEffects extends Disposable {
 		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
 		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
 
-		// A call auto-approved by the session's bypass setting is run
-		// automatically by the owning client and never blocks on the user, so
-		// keep it out of the session `inputNeeded` queue (which would flash
-		// "input needed" in the sessions list). `autoApproveBySetting` covers
-		// only the parameter gate; a `PendingResultConfirmation` is a genuine
-		// prompt and is still surfaced.
+		// A parameter gate auto-approved by the session's bypass setting never
+		// blocks on the user, so keep it out of the session `inputNeeded` queue
+		// (which would flash "input needed" in the sessions list).
+		// `autoApproveBySetting` covers only the parameter gate; a
+		// `PendingResultConfirmation` is a genuine prompt and is still surfaced.
 		const autoApproved = !!toolCall && readToolCallMeta(toolCall).autoApproveBySetting === true;
 
 		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
@@ -442,7 +507,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const contributor = toolCall?.contributor;
-		if (!autoApproved && toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
@@ -1085,6 +1150,10 @@ export class AgentSideEffects extends Disposable {
 			this._subagentChats.deleteAll(parentChatURI);
 			this._pendingSubagentSignals.deleteAll(parentChatURI);
 		}
+	}
+
+	clearInputRequestsForSession(session: ProtocolURI): void {
+		this._inputRequestTracker.clearAgentSession(session);
 	}
 
 	/**
@@ -1878,6 +1947,7 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallAgents.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
+		this._inputRequestTracker.clear();
 		super.dispose();
 	}
 }

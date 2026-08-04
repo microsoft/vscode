@@ -75,6 +75,7 @@ interface IAhpSnapshotClient {
 
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
+	readonly ignoredActionTypes?: readonly ActionType[];
 }
 
 export interface IAhpSnapshotNormalization {
@@ -142,6 +143,9 @@ export class AhpSnapshotRecorder {
 					const params = asRecord(message.params);
 					const action = params?.action as StateAction | undefined;
 					if (action) {
+						if (options.ignoredActionTypes?.includes(action.type)) {
+							continue;
+						}
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
@@ -189,7 +193,7 @@ export class AhpSnapshotRecorder {
 export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
 	const actual = client.serializeAhpSnapshot(options);
 	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
-		writeFileSync(snapshotPathForTest(test), actual);
+		writeFileSync(snapshotPathForTest(test, 'traffic', 'ahp.yaml'), actual);
 		return;
 	}
 	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
@@ -203,7 +207,7 @@ export class AhpSnapshotScenario {
 	) { }
 
 	static load(test: Mocha.Runnable): AhpSnapshotScenario {
-		const fixturePath = snapshotPathForTest(test);
+		const fixturePath = snapshotPathForTest(test, 'traffic', 'ahp.yaml');
 		return new AhpSnapshotScenario(fixturePath, parseFixture(yamlModule.load(readFileSync(fixturePath, 'utf8')), fixturePath));
 	}
 
@@ -218,7 +222,7 @@ export class AhpSnapshotScenario {
 		throw new Error('[ahp-snapshot] scenario must set an active client so its client id can initialize the session');
 	}
 
-	async run(client: IAhpSnapshotClient, sessionUri: string): Promise<void> {
+	async run(client: IAhpSnapshotClient, sessionUri: string, options?: IAhpSnapshotOptions): Promise<void> {
 		const bindings = new Map<string, string>([
 			['${session_0}', sessionUri],
 			['${chat_0}', buildDefaultChatUri(sessionUri)],
@@ -242,10 +246,10 @@ export class AhpSnapshotScenario {
 					action: parseClientAction(resolvePlaceholders(entry.action, bindings)),
 				});
 			}
-			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
+			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound, bindings);
 		}
 
-		const actual = client.serializeAhpSnapshot();
+		const actual = client.serializeAhpSnapshot(options);
 		if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
 			const actualFixture = parseFixture(yamlModule.load(actual), 'recorded AHP traffic');
 			if (actualFixture.rounds.length !== this._fixture.rounds.length) {
@@ -609,14 +613,19 @@ function escapeRegExpCharacters(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function snapshotPathForTest(test: Mocha.Runnable): string {
+/**
+ * Resolves the file {@link assertSnapshot} would compare against, so an update
+ * run writes the path the assert run reads. Mirrors `SnapshotContext`: the
+ * snapshot sits next to the test's *source*, though the test runs from `out/`.
+ */
+export function snapshotPathForTest(test: Mocha.Runnable, name: string, extension: string): string {
 	if (!test.file) {
 		throw new Error('[ahp-snapshot] current test file is not set');
 	}
 	const src = URI.joinPath(FileAccess.asFileUri(''), '../src');
 	const parts = test.file.split(/[/\\]/g);
 	const snapshotsDir = URI.joinPath(src, ...parts.slice(0, -1), '__snapshots__');
-	const fileName = `${sanitizeName(test.fullTitle())}.traffic.ahp.yaml`;
+	const fileName = `${sanitizeName(test.fullTitle())}.${sanitizeName(name)}.${extension}`;
 	return URI.joinPath(snapshotsDir, fileName).fsPath;
 }
 
@@ -871,19 +880,30 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>): Promise<void> {
+async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
 	const finalEntry = entries.at(-1);
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
 	const finalActionType = finalEntry.action ? readString(finalEntry.action, 'type') : undefined;
+	const finalChannel = finalEntry.channel ? resolvePlaceholder(finalEntry.channel, bindings) : undefined;
+	const finalTurnIdPlaceholder = finalEntry.action ? readOptionalString(finalEntry.action, 'turnId') : undefined;
+	const finalTurnId = finalTurnIdPlaceholder ? resolvePlaceholder(finalTurnIdPlaceholder, bindings) : undefined;
 	const notification = await client.waitForNotification(candidate => {
 		if (seenNotifications.has(candidate as object)) {
 			return false;
 		}
 		if (candidate.method === 'action') {
-			const actionType = (candidate.params as ActionEnvelope).action.type;
-			return actionType === finalActionType || actionType === ActionType.ChatError;
+			const envelope = candidate.params as ActionEnvelope;
+			if (finalChannel && envelope.channel !== finalChannel) {
+				return false;
+			}
+			const action = envelope.action;
+			if (action.type === ActionType.ChatError) {
+				return finalTurnId === undefined || action.turnId === finalTurnId;
+			}
+			return action.type === finalActionType
+				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;
 	}, 90_000);

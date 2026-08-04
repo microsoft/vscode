@@ -27,7 +27,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const restoreFocus = createFocusRestorer(layoutService);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
-			localize('automationsCustomView.help.cards', "Tab between each card's Edit, Run now, and Delete controls. Edit opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
+			localize('automationsCustomView.help.cards', "Tab between each card's Edit, Run now, and Delete controls. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
 			localize('automationsCustomView.help.history', "Run history is grouped by date. Each run reports its Pending, Running, Completed, or Failed status. Runs with an available session can be opened with Enter or Space."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),

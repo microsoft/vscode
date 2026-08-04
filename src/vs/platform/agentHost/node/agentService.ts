@@ -7,7 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
@@ -34,7 +34,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionStatusFlag, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -50,7 +50,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -491,7 +491,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Built-in generic provider: completes files in the session's workspace folder.
 		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
-			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
+			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles, this._logService),
 		));
 		// Built-in generic provider: completes `#chat:<title>` references to other
 		// chats in the same session, attaching a chat transcript attachment.
@@ -555,6 +555,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	get agents(): IObservable<readonly IAgent[]> {
 		return this._agents;
+	}
+
+	/**
+	 * Fires with the provider id whenever a turn starts. Exposed alongside
+	 * {@link agents} so {@link AgentModelRefreshScheduler} can gate its periodic
+	 * refresh on real agent usage rather than polling an idle host.
+	 */
+	get onDidStartTurn(): Event<string> {
+		return this._sideEffects.onDidStartTurn;
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -638,7 +647,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Creates the session's isolated worktree on the first send (deferred so the
 	 * user's prompt can name the branch), reports creation progress as the chat's
 	 * activity, surfaces the "Created isolated worktree" announcement as the first
-	 * markdown response part of the turn, and returns the created worktree URI.
+	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
 	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
 	 * worktree creation failed. Only invoked for sessions whose worktree is still
 	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
@@ -650,6 +659,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		let reportedActivity = false;
+		let failureDiagnostic: string | undefined;
 		try {
 			await worktree.resolveOnFirstSend({
 				sessionUri: URI.parse(params.session),
@@ -667,12 +677,27 @@ export class AgentService extends Disposable implements IAgentService {
 				},
 			});
 		} catch (err) {
-			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${toErrorMessage(err)}`);
+			failureDiagnostic = toErrorMessage(err);
+			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
 		}
 		// Clear on every exit path so a failed creation can't strand the chat
 		// on a stale "Creating isolated worktree" activity.
 		if (reportedActivity) {
 			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
+		}
+		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
+		if (!resolvedWorktree) {
+			try {
+				await worktree.persistCreationFailure(URI.parse(params.session), sessionId, failureDiagnostic);
+			} catch (err) {
+				this._logService.warn(`[AgentService] failed to persist worktree creation failure for ${params.session}: ${toErrorMessage(err)}`);
+			}
+			this._stateManager.dispatchServerAction(params.chat, {
+				type: ActionType.ChatResponsePart,
+				turnId: params.turnId,
+				part: buildWorktreeFailureNotification(failureDiagnostic),
+			});
+			return undefined;
 		}
 		const announcement = worktree.takePendingAnnouncement(sessionId);
 		if (announcement !== undefined) {
@@ -682,7 +707,7 @@ export class AgentService extends Disposable implements IAgentService {
 				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
 			});
 		}
-		return worktree.getResolvedWorktree(sessionId);
+		return resolvedWorktree;
 	}
 
 	registerProvider(provider: IAgent): void {
@@ -873,10 +898,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Overlay persisted custom titles from per-session databases.
 		const overlaid = await Promise.all(flat.map(async (s): Promise<IAgentSessionMetadata | undefined> => {
+			const sanitized = { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
 			try {
 				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
 				if (!ref) {
-					return s;
+					return sanitized;
 				}
 				try {
 					// Batch the always-required keys (title / read / archive
@@ -888,8 +914,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -899,7 +925,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[PEER_CHAT_BACKING_METADATA_KEY]) {
 						return undefined;
 					}
-					let updated = s;
+					let updated = sanitized;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
 					}
@@ -931,6 +957,10 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
 					}
+					const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
+					if (multiRoot) {
+						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
+					}
 
 					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
 					if (repositoryRootRaw) {
@@ -948,7 +978,7 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (e) {
 				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
-			return s;
+			return sanitized;
 		}));
 		const result = overlaid.filter((s): s is IAgentSessionMetadata => s !== undefined);
 
@@ -971,9 +1001,10 @@ export class AgentService extends Disposable implements IAgentService {
 				// session that has not yet persisted its state to its session
 				// database still reports it here. Keep the DB value as the base so
 				// any keys absent from the live `_meta` are preserved.
-				const _meta = liveSummary._meta !== undefined || s._meta !== undefined
+				let _meta = liveSummary._meta !== undefined || s._meta !== undefined
 					? { ...s._meta, ...liveSummary._meta }
 					: undefined;
+				_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata(liveSummary._meta) ?? readSessionMultiRootMetadata(s._meta));
 				const liveWorkingDirs = liveSummary.workingDirectories;
 				return {
 					...s,
@@ -1266,6 +1297,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// exists, from the value `_buildInitialSummary` inferred. Provisional
 			// sessions defer this to `_onDidMaterializeSession`.
 			this._persistWorkspaceless(session, readSessionWorkspaceless(this._stateManager.getSessionSummary(session.toString())?._meta));
+			this._persistMultiRoot(session, readSessionMultiRootMetadata(this._stateManager.getSessionSummary(session.toString())?._meta));
 
 			// `SessionReady` transitions the session lifecycle from
 			// `Creating` to `Ready`. For provisional sessions we defer
@@ -1494,7 +1526,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let created: IAgentCreateSessionResult | undefined;
 		try {
-			created = await provider.createSession(config ? this._toProviderConfig(config) : undefined);
+			created = await provider.createSession(config ? this._toProviderConfig({ ...config, _meta: undefined }) : undefined);
 			if (deferWorktreeCreation && created.provisional) {
 				this._worktree?.notePending(AgentSession.id(created.session));
 			}
@@ -1714,6 +1746,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; resolvedWorkingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();
+		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
+		const inheritedMultiRoot = config?.fork
+			? readSessionMultiRootMetadata(this._stateManager.getSessionSummary(config.fork.session.toString())?._meta)
+			: undefined;
+		let _meta = withSessionMultiRootMetadata(undefined, explicitMultiRoot ?? inheritedMultiRoot);
+		_meta = !config?.fork && !config?.workingDirectories
+			? withSessionWorkspaceless(_meta, true)
+			: _meta;
 		return {
 			resource: session.toString(),
 			provider: provider.id,
@@ -1733,7 +1773,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// re-inferred later) and tagged on the generic `_meta` bag. Use
 			// `=== undefined` so an explicit empty set (`[]`) is NOT treated as
 			// workspace-less.
-			...(!config?.fork && !config?.workingDirectories ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
+			...(_meta ? { _meta } : {}),
 		};
 	}
 
@@ -1786,6 +1826,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).
 		this._persistWorkspaceless(e.session, readSessionWorkspaceless(summary._meta));
+		this._persistMultiRoot(e.session, readSessionMultiRootMetadata(summary._meta));
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
@@ -1859,6 +1900,24 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		ref.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, workspaceless ? 'true' : 'false').catch(err => {
 			this._logService.warn(`[AgentService] Failed to persist workspaceless for ${session.toString()}: ${toErrorMessage(err)}`);
+		}).finally(() => {
+			ref.dispose();
+		});
+	}
+
+	private _persistMultiRoot(session: URI, multiRoot: ReturnType<typeof readSessionMultiRootMetadata>): void {
+		if (!multiRoot) {
+			return;
+		}
+		let ref;
+		try {
+			ref = this._sessionDataService.openDatabase(session);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to open session database to persist multi-root metadata for ${session.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		ref.object.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot)).catch(err => {
+			this._logService.warn(`[AgentService] Failed to persist multi-root metadata for ${session.toString()}: ${toErrorMessage(err)}`);
 		}).finally(() => {
 			ref.dispose();
 		});
@@ -2013,6 +2072,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}
+		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
@@ -2200,6 +2260,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * existing {@link _maybeEvictIdleSession} path which only drops cached
 	 * state and lets the session be restored from disk later.
 	 *
+	 * GC is restricted to sessions that are still unused drafts. A session that
+	 * was restored from durable storage, or that has ever had a turn, is never
+	 * a candidate however empty it looks now — an empty state is also what a
+	 * failed history load and a truncate-to-zero leave behind.
+	 *
 	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
 	 * (or createSession on the same URI) cancels the timer via
@@ -2222,6 +2287,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (state.turns.length > 0 || state.activeTurn !== undefined) {
 			return false;
 		}
+		if (this._stateManager.isUnusedDraft(key) !== true) {
+			this._logService.trace(`[AgentService] Skipping GC for session that is not an unused draft: ${key}`);
+			return false;
+		}
 		this._pendingSessionGc.set(resource, disposableTimeout(() => {
 			this._pendingSessionGc.deleteAndDispose(resource);
 			this._runSessionGc(resource).catch(err => {
@@ -2237,9 +2306,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
-	 * subscriber while empty. Re-checks both invariants (still no subscribers,
-	 * still empty) before tearing the session down via {@link disposeSession}.
-	 * The cached state may already have been evicted by
+	 * subscriber while empty. Re-checks the invariants (still no subscribers,
+	 * still empty, still an unused draft) before tearing the session down via
+	 * {@link disposeSession}. The cached state may already have been evicted by
 	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
 	 * "evicted + no resubscribe" implies no client is observing the session.
 	 */
@@ -2250,6 +2319,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const state = this._stateManager.getSessionState(key);
 		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+			return;
+		}
+		// The session may have been rehydrated or used during the grace window.
+		// An *absent* entry means it was evicted and never came back, which is
+		// still a valid target — so only an explicit non-draft aborts.
+		if (this._stateManager.isUnusedDraft(key) === false) {
+			this._logService.trace(`[AgentService] GC aborted, session is no longer an unused draft: ${key}`);
 			return;
 		}
 		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);
@@ -2676,6 +2752,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_IS_DONE_DB_KEY]: true,
 							configValues: true,
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
+							[SESSION_META_MULTI_ROOT_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
@@ -2725,6 +2802,7 @@ export class AgentService extends Disposable implements IAgentService {
 						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
 						}
+						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
 
 						if (m.configValues) {
 							try {
@@ -2751,6 +2829,9 @@ export class AgentService extends Disposable implements IAgentService {
 			status |= SessionStatus.IsArchived;
 		}
 
+		const providerMeta = withSessionMultiRootMetadata(meta._meta, undefined);
+		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
+		restoredMeta = withSessionMultiRootMetadata(restoredMeta, readSessionMultiRootMetadata(sessionMetadata));
 		const summary: SessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
@@ -2761,7 +2842,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
-			_meta: (sessionMetadata || meta._meta) ? { ...(meta._meta ?? {}), ...(sessionMetadata ?? {}) } : undefined,
+			_meta: restoredMeta,
 		};
 
 		const [defaultDraft, defaultChatTitle] = await Promise.all([
@@ -2810,8 +2891,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Restore persisted `_meta` (e.g. git state) onto the new session
 		// state. This dispatches a SessionMetaChanged action.
-		if (meta._meta) {
-			this._stateManager.setSessionMeta(sessionStr, meta._meta);
+		if (summary._meta) {
+			this._stateManager.setSessionMeta(sessionStr, summary._meta);
 		}
 
 		// Resolve the session config so clients (e.g. the running-session

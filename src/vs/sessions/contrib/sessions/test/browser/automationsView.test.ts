@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -27,8 +28,12 @@ import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICrea
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
-import { AutomationsCardsWidget } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+
 
 const AUTOMATION_ID = 'automation-1';
 const RUN_ID = 'run-1';
@@ -156,8 +161,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	result: IAutomationDialogResult | undefined;
 	beforeReturn: (() => void) | undefined;
+	showCalls = 0;
+	lastOptions: IShowAutomationDialogOptions | undefined;
 
-	override async showAutomationDialog(_options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+		this.showCalls++;
+		this.lastOptions = options;
 		this.beforeReturn?.();
 		return this.result;
 	}
@@ -182,8 +191,10 @@ class FakeDialogService extends mock<IDialogService>() {
 
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+	runCalls = 0;
 
 	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
 }
@@ -338,6 +349,60 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			activeElement: widget.element,
 			cardFocused: false,
+		});
+	});
+
+	test('clicking the card opens edit without intercepting action clicks', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+
+		widget.element.querySelector<HTMLElement>('.automations-card')?.click();
+		await Promise.resolve();
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(actionButton);
+		actionButton.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
+		}, {
+			showCalls: 1,
+			existing: item,
+			runCalls: 1,
+		});
+	});
+
+	test('tapping the card opens edit without intercepting action taps', async () => {
+		const { automationDialogService, automationService, runner, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+		const card = widget.element.querySelector<HTMLElement>('.automations-card');
+		const actionButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-action-button');
+		assert.ok(card);
+		assert.ok(actionButton);
+
+		const tapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		tapEvent.initialTarget = actionButton;
+		actionButton.dispatchEvent(tapEvent);
+		card.dispatchEvent(tapEvent);
+		await Promise.resolve();
+
+		const cardTapEvent = new MouseEvent(TouchEventType.Tap, { cancelable: true }) as GestureEvent;
+		cardTapEvent.initialTarget = card;
+		card.dispatchEvent(cardTapEvent);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			showCalls: automationDialogService.showCalls,
+			existing: automationDialogService.lastOptions?.existing,
+			runCalls: runner.runCalls,
+		}, {
+			showCalls: 1,
+			existing: item,
+			runCalls: 1,
 		});
 	});
 
@@ -530,5 +595,39 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })]).includes('Daily review, Failed'),
 			true,
 		);
+	});
+});
+
+suite('AutomationsCustomViewContribution — context key', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup() {
+		const automationService = new FakeAutomationService();
+		const contextKeyService = new MockContextKeyService();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+			override registerCustomView() { return { dispose() { } }; }
+			override hideCustomView() { }
+		}());
+		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override register() { return { dispose() { } }; }
+		}());
+		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
+		return { automationService, contextKeyService, contribution };
+	}
+
+	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
+		const { automationService, contextKeyService } = setup();
+
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'initially false');
+
+		automationService.setAutomations([automation()]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), true, 'true when non-empty');
+
+		automationService.setAutomations([]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'false when empty again');
 	});
 });

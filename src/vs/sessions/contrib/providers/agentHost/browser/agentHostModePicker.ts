@@ -212,11 +212,9 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
 
-		// Reflect the resolving state. Schema is preserved across the
-		// round-trip so the chip keeps its label; toggling `.disabled`
-		// on the slot blocks pointer events (see chatWidget.css).
+		// Reflect the resolving state without changing the chip's visual weight.
 		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
-		this._slotElement.classList.toggle('disabled', isResolving);
+		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 

@@ -97,9 +97,11 @@
 	align-items: flex-start;
 	gap: 12px;
 	padding: 12px 16px;
-	border: 1px solid var(--vscode-widget-border);
+	border: 1px solid var(--vscode-editorWidget-border);
 	border-radius: 6px;
 	height: 100%;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .automations-card:hover {
@@ -138,13 +140,17 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	word-break: break-word;
 }
 
 .automations-card-name-text {
+	flex: 1 1 0;
+	min-width: 0;
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .automations-card-disabled-badge {
@@ -420,4 +426,9 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.hc-black .automations-card,
+.hc-light .automations-card {
+	border-color: var(--vscode-contrastBorder);
 }

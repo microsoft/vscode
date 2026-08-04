@@ -349,15 +349,15 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			highlightToggledItems: true,
 		}));
 
-		const caption = new Action(
+		const caption = this._register(new Action(
 			'',
 			text,
 			'',
 			false,
-		);
+		));
 		actionBar.push(caption, { icon: false, label: true });
 
-		const actionCompare = new Action(
+		const actionCompare = this._register(new Action(
 			'',
 			'Compare',
 			ThemeIcon.asClassName(Codicon.compareChanges),
@@ -366,7 +366,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 				this._editor.focus();
 				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() === _move ? undefined : this._move, undefined);
 			},
-		);
+		));
 		this._register(autorun(reader => {
 			const isActive = this._diffModel.movedTextToCompare.read(reader) === _move;
 			actionCompare.checked = isActive;

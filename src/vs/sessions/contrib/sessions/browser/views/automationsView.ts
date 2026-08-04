@@ -28,10 +28,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
-import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -46,7 +46,7 @@ import { Action2, MenuItemAction, registerAction2 } from '../../../../../platfor
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 
@@ -168,13 +168,11 @@ class AutomationCardsSection extends Disposable {
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
 		card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, formatSchedule(automation)));
+		this.disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $('button.automations-card-main', {
 			type: 'button',
 			'aria-label': localize('editAutomationNamed', "Edit automation {0}", automation.name),
-		}));
-		this.disposables.add(DOM.addDisposableListener(main, DOM.EventType.CLICK, () => {
-			void this.openEditDialog(automation);
 		}));
 
 		// Name row with disabled badge
@@ -216,6 +214,16 @@ class AutomationCardsSection extends Disposable {
 		this.disposables.add(deleteBtn.onDidClick(() => {
 			void this.confirmDelete(automation);
 		}));
+
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this.disposables.add(DOM.addDisposableListener(card, eventType, event => {
+				const target = (event as GestureEvent).initialTarget ?? event.target;
+				if (target instanceof Node && DOM.isAncestor(target, actions)) {
+					return;
+				}
+				void this.openEditDialog(automation);
+			}));
+		}
 	}
 
 	private createIconButton(container: HTMLElement, icon: ThemeIcon, tooltip: string, disabled: boolean): Button {
@@ -270,9 +278,9 @@ class AutomationCardsSection extends Disposable {
 
 		const createButton = this.disposables.add(new Button(this.emptyContainer, {
 			...defaultButtonStyles,
-			title: localize('createAutomation', "Create automation"),
+			title: localize('createAutomation', "Create Automation"),
 		}));
-		createButton.label = localize('createAutomation', "Create automation");
+		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
 		this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
@@ -734,7 +742,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 /**
  * Registers the Automations custom view with the custom view service.
  */
-class AutomationsCustomViewContribution extends Disposable {
+export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
 
@@ -742,8 +750,14 @@ class AutomationsCustomViewContribution extends Disposable {
 		@ICustomViewService customViewService: ICustomViewService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAutomationService automationService: IAutomationService,
 	) {
 		super();
+
+		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			hasItemsContext.set(automationService.automations.read(reader).length > 0);
+		}));
 
 		this._register(customViewService.registerCustomView({
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
@@ -814,7 +828,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
