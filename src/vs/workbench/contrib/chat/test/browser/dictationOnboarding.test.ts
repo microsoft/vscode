@@ -6,12 +6,13 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { buildMicrophoneOptions, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
+import { buildMicrophoneOptions, DictationOnboardingBanner, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
 
 /** Minimal stand-in for the browser's device descriptor. */
 function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDeviceInfo {
@@ -113,26 +114,129 @@ suite('Dictation onboarding', () => {
 		const shown = host.container.classList.contains('has-dictation-onboarding');
 
 		const closeIcon = host.container.querySelector('.dictation-onboarding-close .codicon')?.className;
+		const hasMicrophoneControls = host.container.querySelector('.dictation-onboarding-device') !== null;
+		const hasWaveform = host.container.querySelector('.dictation-onboarding-waveform') !== null;
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
 		const shownAgain = service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{
 				shownFirstTime, shown, closeIcon,
-				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
+				hasMicrophoneControls,
+				hasWaveform,
 				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
 				shownAgain,
 				telemetryEvents,
 			},
 			{
 				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
-				hasMicrophoneControls: false,
+				hasMicrophoneControls: true,
+				hasWaveform: true,
 				visibleAfterClose: false,
 				shownAgain: false,
 				telemetryEvents: [
 					{ name: 'dictationOnboarding.action', data: { action: 'shown', source: 'automatic' } },
 					{ name: 'dictationOnboarding.action', data: { action: 'close', source: 'automatic' } },
 				],
+			});
+	});
+
+	test('shows populated microphone picker after dictation acquires permission without another capture', async () => {
+		const host = createHost(disposables);
+		let getUserMediaCalls = 0;
+		const selectedDeviceIds: string[] = [];
+		const mediaDevices = Object.assign(new EventTarget(), {
+			enumerateDevices: async () => [
+				device('audioinput', 'default', 'Default - Studio Mic'),
+				device('audioinput', 'studio', 'Studio Mic'),
+				device('audioinput', 'built-in', 'Built-in Mic'),
+			],
+			getUserMedia: async (): Promise<MediaStream> => {
+				getUserMediaCalls++;
+				throw new Error('Automatic onboarding must not acquire a stream');
+			},
+		});
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(DictationOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => { },
+			previewMicrophone: false,
+			source: 'automatic',
+		}, mediaDevices));
+
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+		};
+		await banner.refreshMicrophones(analyser, async deviceId => {
+			selectedDeviceIds.push(deviceId);
+			return analyser;
+		});
+		const picker = host.container.querySelector<HTMLSelectElement>('.dictation-onboarding-picker select')!;
+		picker.selectedIndex = 1;
+		picker.dispatchEvent(new Event('change', { bubbles: true }));
+
+		assert.deepStrictEqual(
+			{
+				pickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				options: Array.from(host.container.querySelectorAll<HTMLOptionElement>('.dictation-onboarding-picker option'), option => option.textContent),
+				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
+				getUserMediaCalls,
+				selectedDeviceIds,
+			},
+			{
+				pickerHidden: false,
+				options: ['Studio Mic (System default)', 'Built-in Mic'],
+				hasWaveform: true,
+				getUserMediaCalls: 0,
+				selectedDeviceIds: ['built-in'],
+			});
+	});
+
+	test('keeps the picker hidden until a microphone reports a real label', async () => {
+		const host = createHost(disposables);
+		let labelled = false;
+		const mediaDevices = Object.assign(new EventTarget(), {
+			enumerateDevices: async () => labelled
+				? [
+					device('audioinput', 'default', 'Default - Studio Mic'),
+					device('audioinput', 'studio', 'Studio Mic'),
+					device('audioinput', 'built-in', 'Built-in Mic'),
+				]
+				: [
+					device('audioinput', 'default', ''),
+					device('audioinput', 'studio', ''),
+					device('audioinput', 'built-in', ''),
+				],
+			getUserMedia: async (): Promise<MediaStream> => { throw new Error('Automatic onboarding must not acquire a stream'); },
+		});
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(DictationOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => { },
+			previewMicrophone: false,
+			source: 'automatic',
+		}, mediaDevices));
+
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+			override getByteTimeDomainData(): void { }
+		};
+		await banner.refreshMicrophones(analyser);
+		const hiddenWhileUnlabelled = host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden;
+
+		labelled = true;
+		await banner.refreshMicrophones(analyser);
+
+		assert.deepStrictEqual(
+			{
+				hiddenWhileUnlabelled,
+				hiddenAfterLabelled: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				options: Array.from(host.container.querySelectorAll<HTMLOptionElement>('.dictation-onboarding-picker option'), option => option.textContent),
+			},
+			{
+				hiddenWhileUnlabelled: true,
+				hiddenAfterLabelled: false,
+				options: ['Studio Mic (System default)', 'Built-in Mic'],
 			});
 	});
 
@@ -167,9 +271,10 @@ suite('Dictation onboarding', () => {
 				visible: host.container.classList.contains('has-dictation-onboarding'),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
+				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
 				microphonePickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
 			},
-			{ visible: true, cards: 1, hasMicrophoneControls: true, microphonePickerHidden: true });
+			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true });
 	});
 
 	test('reset shows the introduction on the next dictation', () => {

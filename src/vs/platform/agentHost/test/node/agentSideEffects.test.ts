@@ -26,11 +26,11 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -40,6 +40,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -106,6 +107,7 @@ function createTestSideEffects(
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
+	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -113,7 +115,7 @@ function createTestSideEffects(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
-		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+		[IAgentHostCheckpointService, checkpointService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -2277,6 +2279,57 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('waits for pending steering before consuming a queued message', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-original');
+
+			const queuedAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'queued-1',
+				message: { text: 'queued', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, queuedAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, queuedAction);
+
+			const steeringAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Steering,
+				id: 'steering-1',
+				message: { text: 'steering', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, steeringAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, steeringAction);
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 },
+			});
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'queued message must wait for steering to start');
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-steering',
+					startedAt: new Date().toISOString(),
+					message: steeringAction.message,
+					queuedMessageId: steeringAction.id,
+				},
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-steering', duration: 1000 },
+			});
+
+			await waitForSendMessageCalls(1);
+			assert.deepStrictEqual(agent.sendMessageCalls.map(call => call.prompt), ['queued']);
+		});
+
 		test('does not drain queued messages when the cancelled turn completes late', () => {
 			// Cancelling a turn means "stop": messages queued behind it must stay
 			// queued for the user to dequeue/run manually, not auto-start. (A
@@ -2960,9 +3013,9 @@ suite('AgentSideEffects', () => {
 			await sideEffects.initialize();
 
 			const cases = [
-				['tc-shell-rules-1', { requestSandboxBypass: false }],
-				['tc-shell-rules-2', { requestSandboxBypass: true }],
-				['tc-shell-rules-3', { managedApprovalRequired: true }],
+				['tc-shell-rules-1', { requestSandboxBypass: false, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-2', { requestSandboxBypass: true, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-3', { managedApprovalRequired: true, shellLanguage: 'bash' as const }],
 			] as const;
 			for (const [toolCallId, signalOverrides] of cases) {
 				agent.fireProgress({
@@ -2995,6 +3048,55 @@ suite('AgentSideEffects', () => {
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRuleResolvable'] : undefined),
 				[true, undefined, undefined],
 				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
+		});
+
+		test('tool_ready forwards the signal shell language into shell approval', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await sideEffects.initialize();
+
+			// `get-childitem` only matches the default `Get-ChildItem` allow rule
+			// under PowerShell's case-insensitive matching. Missing language fails
+			// closed before rule analysis.
+			const cases = [
+				['tc-shell-lang-1', 'powershell'],
+				['tc-shell-lang-2', 'bash'],
+				['tc-shell-lang-3', undefined],
+			] as const;
+			for (const [toolCallId, shellLanguage] of cases) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+					shellLanguage,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
+					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
+					: undefined),
+				[[true, undefined], [undefined, true], [undefined, undefined]],
+				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
@@ -4116,6 +4218,70 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 
+		test('SessionConfigChanged emits agentHost.executionModeChanged for effective mode transitions without duplicate echoes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
+			});
+
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'autopilot' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {},
+				replace: true,
+			});
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged'), [{
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'interactive',
+					newMode: 'plan',
+					turnCount: 1,
+				},
+			}, {
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'plan',
+					newMode: 'autopilot',
+					turnCount: 1,
+				},
+			}, {
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'autopilot',
+					newMode: 'interactive',
+					turnCount: 1,
+				},
+			}]);
+		});
+
 		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
 			// The client-action side-effects path is where a picker edit lands
 			// (internal server writes use `dispatchServerAction` and never reach
@@ -4861,6 +5027,91 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
+		test('accepted ask-user input emits telemetry from synchronized answer state', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'req-1',
+					purpose: ChatInputRequestPurpose.AskUser,
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+				},
+			});
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatInputAnswerChanged,
+				requestId: 'req-1',
+				questionId: 'question-1',
+				answer: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' },
+				},
+			}, { clientId: 'test', clientSeq: 2 });
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'req-1',
+				response: SessionInputResponseKind.Accept,
+			}, { clientId: 'test', clientSeq: 3 });
+
+			const event = telemetryService.events.find(event => event.eventName === 'askQuestionsToolInvoked');
+			const data = event?.data as IAgentHostAskQuestionsToolInvokedEvent | undefined;
+			assert.deepStrictEqual(event && {
+				eventName: event.eventName,
+				data: {
+					...data,
+					duration: typeof data?.duration,
+				},
+			}, {
+				eventName: 'askQuestionsToolInvoked',
+				data: {
+					requestId: 'turn-1',
+					questionCount: 1,
+					answeredCount: 1,
+					skippedCount: 0,
+					freeTextCount: 1,
+					recommendedAvailableCount: 0,
+					recommendedSelectedCount: 0,
+					duration: 'number',
+					provider: agent.id,
+					agentSessionId: AgentSession.id(sessionUri),
+					isSubagentSession: false,
+				},
+			});
+		});
+
+		test('chat truncation clears pending ask-user telemetry', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			const request: ChatInputRequest = {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+			};
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTruncated,
+			});
+
+			startTurn('turn-2');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputCompleted,
+				requestId: request.id,
+				response: SessionInputResponseKind.Accept,
+			});
+
+			const events = telemetryService.events.filter(event => event.eventName === 'askQuestionsToolInvoked');
+			assert.deepStrictEqual(events.map(event => (event.data as IAgentHostAskQuestionsToolInvokedEvent).requestId), ['turn-2']);
+		});
+
 		test('chat input request without an active turn is not mirrored', () => {
 			setupSession();
 
@@ -5540,6 +5791,35 @@ suite('AgentSideEffects', () => {
 			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+		});
+
+		test('turn complete passes the resolved working directories to the checkpoint capture', async () => {
+			const workingDirectory = URI.file('/wd').toString();
+			setupSession(workingDirectory);
+			startTurn('turn-1');
+
+			const captures: { turnId: string; workingDirectories: readonly string[] | undefined }[] = [];
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnCheckpoint: async (_session, turnId, workingDirectories) => {
+					captures.push({ turnId, workingDirectories: workingDirectories?.map(w => w.toString()) });
+				},
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			await Promise.resolve();
+
+			assert.deepStrictEqual(captures, [{ turnId: 'turn-1', workingDirectories: [workingDirectory] }]);
 		});
 
 		test('ChatTruncated fires onSessionTruncated once', () => {

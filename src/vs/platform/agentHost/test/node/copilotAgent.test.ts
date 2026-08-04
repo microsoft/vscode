@@ -13,7 +13,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,6 +28,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
+import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
@@ -46,7 +47,7 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
@@ -469,6 +470,11 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig() {
 		return undefined;
 	}
+	async getNativeSdkTelemetryConfig() { return undefined; }
+	getSessionTraceContext() { return undefined; }
+	releaseSessionTraceContext() { }
+	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext() { return undefined; }
 	getSpansDbPath() {
 		return undefined;
 	}
@@ -596,7 +602,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -615,13 +621,18 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostOTelService, {
 		_serviceBrand: undefined,
 		getSdkTelemetryConfig: async () => undefined,
+		getNativeSdkTelemetryConfig: async () => undefined,
+		getSessionTraceContext: () => undefined,
+		releaseSessionTraceContext: () => { },
+		withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
+		getCurrentTraceContext: () => undefined,
 		getSpansDbPath: () => undefined,
 		emitSessionTitleChanged: () => { },
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
-	services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
+	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
@@ -641,7 +652,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -2137,6 +2148,133 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema falls back to a default thinkingLevel when the model advertises no default', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'gpt-5.6-terra',
+				name: 'GPT-5.6 Terra',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+			}, {
+				id: 'claude-opus-5',
+				name: 'Claude Opus 5',
+				capabilities: { limits: { max_context_window_tokens: 200000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+			}, {
+				id: 'no-preferred',
+				name: 'No Preferred',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['minimal', 'xhigh'],
+			}, {
+				id: 'unsupported-only',
+				name: 'Unsupported Only',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['minimal', 'none'],
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length === 4);
+
+			assert.deepStrictEqual(models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.enum, model.configSchema?.properties.thinkingLevel?.default]), [
+				['gpt-5.6-terra', ['low', 'medium', 'high', 'xhigh'], 'medium'],
+				['claude-opus-5', ['low', 'medium', 'high', 'xhigh'], 'high'],
+				['no-preferred', ['xhigh'], 'xhigh'],
+				['unsupported-only', undefined, undefined],
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('BYOK model configSchema exposes only Copilot-supported reasoning efforts', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const agent = createTestAgent(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+
+		try {
+			modelSnapshots.fire([
+				{
+					vendor: 'acme',
+					id: 'fallback-default',
+					name: 'Fallback Default',
+					supportedReasoningEfforts: ['minimal', 'low', 'high'],
+					defaultReasoningEffort: 'minimal',
+				},
+				{
+					vendor: 'acme',
+					id: 'valid-default',
+					name: 'Valid Default',
+					supportedReasoningEfforts: ['low', 'medium', 'high'],
+					defaultReasoningEffort: 'medium',
+				},
+				{
+					vendor: 'acme',
+					id: 'unsupported-only',
+					name: 'Unsupported Only',
+					supportedReasoningEfforts: ['minimal'],
+					defaultReasoningEffort: 'minimal',
+				},
+			]);
+			const models = await waitForState(agent.models, models => models.length === 3);
+
+			assert.deepStrictEqual(models.map(model => ({
+				id: model.id,
+				thinkingLevel: model.configSchema?.properties.thinkingLevel && {
+					enum: model.configSchema.properties.thinkingLevel.enum,
+					default: model.configSchema.properties.thinkingLevel.default,
+				},
+			})), [
+				{ id: 'acme/fallback-default', thinkingLevel: { enum: ['low', 'high'], default: 'low' } },
+				{ id: 'acme/valid-default', thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
+				{ id: 'acme/unsupported-only', thinkingLevel: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('BYOK models from multiple Gemini provider groups have unique picker identifiers', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const agent = createTestAgent(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+
+		try {
+			modelSnapshots.fire([
+				{
+					vendor: 'google',
+					id: 'gemini-2.5-pro',
+					name: 'Gemini 2.5 Pro',
+					modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro',
+				},
+				{
+					vendor: 'google',
+					id: 'gemini-2.5-pro',
+					name: 'Gemini 2.5 Pro',
+					modelIdentifier: 'google/Gemini Work/gemini-2.5-pro',
+				},
+			]);
+			const models = await waitForState(agent.models, models => models.length === 2);
+
+			assert.deepStrictEqual(models.map(model => model.id), [
+				'google/Gemini Personal/gemini-2.5-pro',
+				'google/Gemini Work/gemini-2.5-pro',
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('configSchema emits a numeric contextSize property when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
@@ -2365,8 +2503,8 @@ suite('CopilotAgent', () => {
 			environmentServiceRegistration: 'native',
 			sessionDataService,
 		});
-		const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-		delete process.env['XDG_STATE_HOME'];
+		const previousCopilotHome = process.env['COPILOT_HOME'];
+		delete process.env['COPILOT_HOME'];
 		try {
 			const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
 			const agentSession = disposables.add(createdSession.session);
@@ -2383,10 +2521,10 @@ suite('CopilotAgent', () => {
 
 			assert.strictEqual(result.kind, 'approve-once');
 		} finally {
-			if (previousXdgStateHome === undefined) {
-				delete process.env['XDG_STATE_HOME'];
+			if (previousCopilotHome === undefined) {
+				delete process.env['COPILOT_HOME'];
 			} else {
-				process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				process.env['COPILOT_HOME'] = previousCopilotHome;
 			}
 			await disposeAgent(agent);
 		}
@@ -5072,6 +5210,12 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('customization anchoring', () => {
+
+		test('uses signal paths only for Copilot OTLP/HTTP metrics endpoints', () => {
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('http://collector:4318', 'http/protobuf'), 'http://collector:4318/v1/metrics');
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('http://collector:4318/custom', 'http/json'), 'http://collector:4318/custom');
+			assert.strictEqual(resolveCopilotOtlpMetricsEndpoint('https://collector:4317', 'grpc'), 'https://collector:4317');
+		});
 
 		test('rebaseUnder rebases paths under the source dir and leaves others untouched', () => {
 			const original = URI.file('/Users/me/src/vscode');

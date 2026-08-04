@@ -33,6 +33,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	readonly enhancedEvents: IRestrictedCall[] = [];
 	readonly enhancedMeasurements: Array<TelemetryMeasurements | undefined> = [];
 	readonly internalEvents: IRestrictedCall[] = [];
+	readonly githubStandardEvents: IRestrictedCall[] = [];
 	readonly standardEvents: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
 
 	publicLog(): void { }
@@ -44,7 +45,9 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 
-	sendGHTelemetryEvent(): void { }
+	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
+		this.githubStandardEvents.push({ eventName, properties });
+	}
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 		this.enhancedMeasurements.push(measurements);
@@ -314,27 +317,47 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
-	test('autoModeRouterDecision maps the SDK Hydra and binary score shapes without inventing unavailable fields', () => {
+	test('autoModeRouterDecision maps authoritative SDK router fields and score shapes without deriving values', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
 		reporter.autoModeRouterDecision({
 			session,
 			turnId: 'turn-hydra',
+			clientType: AgentHostClientType.EditorWindow,
 			chosenModel: 'gpt-5',
 			predictedLabel: 'high',
 			confidence: 0.9,
 			candidateModels: ['gpt-5', 'gpt-4.1'],
 			categoryScores: { reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 },
+			routingMethod: 'hydra',
+			availableModels: ['gpt-5', 'gpt-4.1', 'gpt-5-mini'],
+			fallback: false,
+			fallbackReason: 'not-needed',
+			stickyOverride: true,
+			routerLatencyMs: 25,
+			endToEndLatencyMs: 40,
+			chosenShortfall: 0.05,
+			hasImage: true,
 		});
 		reporter.autoModeRouterDecision({
 			session,
 			turnId: 'turn-binary',
+			clientType: AgentHostClientType.AgentsWindow,
 			chosenModel: 'gpt-4.1',
 			predictedLabel: 'no_reasoning',
 			confidence: undefined,
 			candidateModels: undefined,
 			categoryScores: { needs_reasoning: 0.2, no_reasoning: 0.8 },
+			routingMethod: undefined,
+			availableModels: undefined,
+			fallback: undefined,
+			fallbackReason: undefined,
+			stickyOverride: undefined,
+			routerLatencyMs: undefined,
+			endToEndLatencyMs: undefined,
+			chosenShortfall: undefined,
+			hasImage: undefined,
 		});
 
 		assert.deepStrictEqual({ events: service.enhancedEvents, measurements: service.enhancedMeasurements }, {
@@ -343,10 +366,17 @@ suite('AgentHostTelemetryReporter', () => {
 				properties: {
 					conversationId: AgentSession.id(session),
 					vscodeRequestId: 'turn-hydra',
+					initiatorClientType: 'editor_window',
 					predictedLabel: 'high',
+					routingMethod: 'hydra',
+					fallback: 'false',
+					fallbackReason: 'not-needed',
 					candidateModel: 'gpt-5',
 					chosenModel: 'gpt-5',
 					candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+					availableModels: JSON.stringify(['gpt-5', 'gpt-4.1', 'gpt-5-mini']),
+					stickyOverrideStr: 'true',
+					hasImage: 'true',
 					hydraScores: JSON.stringify({ reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 }),
 				},
 			}, {
@@ -354,6 +384,7 @@ suite('AgentHostTelemetryReporter', () => {
 				properties: {
 					conversationId: AgentSession.id(session),
 					vscodeRequestId: 'turn-binary',
+					initiatorClientType: 'agents_window',
 					predictedLabel: 'no_reasoning',
 					candidateModel: '',
 					chosenModel: 'gpt-4.1',
@@ -361,7 +392,7 @@ suite('AgentHostTelemetryReporter', () => {
 					binaryScores: JSON.stringify({ needs_reasoning: 0.2, no_reasoning: 0.8 }),
 				},
 			}],
-			measurements: [{ confidence: 0.9 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
+			measurements: [{ confidence: 0.9, latencyMs: 25, e2eLatencyMs: 40, stickyOverride: 1, chosenShortfall: 0.05 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
 		});
 	});
 
@@ -369,8 +400,9 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.skillContentRead({ name: '', path: '/skills/x/SKILL.md', content: 'body', source: 'project', pluginName: undefined, pluginVersion: undefined }); // dropped: no name
+		reporter.skillContentRead({ clientType: AgentHostClientType.Unknown, name: '', path: '/skills/x/SKILL.md', content: 'body', source: 'project', pluginName: undefined, pluginVersion: undefined }); // dropped: no name
 		reporter.skillContentRead({
+			clientType: AgentHostClientType.AgentsWindow,
 			name: 'pdf', path: '/plugins/pdf/SKILL.md', content: 'skill body',
 			source: 'plugin', pluginName: 'pdf-plugin', pluginVersion: '1.2.3',
 		}); // emitted
@@ -378,6 +410,7 @@ suite('AgentHostTelemetryReporter', () => {
 		const expected: IRestrictedCall = {
 			eventName: 'skillContentRead',
 			properties: {
+				initiatorClientType: 'agents_window',
 				skillName: 'pdf',
 				skillPath: '/plugins/pdf/SKILL.md',
 				skillExtensionId: 'pdf-plugin',
@@ -386,8 +419,25 @@ suite('AgentHostTelemetryReporter', () => {
 				skillContentHash: String(hash('skill body')),
 			},
 		};
-		assert.deepStrictEqual(service.enhancedEvents, [expected]);
-		assert.deepStrictEqual(service.internalEvents, [expected]);
+		assert.deepStrictEqual({
+			standard: service.githubStandardEvents,
+			enhanced: service.enhancedEvents,
+			internal: service.internalEvents,
+		}, {
+			standard: [{
+				eventName: 'skillContentRead',
+				properties: {
+					initiatorClientType: 'agents_window',
+					skillNameHash: String(hash('pdf')),
+					skillExtensionIdHash: String(hash('pdf-plugin')),
+					skillExtensionVersion: '1.2.3',
+					skillStorage: 'plugin',
+					skillContentHash: String(hash('skill body')),
+				},
+			}],
+			enhanced: [expected],
+			internal: [expected],
+		});
 	});
 
 	test('repoInfo gates collection and multiplexes sink-specific properties', async () => {
@@ -403,6 +453,7 @@ suite('AgentHostTelemetryReporter', () => {
 			isVscodeTeamMember: true,
 		}, {
 			telemetryMessageId: 'turn-1',
+			clientType: AgentHostClientType.EditorWindow,
 			location: 'begin',
 			remoteUrl: 'https://github.com/microsoft/vscode',
 			repoId: 'microsoft/vscode',
@@ -425,6 +476,7 @@ suite('AgentHostTelemetryReporter', () => {
 			enhanced: {
 				eventName: 'request.repoInfo',
 				properties: {
+					initiatorClientType: 'editor_window',
 					remoteUrl: 'https://github.com/microsoft/vscode',
 					repoId: 'microsoft/vscode',
 					repoType: 'github',
@@ -442,6 +494,7 @@ suite('AgentHostTelemetryReporter', () => {
 			internal: {
 				eventName: 'request.repoInfo',
 				properties: {
+					initiatorClientType: 'editor_window',
 					remoteUrl: 'https://github.com/microsoft/vscode',
 					repoId: 'microsoft/vscode',
 					repoType: 'github',
@@ -461,7 +514,7 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.skillContentRead({ name: 'local', path: '/skills/local/SKILL.md', content: 'c', source: 'project', pluginName: undefined, pluginVersion: '9.9.9' });
+		reporter.skillContentRead({ clientType: AgentHostClientType.EditorWindow, name: 'local', path: '/skills/local/SKILL.md', content: 'c', source: 'project', pluginName: undefined, pluginVersion: '9.9.9' });
 
 		assert.strictEqual(service.enhancedEvents.length, 1);
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');

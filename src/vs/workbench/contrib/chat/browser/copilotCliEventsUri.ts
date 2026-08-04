@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { env } from '../../../../base/common/process.js';
+import type { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getCopilotHomePath } from '../../../../platform/agentHost/common/copilotHome.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -21,21 +24,28 @@ export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
 
 /**
- * Builds the local `events.jsonl` URI under `~/.copilot/session-state/<rawId>/`.
+ * Builds the local `events.jsonl` URI under `<COPILOT_HOME>/session-state/<rawId>/`.
  *
  * Used for both the local Agent Host Copilot CLI provider and the
  * extension-host Copilot CLI provider, which share the same on-disk layout
  * and the same chat session URI shape (`copilotcli:/<rawId>`).
  */
-export function buildLocalEventsUri(userHome: URI, rawSessionId: string): URI {
-	return joinPath(userHome, '.copilot', 'session-state', rawSessionId, 'events.jsonl');
+export function buildLocalEventsUri(userHome: URI, rawSessionId: string, environment: IProcessEnvironment = env): URI {
+	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'session-state', rawSessionId, 'events.jsonl');
 }
 
 /**
- * Builds the local `~/.copilot/logs` directory URI.
+ * Builds the local `<COPILOT_HOME>/logs` directory URI.
  */
-export function buildLocalCopilotLogsUri(userHome: URI): URI {
-	return joinPath(userHome, '.copilot', 'logs');
+export function buildLocalCopilotLogsUri(userHome: URI, environment: IProcessEnvironment = env): URI {
+	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'logs');
+}
+
+/**
+ * Builds the local `<COPILOT_HOME>/session-state` directory URI.
+ */
+export function buildLocalSessionStateUri(userHome: URI, environment: IProcessEnvironment = env): URI {
+	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'session-state');
 }
 
 /**
@@ -120,6 +130,7 @@ export function resolveEventsUri(
 	sessionResource: URI | undefined,
 	userHome: URI,
 	getConnectionByAuthority: (authority: string) => IRemoteAgentHostConnectionInfo | undefined,
+	environment: IProcessEnvironment = env,
 ): ResolveEventsUriResult {
 	if (!sessionResource) {
 		return { kind: 'no-session' };
@@ -130,7 +141,7 @@ export function resolveEventsUri(
 	}
 
 	if (sessionResource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME || sessionResource.scheme === COPILOT_CLI_EH_SCHEME) {
-		return { kind: 'ok', resource: buildLocalEventsUri(userHome, rawId) };
+		return { kind: 'ok', resource: buildLocalEventsUri(userHome, rawId, environment) };
 	}
 
 	const remoteAuthority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
@@ -174,8 +185,9 @@ export function buildHostLocalEventsPath(
 	sessionResource: URI | undefined,
 	userHome: URI,
 	getConnectionByAuthority: (authority: string) => IRemoteAgentHostConnectionInfo | undefined,
+	environment: IProcessEnvironment = env,
 ): string | undefined {
-	const result = resolveEventsUri(sessionResource, userHome, getConnectionByAuthority);
+	const result = resolveEventsUri(sessionResource, userHome, getConnectionByAuthority, environment);
 	if (result.kind !== 'ok') {
 		return undefined;
 	}
@@ -187,4 +199,8 @@ export function buildHostLocalEventsPath(
 	// the leading slash from a Windows drive-letter path (`/c:/…` → `c:/…`) so the
 	// injected path is usable by host-side tooling; POSIX paths are left as-is.
 	return fromAgentHostUri(result.resource).path.replace(/^\/([a-zA-Z]:)/, '$1');
+}
+
+function buildLocalCopilotHomeUri(userHome: URI, environment: IProcessEnvironment): URI {
+	return URI.file(getCopilotHomePath(userHome.fsPath, environment));
 }

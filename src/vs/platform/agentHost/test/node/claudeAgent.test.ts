@@ -51,8 +51,9 @@ import { ActionType, type AuthRequiredParams } from '../../common/state/sessionA
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -759,6 +760,27 @@ const ALL_MODELS: readonly CCAModel[] = [
 
 // #region Test harness
 
+/**
+ * Records `emitSessionTitleChanged` invocations so the OTel title-span wiring
+ * test can assert what the agent forwarded to the host telemetry pipeline. All
+ * other {@link IAgentHostOTelService} members are inert no-ops.
+ */
+class RecordingOTelService implements IAgentHostOTelService {
+	readonly _serviceBrand: undefined;
+	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
+	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
+	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
+	getSessionTraceContext(): undefined { return undefined; }
+	releaseSessionTraceContext(): void { }
+	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext(): undefined { return undefined; }
+	getSpansDbPath(): undefined { return undefined; }
+	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
+		this.titleChanges.push({ conversationId, sessionUri, title });
+	}
+	async flush(): Promise<void> { }
+}
+
 interface ITestContext {
 	readonly agent: ClaudeAgent;
 	readonly proxy: FakeClaudeProxyService;
@@ -767,6 +789,7 @@ interface ITestContext {
 	readonly sessionData: RecordingSessionDataService;
 	readonly stateManager: AgentHostStateManager;
 	readonly configService: AgentConfigurationService;
+	readonly otelService: RecordingOTelService;
 	readonly instantiationService: IInstantiationService;
 	readonly fileService: IFileService;
 }
@@ -813,6 +836,7 @@ function createTestContext(
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
+	const otelService = new RecordingOTelService();
 	const services = new ServiceCollection(
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
@@ -825,6 +849,7 @@ function createTestContext(
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostOTelService, otelService],
 		[IProductService, FakeProductService],
 		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
@@ -835,7 +860,7 @@ function createTestContext(
 		configService.updateRootConfig(overrides.rootConfig);
 	}
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -894,6 +919,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 	return [
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostOTelService, new RecordingOTelService()],
 	];
 }
 
@@ -2273,6 +2299,38 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('multi-root session discovers and retains customizations from an additional directory', async () => {
+		const { agent, sdk, fileService } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const skillUri = URI.joinPath(repoB, '.claude', 'skills', 'from-b', 'SKILL.md');
+		await fileService.writeFile(skillUri, VSBuffer.fromString('---\nname: from-b\ndescription: Skill from B\n---\nbody'));
+		const created = await agent.createSession({ workingDirectories: [repoA, repoB] });
+		const before = await agent.getSessionCustomizations(created.session);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.supportedCommandsResult = [{ name: 'from-b', description: 'Skill from B', argumentHint: '' }];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1');
+		const after = await agent.getSessionCustomizations(created.session);
+		const skillContainerUri = URI.joinPath(repoB, '.claude', 'skills').toString();
+		const names = (customizations: readonly Customization[]) => {
+			const container = customizations.find(customization => customization.uri === skillContainerUri);
+			return container?.type === CustomizationType.Directory ? container.children?.map(skill => skill.name) : undefined;
+		};
+
+		assert.deepStrictEqual({
+			before: names(before),
+			after: names(after),
+		}, {
+			before: ['from-b'],
+			after: ['from-b'],
+		});
+	});
+
 	test('cold resume recovers the additional directories from the persisted overlay', async () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
@@ -3227,6 +3285,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
@@ -4482,6 +4541,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
@@ -4945,6 +5005,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostOTelService, new RecordingOTelService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[ISessionDataService, sessionData],
@@ -5338,6 +5399,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
+		assert.strictEqual(inputRequest.purpose, ChatInputRequestPurpose.AskUser);
 		ctx.agent.respondToUserInputRequest('tu_ask', ChatInputResponseKind.Accept, {
 			q1: {
 				state: ChatInputAnswerState.Submitted,
@@ -5636,6 +5698,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
+		assert.strictEqual(inputRequest.purpose, ChatInputRequestPurpose.Elicitation);
 		ctx.agent.respondToUserInputRequest(inputRequest.id, ChatInputResponseKind.Accept, {
 			side: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'left' } },
 		});
@@ -6337,6 +6400,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
+		const otelService = new RecordingOTelService();
 		const services = new ServiceCollection(
 			[IFileService, fileService],
 			[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
@@ -6349,12 +6413,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostOTelService, otelService],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService };
 	}
 
 	function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {
@@ -7559,3 +7624,42 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 });
 
 // #endregion
+
+suite('ClaudeAgent — host OTel session-title spans', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('emits a host OTel session-title span when this agent\'s session title changes', () => {
+		const { stateManager, otelService } = createTestContext(disposables);
+		const sessionUri = AgentSession.uri('claude', 'wire-title');
+		stateManager.createSession({
+			resource: sessionUri.toString(),
+			provider: 'claude',
+			title: 'Initial',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+
+		assert.deepStrictEqual(otelService.titleChanges, [{ conversationId: 'wire-title', sessionUri: sessionUri.toString(), title: 'Renamed' }]);
+	});
+
+	test('ignores session-title changes belonging to another provider', () => {
+		const { stateManager, otelService } = createTestContext(disposables);
+		const foreignUri = AgentSession.uri('copilot', 'foreign-title');
+		stateManager.createSession({
+			resource: foreignUri.toString(),
+			provider: 'copilot',
+			title: 'Initial',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+
+		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+
+		assert.deepStrictEqual(otelService.titleChanges, []);
+	});
+});

@@ -54,6 +54,7 @@ import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from '.
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
@@ -445,6 +446,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IClaudeProxyService private readonly _claudeProxyService: IClaudeProxyService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
@@ -461,6 +463,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the Bearer token, so the session can surface real per-turn credits.
 		this._register(this._claudeProxyService.onDidReportCredits(e => {
 			this._findSessionBySdkId(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
+		}));
+
+		// Emit a host-produced session-title metadata span whenever this agent's
+		// session title changes. The shared state manager fires for every
+		// provider, so gate on our own provider id. Mirrors `CopilotAgent`.
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
 		}));
 
 		// Phase 19: resolve the transport mode now and re-resolve reactively.
@@ -1220,6 +1231,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._disposeSequencer.queue(sessionId, async () => {
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
+			this._otelService.releaseSessionTraceContext(session.toString());
 		});
 	}
 

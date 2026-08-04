@@ -20,7 +20,7 @@ import { ConfigurationTarget, type IConfigurationValue } from '../../../configur
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -29,8 +29,8 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostCodexMultiRootEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -429,6 +429,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const creation = client.createSession({
 			provider: 'copilot',
 			session,
+			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace', name: 'Demo' } },
 			fork: { session: source, turnIndex: 2, turnId: 'turn-2' },
 			progressToken: 'progress-token',
 		});
@@ -437,6 +438,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			hasKey(message, { method: true }) && message.method === 'createSession');
 		assert.deepStrictEqual(request?.params, {
 			channel: session.toString(),
+			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace', name: 'Demo' } },
 			provider: 'copilot',
 			workingDirectories: undefined,
 			fork: { session: source.toString(), turnId: 'turn-2' },
@@ -796,10 +798,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 		}, {
-			protocolVersions: [PROTOCOL_VERSION],
+			// Every negotiable version is offered so an older host can negotiate down,
+			// newest first so a current host still picks it.
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
 		});
+		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -961,6 +966,23 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey);
 		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostClaudeMultiRootEnabledConfigKey]: false });
+	});
+
+	test('forwards Codex multi-root enablement on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostCodexMultiRootEnabledSettingId]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const multiRootEnabled = findRootConfigNotification(transport.sentMessages, AgentHostCodexMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(multiRootEnabled), { [AgentHostCodexMultiRootEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostCodexMultiRootEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostCodexMultiRootEnabledSettingId);
+
+		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostCodexMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostCodexMultiRootEnabledConfigKey]: false });
 	});
 
 	test('forwards auto-reply on connect and when the setting changes', async () => {

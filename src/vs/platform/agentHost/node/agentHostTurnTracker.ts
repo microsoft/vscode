@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
@@ -27,11 +29,26 @@ interface ITurnTiming {
  *      (only the first call per turn has an effect)
  *   3. {@link turnCompleted} — emits the telemetry event and clears state
  */
-export class AgentHostTurnTracker {
+export class AgentHostTurnTracker extends Disposable {
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
 
-	constructor(private readonly _reporter: AgentHostTelemetryReporter) { }
+	/**
+	 * Fires with the provider id whenever a turn starts, i.e. whenever the host
+	 * is about to make an LLM request on that provider's behalf.
+	 *
+	 * Consumed by {@link AgentModelRefreshScheduler} to gate its periodic model
+	 * refresh on real usage, so an idle host issues no `models` network
+	 * requests at all. Local host commands (`/rename`, `!command`) are
+	 * intercepted before `turnStarted` is reached and so correctly do not count
+	 * as activity.
+	 */
+	private readonly _onDidStartTurn = this._register(new Emitter<string>());
+	readonly onDidStartTurn: Event<string> = this._onDidStartTurn.event;
+
+	constructor(private readonly _reporter: AgentHostTelemetryReporter) {
+		super();
+	}
 
 	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
 		const key = this._key(session, turnId);
@@ -44,6 +61,7 @@ export class AgentHostTurnTracker {
 			permissionLevel,
 			firstProgressMs: undefined,
 		});
+		this._onDidStartTurn.fire(provider);
 	}
 
 	markFirstProgress(session: string, turnId: string): void {

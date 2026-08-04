@@ -28,6 +28,33 @@ suite('CodexLaunchConfig', () => {
 		]);
 	});
 
+	test('routes traces to loopback and logs/metrics directly to the external sink', () => {
+		const config = buildCodexLaunchConfig('openai', {}, undefined, [], {
+			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
+			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf', headers: { authorization: 'Bearer test' } },
+			captureContent: false,
+			resourceAttributes: { 'service.namespace': 'vscode.agent-host', region: 'west us' },
+		});
+		assert.strictEqual(config.env.OTEL_SERVICE_NAME, undefined);
+		assert.strictEqual(config.env.OTEL_RESOURCE_ATTRIBUTES, 'service.namespace=vscode.agent-host,region=west%20us');
+		assert.ok(config.args.includes('otel.log_user_prompt=false'));
+		assert.ok(config.args.includes('otel.trace_exporter={ otlp-http = { endpoint = "http://127.0.0.1:4567/v1/traces", protocol = "json" } }'));
+		assert.ok(config.args.includes('otel.exporter={ otlp-http = { endpoint = "http://collector:4318/v1/logs", protocol = "binary", headers = { "authorization" = "Bearer test" } } }'));
+		assert.ok(config.args.includes('otel.metrics_exporter={ otlp-http = { endpoint = "http://collector:4318/v1/metrics", protocol = "binary", headers = { "authorization" = "Bearer test" } } }'));
+	});
+
+	test('keeps gRPC signal endpoints unchanged and uses decoded headers', () => {
+		const config = buildCodexLaunchConfig('openai', {}, undefined, [], {
+			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			external: { endpoint: 'https://collector:4317', protocol: 'grpc', headers: { authorization: 'Bearer test/token' } },
+			captureContent: false,
+			resourceAttributes: {},
+		});
+		const expected = '{ otlp-grpc = { endpoint = "https://collector:4317", headers = { "authorization" = "Bearer test/token" } } }';
+		assert.ok(config.args.includes(`otel.exporter=${expected}`));
+		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
+	});
+
 	test('identifies provider-compatible threads', () => {
 		assert.deepStrictEqual({
 			copilotProxy: isCodexThreadProviderCompatible('copilot', 'vscode-proxy'),
@@ -53,6 +80,12 @@ suite('CodexLaunchConfig', () => {
 			threadId: 'thread-b',
 			modelProvider: 'vscode-proxy',
 			config: { mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
+		});
+		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, ['/repo-a', '/repo-b']), {
+			threadId: 'thread-c',
+			modelProvider: 'openai',
+			cwd: '/repo-a',
+			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
 		});
 	});
 });

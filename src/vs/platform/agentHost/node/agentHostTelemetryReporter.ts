@@ -8,6 +8,7 @@ import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
@@ -15,6 +16,26 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
+
+export interface IAgentHostExecutionModeChangedEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	previousMode: SessionMode;
+	newMode: SessionMode;
+	turnCount: number;
+}
+
+export type IAgentHostExecutionModeChangedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the mode change belongs to a subagent session.' };
+	previousMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent host execution mode.' };
+	newMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent host execution mode.' };
+	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of completed turns in the agent host chat.' };
+	owner: 'amunger';
+	comment: 'Reports agent host execution mode changes.';
+};
 
 export interface IAgentHostUserMessageSentEvent {
 	provider: string;
@@ -132,7 +153,50 @@ export interface IAgentHostToolInvokedReport {
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
-	invocationTimeMs: number;
+	invocationTimeMs?: number;
+}
+
+export interface IAgentHostAskQuestionsToolInvokedEvent {
+	requestId: string;
+	questionCount: number;
+	answeredCount: number;
+	skippedCount: number;
+	freeTextCount: number;
+	recommendedAvailableCount: number;
+	recommendedSelectedCount: number;
+	duration: number;
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+}
+
+export type IAgentHostAskQuestionsToolInvokedClassification = {
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current request turn.' };
+	questionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of questions asked' };
+	answeredCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were answered' };
+	skippedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were skipped' };
+	freeTextCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions answered with free text input' };
+	recommendedAvailableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that had a recommended option' };
+	recommendedSelectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions where the user selected the recommended option' };
+	duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time in milliseconds to complete all questions' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the questions belong to a subagent session.' };
+	owner: 'digitarald';
+	comment: 'Tracks usage of the AskQuestions tool for agent clarifications';
+};
+
+export interface IAgentHostAskQuestionsToolInvokedReport {
+	provider: string;
+	session: string;
+	requestId: string;
+	questionCount: number;
+	answeredCount: number;
+	skippedCount: number;
+	freeTextCount: number;
+	recommendedAvailableCount: number;
+	recommendedSelectedCount: number;
+	duration: number;
 }
 
 type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
@@ -252,14 +316,25 @@ export type IAgentHostToolApprovalClassification = {
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
 	turnId: string;
+	clientType: AgentHostClientType;
 	chosenModel: string;
 	predictedLabel: string | undefined;
 	confidence: number | undefined;
 	candidateModels: readonly string[] | undefined;
 	categoryScores: Readonly<Record<string, number | undefined>> | undefined;
+	routingMethod: string | undefined;
+	availableModels: readonly string[] | undefined;
+	fallback: boolean | undefined;
+	fallbackReason: string | undefined;
+	stickyOverride: boolean | undefined;
+	routerLatencyMs: number | undefined;
+	endToEndLatencyMs: number | undefined;
+	chosenShortfall: number | undefined;
+	hasImage: boolean | undefined;
 }
 
 export interface IAgentHostSkillContentReadReport {
+	clientType: AgentHostClientType;
 	/** The skill name. */
 	name: string;
 	/** Path to the SKILL.md file. */
@@ -278,6 +353,7 @@ export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge
 
 export interface IAgentHostRepoInfoReport {
 	telemetryMessageId: string;
+	clientType: AgentHostClientType;
 	location: 'begin' | 'end';
 	remoteUrl: string;
 	repoId: string;
@@ -369,6 +445,17 @@ export class AgentHostTelemetryReporter {
 	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
 		const ts = this._telemetryService as Partial<IAgentHostRestrictedTelemetry>;
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
+	}
+
+	executionModeChanged(provider: string, session: string, previousMode: SessionMode, newMode: SessionMode, turnCount: number): void {
+		this._telemetryService.publicLog2<IAgentHostExecutionModeChangedEvent, IAgentHostExecutionModeChangedClassification>('agentHost.executionModeChanged', {
+			provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentSession(session),
+			previousMode,
+			newMode,
+			turnCount,
+		});
 	}
 
 	userMessageSent(provider: string, clientType: AgentHostClientType, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
@@ -555,11 +642,7 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
-	/**
-	 * Emits the subset of the extension's restricted `automode.routerDecisionRestricted` event
-	 * available from the SDK's `session.auto_mode_resolved` event. Router-only fields that the SDK
-	 * does not expose are omitted rather than synthesized.
-	 */
+	/** Emits the extension's restricted `automode.routerDecisionRestricted` event from authoritative SDK fields. */
 	autoModeRouterDecision(report: IAgentHostAutoModeRouterDecisionReport): void {
 		const restricted = this._restricted;
 		if (!restricted) {
@@ -573,16 +656,27 @@ export class AgentHostTelemetryReporter {
 		const properties = {
 			conversationId: AgentSession.id(report.session),
 			vscodeRequestId: report.turnId,
+			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
+			...(report.routingMethod !== undefined ? { routingMethod: report.routingMethod } : {}),
+			...(report.fallback !== undefined ? { fallback: String(report.fallback) } : {}),
+			...(report.fallbackReason !== undefined ? { fallbackReason: report.fallbackReason } : {}),
 			candidateModel: candidateModels[0] ?? '',
 			chosenModel: report.chosenModel,
 			candidateModels: JSON.stringify(candidateModels),
+			...(report.availableModels !== undefined ? { availableModels: JSON.stringify(report.availableModels) } : {}),
+			...(report.stickyOverride !== undefined ? { stickyOverrideStr: String(report.stickyOverride) } : {}),
+			...(report.hasImage !== undefined ? { hasImage: String(report.hasImage) } : {}),
 			...(scoreKeys.length > 0 ? {
 				[isBinary ? 'binaryScores' : 'hydraScores']: JSON.stringify(categoryScores),
 			} : {}),
 		};
 		const measurements = {
 			...(report.confidence !== undefined ? { confidence: report.confidence } : {}),
+			...(report.routerLatencyMs !== undefined ? { latencyMs: report.routerLatencyMs } : {}),
+			...(report.endToEndLatencyMs !== undefined ? { e2eLatencyMs: report.endToEndLatencyMs } : {}),
+			...(report.stickyOverride !== undefined ? { stickyOverride: report.stickyOverride ? 1 : 0 } : {}),
+			...(report.chosenShortfall !== undefined ? { chosenShortfall: report.chosenShortfall } : {}),
 			...(categoryScores.needs_reasoning !== undefined ? { scoreNeedsReasoning: categoryScores.needs_reasoning } : {}),
 			...(categoryScores.no_reasoning !== undefined ? { scoreNoReasoning: categoryScores.no_reasoning } : {}),
 		};
@@ -612,6 +706,7 @@ export class AgentHostTelemetryReporter {
 		// never emit a `skillExtensionVersion` without a corresponding `skillExtensionId`.
 		const skillExtensionVersion = report.pluginName ? (report.pluginVersion ?? '') : '';
 		const plaintextProps = {
+			initiatorClientType: report.clientType,
 			skillName: report.name,
 			skillPath: report.path,
 			skillExtensionId: report.pluginName ?? '',
@@ -620,6 +715,7 @@ export class AgentHostTelemetryReporter {
 			skillContentHash: contentHash,
 		};
 		restricted.sendGHTelemetryEvent('skillContentRead', {
+			initiatorClientType: report.clientType,
 			skillNameHash: String(hash(report.name)),
 			skillExtensionIdHash: report.pluginName ? String(hash(report.pluginName)) : '',
 			skillExtensionVersion,
@@ -636,6 +732,7 @@ export class AgentHostTelemetryReporter {
 			return;
 		}
 		const properties = {
+			initiatorClientType: report.clientType,
 			remoteUrl: report.remoteUrl,
 			repoId: report.repoId,
 			repoType: report.repoType,
@@ -712,6 +809,23 @@ export class AgentHostTelemetryReporter {
 			toolSourceKind: report.toolSourceKind,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+		});
+	}
+
+	askQuestionsToolInvoked(report: IAgentHostAskQuestionsToolInvokedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostAskQuestionsToolInvokedEvent, IAgentHostAskQuestionsToolInvokedClassification>('askQuestionsToolInvoked', {
+			requestId: report.requestId,
+			questionCount: report.questionCount,
+			answeredCount: report.answeredCount,
+			skippedCount: report.skippedCount,
+			freeTextCount: report.freeTextCount,
+			recommendedAvailableCount: report.recommendedAvailableCount,
+			recommendedSelectedCount: report.recommendedSelectedCount,
+			duration: report.duration,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
 		});
 	}
 

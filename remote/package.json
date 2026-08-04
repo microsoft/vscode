@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@github/copilot": "^1.0.73",
-    "@github/copilot-sdk": "^1.0.8",
+    "@github/copilot": "^1.0.77",
+    "@github/copilot-sdk": "^1.0.9-preview.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/mxc-sdk": "0.6.1",
@@ -52,7 +52,7 @@
     "ws": "^8.19.0",
     "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "overrides": {
     "node-gyp-build": "4.8.1",

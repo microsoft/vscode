@@ -159,6 +159,44 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
 }
 
+/**
+ * Resolves the pull request associated with an agent session from its provider metadata,
+ * preferring an explicit `pullRequestUrl` and falling back to `pullRequestNumber` combined
+ * with `owner`/`name`. Returns `undefined` when the session has no associated pull request.
+ */
+export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'metadata'>): URI | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	const url = metadata.pullRequestUrl;
+	if (typeof url === 'string' && url) {
+		try {
+			return URI.parse(url);
+		} catch {
+			// Fall through to the number based lookup below.
+		}
+	}
+
+	const prNumber = metadata.pullRequestNumber;
+	const owner = metadata.owner;
+	const name = metadata.name;
+	if (typeof prNumber === 'number' && typeof owner === 'string' && owner && typeof name === 'string' && name) {
+		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+	}
+
+	return undefined;
+}
+
+/**
+ * The value for the `chatSessionPullRequest` context key for a session. Never returns an
+ * "unknown" value: callers here always have the session's metadata in hand.
+ */
+export function getAgentSessionPullRequestContextValue(session: Pick<IAgentSession, 'metadata'>): 'available' | 'none' {
+	return getAgentSessionPullRequestUri(session) ? 'available' : 'none';
+}
+
 export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
 	return isAgentHostTarget(session.providerType);
 }
@@ -669,6 +707,16 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
+				const shouldKeepOpenSessionRead = session.isRead === false
+					&& this.chatSessionsService.canSetChatSessionItemRead(session.resource)
+					&& !this.explicitlyMarkedUnreadSessions.has(session.resource)
+					&& !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
+				if (shouldKeepOpenSessionRead) {
+					this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+				}
+				if (session.isRead) {
+					this.explicitlyMarkedUnreadSessions.delete(session.resource);
+				}
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
@@ -681,7 +729,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
-					providerIsRead: session.isRead,
+					providerIsRead: shouldKeepOpenSessionRead ? true : session.isRead,
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
@@ -700,6 +748,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
 			) {
 				sessions.set(session.resource, session);
+			}
+		}
+		for (const resource of this.explicitlyMarkedUnreadSessions) {
+			if (!sessions.has(resource)) {
+				this.explicitlyMarkedUnreadSessions.delete(resource);
 			}
 		}
 
@@ -742,6 +795,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private static readonly UNREAD_MARKER = -1;
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
+	private readonly explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
 	 * Resolve the state entry for a session, honoring a one-way migration from
@@ -878,6 +932,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
 		if (this.ownsReadState(session)) {
+			if (read) {
+				this.explicitlyMarkedUnreadSessions.delete(session.resource);
+			} else {
+				this.explicitlyMarkedUnreadSessions.add(session.resource);
+			}
 			if (read === (session.providerIsRead ?? true)) {
 				return; // no change
 			}
