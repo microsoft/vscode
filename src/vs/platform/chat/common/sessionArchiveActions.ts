@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { localize2 } from '../../../nls.js';
+import { localize, localize2 } from '../../../nls.js';
 import { ICommandActionTitle } from '../../action/common/action.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 
@@ -74,4 +74,14 @@ export function getChatSessionArchiveActionWording(configurationService: IConfig
 
 export function getChatSessionArchiveActionPresentation(wording: ChatSessionArchiveActionWording): IChatSessionArchiveActionPresentation {
 	return wording === ChatSessionArchiveActionWording.MarkAsDone ? markAsDoneActionPresentation : archiveActionPresentation;
+}
+
+/**
+ * The label used for the group of archived sessions, following the configured
+ * archive action wording.
+ */
+export function getChatSessionArchivedSectionLabel(wording: ChatSessionArchiveActionWording): string {
+	return wording === ChatSessionArchiveActionWording.MarkAsDone
+		? localize('chatSession.section.done', "Done")
+		: localize('chatSession.section.archived', "Archived");
 }

@@ -68,6 +68,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
+	readonly isResolving: IObservable<boolean>;
 
 	get availableLevels(): readonly ChatPermissionLevel[] {
 		const session = this._session.get();
@@ -119,6 +120,15 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
 		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader));
+		this.isResolving = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			if (!session) {
+				return false;
+			}
+			const provider = this._getProvider(session.providerId);
+			return provider?.isSessionConfigResolving(session.sessionId).read(reader) ?? false;
+		});
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {

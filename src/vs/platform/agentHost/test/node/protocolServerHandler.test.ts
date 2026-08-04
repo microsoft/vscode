@@ -788,22 +788,25 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => item._meta), [undefined]);
 	});
 
-	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
+	test('createSession forwards request metadata and broadcasts project in sessionAdded summary', async () => {
 		const transport = connectClient('client-create');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 2);
 
 		const newSession = URI.parse('copilot:///created-session').toString();
-		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		const _meta = { multiRoot: { workspaceFile: 'file:///demo.code-workspace', name: 'Demo' } };
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession, _meta }));
 		const resp = await responsePromise;
 
 		const added = findNotifications(transport.sent, 'root/sessionAdded')[0];
 		assert.deepStrictEqual({
 			result: (resp as { result: null }).result,
 			project: (added!.params as SessionAddedParams).summary.project,
+			_meta: agentService.createSessionConfigs.at(-1)?._meta,
 		}, {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+			_meta,
 		});
 	});
 

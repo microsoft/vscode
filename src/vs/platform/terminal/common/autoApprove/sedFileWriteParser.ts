@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandFileWriteParser } from './commandFileWriteParser.js';
-
 /**
  * Parser for detecting file writes from `sed` commands using in-place editing.
  *
@@ -16,7 +14,7 @@ import { ICommandFileWriteParser } from './commandFileWriteParser.js';
  * - `sed --in-place=.bak 's/foo/bar/' file.txt` (GNU long form with backup)
  * - `sed -I 's/foo/bar/' file.txt` (BSD case-insensitive variant)
  */
-export class SedFileWriteParser implements ICommandFileWriteParser {
+export class SedFileWriteParser {
 	readonly commandName = 'sed';
 
 	canHandle(commandText: string): boolean {

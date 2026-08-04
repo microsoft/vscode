@@ -71,6 +71,7 @@ import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tool
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
+import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
 
 /**
@@ -171,6 +172,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getAgentNameRestriction() { return true; }
 	}());
 	reg.define(IChatService, MockChatService);
+	reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+		override readonly targetSession = constObservable<URI | undefined>(undefined);
+		override readonly hasDraftTarget = constObservable(false);
+	}());
 	reg.defineInstance(IChatPetService, new class extends mock<IChatPetService>() {
 		override readonly enabled = observableValue('chatPetEnabled', false);
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);

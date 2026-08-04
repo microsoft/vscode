@@ -7,8 +7,10 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
@@ -83,7 +85,9 @@ suite('ChatPlanReviewPart', () => {
 	let lastFeedbackService: IPlanReviewFeedbackService | undefined;
 	let lastEditorService: IEditorService | undefined;
 	let lastTextFileService: ITextFileService | undefined;
+	let lastModelService: IModelService | undefined;
 	let lastCommentsBridge: AgentEditorCommentsBridge | undefined;
+	let fileChangesEmitter: Emitter<FileChangesEvent> | undefined;
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService, onSubmit?: () => void): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -95,7 +99,14 @@ suite('ChatPlanReviewPart', () => {
 		lastFeedbackService = feedbackService;
 		lastEditorService = instantiationService.get(IEditorService);
 		lastTextFileService = instantiationService.get(ITextFileService);
+		lastModelService = instantiationService.get(IModelService);
 		lastCommentsBridge = commentsBridge;
+		if (fileChangesEmitter) {
+			sinon.stub(instantiationService.get(IFileService), 'createWatcher').returns({
+				onDidChange: fileChangesEmitter.event,
+				dispose: () => { },
+			});
+		}
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
 		}
@@ -120,7 +131,9 @@ suite('ChatPlanReviewPart', () => {
 		lastFeedbackService = undefined;
 		lastEditorService = undefined;
 		lastTextFileService = undefined;
+		lastModelService = undefined;
 		lastCommentsBridge = undefined;
+		fileChangesEmitter = undefined;
 		sinon.restore();
 	});
 
@@ -139,6 +152,80 @@ suite('ChatPlanReviewPart', () => {
 
 			const label = widget.domNode.querySelector('.chat-plan-review-title-label');
 			assert.strictEqual(label?.textContent, 'My Plan Title');
+		});
+
+		test('displays the outdated pill only for outdated summaries', () => {
+			createWidget(createMockReviewWithPlan({ isOutdated: true }));
+
+			const badge = widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated');
+			assert.deepStrictEqual({
+				text: badge?.textContent,
+				display: badge?.style.display,
+				ariaLabel: badge?.getAttribute('aria-label'),
+			}, {
+				text: 'Outdated',
+				display: '',
+				ariaLabel: 'Plan summary is outdated',
+			});
+		});
+
+		test('hides the outdated pill for current summaries', () => {
+			createWidget(createMockReviewWithPlan());
+
+			assert.strictEqual(widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display, 'none');
+		});
+
+		test('marks the summary outdated when the plan model changes', () => {
+			const planUri = URI.parse('file:///outdated-plan.md');
+			const review = new ChatPlanReviewData(
+				'Plan summary',
+				'Generated summary',
+				[{ label: 'Go', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			createWidget(review);
+			const model = lastModelService!.createModel('# Original plan', null, planUri);
+
+			try {
+				model.setValue('# Edited plan');
+
+				assert.deepStrictEqual({
+					isOutdated: review.isOutdated,
+					persistedIsOutdated: review.toJSON().isOutdated,
+					badgeDisplay: widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display,
+					summary: review.content,
+				}, {
+					isOutdated: true,
+					persistedIsOutdated: true,
+					badgeDisplay: '',
+					summary: 'Generated summary',
+				});
+			} finally {
+				model.dispose();
+			}
+		});
+
+		test('marks the summary outdated when an open plan is deleted', () => {
+			const planUri = URI.parse('file:///deleted-plan.md');
+			const review = new ChatPlanReviewData(
+				'Plan summary',
+				'Generated summary',
+				[{ label: 'Go', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			fileChangesEmitter = store.add(new Emitter<FileChangesEvent>());
+			createWidget(review);
+			const model = lastModelService!.createModel('# Original plan', null, planUri);
+
+			try {
+				fileChangesEmitter.fire(new FileChangesEvent([{ resource: planUri, type: FileChangeType.DELETED }], false));
+
+				assert.strictEqual(review.isOutdated, true);
+			} finally {
+				model.dispose();
+			}
 		});
 
 		test('renders markdown content in the body', () => {

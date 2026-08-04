@@ -947,6 +947,7 @@ export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
+	readonly _meta?: Record<string, unknown>;
 	/**
 	 * Initial custom agent selection for the new session. Omit to start with
 	 * no custom agent selected (provider default behavior).

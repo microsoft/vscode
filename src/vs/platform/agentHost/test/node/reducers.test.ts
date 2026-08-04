@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
@@ -181,6 +181,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
@@ -200,6 +201,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 				kind: ResponsePartKind.InputRequest,
 				request: {
 					id: 'req-1',
+					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -209,6 +211,50 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 					}],
 				},
 			},
+		});
+	});
+
+	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'First?' }],
+			},
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputAnswerChanged,
+			requestId: 'req-1',
+			questionId: 'q-1',
+			answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
+			},
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputCompleted,
+			requestId: 'req-1',
+			response: ChatInputResponseKind.Accept,
+		});
+
+		assert.deepStrictEqual(state.activeTurn?.responseParts.at(-1), {
+			kind: ResponsePartKind.InputRequest,
+			request: {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
+				answers: {
+					'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
+				},
+			},
+			response: ChatInputResponseKind.Accept,
 		});
 	});
 
@@ -235,6 +281,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
@@ -263,6 +310,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 				kind: ResponsePartKind.InputRequest,
 				request: {
 					id: 'req-1',
+					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,

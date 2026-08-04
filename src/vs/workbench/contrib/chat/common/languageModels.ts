@@ -692,12 +692,16 @@ export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelCha
 	const originalMetadata = metadata.byokModelIdentifier ? languageModelsService.lookupLanguageModel(originalIdentifier) : metadata;
 	const providerVendor = originalMetadata?.vendor ?? metadata.modelGroup?.id ?? metadata.vendor;
 	const providerName = getLanguageModelProviderDisplayName(languageModelsService, providerVendor);
+	const identifierSuffix = originalMetadata?.id;
+	const modelName = identifierSuffix && metadata.name.endsWith(` (${identifierSuffix})`)
+		? metadata.name.slice(0, -identifierSuffix.length - 3)
+		: metadata.name;
 	const groupName = languageModelsService.getLanguageModelGroups(providerVendor)
 		.find(group => group.modelIdentifiers.includes(originalIdentifier))
 		?.group?.name;
 	return groupName && groupName !== providerName
-		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, metadata.name)
-		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, metadata.name);
+		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, modelName)
+		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, modelName);
 }
 
 export interface IModelControlEntry {

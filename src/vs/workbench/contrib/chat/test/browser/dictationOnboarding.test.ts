@@ -192,6 +192,54 @@ suite('Dictation onboarding', () => {
 			});
 	});
 
+	test('keeps the picker hidden until a microphone reports a real label', async () => {
+		const host = createHost(disposables);
+		let labelled = false;
+		const mediaDevices = Object.assign(new EventTarget(), {
+			enumerateDevices: async () => labelled
+				? [
+					device('audioinput', 'default', 'Default - Studio Mic'),
+					device('audioinput', 'studio', 'Studio Mic'),
+					device('audioinput', 'built-in', 'Built-in Mic'),
+				]
+				: [
+					device('audioinput', 'default', ''),
+					device('audioinput', 'studio', ''),
+					device('audioinput', 'built-in', ''),
+				],
+			getUserMedia: async (): Promise<MediaStream> => { throw new Error('Automatic onboarding must not acquire a stream'); },
+		});
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(DictationOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => { },
+			previewMicrophone: false,
+			source: 'automatic',
+		}, mediaDevices));
+
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+			override getByteTimeDomainData(): void { }
+		};
+		await banner.refreshMicrophones(analyser);
+		const hiddenWhileUnlabelled = host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden;
+
+		labelled = true;
+		await banner.refreshMicrophones(analyser);
+
+		assert.deepStrictEqual(
+			{
+				hiddenWhileUnlabelled,
+				hiddenAfterLabelled: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				options: Array.from(host.container.querySelectorAll<HTMLOptionElement>('.dictation-onboarding-picker option'), option => option.textContent),
+			},
+			{
+				hiddenWhileUnlabelled: true,
+				hiddenAfterLabelled: false,
+				options: ['Studio Mic (System default)', 'Built-in Mic'],
+			});
+	});
+
 	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);

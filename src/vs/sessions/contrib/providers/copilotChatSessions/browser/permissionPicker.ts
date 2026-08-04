@@ -53,6 +53,9 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly isApplicable?: IObservable<boolean>;
 
+	/** Whether the picker is temporarily unavailable while its backing config resolves. */
+	readonly isResolving?: IObservable<boolean>;
+
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
@@ -223,11 +226,20 @@ export class PermissionPicker extends Disposable {
 			}));
 		}
 
+		const isResolving = this._delegate.isResolving;
+		if (isResolving) {
+			this._renderDisposables.add(autorun(reader => {
+				const resolving = isResolving.read(reader);
+				slot.classList.toggle('resolving', resolving);
+				trigger.setAttribute('aria-disabled', resolving ? 'true' : 'false');
+			}));
+		}
+
 		return slot;
 	}
 
 	showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 
@@ -303,6 +315,10 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
+	}
+
+	protected _isResolving(): boolean {
+		return this._delegate.isResolving?.get() ?? false;
 	}
 
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {

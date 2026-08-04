@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
+import { Schemas } from '../../../../base/common/network.js';
+import { isAbsolute, normalize } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
+import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { SkillMetadata } from './protocol/generated/v2/SkillMetadata.js';
 import type { SkillScope } from './protocol/generated/v2/SkillScope.js';
 import type { SkillsListResponse } from './protocol/generated/v2/SkillsListResponse.js';
@@ -30,6 +35,61 @@ import type { SkillsListResponse } from './protocol/generated/v2/SkillsListRespo
 const CODEX_SKILLS_SCHEME = 'codex-skills';
 /** Synthetic URI scheme for the codex hooks container. */
 const CODEX_HOOKS_SCHEME = 'codex-hooks';
+
+function localFileComparisonKey(resource: URI): { readonly key: string; readonly resource: URI } | undefined {
+	if (resource.scheme !== Schemas.file || !resource.path.startsWith('/') || !isAbsolute(resource.fsPath)) {
+		return undefined;
+	}
+	const normalized = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(URI.file(normalize(resource.fsPath)));
+	return {
+		key: extUriBiasedIgnorePathCase.getComparisonKey(normalized),
+		resource: normalized,
+	};
+}
+
+function capabilityRootId(comparisonKey: string): string {
+	const digest = createHash('sha256')
+		.update('codex-selected-capability-root-v1\0')
+		.update(comparisonKey)
+		.digest('hex');
+	return `codex-selected-capability-root-v1-${digest}`;
+}
+
+/**
+ * Builds the deterministic skill capability roots supplied for secondary workspaces.
+ */
+export function codexSelectedCapabilityRootCandidates(workingDirectories: readonly URI[]): SelectedCapabilityRoot[] {
+	const primaryKey = workingDirectories.length > 0 ? localFileComparisonKey(workingDirectories[0])?.key : undefined;
+	const seenRoots = new Set<string>();
+	const seenCandidates = new Set<string>();
+	const result: SelectedCapabilityRoot[] = [];
+
+	for (const workingDirectory of workingDirectories.slice(1)) {
+		const root = localFileComparisonKey(workingDirectory);
+		if (!root || root.key === primaryKey || seenRoots.has(root.key)) {
+			continue;
+		}
+		seenRoots.add(root.key);
+
+		for (const segments of [['.agents', 'skills'], ['.codex', 'skills']] as const) {
+			const candidate = localFileComparisonKey(URI.joinPath(root.resource, ...segments));
+			if (!candidate || seenCandidates.has(candidate.key)) {
+				continue;
+			}
+			seenCandidates.add(candidate.key);
+			result.push({
+				id: capabilityRootId(candidate.key),
+				location: {
+					type: 'environment',
+					environmentId: 'local',
+					path: candidate.resource.fsPath,
+				},
+			});
+		}
+	}
+
+	return result;
+}
 
 /** Human-facing container name for each {@link SkillScope}. */
 function skillScopeContainerName(scope: SkillScope): string {

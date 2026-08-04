@@ -55,6 +55,7 @@ export class NewChatWidget extends Disposable {
 	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _isInputOnboardingVisible = false;
+	private _isInputNotificationVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -185,6 +186,7 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			getInputOnboardingTipContainer: () => this._chatTipContainer,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -397,7 +399,7 @@ export class NewChatWidget extends Disposable {
 		if (!this._chatTipContainer) {
 			return;
 		}
-		if (this.isInputOnboardingVisible()) {
+		if (this.isChatTipSuppressed()) {
 			this._clearChatTip();
 			return;
 		}
@@ -454,7 +456,20 @@ export class NewChatWidget extends Disposable {
 
 	private setInputOnboardingVisible(visible: boolean): void {
 		this._isInputOnboardingVisible = visible;
-		if (visible) {
+		this.updateChatTipVisibility();
+	}
+
+	private setInputNotificationVisible(visible: boolean): void {
+		this._isInputNotificationVisible = visible;
+		this.updateChatTipVisibility();
+	}
+
+	private isChatTipSuppressed(): boolean {
+		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+	}
+
+	private updateChatTipVisibility(): void {
+		if (this.isChatTipSuppressed()) {
 			this._clearChatTip();
 		} else {
 			this._renderChatTip();

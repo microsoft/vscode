@@ -239,6 +239,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('requires confirmation for sed in-place edits', async () => {
+		const event = shellEvent('sed -i "s/foo/bar/" file.txt', 'bash');
+		assert.deepStrictEqual({
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
+		}, {
+			approval: undefined,
+			ruleResolvable: false,
+		});
+	});
+
 	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
 

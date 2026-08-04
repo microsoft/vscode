@@ -4,8 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 .disable-animations {
-	* {
+	&,
+	*,
+	*::before,
+	*::after {
 		transition: none !important;
 		animation: none !important;
+	}
+}
+
+.component-fixture {
+	&,
+	&::before,
+	&::after,
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
 	}
 }

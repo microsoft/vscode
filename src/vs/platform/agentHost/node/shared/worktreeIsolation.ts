@@ -13,8 +13,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -34,6 +35,8 @@ import { ICopilotApiService } from './copilotApiService.js';
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
+const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
 /** Thrown when a persisted session working directory is missing and cannot be repaired. */
 export class SessionWorkingDirectoryMissingError extends Error {
@@ -93,6 +96,40 @@ export function buildWorktreeAnnouncementText(branchName: string): string {
 		"Created isolated worktree for branch {0}",
 		appendEscapedMarkdownInlineCode(branchName)
 	) + '\n\n';
+}
+
+/** Builds the warning shown when worktree isolation falls back to the original folder. */
+export function buildWorktreeFailureNotification(diagnostic?: string): Extract<ResponsePart, { kind: ResponsePartKind.SystemNotification }> {
+	const normalizedDiagnostic = normalizeWorktreeFailureDiagnostic(diagnostic);
+	const content = normalizedDiagnostic
+		? localize(
+			'agentHost.worktreeCreationFailedWithDiagnostic',
+			"Couldn't create the isolated worktree. This session is continuing in the original folder.\n\n{0}",
+			appendEscapedMarkdownInlineCode(normalizedDiagnostic)
+		)
+		: localize(
+			'agentHost.worktreeCreationFailed',
+			"Couldn't create the isolated worktree. This session is continuing in the original folder."
+		);
+	return {
+		kind: ResponsePartKind.SystemNotification,
+		content,
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+			severity: AgentSystemNotificationSeverity.Warning,
+		}),
+	};
+}
+
+/** Normalizes an arbitrary worktree failure into a bounded single-line diagnostic. */
+export function normalizeWorktreeFailureDiagnostic(diagnostic: string | undefined): string | undefined {
+	const normalized = diagnostic?.replace(/\s+/g, ' ').trim();
+	if (!normalized) {
+		return undefined;
+	}
+	return normalized.length > MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH
+		? `${normalized.slice(0, MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH - 3)}...`
+		: normalized;
 }
 
 /**
@@ -197,6 +234,19 @@ export function prependAnnouncementToFirstTurn(turns: readonly Turn[], announcem
 	return result;
 }
 
+function prependWorktreeFailureToFirstTurn(turns: readonly Turn[], diagnostic: string | undefined): readonly Turn[] {
+	if (turns.length === 0) {
+		return turns;
+	}
+	const result = turns.slice();
+	const first = result[0];
+	result[0] = {
+		...first,
+		responseParts: [buildWorktreeFailureNotification(diagnostic), ...first.responseParts],
+	};
+	return result;
+}
+
 /** Parameters for {@link WorktreeIsolation.resolveIsolationConfig}. */
 export interface IResolveIsolationConfigRequest {
 	readonly workingDirectory: URI | undefined;
@@ -257,9 +307,7 @@ export interface IResolveWorkingDirectoryRequest {
  * - completing branch names for the branch picker ({@link branchCompletions});
  * - creating the worktree on materialization and persisting its metadata
  *   ({@link resolveWorkingDirectory});
- * - surfacing the "Created isolated worktree" announcement live on the first
- *   turn ({@link takePendingAnnouncement}) and on restore
- *   ({@link applyRestoreAnnouncement});
+ * - surfacing worktree creation success/failure notices live and on restore;
  * - cleaning up / recreating the worktree on dispose, archive, and unarchive.
  *
  * A single host-owned instance serves every agent: the orchestrator
@@ -647,21 +695,34 @@ export class WorktreeIsolation extends Disposable {
 		return announcement;
 	}
 
+	async persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			await dbRef.object.setMetadata(WORKTREE_META_CREATION_FAILURE, JSON.stringify({
+				sessionId,
+				diagnostic: normalizeWorktreeFailureDiagnostic(diagnostic),
+			}));
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
 	/**
-	 * Re-injects the worktree announcement into a restored transcript by
-	 * prepending it to the first turn. No-op when the session was not worktree
-	 * isolated. Callers forward the turns returned from their history-read path.
+	 * Re-injects the applicable worktree notice into the first restored turn.
 	 *
 	 * The live path ({@link takePendingAnnouncement}) handles the very first
 	 * turn while the session is fresh; this path takes over on subsequent loads
 	 * (where the synthetic announcement is not part of the agent transcript).
 	 */
 	async applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		const worktreeMeta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
-		if (!worktreeMeta?.branchName) {
+		const notice = await this._readWorktreeNotice(sessionUri).catch(() => undefined);
+		if (notice?.kind === 'failure') {
+			return prependWorktreeFailureToFirstTurn(turns, notice.diagnostic);
+		}
+		if (notice?.kind !== 'success') {
 			return turns;
 		}
-		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(worktreeMeta.branchName));
+		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(notice.branchName));
 	}
 
 	/**
@@ -891,6 +952,7 @@ export class WorktreeIsolation extends Disposable {
 		if (!ref) {
 			return undefined;
 		}
+
 		try {
 			const [branchName, worktreePathRaw, repositoryRootRaw] = await Promise.all([
 				ref.object.getMetadata(WORKTREE_META_BRANCH),
@@ -915,6 +977,39 @@ export class WorktreeIsolation extends Disposable {
 				}
 			}
 			return { branchName, worktreePath, repositoryRoot };
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _readWorktreeNotice(sessionUri: URI): Promise<{ kind: 'success'; branchName: string } | { kind: 'failure'; diagnostic?: string } | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const [branchName, failureRaw] = await Promise.all([
+				ref.object.getMetadata(WORKTREE_META_BRANCH),
+				ref.object.getMetadata(WORKTREE_META_CREATION_FAILURE),
+			]);
+			if (branchName) {
+				return { kind: 'success', branchName };
+			}
+			if (!failureRaw) {
+				return undefined;
+			}
+			const failure = JSON.parse(failureRaw);
+			if (!failure || typeof failure !== 'object' || Array.isArray(failure)) {
+				return undefined;
+			}
+			const raw = failure as Record<string, unknown>;
+			if (raw['sessionId'] !== AgentSession.id(sessionUri)) {
+				return undefined;
+			}
+			return {
+				kind: 'failure',
+				diagnostic: typeof raw['diagnostic'] === 'string' ? normalizeWorktreeFailureDiagnostic(raw['diagnostic']) : undefined,
+			};
 		} finally {
 			ref.dispose();
 		}

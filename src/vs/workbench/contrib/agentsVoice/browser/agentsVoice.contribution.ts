@@ -21,6 +21,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -52,10 +53,13 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
 import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
 import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 // --- Context Keys ---
 
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
+const AGENTS_VOICE_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
+const VOICE_ACTIVE_ON_SURFACE = ContextKeyExpr.or(IsSessionsWindowContext.negate(), AGENTS_VOICE_INITIATED_HERE)!;
 
 // --- Context Key Binding ---
 
@@ -168,6 +172,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
 				order: -10
@@ -229,6 +234,23 @@ registerAction2(class extends Action2 {
 		// invoked without a held key (toolbar mic button / command palette).
 		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.startVoiceInChat');
 
+		// An explicit press in another composer transfers Voice Mode ownership to
+		// that composer. The draft sentinel deliberately clears the concrete target.
+		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		if (currentSession) {
+			try {
+				const resource = URI.parse(currentSession);
+				if (resource.scheme === 'sessions-voice') {
+					voiceController.setDraftTarget();
+				} else {
+					voiceController.setTargetSession(resource);
+					voiceController.activateSession(resource);
+				}
+			} catch {
+				// The routing command owns validation; leave the current target unchanged.
+			}
+		}
+
 		// Ensure the session is connected before we start recording. The mic
 		// button's first press connects; a held keybinding also connects here so
 		// that press-and-hold works on the very first invocation. If the user
@@ -283,6 +305,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
 				order: -10
@@ -323,6 +346,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 					// The segmented voice pill's voice cell is itself the on/off toggle,
 					// so a separate disconnect button would be redundant there.
 					SegmentedVoiceInputModePillInactive,
@@ -340,6 +364,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 					// Don't disconnect voice while a request is running — pressing
 					// Escape there is meant to interrupt/cancel that request, not
 					// tear down the voice session (which is especially disruptive

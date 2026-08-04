@@ -18,6 +18,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession } from '../../common/agentService.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
@@ -210,7 +211,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._applyChanges(resource, bridge.changes, undefined, edit.beforeText);
 		}
 
-		const provider = AgentSession.provider(edit.sessionUri) ?? 'unknown';
+		const providerSessionUri = isAhpChatChannel(edit.sessionUri) ? parseRequiredSessionUriFromChatUri(edit.sessionUri) : edit.sessionUri;
+		const provider = AgentSession.provider(providerSessionUri) ?? 'unknown';
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
 		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		let source = resource.sources.get(sourceKey);

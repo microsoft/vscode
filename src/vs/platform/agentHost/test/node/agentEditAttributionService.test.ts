@@ -17,6 +17,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest } from '../../common/fileEditAttribution.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentEditAttributionService } from '../../node/shared/agentEditAttributionService.js';
 import { computeDiffCounts } from '../../node/diffWorkerMain.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
@@ -46,7 +47,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
 
 		const marker = await service.recordEdit({
-			sessionUri: 'copilot:/session-1',
+			sessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -59,7 +60,7 @@ suite('Agent Edit Attribution Service', () => {
 			modelId: 'model',
 			toolName: 'edit',
 		});
-		await service.flushSession('copilot:/session-1');
+		await service.flushSession('copilotcli:/session-1');
 		const acknowledged = await service.prepareFlush({
 			resource,
 			trigger: 'closed',
@@ -84,6 +85,8 @@ suite('Agent Edit Attribution Service', () => {
 			events: events.map(event => ({
 				eventName: event.eventName,
 				sourceKey: event.data.sourceKey,
+				sourceKeyCleaned: event.data.sourceKeyCleaned,
+				conversationId: event.data.conversationId,
 				modifiedCount: event.data.modifiedCount,
 				deltaModifiedCount: event.data.deltaModifiedCount,
 				totalModifiedCount: event.data.totalModifiedCount,
@@ -104,12 +107,14 @@ suite('Agent Edit Attribution Service', () => {
 			},
 			events: [{
 				eventName: 'editTelemetry.editSources.details',
-				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilot-$origin:agentHost',
+				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
+				sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+				conversationId: 'session-1',
 				modifiedCount: 2,
 				deltaModifiedCount: 2,
 				totalModifiedCount: 2,
 				origin: 'agentHost',
-				harness: 'copilot',
+				harness: 'copilotcli',
 			}],
 			acknowledged: {
 				agentModifiedCount: 2,
@@ -118,6 +123,91 @@ suite('Agent Edit Attribution Service', () => {
 					agentModifiedCount: 2,
 				},
 			},
+		});
+	});
+
+	test('normalizes ahp chat harness without coalescing chat resources', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const copilotResource = URI.file('/workspace/copilot.ts');
+		const claudeResource = URI.file('/workspace/claude.ts');
+		await fileService.writeFile(copilotResource, VSBuffer.fromString('ab'));
+		await fileService.writeFile(claudeResource, VSBuffer.fromString('ab'));
+
+		const events: Record<string, string | number | undefined>[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(_eventName, data) {
+				events.push(data as Record<string, string | number | undefined>);
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		const copilotSessionUri = 'copilotcli:/session-1';
+		const copilotDefaultChatUri = buildDefaultChatUri(copilotSessionUri);
+		const copilotPeerChatUri = buildChatUri(copilotSessionUri, 'peer');
+		const claudeChatUri = buildChatUri('claude:/session-2', 'peer');
+
+		for (const edit of [
+			{ sessionUri: copilotDefaultChatUri, turnId: 'turn-default', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
+			{ sessionUri: copilotPeerChatUri, turnId: 'turn-peer', filePath: copilotResource.fsPath, modelId: 'copilot-model' },
+			{ sessionUri: claudeChatUri, turnId: 'turn-claude', filePath: claudeResource.fsPath, modelId: 'claude-model' },
+		]) {
+			await service.recordEdit({
+				...edit,
+				toolCallId: `tool-${edit.turnId}`,
+				beforeText: 'a',
+				afterText: 'ab',
+				changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+				toolName: 'edit',
+			});
+		}
+
+		await service.flushSession(copilotDefaultChatUri);
+		const afterDefaultChatFlush = events.length;
+		await service.flushSession(copilotPeerChatUri);
+		const afterPeerChatFlush = events.length;
+		await service.flushSession(claudeChatUri);
+
+		assert.deepStrictEqual({
+			afterDefaultChatFlush,
+			afterPeerChatFlush,
+			events: events.map(event => ({
+				sourceKey: event.sourceKey,
+				sourceKeyCleaned: event.sourceKeyCleaned,
+				conversationId: event.conversationId,
+				requestId: event.requestId,
+				harness: event.harness,
+			})),
+		}, {
+			afterDefaultChatFlush: 1,
+			afterPeerChatFlush: 2,
+			events: [
+				{
+					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
+					requestId: 'turn-default',
+					harness: 'copilotcli',
+				},
+				{
+					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
+					requestId: 'turn-peer',
+					harness: 'copilotcli',
+				},
+				{
+					sourceKey: 'source:Chat.applyEdits-$modelId:claude-model-$harness:claude-$origin:agentHost',
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:claude-$origin:agentHost',
+					conversationId: 'Y2xhdWRlOi9zZXNzaW9uLTI',
+					requestId: 'turn-claude',
+					harness: 'claude',
+				},
+			],
 		});
 	});
 

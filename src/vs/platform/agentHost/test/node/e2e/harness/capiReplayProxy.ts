@@ -40,7 +40,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
-import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
 import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
@@ -698,8 +698,8 @@ export class CapiReplayProxy {
 				if (block.type !== 'tool_use') {
 					continue;
 				}
-				const command = (block.input as { command?: unknown } | undefined)?.command;
-				if (typeof command === 'string' && command) {
+				const command = getRecordedShellCommand(block.input as { command?: unknown; cmd?: unknown } | undefined);
+				if (command) {
 					commands.push({ command, toolName: block.name });
 				}
 			}

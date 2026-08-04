@@ -68,6 +68,7 @@ export interface IChatInputNotificationDelegate {
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
+	readonly onDidChangeVisibility?: (visible: boolean) => void;
 }
 
 /**
@@ -83,6 +84,7 @@ export class ChatInputNotificationWidget extends Disposable {
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 	private _modelTargetChatSessionType: string | undefined;
 	private _sessionResource: URI | undefined;
+	private _visible = false;
 
 	constructor(
 		private readonly _delegate: IChatInputNotificationDelegate | undefined,
@@ -110,6 +112,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		this._setVisible(!!notification);
 		// Announce what this chat input actually renders, so session-scoped
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
@@ -122,6 +125,15 @@ export class ChatInputNotificationWidget extends Disposable {
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
+	}
+
+	private _setVisible(visible: boolean): void {
+		if (this._visible === visible) {
+			return;
+		}
+
+		this._visible = visible;
+		this._delegate?.onDidChangeVisibility?.(visible);
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {

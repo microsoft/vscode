@@ -317,7 +317,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
-	test('autoModeRouterDecision maps the SDK Hydra and binary score shapes without inventing unavailable fields', () => {
+	test('autoModeRouterDecision maps authoritative SDK router fields and score shapes without deriving values', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
@@ -330,6 +330,15 @@ suite('AgentHostTelemetryReporter', () => {
 			confidence: 0.9,
 			candidateModels: ['gpt-5', 'gpt-4.1'],
 			categoryScores: { reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 },
+			routingMethod: 'hydra',
+			availableModels: ['gpt-5', 'gpt-4.1', 'gpt-5-mini'],
+			fallback: false,
+			fallbackReason: 'not-needed',
+			stickyOverride: true,
+			routerLatencyMs: 25,
+			endToEndLatencyMs: 40,
+			chosenShortfall: 0.05,
+			hasImage: true,
 		});
 		reporter.autoModeRouterDecision({
 			session,
@@ -340,6 +349,15 @@ suite('AgentHostTelemetryReporter', () => {
 			confidence: undefined,
 			candidateModels: undefined,
 			categoryScores: { needs_reasoning: 0.2, no_reasoning: 0.8 },
+			routingMethod: undefined,
+			availableModels: undefined,
+			fallback: undefined,
+			fallbackReason: undefined,
+			stickyOverride: undefined,
+			routerLatencyMs: undefined,
+			endToEndLatencyMs: undefined,
+			chosenShortfall: undefined,
+			hasImage: undefined,
 		});
 
 		assert.deepStrictEqual({ events: service.enhancedEvents, measurements: service.enhancedMeasurements }, {
@@ -350,9 +368,15 @@ suite('AgentHostTelemetryReporter', () => {
 					vscodeRequestId: 'turn-hydra',
 					initiatorClientType: 'editor_window',
 					predictedLabel: 'high',
+					routingMethod: 'hydra',
+					fallback: 'false',
+					fallbackReason: 'not-needed',
 					candidateModel: 'gpt-5',
 					chosenModel: 'gpt-5',
 					candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+					availableModels: JSON.stringify(['gpt-5', 'gpt-4.1', 'gpt-5-mini']),
+					stickyOverrideStr: 'true',
+					hasImage: 'true',
 					hydraScores: JSON.stringify({ reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 }),
 				},
 			}, {
@@ -368,7 +392,7 @@ suite('AgentHostTelemetryReporter', () => {
 					binaryScores: JSON.stringify({ needs_reasoning: 0.2, no_reasoning: 0.8 }),
 				},
 			}],
-			measurements: [{ confidence: 0.9 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
+			measurements: [{ confidence: 0.9, latencyMs: 25, e2eLatencyMs: 40, stickyOverride: 1, chosenShortfall: 0.05 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
 		});
 	});
 

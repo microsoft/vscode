@@ -6,6 +6,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,10 +19,13 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import {
 	makeContentBlockStartText,
@@ -38,7 +42,25 @@ interface IRouterHarness {
 	readonly fileService: FileService;
 }
 
-function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness {
+class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
+	readonly recordedSessionUris: string[] = [];
+	readonly flushedSessionUris: string[] = [];
+
+	override async recordEdit(edit: IAgentEditAttribution) {
+		this.recordedSessionUris.push(edit.sessionUri);
+		return undefined;
+	}
+
+	override async flushSession(sessionUri: string): Promise<void> {
+		this.flushedSessionUris.push(sessionUri);
+	}
+}
+
+function createRouter(
+	disposables: Pick<DisposableStore, 'add'>,
+	chatChannelUri = URI.parse(buildDefaultChatUri('claude:/sess-1')),
+	attributionService = new NullAgentEditAttributionService(),
+): IRouterHarness {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
@@ -50,13 +72,16 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
 		[IDiffComputeService, createZeroDiffComputeService()],
+		[IAgentEditAttributionService, attributionService],
+		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
+		[IEditArcReporterService, new NullEditArcReporterService()],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		URI.parse('claude:/sess-1'),
-		URI.parse(buildDefaultChatUri('claude:/sess-1')),
+		chatChannelUri,
 		dbRef,
 		subagents,
 		undefined,
@@ -64,6 +89,14 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
 	return { router, signals, fileService };
+}
+
+function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
+	return { type: 'assistant', message: { content } } as Extract<SDKMessage, { type: 'assistant' }>;
+}
+
+function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
+	return { type: 'user', message: { content } } as Extract<SDKMessage, { type: 'user' }>;
 }
 
 suite('ClaudeSdkMessageRouter', () => {
@@ -100,5 +133,30 @@ suite('ClaudeSdkMessageRouter', () => {
 		const p1 = router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		assert.ok(p1 instanceof Promise);
 		await p1;
+	});
+
+	test('tracks and flushes peer chat edits by their chat channel URI', async () => {
+		const chatChannelUri = URI.parse(buildChatUri('claude:/sess-1', 'peer'));
+		const attributionService = new RecordingAgentEditAttributionService();
+		const { router, fileService } = createRouter(disposables, chatChannelUri, attributionService);
+		const file = URI.file('/work/a.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'tu-1', name: 'Write', input: { file_path: file.fsPath, content: 'after' } },
+		]), 'turn-1');
+		await fileService.writeFile(file, VSBuffer.fromString('after'));
+		await router.handle(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-1', content: 'ok' },
+		]), 'turn-1');
+		router.dispose();
+
+		assert.deepStrictEqual({
+			recordedSessionUris: attributionService.recordedSessionUris,
+			flushedSessionUris: attributionService.flushedSessionUris,
+		}, {
+			recordedSessionUris: [chatChannelUri.toString()],
+			flushedSessionUris: [chatChannelUri.toString()],
+		});
 	});
 });

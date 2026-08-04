@@ -81,7 +81,7 @@ import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, IL
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -937,7 +937,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
-		const backendSession = this._resolveSessionUri(sessionResource);
+		let backendSession: URI;
+		if (isUntitledChatSession(sessionResource)) {
+			// Provisional URIs are opaque; wait for the current generation instead of deriving one.
+			const provisionalSession = await raceCancellation(this._provisionalService.waitForPending(sessionResource), token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			if (!provisionalSession) {
+				return undefined;
+			}
+			backendSession = provisionalSession;
+		} else {
+			backendSession = this._resolveSessionUri(sessionResource);
+		}
 		// Note: we don't forward `token` across IPC \u2014 cancellation tokens
 		// don't round-trip through the proxy channel today. The post-await
 		// `isCancellationRequested` check below is enough to drop a stale
@@ -1151,6 +1164,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								this._config.connectionAuthority,
 								sessionResource.authority,
 								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
+								lookup,
 							);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
@@ -1369,9 +1383,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 
 		try {
-			const resolvedSession = this._resolveSessionUri(request.sessionResource);
-			const sessionKey = resolvedSession.toString();
-
 			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session
 			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
@@ -1382,6 +1393,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
+			const resolvedSession = this._resolveSessionUri(request.sessionResource);
+			const sessionKey = resolvedSession.toString();
 			const provisionalBackend = this._provisionalService.get(request.sessionResource);
 			if (provisionalBackend) {
 				this._ensureSessionSubscription(sessionKey);
@@ -2282,7 +2295,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					case ResponsePartKind.SystemNotification:
 						// System notifications don't have an id, so we have to identify it by index
 						if (responseParts$.get().indexOf(initial) >= (opts.initialResponsePartCount ?? 0) && opts.subAgentInvocationId === undefined) {
-							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority);
+							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
 							if (progress) {
 								opts.sink([progress]);
 							}
@@ -2373,7 +2386,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// calls plus every subagent's calls (the agent host folds
 				// subagent usage into the parent turn under scope `''`), so it is
 				// emitted as-is — no separate re-aggregation of subagent credits.
-				const usage = usageInfoToChatUsage(rawUsage);
+				const usage = usageInfoToChatUsage(rawUsage, modelLookup.toModelDisplayName);
 				if (!usage) {
 					return;
 				}
@@ -2389,11 +2402,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
-					// The session total moves independently of this turn's own cost —
-					// it also covers work billed while no turn was active — so it has
-					// to be compared, or a session-cost update would be dropped here.
 					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
-					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
+					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)
+					// A subagent's call leaves the parent's own token counts unchanged, so
+					// without comparing the whole-turn totals its contribution never lands.
+					&& equals(lastUsage.modelTotals, usage.modelTotals)) {
 					return;
 				}
 				lastUsage = usage;
@@ -3933,13 +3946,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const isActive = !!state.activeTurn;
 				if (parentInvocation.toolSpecificData?.kind === 'subagent') {
 					const timing = getSubagentTiming(state);
+					const lastResponsePart = state.activeTurn?.responseParts.at(-1);
+					const activity = lastResponsePart?.kind === ResponsePartKind.Markdown
+						? 'markdown'
+						: lastResponsePart?.kind === ResponsePartKind.Reasoning
+							? 'reasoning'
+							: undefined;
 					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
 					if (parentInvocation.toolSpecificData.isActive !== isActive
+						|| parentInvocation.toolSpecificData.activity !== activity
 						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
 						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
 						parentInvocation.toolSpecificData.isActive = isActive;
+						if (activity) {
+							parentInvocation.toolSpecificData.activity = activity;
+						} else {
+							delete parentInvocation.toolSpecificData.activity;
+						}
 						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
 						parentInvocation.toolSpecificData.duration = fallbackDuration;
 						parentInvocation.notifyToolSpecificDataChanged();
@@ -4126,6 +4151,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Maps a UI session resource to a backend provider URI. */
 	private _resolveSessionUri(sessionResource: URI): URI {
+		const provisionalSession = this._provisionalService.get(sessionResource);
+		if (provisionalSession) {
+			return provisionalSession;
+		}
 		const rawId = sessionResource.path.substring(1);
 		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
 	}
@@ -4235,6 +4264,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
+				_meta: this._provisionalService.getInitialSessionMetadata(),
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -4254,6 +4284,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
+						_meta: this._provisionalService.getInitialSessionMetadata(),
 						model,
 						provider: this._config.provider,
 						workingDirectories,
@@ -4621,16 +4652,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
-		// Try the raw billed id, its dots-normalised form (slug mismatch: `claude-sonnet-4-6` → `.6`),
-		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
-		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
-		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+		// Try the raw billed id and its dots-normalised form (slug mismatch:
+		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
+		const lookupRawModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
 			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
 			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
 				if (model) { return { identifier: modelId, model, resolvedFromRaw: true }; }
+			}
+			return undefined;
+		};
+		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			const rawModel = lookupRawModel(rawModelId);
+			if (rawModel) {
+				return rawModel;
 			}
 			const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
 			if (fallbackModelId) {
@@ -4641,6 +4678,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
+			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
 				const resolved = lookupModel(rawModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so

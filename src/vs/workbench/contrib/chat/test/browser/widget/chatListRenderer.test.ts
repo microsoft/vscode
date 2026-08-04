@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithCompletedQuestionInteraction, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -333,6 +333,42 @@ suite('ChatListRenderer', () => {
 				compact: '1 day',
 				alternateEndsWithElapsed: true,
 				hasAlternate: true,
+			});
+		});
+
+		test('summarizes per-model token usage for the footer stat hover', () => {
+			const stats = formatResponseTokenStats([
+				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
+				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			]);
+
+			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
+				markdown: '**Tokens used this turn**\n\nClaude Opus 4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
+				ariaLabel: 'Tokens used this turn. Claude Opus 4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+			});
+		});
+
+		test('reports no token usage summary when the provider reported none', () => {
+			assert.deepStrictEqual([
+				formatResponseTokenStats(undefined),
+				formatResponseTokenStats([]),
+			], [
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('folds the token usage summary into the footer accessible name', () => {
+			const container = document.createElement('div');
+			const withStats = 'Tokens used this turn. gpt-5.5: 40 input tokens, 12 output tokens';
+
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, withStats);
+			const included = container.ariaLabel;
+
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false);
+			assert.deepStrictEqual({ included, omitted: container.ariaLabel }, {
+				included: `GPT-5.5 • 2 credits, ${withStats}`,
+				omitted: 'GPT-5.5 • 2 credits',
 			});
 		});
 	});
@@ -747,7 +783,7 @@ suite('ChatListRenderer', () => {
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 			isComplete: true,
 			presentation: undefined,
-			toolSpecificData: { kind: 'subagent', description: 'Investigate' },
+			toolSpecificData: { kind: 'subagent', description: 'Investigate', isActive: true },
 		};
 		const childTool: IChatToolInvocationSerialized = {
 			...parentSubagent,
@@ -766,17 +802,20 @@ suite('ChatListRenderer', () => {
 
 		assert.deepStrictEqual({
 			relevantParts: getWorkingProgressRelevantParts(parts).map(part => part.kind),
-			endsWithTaggedMarkdown: endsWithSubagentContent(parts.slice(0, 4)),
-			endsWithSubagentHook: endsWithSubagentContent(parts),
-			endsWithSubagentChildTool: endsWithSubagentContent(parts.slice(0, 3)),
-			endsWithParentSubagentTool: endsWithSubagentContent(parts.slice(0, 2)),
+			endsWithTaggedMarkdown: endsWithActiveSubagentContent(parts.slice(0, 4)),
+			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
+			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
+			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
 		}, {
 			relevantParts: ['references'],
-			endsWithTaggedMarkdown: false,
-			endsWithSubagentHook: false,
-			endsWithSubagentChildTool: false,
+			endsWithTaggedMarkdown: true,
+			endsWithSubagentHook: true,
+			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
 		});
+
+		parentSubagent.toolSpecificData = { kind: 'subagent', description: 'Investigate', isActive: false };
+		assert.strictEqual(endsWithActiveSubagentContent(parts), false);
 	});
 
 	test('working progress is hidden while MCP servers are starting', () => {

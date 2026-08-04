@@ -109,6 +109,35 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
 	});
 
+	test('reports visibility changes when a notification is shown and hidden', () => {
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);
+		const visibilityChanges: boolean[] = [];
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		store.add(instantiationService.createInstance(ChatInputNotificationWidget, {
+			modelTargetChatSessionType: currentSessionType,
+			onDidChangeVisibility: visible => visibilityChanges.push(visible),
+		}));
+
+		notificationService.setNotification({
+			id: 'local-only',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Local only',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			sessionTypes: [localChatSessionType],
+		});
+		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
+
+		assert.deepStrictEqual(visibilityChanges, [true, false]);
+	});
+
 	test('reactively applies session resource filter when the session changes', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');

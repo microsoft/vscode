@@ -32,7 +32,7 @@ import { AgentHostSessionConfigPicker, IConfigPickerItem } from '../../../browse
 const SESSION_ID = 'local-agent-host:s1';
 
 /** A config exposing the two shared repo-config chips (isolation + branch). */
-function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
+function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' = 'worktree'): ResolveSessionConfigResult {
 	return {
 		schema: {
 			type: 'object',
@@ -48,7 +48,7 @@ function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
 				},
 			},
 		},
-		values: { [SessionConfigKey.Isolation]: 'worktree', ...(branchValue ? { [SessionConfigKey.Branch]: branchValue } : {}) },
+		values: { [SessionConfigKey.Isolation]: isolation, ...(branchValue ? { [SessionConfigKey.Branch]: branchValue } : {}) },
 	} as ResolveSessionConfigResult;
 }
 
@@ -252,15 +252,73 @@ suite('Agent Host Session Config Picker', () => {
 		const second = renderPicker(store, services);
 		assert.ok(isolationSlot(second.container), 'isolation visible on a freshly created picker');
 		assert.ok(branchSlot(second.container), 'branch visible on a freshly created picker');
-		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), true, 'isolation disabled while resolving');
-		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), true, 'branch disabled while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('resolving'), true, 'isolation blocks interaction without dimming while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation keeps its normal presentation while resolving');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), true, 'branch blocks interaction without dimming while resolving');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch keeps its normal presentation while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'), 'true');
 		assert.strictEqual(branchSlot(second.container)!.querySelector('a.action-label')?.getAttribute('aria-disabled'), 'true');
 
 		// Resolve lands → chips re-enable and reflect the resolved value.
 		provider.set(makeRepoConfig('dev'), false);
-		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation re-enables after resolve');
-		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch re-enables after resolve');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('resolving'), false, 'isolation re-enables after resolve');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), false, 'branch re-enables after resolve');
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
+	});
+
+	test('keeps the isolation checkbox node and focus stable while config resolves', () => {
+		const services = setupServices(store);
+		const { provider } = services;
+		provider.set(makeRepoConfig('main'), false);
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add({ dispose: () => container.remove() });
+
+		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		checkbox.focus();
+		provider.set(makeRepoConfig('main', 'folder'), true);
+		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingState = {
+			sameNode: resolvingCheckbox === checkbox,
+			focused: document.activeElement === checkbox,
+			checked: resolvingCheckbox.getAttribute('aria-checked'),
+			disabled: resolvingCheckbox.getAttribute('aria-disabled'),
+			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
+			resolving: isolationSlot(container)!.classList.contains('resolving'),
+			dimmed: isolationSlot(container)!.classList.contains('disabled'),
+		};
+
+		provider.set(makeRepoConfig('main', 'folder'), false);
+		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		assert.deepStrictEqual({
+			resolving: resolvingState,
+			resolved: {
+				sameNode: resolvedCheckbox === checkbox,
+				focused: document.activeElement === checkbox,
+				checked: resolvedCheckbox.getAttribute('aria-checked'),
+				disabled: resolvedCheckbox.getAttribute('aria-disabled'),
+				resolving: isolationSlot(container)!.classList.contains('resolving'),
+				count: container.querySelectorAll('.sessions-chat-isolation-checkbox').length,
+			},
+		}, {
+			resolving: {
+				sameNode: true,
+				focused: true,
+				checked: 'false',
+				disabled: 'true',
+				disabledPalette: false,
+				resolving: true,
+				dimmed: false,
+			},
+			resolved: {
+				sameNode: true,
+				focused: true,
+				checked: 'false',
+				disabled: 'false',
+				resolving: false,
+				count: 1,
+			},
+		});
 	});
 
 	test('branch picker keeps the display label for a dynamic (enumDynamic) selection, not just the persisted value', async () => {

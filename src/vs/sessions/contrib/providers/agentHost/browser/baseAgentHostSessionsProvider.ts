@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -106,6 +106,7 @@ interface ISerializedSessionMetadata {
 	 * host's scratch dir as a workspace folder until the next listing arrives.
 	 */
 	readonly workspaceless?: boolean;
+	readonly multiRoot?: ISessionMultiRootMetadata;
 }
 
 /**
@@ -125,11 +126,14 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
+		multiRoot: readSessionMultiRootMetadata(meta._meta),
 	};
 }
 
 function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
 	try {
+		let _meta = withSessionWorkspaceless(undefined, raw.workspaceless === true);
+		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		return {
 			session: URI.parse(raw.session),
 			startTime: raw.startTime,
@@ -138,7 +142,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
-			...(raw.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
+			...(_meta ? { _meta } : {}),
 		};
 	} catch {
 		return undefined;
@@ -1456,6 +1460,7 @@ class NewSession extends Disposable {
 	 * cached values are usable.
 	 */
 	private _config: ResolveSessionConfigResult | undefined = { schema: { type: 'object', properties: {} }, values: {} };
+	private _configResolution: Promise<void> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -1627,6 +1632,27 @@ class NewSession extends Disposable {
 
 	getConfig(): ResolveSessionConfigResult | undefined { return this._config; }
 	getConfigValues(): Record<string, unknown> | undefined { return this._config?.values; }
+
+	trackConfigResolution(promise: Promise<void>): Promise<void> {
+		this._configResolution = promise;
+		void promise.then(
+			() => this._clearConfigResolution(promise),
+			() => this._clearConfigResolution(promise),
+		);
+		return promise;
+	}
+
+	async waitForConfigResolution(): Promise<void> {
+		while (this._configResolution) {
+			await raceCancellationError(this._configResolution, this.cancellationToken);
+		}
+	}
+
+	private _clearConfigResolution(promise: Promise<void>): void {
+		if (this._configResolution === promise) {
+			this._configResolution = undefined;
+		}
+	}
 
 	/**
 	 * Optimistically merges a single property into the cached config.
@@ -2568,7 +2594,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
-		void this._refreshNewSessionConfig(newSession);
+		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick
@@ -2599,12 +2625,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * Re-resolve the session config against the agent host and pulse
-	 * {@link _onDidChangeSessionConfig}. The {@link NewSession} owns its own
-	 * stale-request guard so back-to-back calls are safe.
-	 * @param expected Normalized values that must be present after resolution; mismatches and incomplete application reject.
+	 * Re-resolves session config and pulses {@link _onDidChangeSessionConfig}.
+	 * Expected values are validated after strict resolutions.
 	 */
-	private async _refreshNewSessionConfig(session: NewSession, expected?: Readonly<Record<string, unknown>>): Promise<void> {
+	private async _refreshNewSessionConfig(session: NewSession, options: {
+		readonly expected?: Readonly<Record<string, unknown>>;
+		readonly markSessionLoading?: boolean;
+	} = {}): Promise<void> {
+		const { expected, markSessionLoading } = options;
 		const connection = this.connection;
 		if (!connection) {
 			// {@link resolveConfig} (the only other clear path) is skipped
@@ -2618,7 +2646,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			return;
 		}
-		session.setLoading(true);
+		if (markSessionLoading) {
+			session.setLoading(true);
+		}
 		let applied: boolean;
 		try {
 			applied = await session.resolveConfig(connection, !!expected);
@@ -2820,10 +2850,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
-		// New session: re-resolve the full config schema. Flip the
-		// resolving flag and `loading` *before* firing the change event
-		// so the first picker re-render already observes the in-flight
-		// state.
+		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			// Defense-in-depth: pickers render disabled during a resolve,
@@ -2833,10 +2860,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 			newSession.beginResolveConfigSync();
-			newSession.setLoading(true);
 			newSession.setConfigValue(property, normalizedValue);
 			this._onDidChangeSessionConfig.fire(sessionId);
-			await this._refreshNewSessionConfig(newSession);
+			await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession));
 			return;
 		}
 
@@ -2990,10 +3016,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		newSession.beginResolveConfigSync();
-		newSession.setLoading(true);
 		newSession.setConfigValue(property, value);
 		this._onDidChangeSessionConfig.fire(sessionId);
-		await this._refreshNewSessionConfig(newSession, { [property]: value });
+		await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { expected: { [property]: value } }));
 	}
 
 	clearSessionConfig(sessionId: string): void {
@@ -3738,8 +3763,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private async _sendNewSessionRequest(newSession: NewSession, chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
-		const connection = this.connection;
-		if (!connection) {
+		if (!this.connection) {
+			throw new Error(this._notConnectedSendErrorMessage());
+		}
+		await newSession.waitForConfigResolution();
+		if (this._getNewSession(newSession.sessionId) !== newSession) {
+			throw new Error('Session was disposed before its configuration could be applied.');
+		}
+		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 

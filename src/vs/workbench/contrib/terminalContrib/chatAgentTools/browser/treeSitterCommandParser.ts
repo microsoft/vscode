@@ -11,8 +11,8 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { SedFileWriteParser } from '../../../../../platform/terminal/common/autoApprove/sedFileWriteParser.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
-import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',

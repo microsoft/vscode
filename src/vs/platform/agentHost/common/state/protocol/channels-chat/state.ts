@@ -393,6 +393,17 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
+ * Why the agent requested chat input.
+ *
+ * @category Chat Input Types
+ */
+export const enum ChatInputRequestPurpose {
+	AskUser = 'askUser',
+	Elicitation = 'elicitation',
+	PlanReview = 'planReview',
+}
+
+/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -404,6 +415,8 @@ export type ChatInputQuestion = ChatInputTextQuestion
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
+	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
+	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
