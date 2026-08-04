@@ -169,6 +169,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
+	const logService = accessor.get(ILogService);
 
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
 		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
@@ -233,8 +234,12 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? reasoningEffort
 				?? defaultEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
-				effort = candidateEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (!declaredLevels || declaredLevels.includes(candidateEffort)) {
+					effort = candidateEffort;
+				} else {
+					logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${endpoint.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
 		}
 	}
@@ -244,7 +249,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 
-	const logService = accessor.get(ILogService);
 	const telemetryService = accessor.get(ITelemetryService);
 	// TODO: Ideally the custom tool_search tool should filter results itself, but it doesn't
 	// have access to the enabled tools for the request. For now, filter tool_reference blocks

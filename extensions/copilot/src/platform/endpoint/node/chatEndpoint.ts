@@ -194,7 +194,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IChatWebSocketManager private readonly _chatWebSocketService: IChatWebSocketManager,
-		@ILogService _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		// This metadata should always be present, but if not we will default to 8192 tokens
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
@@ -436,8 +436,12 @@ export class ChatEndpoint implements IChatEndpoint {
 		if (declaredLevels) {
 			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? options.modelCapabilities?.reasoningEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
-				body.reasoning_effort = candidateEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (declaredLevels.includes(candidateEffort)) {
+					body.reasoning_effort = candidateEffort;
+				} else {
+					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
 		}
 
