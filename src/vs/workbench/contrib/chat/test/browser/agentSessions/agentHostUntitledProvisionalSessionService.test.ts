@@ -360,10 +360,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		// Dispatch should have happened before the promise resolves (re-resolve
 		// is still blocked).
-		assert.strictEqual(agentHost.dispatched.length, 1, 'dispatched before re-resolve await');
-		assert.strictEqual(agentHost.dispatched[0].type, ActionType.SessionConfigChanged);
-		assert.deepStrictEqual(agentHost.dispatched[0].config, { isolation: 'worktree' });
-		assert.strictEqual(agentHost.dispatched[0].channel, agentHost.createCalls[0].session?.toString());
+		const configChanged = agentHost.dispatched.filter(action => action.type === ActionType.SessionConfigChanged);
+		assert.strictEqual(configChanged.length, 1, 'dispatched before re-resolve await');
+		assert.deepStrictEqual(configChanged[0].config, { isolation: 'worktree' });
+		assert.strictEqual(configChanged[0].channel, agentHost.createCalls[0].session?.toString());
 
 		// Unblock so the queued re-resolve completes and the outer promise settles.
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
