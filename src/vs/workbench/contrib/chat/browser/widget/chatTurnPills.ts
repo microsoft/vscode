@@ -100,6 +100,29 @@ export async function openChatTurnFile(file: IPreviewFile, openerService: IOpene
 	});
 }
 
+/**
+ * Row actions for the expanded turn-changes file list.
+ * Previewable markdown files get an icon-only Preview action (`Codicon.openPreview`).
+ */
+export function createTurnChangesPreviewActions(
+	modifiedURI: URI,
+	originalURI: URI,
+	openerService: IOpenerService,
+	configurationService: IConfigurationService,
+): IAction[] {
+	const kind = previewKind(modifiedURI);
+	if (!kind) {
+		return [];
+	}
+	const file: IPreviewFile = { uri: modifiedURI, kind, created: isEqual(originalURI, modifiedURI) };
+	return [toAction({
+		id: 'chat.turnChanges.previewFile',
+		label: localize('chat.turnChanges.preview', "Preview"),
+		class: ThemeIcon.asClassName(Codicon.openPreview),
+		run: () => openChatTurnFile(file, openerService, configurationService),
+	})];
+}
+
 /** The data and interactions a {@link ChatTurnPillsWidget} reflects. */
 export interface IChatTurnPillsModel {
 	readonly stats: IObservable<IDiffStats>;
