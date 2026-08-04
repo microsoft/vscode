@@ -1161,6 +1161,8 @@ suite('RunInTerminalTool', () => {
 			'git status',
 			'git log --oneline',
 			'git show HEAD',
+			'git show --format=%B HEAD',
+			'git show --output-format=text HEAD',
 			'git diff main',
 			'git grep "TODO"',
 
@@ -1252,6 +1254,10 @@ suite('RunInTerminalTool', () => {
 		const confirmationRequiredTestCases = [
 			// git log file output
 			'git log --output=log.txt',
+
+			// git show file output
+			'git show --format=%B --output=message.txt HEAD',
+			'git show --output message.txt HEAD',
 
 			// Dangerous file operations
 			'rm README.md',

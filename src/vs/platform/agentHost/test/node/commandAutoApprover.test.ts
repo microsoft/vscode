@@ -57,19 +57,52 @@ suite('CommandAutoApprover', () => {
 
 		// Safe git sub-commands
 		test('approves allowed git sub-commands', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git status'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git log --oneline'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git diff HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git show HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git ls-files'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git branch'), 'approved');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git status'),
+				approver.shouldAutoApprove('git log --oneline'),
+				approver.shouldAutoApprove('git diff HEAD'),
+				approver.shouldAutoApprove('git show HEAD'),
+				approver.shouldAutoApprove('git show --format=%B HEAD'),
+				approver.shouldAutoApprove('git --no-pager show HEAD'),
+				approver.shouldAutoApprove('git -C repo show HEAD'),
+				approver.shouldAutoApprove('git show --output-format=text HEAD'),
+				approver.shouldAutoApprove('git ls-files'),
+				approver.shouldAutoApprove('git branch'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+			]);
 		});
 
 		// Unsafe git sub-commands
 		test('denies denied git operations', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git branch -D main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git branch --delete main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git log --output=/tmp/out'), 'denied');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git branch -D main'),
+				approver.shouldAutoApprove('git branch --delete main'),
+				approver.shouldAutoApprove('git log --output=/tmp/out'),
+				approver.shouldAutoApprove('git show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git show --output message.txt HEAD'),
+				approver.shouldAutoApprove('git show --format=%B --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git --no-pager show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git -C repo show --output message.txt HEAD'),
+			], [
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
 		});
 
 		// Safe commands with dangerous arg blocking
