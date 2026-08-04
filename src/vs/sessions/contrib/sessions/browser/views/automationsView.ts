@@ -6,7 +6,7 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -28,7 +28,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
@@ -46,7 +46,7 @@ import { Action2, MenuItemAction, registerAction2 } from '../../../../../platfor
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 
@@ -205,12 +205,13 @@ class AutomationCardsSection extends Disposable {
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
-		const runBtn = this.createIconButton(actions, Codicon.play, localize('runNow', "Run now"), false);
+		const buttonBar = this.disposables.add(new ButtonBar(actions));
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), false);
 		this.disposables.add(runBtn.onDidClick(() => {
 			void this.runNow(automation);
 		}));
 
-		const deleteBtn = this.createIconButton(actions, Codicon.trash, localize('deleteAutomation', "Delete"), false);
+		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), false);
 		this.disposables.add(deleteBtn.onDidClick(() => {
 			void this.confirmDelete(automation);
 		}));
@@ -226,13 +227,13 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private createIconButton(container: HTMLElement, icon: ThemeIcon, tooltip: string, disabled: boolean): Button {
-		const button = this.disposables.add(new Button(container, {
+	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
+		const button = buttonBar.addButton({
 			ariaLabel: tooltip,
 			disabled,
 			supportIcons: true,
 			title: tooltip,
-		}));
+		});
 		button.label = `$(${icon.id})`;
 		button.element.classList.add('automations-card-action-button');
 		return button;
@@ -278,9 +279,9 @@ class AutomationCardsSection extends Disposable {
 
 		const createButton = this.disposables.add(new Button(this.emptyContainer, {
 			...defaultButtonStyles,
-			title: localize('createAutomation', "Create automation"),
+			title: localize('createAutomation', "Create Automation"),
 		}));
-		createButton.label = localize('createAutomation', "Create automation");
+		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
 		this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
@@ -742,7 +743,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 /**
  * Registers the Automations custom view with the custom view service.
  */
-class AutomationsCustomViewContribution extends Disposable {
+export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
 
@@ -750,8 +751,14 @@ class AutomationsCustomViewContribution extends Disposable {
 		@ICustomViewService customViewService: ICustomViewService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAutomationService automationService: IAutomationService,
 	) {
 		super();
+
+		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			hasItemsContext.set(automationService.automations.read(reader).length > 0);
+		}));
 
 		this._register(customViewService.registerCustomView({
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
@@ -822,7 +829,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {

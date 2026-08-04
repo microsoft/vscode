@@ -242,7 +242,7 @@ function toolInputText(value: JsonValue): string {
 }
 
 function dynamicToolOutput(contentItems: readonly DynamicToolCallOutputContentItem[] | null): string {
-	return contentItems?.map(item => item.type === 'inputText' ? item.text : item.imageUrl).join('\n') ?? '';
+	return contentItems?.map(item => item.type === 'inputText' ? item.text : item.type === 'inputImage' ? item.imageUrl : item.audioUrl).join('\n') ?? '';
 }
 
 function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string): string {

@@ -28,8 +28,12 @@ import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICrea
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
-import { AutomationsCardsWidget } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+
 
 const AUTOMATION_ID = 'automation-1';
 const RUN_ID = 'run-1';
@@ -70,6 +74,12 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		sessionResource: SESSION_RESOURCE.toString(),
 		...overrides,
 	};
+}
+
+function dispatchKeydown(element: HTMLElement, init: KeyboardEventInit & { keyCode: number }): void {
+	const event = new KeyboardEvent('keydown', { ...init, bubbles: true });
+	Object.defineProperty(event, 'keyCode', { get: () => init.keyCode });
+	element.dispatchEvent(event);
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
@@ -371,6 +381,33 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('automation action buttons support arrow navigation and keyboard activation', async () => {
+		const { automationService, runner, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const buttons = widget.element.querySelectorAll<HTMLElement>('.automations-card-action-button');
+		const runButton = buttons.item(0);
+		const deleteButton = buttons.item(1);
+
+		runButton.focus();
+		dispatchKeydown(runButton, { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 });
+		const movedRight = document.activeElement === deleteButton;
+		dispatchKeydown(deleteButton, { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 });
+		const movedLeft = document.activeElement === runButton;
+		dispatchKeydown(runButton, { key: 'Enter', code: 'Enter', keyCode: 13 });
+		dispatchKeydown(runButton, { key: ' ', code: 'Space', keyCode: 32 });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			movedRight,
+			movedLeft,
+			runCalls: runner.runCalls,
+		}, {
+			movedRight: true,
+			movedLeft: true,
+			runCalls: 2,
+		});
+	});
+
 	test('tapping the card opens edit without intercepting action taps', async () => {
 		const { automationDialogService, automationService, runner, widget } = setup();
 		const item = automation();
@@ -591,5 +628,39 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })]).includes('Daily review, Failed'),
 			true,
 		);
+	});
+});
+
+suite('AutomationsCustomViewContribution — context key', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup() {
+		const automationService = new FakeAutomationService();
+		const contextKeyService = new MockContextKeyService();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+			override registerCustomView() { return { dispose() { } }; }
+			override hideCustomView() { }
+		}());
+		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override register() { return { dispose() { } }; }
+		}());
+		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
+		return { automationService, contextKeyService, contribution };
+	}
+
+	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
+		const { automationService, contextKeyService } = setup();
+
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'initially false');
+
+		automationService.setAutomations([automation()]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), true, 'true when non-empty');
+
+		automationService.setAutomations([]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'false when empty again');
 	});
 });

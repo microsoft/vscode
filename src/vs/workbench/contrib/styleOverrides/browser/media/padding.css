@@ -45,10 +45,14 @@
 	width: auto;
 }
 
-/* Tighten the part title bar gutters: flush-left, small right inset. Reduce height from 35px to 32px.
- * KEEP IN SYNC WITH: part.ts PartLayout.TITLE_HEIGHT_STYLE_OVERRIDE */
-.style-override.monaco-workbench .part > .title {
+/* Tighten part chrome from 35px to 32px.
+ * KEEP IN SYNC WITH: part.ts PartLayout.AREA_HEIGHT_STYLE_OVERRIDE */
+.style-override.monaco-workbench .part > .title,
+.style-override.monaco-workbench .part > .header-or-footer {
 	height: 32px;
+}
+
+.style-override.monaco-workbench .part > .title {
 	padding-left: var(--vscode-spacing-size40, 4px);
 	padding-right: var(--vscode-spacing-size40, 4px);
 }
@@ -112,7 +116,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-item-list-row {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-item-row {
 	padding-bottom: var(--vscode-spacing-size40, 4px);
 
 	.agent-session-item {
@@ -124,7 +128,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-section-list-row {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-section-row {
 	padding-bottom: var(--vscode-spacing-size40, 4px);
 
 	.agent-session-section {

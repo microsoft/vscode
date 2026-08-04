@@ -1,0 +1,52 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ARCHIVED_TARGET_READY".
+    response:
+      content: ARCHIVED_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["archived"], then reply exactly "listed".
+    response:
+      content:
+        - type: text
+          text: 'Running `list_sessions` once with `status: ["archived"]` now.'
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            status:
+              - archived
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["archived"], then reply exactly "listed".
+        - role: assistant
+          content: 'Running `list_sessions` once with `status: ["archived"]` now.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                status:
+                  - archived
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"codex:/${uuid_0}","title":"Reply exactly \"ARCHIVED_TARGET_READY\".","status":"idle,archived","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T02:20:58.015Z","modifiedAt":"2026-08-02T02:20:59.790Z"}]}'
+    response:
+      content: listed
+      stopReason: end_turn

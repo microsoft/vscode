@@ -219,15 +219,6 @@ export interface IAgentSessionRendererOptions {
 	pauseSessionUpdates?(): IDisposable;
 }
 
-function markAgentSessionListRow(container: HTMLElement, rowTypeClass: string): void {
-	const listRow = container.closest('.monaco-list-row');
-	if (!listRow) {
-		throw new Error('Agent session renderer must be hosted in a list row');
-	}
-
-	listRow.classList.add('agent-session-list-row', rowTypeClass);
-}
-
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
@@ -267,7 +258,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
-		markAgentSessionListRow(container, 'agent-session-item-list-row');
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-item-row');
 
 		const elements = h(
 			'div.agent-session-item@item',
@@ -803,7 +794,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
 		const disposables = new DisposableStore();
-		markAgentSessionListRow(container, 'agent-session-section-list-row');
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-section-row');
 
 		const elements = h(
 			'div.agent-session-section@container',

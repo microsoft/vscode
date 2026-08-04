@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithCompletedQuestionInteraction, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingSessionCreatedTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveSessionCreatedToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -29,6 +29,7 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
+import { shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('ChatListRenderer', () => {
@@ -146,6 +147,83 @@ suite('ChatListRenderer', () => {
 					mcpAppFirst: 0,
 					multipleMcpApps: 1,
 				});
+			});
+
+			test('moves created-session pills after the final response and before trailing adjuncts', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const firstStep = { kind: 'markdownContent', content: new MarkdownString('First step') } as const;
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Final response') } as const;
+				const trailingAdjunct = { kind: 'references', references: [] } as const;
+
+				const content = [firstStep, tool, finalResponse, trailingAdjunct];
+				assert.deepStrictEqual({
+					content: moveSessionCreatedToolsAfterFinalResponse(content),
+					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingSessionCreatedTools(content),
+				}, {
+					content: [firstStep, finalResponse, tool, trailingAdjunct],
+					finalResponseStartIndex: 1,
+				});
+			});
+
+			test('leaves created-session tools in place when there is no final response', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+
+				assert.deepStrictEqual(moveSessionCreatedToolsAfterFinalResponse([tool]), [tool]);
+			});
+
+			test('waits for the final response before creating the completed-work disclosure', () => {
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Final response') } as const;
+				assert.deepStrictEqual([
+					isFinalResponseRendered([], 2),
+					isFinalResponseRendered([{ kind: 'references', references: [] }, finalResponse], 1),
+				], [
+					false,
+					true,
+				]);
+			});
+
+			test('renders the created-session result only after the response completes', () => {
+				assert.deepStrictEqual([
+					shouldRenderSessionCreatedResult('sessionCreated', false),
+					shouldRenderSessionCreatedResult('sessionCreated', true),
+					shouldRenderSessionCreatedResult('terminal', true),
+				], [
+					false,
+					true,
+					false,
+				]);
 			});
 		});
 	});
@@ -783,7 +861,7 @@ suite('ChatListRenderer', () => {
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 			isComplete: true,
 			presentation: undefined,
-			toolSpecificData: { kind: 'subagent', description: 'Investigate' },
+			toolSpecificData: { kind: 'subagent', description: 'Investigate', isActive: true },
 		};
 		const childTool: IChatToolInvocationSerialized = {
 			...parentSubagent,
@@ -802,17 +880,20 @@ suite('ChatListRenderer', () => {
 
 		assert.deepStrictEqual({
 			relevantParts: getWorkingProgressRelevantParts(parts).map(part => part.kind),
-			endsWithTaggedMarkdown: endsWithSubagentContent(parts.slice(0, 4)),
-			endsWithSubagentHook: endsWithSubagentContent(parts),
-			endsWithSubagentChildTool: endsWithSubagentContent(parts.slice(0, 3)),
-			endsWithParentSubagentTool: endsWithSubagentContent(parts.slice(0, 2)),
+			endsWithTaggedMarkdown: endsWithActiveSubagentContent(parts.slice(0, 4)),
+			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
+			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
+			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
 		}, {
 			relevantParts: ['references'],
-			endsWithTaggedMarkdown: false,
-			endsWithSubagentHook: false,
-			endsWithSubagentChildTool: false,
+			endsWithTaggedMarkdown: true,
+			endsWithSubagentHook: true,
+			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
 		});
+
+		parentSubagent.toolSpecificData = { kind: 'subagent', description: 'Investigate', isActive: false };
+		assert.strictEqual(endsWithActiveSubagentContent(parts), false);
 	});
 
 	test('working progress is hidden while MCP servers are starting', () => {
