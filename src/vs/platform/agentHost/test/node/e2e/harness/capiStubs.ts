@@ -43,9 +43,28 @@ interface IStubModel {
 }
 
 const STUB_MODELS: readonly IStubModel[] = [
+	// Every family pinned by `copilotPromptsE2E`, plus the provider default and
+	// the generic models other suites use. `supportedEndpoints` picks the dialect.
+	{ id: 'gpt-5', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5-mini', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1-codex-mini', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.6-sol', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'gpt-5.6-luna', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'gpt-5.6-terra', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'claude-haiku-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
+	{ id: 'claude-sonnet-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
+	{ id: 'claude-opus-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-sonnet-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-4.7', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-4.8', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-sonnet-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'gemini-2.0-flash', vendor: 'Google', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1000000, maxOutputTokens: 8192, maxPromptTokens: 128000, vision: true },
 	{ id: 'gpt-5.3-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true, isChatDefault: true, isChatFallback: true },
-	{ id: 'claude-sonnet-4.5', vendor: 'Anthropic', supportedEndpoints: ['/chat/completions', '/v1/messages'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
 	{ id: 'gpt-4o', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000, vision: true },
 	{ id: 'gpt-4o-mini', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000 },
 ];

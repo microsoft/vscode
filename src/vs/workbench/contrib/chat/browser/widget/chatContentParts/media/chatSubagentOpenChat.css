@@ -21,12 +21,12 @@
 	align-items: flex-start;
 	width: 100%;
 	max-width: 100%;
-	line-height: 1em;
+	line-height: 1.4em;
 	font-size: var(--vscode-agents-fontSize-body2);
 	font-weight: var(--vscode-agents-fontWeight-regular);
 	color: var(--vscode-descriptionForeground);
 	background: none;
-	cursor: pointer;
+	cursor: default;
 	white-space: nowrap;
 	text-decoration: none;
 }
@@ -49,6 +49,7 @@
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-label,
@@ -226,7 +227,7 @@
 	}
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:hover .chat-subagent-pill-content {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
