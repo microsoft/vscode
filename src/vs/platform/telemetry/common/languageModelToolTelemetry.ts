@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { TelemetryTrustedValue } from './telemetryUtils.js';
+
 export type LanguageModelToolTelemetryData = {
 	chatSessionId: string | undefined;
 	toolId: string;
@@ -23,6 +25,8 @@ export type LanguageModelToolInvokedEvent = LanguageModelToolTelemetryData & {
 	invocationTimeMs?: number;
 	provider?: string;
 	resultSizeInCharacters?: number;
+	turnId?: string;
+	model?: string | TelemetryTrustedValue<string>;
 };
 
 export type LanguageModelToolInvokedClassification = LanguageModelToolTelemetryClassification & {
@@ -31,6 +35,8 @@ export type LanguageModelToolInvokedClassification = LanguageModelToolTelemetryC
 	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
 	provider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the tool (e.g. copilotcli, claude, codex), if applicable.' };
 	resultSizeInCharacters?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Length of the serialized Agent Host tool result in UTF-16 code units, if applicable.' };
+	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the Agent Host turn containing the tool invocation, if applicable.' };
+	model?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier that produced the tool call, or a generic value for BYOK and unknown models, if applicable.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

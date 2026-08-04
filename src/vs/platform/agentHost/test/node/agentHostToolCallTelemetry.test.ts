@@ -14,6 +14,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
@@ -108,12 +109,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
 
-	function startTurn(turnId: string, text = 'hello'): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text, origin: { kind: MessageKind.User } },
+			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
 		sideEffects.handleAction(defaultChatUri, action);
@@ -143,6 +144,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 						invocationTimeMs: data.invocationTimeMs === undefined
 							? undefined
 							: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+						model: data.model instanceof TelemetryTrustedValue ? { trusted: true, value: data.model.value } : data.model,
 					},
 				};
 			});
@@ -236,6 +238,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				provider: 'mock',
 				invocationTimeMs: true,
 				resultSizeInCharacters: 41,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
 	});
@@ -258,6 +262,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				provider: 'mock',
 				invocationTimeMs: undefined,
 				resultSizeInCharacters: 90,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
 	});
@@ -287,8 +293,48 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				provider: 'mock',
 				invocationTimeMs: true,
 				resultSizeInCharacters: 47,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
+	});
+
+	test('uses the resolved usage model for an in-flight tool call', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		startTurn('turn-1', 'hello', 'auto');
+
+		toolStart('turn-1', 'tc-model', 'read_file');
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'gpt-5.5' } });
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+
+		assert.deepStrictEqual(toolEvents()[0].data, {
+			result: 'success',
+			chatSessionId: sessionKey,
+			toolId: 'read_file',
+			toolExtensionId: undefined,
+			toolSourceKind: 'agentHost',
+			invocationTimeMs: undefined,
+			provider: 'mock',
+			resultSizeInCharacters: 47,
+			turnId: 'turn-1',
+			model: { trusted: true, value: 'gpt-5.5' },
+		});
+	});
+
+	test('uses a resolved usage model received before the tool call starts', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'gpt-5.5' } });
+		toolStart('turn-1', 'tc-model', 'read_file');
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+
+		assert.deepStrictEqual(toolEvents()[0].data.model, { trusted: true, value: 'gpt-5.5' });
 	});
 
 	test('includes result content in the serialized result size', () => {
