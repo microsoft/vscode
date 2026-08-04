@@ -316,7 +316,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   blocked currently
 			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
 			//   of service.
-			'/^sort(?=\\s|$)/': true,
+			'/^sort\\b(?!-)/': true,
 			'/^sort\\b.*\\s-(o|S)\\b/': false,
 
 			// tree

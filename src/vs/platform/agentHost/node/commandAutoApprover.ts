@@ -643,7 +643,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 	'/^sed\\b.*;W/': false,
-	'/^sort(?=\\s|$)/': true,
+	'/^sort\\b(?!-)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,

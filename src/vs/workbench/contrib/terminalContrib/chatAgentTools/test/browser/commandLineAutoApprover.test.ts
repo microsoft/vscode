@@ -94,6 +94,13 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
+	test('default sort rule preserves no-space Bash input redirection', async () => {
+		setAutoApproveWithCommandLine(
+			terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+		);
+		strictEqual(await isAutoApproved('sort<input.txt'), true);
+	});
+
 	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', async () => {
 			setAutoApprove({

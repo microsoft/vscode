@@ -279,7 +279,10 @@ suite('CommandAutoApprover', () => {
 		// to the filesystem, so they remain eligible for auto-approval when
 		// the command name is on the allowlist.
 		test('input redirections do not block auto-approval', () => {
-			assert.strictEqual(approver.shouldAutoApprove('cat < file.txt'), 'approved');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('cat < file.txt'),
+				approver.shouldAutoApprove('sort<input.txt'),
+			], ['approved', 'approved']);
 		});
 
 		// Redirections to /dev/null and other known-safe sinks do not write
