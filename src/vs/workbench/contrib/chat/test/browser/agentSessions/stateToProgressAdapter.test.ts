@@ -7,15 +7,16 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -96,6 +97,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
+		toModelDisplayName: raw => displayNames[raw],
 		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
@@ -258,6 +260,28 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('worktree failure notification restores as warning', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Worktree creation failed',
+					_meta: toAgentSystemNotificationMeta({
+						kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+						severity: AgentSystemNotificationSeverity.Warning,
+					}),
+				}],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(response.parts[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
 		});
 
 		test('reasoning response part restores as thinking progress carrying its id', () => {
@@ -522,21 +546,33 @@ suite('stateToProgressAdapter', () => {
 
 		test('maps turn usage to chat usage progress for restored history', () => {
 			const turn = createTurn({
-				usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' },
+				usage: {
+					inputTokens: 1200,
+					outputTokens: 300,
+					model: 'gpt-5',
+					_meta: {
+						turnTokenTotals: [{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
+				},
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Done' }],
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }));
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(
 				response.parts.map(part => part.kind === 'usage'
-					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens }
+					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens, modelTotals: part.modelTotals }
 					: { kind: part.kind }),
 				[
-					{ kind: 'usage', promptTokens: 1200, completionTokens: 300 },
+					{
+						kind: 'usage',
+						promptTokens: 1200,
+						completionTokens: 300,
+						modelTotals: [{ model: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
 					{ kind: 'markdownContent' },
 				],
 			);
@@ -1348,12 +1384,33 @@ suite('stateToProgressAdapter', () => {
 		type AnyToolCallState = Parameters<typeof rawToolCallStateToPreparedInvocation>[0];
 
 		test('toolCallStateToStreamingInvocation starts in the native Streaming state', () => {
-			const tc: AnyToolCallState = { toolCallId: 'tc-stream', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming };
+			const tc: AnyToolCallState = {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				displayName: 'Bash',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"npm test","description":"Run',
+				invocationMessage: 'Running npm test',
+			};
 			const invocation = toolCallStateToStreamingInvocation(tc, undefined);
-			assert.strictEqual(invocation.toolCallId, 'tc-stream');
-			assert.strictEqual(invocation.toolId, 'bash');
-			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
-			assert.strictEqual(IChatToolInvocation.isComplete(invocation), false);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				toolCallId: invocation.toolCallId,
+				toolId: invocation.toolId,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+				isComplete: IChatToolInvocation.isComplete(invocation),
+			}, {
+				toolCallId: 'tc-stream',
+				toolId: 'bash',
+				partialInput: { command: 'npm test', description: 'Run' },
+				streamingMessage: 'Running npm test',
+				isComplete: false,
+			});
 		});
 
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
@@ -1376,6 +1433,32 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+			});
+		});
+
+		test('finalizeToolInvocation preserves cancellation from streaming', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-cancelled',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			finalizeToolInvocation(invocation, {
+				toolCallId: 'tc-cancelled',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				status: ToolCallStatus.Cancelled,
+				invocationMessage: 'Running client tool',
+				reason: ToolCallCancellationReason.Denied,
+				reasonMessage: 'Denied by the server',
+			});
+
+			assert.deepStrictEqual(invocation.state.get(), {
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Denied,
+				reasonMessage: 'Denied by the server',
+				parameters: undefined,
+				confirmationMessages: undefined,
 			});
 		});
 
@@ -1851,6 +1934,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result[0].kind, 'systemNotification');
 			if (result[0].kind !== 'systemNotification') { return; }
 			assert.strictEqual(result[0].content.value, 'Shell command completed');
+		});
+
+		test('produces warning for active worktree failure notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Worktree creation failed',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -2824,6 +2923,29 @@ suite('stateToProgressAdapter', () => {
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
 			});
+		});
+	});
+
+	suite('usageInfoToChatUsage', () => {
+		test('carries whole-turn per-model token totals and resolves display names', () => {
+			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
+
+			assert.deepStrictEqual(usageInfoToChatUsage(
+				{ inputTokens: 30, outputTokens: 40, _meta: { turnTokenTotals } },
+				model => model === 'claude-opus-4.8' ? 'Claude Opus 4.8' : undefined,
+			), {
+				kind: 'usage',
+				promptTokens: 30,
+				completionTokens: 40,
+				copilotCredits: undefined,
+				sessionCopilotCredits: undefined,
+				promptTokenDetails: undefined,
+				modelTotals: [{ ...turnTokenTotals[0], model: 'Claude Opus 4.8' }],
+			} satisfies IChatUsage);
+		});
+
+		test('reports no totals when the provider did not supply any', () => {
+			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
 		});
 	});
 });

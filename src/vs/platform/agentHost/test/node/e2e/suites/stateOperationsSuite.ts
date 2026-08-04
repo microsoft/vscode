@@ -407,17 +407,20 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 
 	conformanceTest(context, 'clearing a terminal drops the scrollback the client already saw', async function () {
 		await withTerminal('terminal-clear', async ({ terminalUri }) => {
+			context.client.clearReceived();
 			context.client.dispatch({
 				channel: terminalUri,
 				clientSeq: 1,
 				action: { type: ActionType.TerminalInput, data: 'node -p "\'CLEAR_MARKER\'"\r' },
 			});
-			await context.client.waitForNotification(n =>
-				isActionNotification(n, 'terminal/data')
-				&& getActionEnvelope(n).channel === terminalUri
-				&& (getActionEnvelope(n).action as { data: string }).data.includes('CLEAR_MARKER'),
-				30_000,
-			);
+			let streamedOutput = '';
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'terminal/data') || getActionEnvelope(n).channel !== terminalUri) {
+					return false;
+				}
+				streamedOutput += (getActionEnvelope(n).action as { readonly data: string }).data;
+				return streamedOutput.includes('CLEAR_MARKER');
+			}, 30_000);
 			const before = terminalText(await terminalState(terminalUri));
 
 			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalCleared });
@@ -471,37 +474,47 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 	conformanceTest(context, 'root state tracks terminals as they appear and disappear', async function () {
 		// The first terminal also establishes the connection; root can only be
 		// subscribed once the client has handshaked.
-		const { clientId, workspace } = await createTerminal('terminal-root');
-		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		context.client.clearReceived();
+		await withTerminal('terminal-root', async ({ clientId, workspace }) => {
+			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			context.client.clearReceived();
 
-		function terminalsIn(n: AhpNotification): readonly { resource: string }[] {
-			return (getActionEnvelope(n).action as { terminals?: readonly { resource: string }[] }).terminals ?? [];
-		}
+			function terminalsIn(n: AhpNotification): readonly { resource: string }[] {
+				return (getActionEnvelope(n).action as { terminals?: readonly { resource: string }[] }).terminals ?? [];
+			}
 
-		// Root is how a client discovers terminals it did not create itself, so
-		// it has to be told on both edges, not only on creation.
-		const observedUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: `/${generateUuid()}` }).toString();
-		await context.client.call('createTerminal', {
-			channel: observedUri,
-			claim: { kind: TerminalClaimKind.Client, clientId },
-			name: 'E2E terminal-root-observed',
-			cwd: URI.file(workspace).toString(),
-			cols: 90,
-			rows: 30,
+			// Root is how a client discovers terminals it did not create itself, so
+			// it has to be told on both edges, not only on creation.
+			const observedUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: `/${generateUuid()}` }).toString();
+			let observedCreated = false;
+			try {
+				await context.client.call('createTerminal', {
+					channel: observedUri,
+					claim: { kind: TerminalClaimKind.Client, clientId },
+					name: 'E2E terminal-root-observed',
+					cwd: URI.file(workspace).toString(),
+					cols: 90,
+					rows: 30,
+				});
+				observedCreated = true;
+				await context.client.waitForNotification(n =>
+					isActionNotification(n, 'root/terminalsChanged')
+					&& terminalsIn(n).some(terminal => terminal.resource === observedUri),
+					30_000,
+				);
+
+				await disposeTerminal(observedUri);
+				observedCreated = false;
+				await context.client.waitForNotification(n =>
+					isActionNotification(n, 'root/terminalsChanged')
+					&& !terminalsIn(n).some(terminal => terminal.resource === observedUri),
+					30_000,
+				);
+			} finally {
+				if (observedCreated) {
+					await disposeTerminal(observedUri);
+				}
+			}
 		});
-		await context.client.waitForNotification(n =>
-			isActionNotification(n, 'root/terminalsChanged')
-			&& terminalsIn(n).some(terminal => terminal.resource === observedUri),
-			30_000,
-		);
-
-		await disposeTerminal(observedUri);
-		await context.client.waitForNotification(n =>
-			isActionNotification(n, 'root/terminalsChanged')
-			&& !terminalsIn(n).some(terminal => terminal.resource === observedUri),
-			30_000,
-		);
 	});
 
 	conformanceTest(context, 'disposeTerminal removes the terminal from root state', async function () {

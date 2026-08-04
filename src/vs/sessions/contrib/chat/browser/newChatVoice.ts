@@ -19,6 +19,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -32,6 +34,11 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
  * This keeps dictation on the composer so it creates a configured session.
  */
 export const NEW_CHAT_VOICE_SENTINEL = URI.from({ scheme: 'sessions-voice', authority: 'new-chat', path: '/composer' });
+
+/** Whether the shared voice transport belongs to the new-session composer. */
+export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean): boolean {
+	return (connected || connecting) && targetSession === undefined && hasDraftTarget;
+}
 
 /** New-session composer APIs used by voice mode. */
 export interface INewChatVoiceComposer {
@@ -211,6 +218,8 @@ export class NewChatVoiceController extends Disposable {
 		@IMicCaptureService micCaptureService: IMicCaptureService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -247,7 +256,12 @@ export class NewChatVoiceController extends Disposable {
 			return (options.composer.routesWhileSessionActive || !hasCreatedSession) && isActiveComposer;
 		});
 		const isVoiceTarget = derived(reader => {
-			const voiceActive = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const voiceActive = isNewChatVoiceSessionActive(
+				voiceSessionController.isConnected.read(reader),
+				voiceSessionController.isConnecting.read(reader),
+				voiceSessionController.targetSession.read(reader),
+				voiceSessionController.hasDraftTarget.read(reader),
+			);
 			return voiceActive && isVoiceSurface.read(reader);
 		});
 		this._register(autorun(reader => {
@@ -261,6 +275,8 @@ export class NewChatVoiceController extends Disposable {
 			micCaptureService,
 			configurationService,
 			keybindingService,
+			themeService,
+			accessibilityService,
 		}, {
 			inputContainer: options.inputContainer,
 			isActive: isVoiceTarget,

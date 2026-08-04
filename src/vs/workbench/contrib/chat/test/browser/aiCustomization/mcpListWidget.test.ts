@@ -18,6 +18,7 @@ import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
+	createBuiltinActiveSessionMcpEntries,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getLocalMcpServerEnablementActions,
@@ -80,6 +81,15 @@ function trackActions(store: Pick<DisposableStore, 'add'>, actions: readonly IAc
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies active-session-only MCP servers as built-in entries', () => {
+		const server = createAgentHostServer({ name: 'node_repl' });
+
+		assert.deepStrictEqual(createBuiltinActiveSessionMcpEntries([server]), [{
+			type: 'session-server-item',
+			server,
+		}]);
+	});
 
 	suite('getSessionEnablementAction', () => {
 		test('labels as Disable (Session) when the server is enabled and toggles it off', () => {

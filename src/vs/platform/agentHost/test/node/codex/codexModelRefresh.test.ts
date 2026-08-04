@@ -22,6 +22,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>, rootConfig: Record<string, boolean> = {}): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -35,6 +36,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
@@ -62,6 +64,32 @@ suite('CodexAgent model refresh', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-5.5']);
+	});
+
+	test('reuses a connection created while OpenAI usage-source validation is pending', async () => {
+		const agent = createAgent(disposables, async () => []);
+		await Promise.resolve();
+
+		let resolveValidation!: () => void;
+		agent['_usageSource'] = 'openai';
+		agent['_usageSourceValidation'] = new Promise<void>(resolve => resolveValidation = resolve);
+		agent['_connection'] = { kind: 'idle' };
+
+		let startCount = 0;
+		agent['_startConnection'] = async () => {
+			startCount++;
+			return { client: { dispose() { } }, child: { kill() { return true; } }, usageSource: 'openai' } as never;
+		};
+
+		const connectionPromise = agent['_ensureConnection']();
+		await Promise.resolve();
+		const existingConnection = { kind: 'ready', client: { dispose() { } }, child: { kill() { return true; } }, usageSource: 'openai' } as const;
+		agent['_connection'] = existingConnection as never;
+		resolveValidation();
+
+		const connection = await connectionPromise;
+		assert.strictEqual(connection, existingConnection);
+		assert.strictEqual(startCount, 0);
 	});
 
 	test('advertises multiple working directories only while enabled', () => {

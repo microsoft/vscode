@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getStreamingCreateMessage, getStreamingEditMessage, getStreamingReplaceMessage, streamingToolTextLineCount } from '../../common/streamingToolCallDisplay.js';
 import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -467,6 +468,42 @@ export function getClaudeInvocationMessage(
 			return localize('claude.toolInvoke.taskGet', "Reading task");
 		default:
 			return displayName;
+	}
+}
+
+export function getClaudeStreamingInvocationMessage(toolName: string, input: Record<string, unknown> | undefined): StringOrMarkdown | undefined {
+	switch (toolName) {
+		case 'Write':
+			return getStreamingCreateMessage(input?.['file_path'], streamingToolTextLineCount(input?.['content']));
+		case 'Edit':
+			return getStreamingReplaceMessage(
+				input?.['file_path'],
+				streamingToolTextLineCount(input?.['old_string']),
+				streamingToolTextLineCount(input?.['new_string']),
+			);
+		case 'MultiEdit': {
+			const edits = Array.isArray(input?.['edits']) ? input['edits'] : [];
+			let oldLineCount: number | undefined;
+			let newLineCount: number | undefined;
+			for (const edit of edits) {
+				if (!edit || typeof edit !== 'object' || Array.isArray(edit)) {
+					continue;
+				}
+				const oldLines = streamingToolTextLineCount((edit as Record<string, unknown>)['old_string']);
+				const newLines = streamingToolTextLineCount((edit as Record<string, unknown>)['new_string']);
+				if (oldLines !== undefined) {
+					oldLineCount = (oldLineCount ?? 0) + oldLines;
+				}
+				if (newLines !== undefined) {
+					newLineCount = (newLineCount ?? 0) + newLines;
+				}
+			}
+			return getStreamingReplaceMessage(input?.['file_path'], oldLineCount, newLineCount);
+		}
+		case 'NotebookEdit':
+			return getStreamingEditMessage(input?.['notebook_path'], streamingToolTextLineCount(input?.['new_source']));
+		default:
+			return undefined;
 	}
 }
 

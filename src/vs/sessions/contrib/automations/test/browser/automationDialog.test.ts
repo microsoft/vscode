@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationIsolationGroupActionViewItem, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -276,6 +276,7 @@ suite('Automation branch picker', () => {
 					label: 'Copilot',
 					icon: Codicon.copilot,
 					supportsWorktreeConfiguration: state.sessionTypeId === 'copilotcli',
+					authRequirement: SessionTypeAuthRequirement.GitHub,
 				},
 			}] : [],
 		}));

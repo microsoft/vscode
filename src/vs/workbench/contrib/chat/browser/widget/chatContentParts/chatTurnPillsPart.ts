@@ -13,12 +13,11 @@ import { basename, getComparisonKey, isEqual } from '../../../../../../base/comm
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
@@ -30,7 +29,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -53,14 +52,13 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
 		@IChatResponseFileChangesService chatResponseFileChangesService: IChatResponseFileChangesService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ILogService private readonly _logService: ILogService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
@@ -110,7 +108,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return [...created, ...edited];
 		});
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(configurationService);
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const changesEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
 		const previewEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
 		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
@@ -137,10 +135,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		}));
 
 		// Only feed diffs into the list when the changes summary is shown, so the
-		// disclosure stays empty when just the preview action is enabled. Each
-		// previewable row gets a "Preview" action that opens the file's preview.
+		// disclosure stays empty when just the preview action is enabled.
 		const listDiffs = derived(this, reader => showChanges.read(reader) ? this._diffs.read(reader) : []);
-		this._register(renderChangesSummaryFileList(details, listDiffs, this._instantiationService, this._editorService, configurationService, {
+		this._register(renderChangesSummaryFileList(details, listDiffs, this._instantiationService, this._editorService, this._configurationService, {
 			getRowActions: diff => this._getRowActions(diff),
 		}));
 
@@ -200,7 +197,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const button = container.appendChild(document.createElement('button'));
 		button.classList.add('chat-turn-preview-action');
 		button.type = 'button';
-		const label = this._register(resourceLabels.create(button));
+		const label = this._register(resourceLabels.create(button, { hoverTargetOverride: button }));
 
 		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
 			this._openPrimaryPreview(previewFiles.get());
@@ -211,13 +208,15 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			const files = previewFiles.read(reader);
 			const primaryFile = files.at(0);
 			if (primaryFile) {
+				const name = basename(primaryFile.uri);
 				label.setResource(
-					{ resource: primaryFile.uri, name: basename(primaryFile.uri) },
-					{ fileKind: FileKind.FILE },
+					{ resource: primaryFile.uri, name },
+					{
+						fileKind: FileKind.FILE,
+						title: localize('chat.turnPreview.tooltip', "{0} • Open File", this._labelService.getUriLabel(primaryFile.uri)),
+					},
 				);
-				const tooltip = localize('chat.turnPreview.tooltip', 'Open Preview: {0}', basename(primaryFile.uri));
-				button.setAttribute('aria-label', tooltip);
-				button.title = tooltip;
+				button.setAttribute('aria-label', localize('chat.turnPreview.ariaLabel', "Open File: {0}", name));
 			}
 			container.classList.toggle('hidden', !showPreview.read(reader));
 		}));
@@ -260,13 +259,13 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	private _openPrimaryPreview(files: readonly IPreviewFile[]): void {
 		const primaryFile = files.at(0);
 		if (primaryFile) {
-			openChatPreviewFile(primaryFile, this._commandService, this._openerService, this._logService);
+			openChatTurnFile(primaryFile, this._openerService, this._configurationService);
 		}
 	}
 
 	/**
-	 * Row actions for the changed-files list: markdown files get a labelless-
-	 * icon-free "Preview" action that opens the file as a markdown preview.
+	 * Row actions for the changed-files list: markdown files get a labelless,
+	 * icon-free action that opens the file.
 	 */
 	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
 		const kind = previewKind(diff.modifiedURI);
@@ -277,7 +276,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		return [toAction({
 			id: 'chat.turnChanges.previewFile',
 			label: localize('chat.turnChanges.preview', "Preview"),
-			run: () => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			run: () => openChatTurnFile(file, this._openerService, this._configurationService),
 		})];
 	}
 

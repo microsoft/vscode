@@ -160,6 +160,19 @@ export interface IChatUsagePromptTokenDetail {
 	percentageOfPrompt: number;
 }
 
+/**
+ * Whole-turn token consumption attributed to a single model. Unlike
+ * {@link IChatUsage.promptTokens}, which describes only the most recent model
+ * call, these are sums across every model call the response made — including
+ * calls made by subagents, which may run on a different model.
+ */
+export interface IChatUsageModelTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
+}
+
 export interface IChatUsage {
 	promptTokens: number;
 	completionTokens: number;
@@ -172,6 +185,11 @@ export interface IChatUsage {
 	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
 	 */
 	copilotCredits?: number;
+	/**
+	 * Whole-turn token consumption per model, when the provider reports it.
+	 * Only agent host sessions supply this today.
+	 */
+	modelTotals?: readonly IChatUsageModelTotal[];
 	/**
 	 * The whole session's Copilot credit cost as reported by the backend, rather
 	 * than summed from the individual turns. Unlike {@link copilotCredits} this
@@ -600,6 +618,14 @@ export interface IChatHookPart {
 	metadata?: { readonly [key: string]: unknown };
 	/** If set, this hook was executed within a subagent invocation and should be grouped with it. */
 	subAgentInvocationId?: string;
+}
+
+export type ChatVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export interface IChatVoiceProgressPart {
+	readonly kind: 'voiceProgress';
+	readonly id: ChatVoiceProgressStage;
+	readonly value: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -1109,6 +1135,7 @@ export interface IChatPullRequestContent {
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
 	isActive?: boolean;
+	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	agentName?: string;
 	prompt?: string;
@@ -1402,6 +1429,8 @@ export interface IChatPlanReview {
 	data?: IChatPlanReviewResult;
 	/** Whether the widget has been responded to. */
 	isUsed?: boolean;
+	/** Whether the backing plan file changed after this summary was generated. */
+	isOutdated?: boolean;
 	/** Source attribution. */
 	source?: ToolDataSource;
 }
@@ -1469,6 +1498,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatThinkingPart
+	| IChatVoiceProgressPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
@@ -1808,6 +1838,7 @@ export interface IRemotePendingRequest {
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
+	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
 	/**
 	 * The configuration (e.g. context size, thinking effort) for the selected

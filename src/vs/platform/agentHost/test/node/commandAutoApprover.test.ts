@@ -81,9 +81,39 @@ suite('CommandAutoApprover', () => {
 		});
 
 		test('handles sed with blocked args', () => {
-			assert.strictEqual(approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('sed -e "s/foo/bar/"'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('sed --expression "s/foo/bar/"'), 'denied');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
+				approver.shouldAutoApprove('sed -e "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed --expression "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -I "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -ni "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i.bak "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i \'\' "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place=.bak "s/foo/bar/" file.txt'),
+			], [
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
+		});
+
+		test('sed in-place commands cannot be allowed by a full-command rule', () => {
+			const commandLine = 'sed -i "s/foo/bar/" file.txt';
+			assert.deepStrictEqual(approver.evaluate(commandLine, {
+				autoApproveRules: {
+					sed: true,
+					'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
+				},
+			}), { result: 'denied', autoApproveRuleResolvable: false });
 		});
 
 		// npm/package managers
@@ -130,6 +160,18 @@ suite('CommandAutoApprover', () => {
 		test('denies transient environment variable assignments', () => {
 			assert.strictEqual(approver.shouldAutoApprove('FOO=bar some-command'), 'denied');
 			assert.strictEqual(approver.shouldAutoApprove('PATH=/evil:$PATH ls'), 'denied');
+		});
+
+		test('fails closed on Bash shell state mutations', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('FOO=bar && git status'),
+				approver.shouldAutoApprove('export FOO=bar && git status'),
+				approver.shouldAutoApprove('declare -x FOO=bar && git status'),
+				approver.shouldAutoApprove('typeset FOO=bar && git status'),
+				approver.shouldAutoApprove('readonly FOO=bar && git status'),
+				approver.shouldAutoApprove('local FOO=bar && git status'),
+				approver.shouldAutoApprove('FOO=bar git status'),
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'denied']);
 		});
 
 		// PowerShell
