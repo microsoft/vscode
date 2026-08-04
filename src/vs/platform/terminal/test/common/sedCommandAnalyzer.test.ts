@@ -24,7 +24,7 @@ suite('analyzeSedCommand', () => {
 		];
 
 		assert.deepStrictEqual(
-			commands.map(analyzeSedCommand),
+			commands.map(command => analyzeSedCommand(command)),
 			commands.map(() => ({ kind: 'safe' })),
 		);
 	});
@@ -82,7 +82,7 @@ suite('analyzeSedCommand', () => {
 		];
 
 		assert.deepStrictEqual(
-			commands.map(analyzeSedCommand),
+			commands.map(command => analyzeSedCommand(command)),
 			commands.map(() => ({ kind: 'requiresConfirmation' })),
 		);
 	});
@@ -113,6 +113,7 @@ suite('analyzeSedCommand', () => {
 			bashUnquoted: analyzeSedCommand('sed --in-place "s/foo/bar/" \\/etc/config', 'bash'),
 			bashDoubleQuotedLiteral: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\q"', 'bash'),
 			bashDoubleQuotedEscapedExpansion: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\$FILE"', 'bash'),
+			bashDoubleQuotedWindowsPath: analyzeSedCommand('sed --in-place "s/foo/bar/" "C:\\outside\\file.txt"', 'bash'),
 			powerShellPath: analyzeSedCommand('sed --in-place "s/foo/bar/" C:\\outside\\file.txt', 'powershell'),
 			powerShellUppercase: analyzeSedCommand('SED -i "s/foo/bar/" file.txt', 'powershell'),
 			powerShellUppercaseExe: analyzeSedCommand('SED.EXE -i "s/foo/bar/" file.txt', 'powershell'),
@@ -120,6 +121,7 @@ suite('analyzeSedCommand', () => {
 			bashUnquoted: { kind: 'inPlace', fileWrites: ['/etc/config'] },
 			bashDoubleQuotedLiteral: { kind: 'inPlace', fileWrites: ['path\\q'] },
 			bashDoubleQuotedEscapedExpansion: { kind: 'inPlace', fileWrites: ['path$FILE'] },
+			bashDoubleQuotedWindowsPath: { kind: 'inPlace', fileWrites: ['C:\\outside\\file.txt'] },
 			powerShellPath: { kind: 'inPlace', fileWrites: ['C:\\outside\\file.txt'] },
 			powerShellUppercase: { kind: 'inPlace', fileWrites: ['file.txt'] },
 			powerShellUppercaseExe: { kind: 'inPlace', fileWrites: ['file.txt'] },
@@ -137,7 +139,7 @@ suite('analyzeSedCommand', () => {
 		];
 
 		assert.deepStrictEqual(
-			commands.map(analyzeSedCommand),
+			commands.map(command => analyzeSedCommand(command)),
 			commands.map(() => ({ kind: 'requiresConfirmation' })),
 		);
 	});

@@ -243,7 +243,7 @@ suite('SessionPermissionManager', () => {
 		const cases: [commandLine: string, expected: ToolCallConfirmationReason | undefined][] = [
 			['sed -i "s/foo/bar/" file.txt', ToolCallConfirmationReason.NotNeeded],
 			['sed -i.bak "s/foo/bar/" file.txt', ToolCallConfirmationReason.NotNeeded],
-			[`sed --in-place "s/foo/bar/" ${join(outsideDir, 'file.txt')}`, undefined],
+			[`sed --in-place "s/foo/bar/" "${join(outsideDir, 'file.txt')}"`, undefined],
 			['sed -i "s/foo/bar/" package.json', undefined],
 			['sed "$SED_OPTIONS" "s/foo/bar/" file.txt', undefined],
 		];
