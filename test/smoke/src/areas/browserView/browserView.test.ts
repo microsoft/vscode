@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import type { Page } from '@playwright/test';
@@ -18,7 +19,10 @@ export function setup(logger: Logger): void {
 		installAllHandlers(
 			logger,
 			options => withFakeMediaDevice(options),
-			app => preseedChatExtensionEnablement(app.userDataPath)
+			async app => {
+				await preseedChatExtensionEnablement(app.userDataPath);
+				preseedSettings(app.userDataPath);
+			}
 		);
 
 		const comment = 'Smoke-test-comment';
@@ -28,7 +32,6 @@ export function setup(logger: Logger): void {
 		let baseUrl: string;
 
 		before(async function () {
-			const app = this.app as Application;
 			server = http.createServer((request, response) => {
 				const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
 				const count = (requestCounts.get(requestUrl.pathname) ?? 0) + 1;
@@ -48,10 +51,6 @@ export function setup(logger: Logger): void {
 				throw new Error('Integrated Browser smoke server did not expose a TCP address.');
 			}
 			baseUrl = `http://127.0.0.1:${address.port}`;
-			await app.workbench.settingsEditor.addUserSettings([
-				['workbench.browser.experimentalUserTools.enabled', 'true'],
-				['window.menuStyle', '"custom"'],
-			]);
 		});
 
 		afterEach(async () => {
@@ -229,6 +228,33 @@ export function setup(logger: Logger): void {
 			await waitForWorkbenchUrl(app.code.driver.currentPage, lifecycleUrl);
 		});
 	});
+}
+
+/**
+ * Pre-seed the settings this suite depends on before the application starts.
+ *
+ * `window.menuStyle` must be written to disk rather than through the settings
+ * editor: `SettingsChangeRelauncher` watches it on Windows/Linux and would pop a
+ * modal "restart to take effect" dialog the moment the value changes at runtime,
+ * blocking the workbench. Seeding it up front means it is already in effect when
+ * the window opens, so nothing changes and no prompt appears.
+ *
+ * The suite drives the browser toolbar overflow and "Add to Chat" menus through
+ * DOM locators (`.monaco-menu-container`), which only exist for custom menus. The
+ * default is quality dependent on macOS (`native` for stable, `inherit` for
+ * insiders), so pinning `custom` keeps the suite deterministic across qualities.
+ */
+function preseedSettings(userDataDir: string | undefined): void {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed Integrated Browser settings without a user data directory');
+	}
+
+	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+	fs.writeFileSync(settingsPath, JSON.stringify({
+		'window.menuStyle': 'custom',
+		'workbench.browser.experimentalUserTools.enabled': true,
+	}, null, 2));
 }
 
 function withFakeMediaDevice(options: ApplicationOptions): ApplicationOptions {
