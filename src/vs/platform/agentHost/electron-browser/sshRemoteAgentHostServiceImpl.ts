@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { INotificationService } from '../../notification/common/notification.js';
+import { IProductService } from '../../product/common/productService.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
@@ -108,6 +109,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -538,7 +540,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			return this._dedicatedSelection(request.candidates);
 		}
 
-		const chosen = await promptRemoteAgentHostLocationPreference(this._dialogService, request.displayHost, undefined, token);
+		const chosen = await promptRemoteAgentHostLocationPreference(this._dialogService, request.displayHost, this._productService.nameShort, undefined, token);
 		if (token.isCancellationRequested || !chosen) {
 			return undefined;
 		}

@@ -99,7 +99,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
@@ -112,7 +112,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint]), userInitiated: false,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint]), userInitiated: false,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
@@ -125,7 +125,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
@@ -138,7 +138,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
@@ -151,7 +151,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
@@ -164,7 +164,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: false,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: false,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
@@ -177,12 +177,13 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService, promptCalls } = stubDialogService('editor');
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
 			assert.strictEqual(promptCalls.length, 1);
 			assert.match(promptCalls[0].message, /My Tunnel/);
+			assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Runs in a remote Test Product window and stops when that window closes.');
 			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'editor' }]);
 		});
 
@@ -191,7 +192,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService } = stubDialogService('dedicated');
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
@@ -203,7 +204,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			const { dialogService } = stubDialogService(undefined);
 
 			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
 			});
 
 			assert.strictEqual(selection, undefined);

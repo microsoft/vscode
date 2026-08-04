@@ -76,6 +76,8 @@ export interface IGatewaySelectionRequest {
 	readonly hostKey: string;
 	/** User-facing tunnel name shown in the location-preference modal. */
 	readonly hostLabel: string;
+	/** Product name (typically {@link IProductService.nameShort}) substituted into the modal's editor-option detail text. */
+	readonly productName: string;
 	readonly inventory: ITunnelGatewayInventory;
 	readonly userInitiated: boolean;
 }
@@ -103,7 +105,7 @@ export async function resolveGatewaySelection(
 	dialogService: IDialogService,
 	request: IGatewaySelectionRequest,
 ): Promise<ITunnelGatewaySelection | undefined> {
-	const { hostKey, hostLabel, inventory, userInitiated } = request;
+	const { hostKey, hostLabel, productName, inventory, userInitiated } = request;
 	const editor = selectEditorGatewayEndpoint(inventory);
 	const preference = locationPreferenceService.getPreference(hostKey);
 
@@ -114,7 +116,7 @@ export async function resolveGatewaySelection(
 		return selectDedicatedGatewayFallback(inventory);
 	}
 
-	const chosen = await promptRemoteAgentHostLocationPreference(dialogService, hostLabel);
+	const chosen = await promptRemoteAgentHostLocationPreference(dialogService, hostLabel, productName);
 	if (!chosen) {
 		return undefined;
 	}
@@ -269,6 +271,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			const selection = await resolveGatewaySelection(this._locationPreferenceService, this._dialogService, {
 				hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
 				hostLabel: tunnel.name,
+				productName: this._productService.nameShort,
 				inventory: session.inventory,
 				userInitiated: options?.userInitiated ?? true,
 			});

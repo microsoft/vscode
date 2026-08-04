@@ -8,7 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { collectRemoteAgentHostLocationTargets, pickRemoteAgentHostLocationTarget } from '../../electron-browser/remoteAgentHostLocationPreferenceCommand.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { collectRemoteAgentHostLocationTargets, findAgentHostProviderForTarget, pickRemoteAgentHostLocationTarget } from '../../electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 
 function sshEntry(name: string, address: string): IRemoteAgentHostEntry {
 	return { name, connection: { type: RemoteAgentHostEntryType.SSH, address, hostName: address } };
@@ -115,5 +117,64 @@ suite('pickRemoteAgentHostLocationTarget', () => {
 			{ key: 'tunnel:abc123', label: 'Tunnel B' },
 		]);
 		assert.strictEqual(target, undefined);
+	});
+});
+
+function agentHostProvider(id: string, remoteAddress: string | undefined): ISessionsProvider {
+	return { id, label: id, remoteAddress } as unknown as IAgentHostSessionsProvider;
+}
+
+function nonAgentHostProvider(id: string, remoteAddress: string | undefined): ISessionsProvider {
+	// Not an agent-host provider id (no `local-agent-host` / `agenthost-` prefix),
+	// so isAgentHostProvider() must exclude it even if it happens to carry a
+	// matching `remoteAddress`-shaped field.
+	return { id, label: id, remoteAddress } as unknown as ISessionsProvider;
+}
+
+suite('findAgentHostProviderForTarget', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches an agent-host provider by exact remoteAddress', () => {
+		const match = agentHostProvider('agenthost-1', 'ssh:my-host-alias');
+		const provider = findAgentHostProviderForTarget([match], 'ssh:my-host-alias');
+		assert.strictEqual(provider, match);
+	});
+
+	test('returns undefined when no provider has a matching remoteAddress', () => {
+		const provider = findAgentHostProviderForTarget(
+			[agentHostProvider('agenthost-1', 'ssh:other-host')],
+			'ssh:my-host-alias',
+		);
+		assert.strictEqual(provider, undefined);
+	});
+
+	test('excludes non-agent-host providers even with a matching remoteAddress-shaped field', () => {
+		const provider = findAgentHostProviderForTarget(
+			[nonAgentHostProvider('some-other-provider', 'ssh:my-host-alias')],
+			'ssh:my-host-alias',
+		);
+		assert.strictEqual(provider, undefined);
+	});
+
+	test('does not match a prefix/substring - requires exact remoteAddress equality', () => {
+		const provider = findAgentHostProviderForTarget(
+			[agentHostProvider('agenthost-1', 'ssh:my-host-alias-2')],
+			'ssh:my-host-alias',
+		);
+		assert.strictEqual(provider, undefined);
+	});
+
+	test('returns undefined for an empty provider list', () => {
+		assert.strictEqual(findAgentHostProviderForTarget([], 'ssh:my-host-alias'), undefined);
+	});
+
+	test('picks the matching provider out of several, ignoring others', () => {
+		const match = agentHostProvider('agenthost-2', 'tunnel:abc123');
+		const providers = [
+			agentHostProvider('agenthost-1', 'ssh:other-host'),
+			match,
+			nonAgentHostProvider('some-other-provider', 'tunnel:abc123'),
+		];
+		assert.strictEqual(findAgentHostProviderForTarget(providers, 'tunnel:abc123'), match);
 	});
 });

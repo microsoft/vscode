@@ -9,6 +9,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import {
 	getEntryAddress,
@@ -19,9 +21,13 @@ import {
 } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
+import { ChangeRemoteAgentHostLocationPreferenceCommandId } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { CHAT_CATEGORY } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { changeRemoteAgentHostLocationPreference } from '../browser/remoteHostOptions.js';
 
 /** A remote host that can have a preferred agent run location, deduplicated by its stable preference key. */
 export interface IRemoteAgentHostLocationTarget {
@@ -83,7 +89,22 @@ export async function pickRemoteAgentHostLocationTarget(
 	return picked?.target;
 }
 
-export const ChangeRemoteAgentHostLocationPreferenceCommandId = 'workbench.action.sessions.changeRemoteAgentHostLocationPreference';
+/**
+ * Resolve the live {@link IAgentHostSessionsProvider} for `targetKey`, i.e.
+ * an agent host provider (per {@link isAgentHostProvider}) whose
+ * `remoteAddress` exactly matches. Pure so provider resolution can be unit
+ * tested without a {@link ISessionsProvidersService}. Returns `undefined`
+ * when no such provider is currently registered - the exceptional race
+ * where a configured/cached target has no corresponding live provider.
+ */
+export function findAgentHostProviderForTarget(
+	providers: readonly ISessionsProvider[],
+	targetKey: string,
+): IAgentHostSessionsProvider | undefined {
+	return providers
+		.filter(isAgentHostProvider)
+		.find(provider => provider.remoteAddress === targetKey);
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -106,6 +127,9 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const dialogService = accessor.get(IDialogService);
 		const notificationService = accessor.get(INotificationService);
+		const productService = accessor.get(IProductService);
+		const progressService = accessor.get(IProgressService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 
 		const targets = collectRemoteAgentHostLocationTargets(remoteAgentHostService.configuredEntries, tunnelAgentHostService.getCachedTunnels());
 		if (targets.length === 0) {
@@ -118,13 +142,17 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const currentPreference = locationPreferenceService.getPreference(target.key);
-		const preference = await promptRemoteAgentHostLocationPreference(dialogService, target.label, currentPreference);
-		if (!preference) {
-			return;
-		}
-
-		locationPreferenceService.setPreference(target.key, preference);
-		notificationService.info(localize('remoteAgentHostLocation.saved', "Preference saved for {0}. This takes effect the next time it connects.", target.label));
+		const provider = findAgentHostProviderForTarget(sessionsProvidersService.getProviders(), target.key);
+		await changeRemoteAgentHostLocationPreference({
+			address: target.key,
+			hostLabel: target.label,
+			productName: productService.nameShort,
+			provider,
+			dialogService,
+			locationPreferenceService,
+			notificationService,
+			remoteAgentHostService,
+			progressService,
+		});
 	}
 });

@@ -17,6 +17,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { IDialogService } from '../../../dialogs/common/dialogs.js';
 import { INotificationService, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
+import { IProductService } from '../../../product/common/productService.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
@@ -336,6 +337,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(IDialogService, {
 			prompt: (() => { throw new Error('unexpected dialogService.prompt call'); }) as unknown as IDialogService['prompt'],
 		} as Partial<IDialogService>);
+		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
 
 		const clientWaiters: DeferredPromise<MockProtocolClient>[] = [];
 		waitForClient = (index: number): Promise<MockProtocolClient> => {
@@ -759,6 +761,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 			prompt: (() => { throw new Error('unexpected dialogService.prompt call'); }) as unknown as IDialogService['prompt'],
 		};
 		instantiationService.stub(IDialogService, dialogServiceStub as IDialogService);
+		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
 
 		// Instantiating the service is enough to register the
 		// onDidRequestEndpointSelection/onDidCancelEndpointSelection listeners;
