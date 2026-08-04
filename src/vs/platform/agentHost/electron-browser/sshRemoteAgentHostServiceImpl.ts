@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Codicon } from '../../../base/common/codicons.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IQuickInputService, type IQuickPickItem } from '../../quickinput/common/quickInput.js';
+import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../common/remoteAgentHostLocationPreference.js';
+import { promptRemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreferenceDialog.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
@@ -28,6 +30,7 @@ import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
+	computeSSHConnectionKey,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHConnectResult,
@@ -103,6 +106,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -149,8 +154,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		}));
 
 		// Bridge endpoint-selection requests (multiple live remote agent
-		// hosts found on the remote) to a quick pick so the user decides
-		// which one becomes the primary connection.
+		// hosts found on the remote) to the stored per-host location
+		// preference, prompting with the shared preference modal only when
+		// no preference is stored and an editor-owned endpoint is live.
 		this._register(this._mainService.onDidRequestEndpointSelection(request => {
 			this._handleEndpointSelectionRequest(request);
 		}));
@@ -199,8 +205,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
+		const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost }));
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated, preferredAgentLocation);
 		return this._setupConnection(result, userInitiated ?? true);
 	}
 
@@ -376,6 +383,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		if (this._isSSHAgentForwardingEnabled() && config.agentForward) {
 			result.agentForward = true;
 		}
+		// Thread the stored per-host location preference through to the main
+		// process so `selectEndpoint` can honor it directly — without ever
+		// emitting an endpoint-selection request — for both user-initiated
+		// and silent/background connects (see `ISSHAgentHostConfig.preferredAgentLocation`).
+		const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey(config));
+		if (preferredAgentLocation) {
+			result.preferredAgentLocation = preferredAgentLocation;
+		}
 		return result;
 	}
 
@@ -462,12 +477,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	/**
-	 * Show a quick pick listing every live remote agent host endpoint
-	 * discovered on the remote, plus an option to spawn a new dedicated
-	 * one, and forward the choice (or cancellation) back to the main
-	 * service. Uses the standard {@link IQuickInputService} picker so
-	 * keyboard navigation, screen-reader labels, and focus restoration on
-	 * cancel all follow the normal accessible quick-input behavior.
+	 * Resolve which live remote agent host endpoint (or "start a new one")
+	 * to connect to and forward the choice (or cancellation) back to the
+	 * main service. Consults the stored per-host {@link IRemoteAgentHostLocationPreferenceService}
+	 * preference for `request.connectionKey` first; only opens the shared
+	 * preference modal ({@link promptRemoteAgentHostLocationPreference})
+	 * when no preference is stored and an `editor`-owned endpoint is live,
+	 * since otherwise there's no ambiguity worth interrupting the user for.
 	 */
 	private async _handleEndpointSelectionRequest(request: ISSHEndpointSelectionRequest): Promise<void> {
 		this._logService.info(`[SSHRemoteAgentHost] Endpoint selection requested for ${request.displayHost} (${request.candidates.length} candidate(s))`);
@@ -480,29 +496,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		});
 
 		try {
-			const items: (IQuickPickItem & { selection: ISSHEndpointSelection })[] = request.candidates.map(candidate => ({
-				label: this._endpointCandidateLabel(candidate),
-				description: this._endpointCandidateDescription(candidate),
-				detail: this._endpointCandidateDetail(candidate),
-				selection: { kind: 'candidate', type: candidate.type, pid: candidate.pid, instanceId: candidate.instanceId },
-			}));
-			items.push({
-				label: `$(${Codicon.add.id}) ${localize('sshEndpointSpawnNew', "Start New Dedicated Agent Host")}`,
-				description: localize('sshEndpointSpawnNewDescription', "Spawn a fresh remote agent host reserved for this connection"),
-				selection: { kind: 'spawn' },
-			});
-
-			const picked = await this._quickInputService.pick(items, {
-				title: localize('sshEndpointSelectionTitle', "Select a Remote Agent Host on {0}", request.displayHost),
-				placeHolder: localize('sshEndpointSelectionPlaceholder', "Choose a running agent host to connect to, or start a new one"),
-				ignoreFocusLost: true,
-			}, cts.token);
-
-			if (cts.token.isCancellationRequested || !picked) {
-				await this._mainService.respondEndpointSelection(request.requestId, undefined);
-				return;
-			}
-			await this._mainService.respondEndpointSelection(request.requestId, picked.selection);
+			const selection = await this._resolveEndpointSelection(request, cts.token);
+			await this._mainService.respondEndpointSelection(request.requestId, selection);
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Failed handling endpoint selection prompt', err);
 			try {
@@ -514,23 +509,61 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		}
 	}
 
-	private _endpointCandidateLabel(candidate: ISSHEndpointCandidate): string {
-		return candidate.type === 'editor'
-			? `$(${Codicon.window.id}) ${localize('sshEndpointCandidateEditor', "Editor Instance")}`
-			: `$(${Codicon.vm.id}) ${localize('sshEndpointCandidateStandalone', "Standalone Agent Host")}`;
+	/**
+	 * Apply the preference-resolution rules described on
+	 * {@link _handleEndpointSelectionRequest}. Returns `undefined` only when
+	 * the shared preference modal was shown and the user cancelled it.
+	 */
+	private async _resolveEndpointSelection(request: ISSHEndpointSelectionRequest, token: CancellationToken): Promise<ISSHEndpointSelection | undefined> {
+		const hasLiveEditor = request.candidates.some(candidate => candidate.type === 'editor');
+		const preference = this._locationPreferenceService.getPreference(request.connectionKey);
+
+		if (preference === 'editor') {
+			// Explicit consent to run in an editor. If none is live right
+			// now, fall back to a dedicated selection without touching the
+			// saved preference — see the class-level comment on
+			// `_lastConnectedServerTypeByAddress` for why a future connect
+			// should still be able to prefer an editor again.
+			return hasLiveEditor ? this._deterministicSelection(request.candidates, 'editor') : this._dedicatedSelection(request.candidates);
+		}
+
+		if (preference === 'dedicated') {
+			return this._dedicatedSelection(request.candidates);
+		}
+
+		if (!hasLiveEditor) {
+			// No stored preference and no editor to disambiguate against —
+			// nothing here can steal a session from another open window,
+			// so resolve silently without prompting.
+			return this._dedicatedSelection(request.candidates);
+		}
+
+		const chosen = await promptRemoteAgentHostLocationPreference(this._dialogService, request.displayHost, undefined, token);
+		if (token.isCancellationRequested || !chosen) {
+			return undefined;
+		}
+		this._locationPreferenceService.setPreference(request.connectionKey, chosen);
+		return chosen === 'editor' ? this._deterministicSelection(request.candidates, 'editor') : this._dedicatedSelection(request.candidates);
 	}
 
-	private _endpointCandidateDescription(candidate: ISSHEndpointCandidate): string {
-		return localize('sshEndpointCandidatePid', "PID {0}", candidate.pid);
+	/** Reuse a live standalone endpoint if one exists, or spawn a new dedicated one. */
+	private _dedicatedSelection(candidates: readonly ISSHEndpointCandidate[]): ISSHEndpointSelection {
+		return this._deterministicSelection(candidates, 'standalone') ?? { kind: 'spawn' };
 	}
 
-	private _endpointCandidateDetail(candidate: ISSHEndpointCandidate): string {
-		const address = candidate.endpoint.type === 'tcp'
-			? localize('sshEndpointCandidateAddressTcp', "{0}:{1}", candidate.endpoint.host, candidate.endpoint.port)
-			: localize('sshEndpointCandidateAddressSocket', "socket {0}", candidate.endpoint.path);
-		return candidate.quality
-			? localize('sshEndpointCandidateDetailWithQuality', "{0} · {1}", candidate.quality, address)
-			: address;
+	/**
+	 * Pick the candidate of `type` deterministically when several are live,
+	 * by sorting on `instanceId` so every renderer resolving the same
+	 * request (e.g. multiple open editor windows) converges on the same
+	 * choice without needing to coordinate.
+	 */
+	private _deterministicSelection(candidates: readonly ISSHEndpointCandidate[], type: AgentHostServerType): ISSHEndpointSelection | undefined {
+		const matching = candidates.filter(candidate => candidate.type === type);
+		if (matching.length === 0) {
+			return undefined;
+		}
+		const [chosen] = matching.slice().sort((a, b) => a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0);
+		return { kind: 'candidate', type: chosen.type, pid: chosen.pid, instanceId: chosen.instanceId };
 	}
 }
 

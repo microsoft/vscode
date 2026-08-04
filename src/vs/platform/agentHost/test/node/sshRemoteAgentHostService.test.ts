@@ -796,6 +796,118 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(result.instanceId, 'editor-1');
 	});
 
+	// --- Stored preference hint (`config.preferredAgentLocation`): a
+	// renderer-derived `IRemoteAgentHostLocationPreferenceService` choice
+	// threaded through `ISSHAgentHostConfig` so the main process can honor
+	// it directly, without ever emitting an endpoint-selection request —
+	// for both user-initiated and silent/background connects.
+
+	test('stored "editor" preference selects the deterministic live editor without a request, even for a silent reconnect', async () => {
+		const editorA = makeEndpoint({ type: 'editor', pid: 100, instanceId: 'editor-b', endpoint: { type: 'socket', path: '/tmp/a.sock' } });
+		const editorB = makeEndpoint({ type: 'editor', pid: 200, instanceId: 'editor-a', endpoint: { type: 'socket', path: '/tmp/b.sock' } });
+		const standalone = makeEndpoint({ type: 'standalone', pid: 300, instanceId: 'inst-c' });
+		service.execResponses = discoveryResponses([editorA, editorB, standalone]);
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', userInitiated: false, preferredAgentLocation: 'editor' }));
+
+		assert.deepStrictEqual(events, [], 'a stored preference must never fire an endpoint-selection request');
+		assert.strictEqual(result.serverType, 'editor');
+		assert.strictEqual(result.instanceId, 'editor-a', 'must deterministically pick the lowest instanceId editor');
+		assert.strictEqual(result.lifecycle, 'external');
+	});
+
+	test('stored "editor" preference with no live editor falls back to dedicated selection without a request', async () => {
+		const s1 = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'inst-b' });
+		const s2 = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'inst-a' });
+		service.execResponses = discoveryResponses([s1, s2]);
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', userInitiated: true, preferredAgentLocation: 'editor' }));
+
+		assert.deepStrictEqual(events, [], 'unavailable-editor fallback must never fire an endpoint-selection request');
+		assert.strictEqual(result.serverType, 'standalone');
+		assert.strictEqual(result.instanceId, 'inst-a', 'must deterministically pick the lowest instanceId standalone');
+		assert.strictEqual(result.lifecycle, 'external');
+	});
+
+	test('stored "editor" preference with nothing live spawns a new dedicated agent host without a request', async () => {
+		const spawned = makeEndpoint({ type: 'standalone', pid: 999, instanceId: 'spawned-4' });
+		service.execResponses = [
+			...discoveryResponses([]),
+			{ stdout: '', code: 0 },                                  // spawn command
+			{ stdout: agentEndpointsStdout([spawned]), code: 0 },     // wait-poll finds the new standalone
+		];
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', userInitiated: false, preferredAgentLocation: 'editor' }));
+
+		assert.deepStrictEqual(events, []);
+		assert.strictEqual(result.serverType, 'standalone');
+		assert.strictEqual(result.instanceId, 'spawned-4');
+		assert.strictEqual(result.lifecycle, 'managed');
+	});
+
+	test('stored "dedicated" preference selects dedicated even when an editor is live, without a request', async () => {
+		const editor = makeEndpoint({ type: 'editor', pid: 300, instanceId: 'editor-1', endpoint: { type: 'socket', path: '/tmp/agent.sock' } });
+		const standalone = makeEndpoint({ type: 'standalone', pid: 400, instanceId: 'inst-c' });
+		service.execResponses = discoveryResponses([editor, standalone]);
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', userInitiated: true, preferredAgentLocation: 'dedicated' }));
+
+		assert.deepStrictEqual(events, [], 'stored "dedicated" preference must never fire an endpoint-selection request, even user-initiated');
+		assert.strictEqual(result.serverType, 'standalone');
+		assert.strictEqual(result.instanceId, 'inst-c');
+		assert.strictEqual(result.lifecycle, 'external');
+		assert.strictEqual(service.startCalled, 0);
+	});
+
+	test('stored "dedicated" preference with nothing live spawns a new dedicated agent host without a request', async () => {
+		const spawned = makeEndpoint({ type: 'standalone', pid: 999, instanceId: 'spawned-5' });
+		service.execResponses = [
+			...discoveryResponses([]),
+			{ stdout: '', code: 0 },
+			{ stdout: agentEndpointsStdout([spawned]), code: 0 },
+		];
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', userInitiated: true, preferredAgentLocation: 'dedicated' }));
+
+		assert.deepStrictEqual(events, []);
+		assert.strictEqual(result.serverType, 'standalone');
+		assert.strictEqual(result.instanceId, 'spawned-5');
+		assert.strictEqual(result.lifecycle, 'managed');
+	});
+
+	test('cold-start reconnect() threads preferredAgentLocation through to selectEndpoint and never prompts when a preference is stored', async () => {
+		const editorA = makeEndpoint({ type: 'editor', pid: 100, instanceId: 'editor-b', endpoint: { type: 'socket', path: '/tmp/a.sock' } });
+		const editorB = makeEndpoint({ type: 'editor', pid: 200, instanceId: 'editor-a', endpoint: { type: 'socket', path: '/tmp/b.sock' } });
+		service.execResponses = discoveryResponses([editorA, editorB]);
+
+		const events: ISSHEndpointSelectionRequest[] = [];
+		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
+
+		// userInitiated: true would normally still prompt when an editor is
+		// live (see the contrasting test above) — a stored preference must
+		// pre-empt that entirely.
+		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
+
+		assert.deepStrictEqual(events, []);
+		assert.strictEqual(result.serverType, 'editor');
+		assert.strictEqual(result.instanceId, 'editor-a');
+	});
+
 	// --- Failure/race handling (requirement 7) ---
 
 	test('relay failure to a selected endpoint rereads the registry once and throws, never silently promotes or spawns', async () => {

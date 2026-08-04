@@ -14,14 +14,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IDialogService } from '../../../dialogs/common/dialogs.js';
 import { INotificationService, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
-import { IQuickInputService, type IQuickPickItem } from '../../../quickinput/common/quickInput.js';
+import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
@@ -103,7 +105,7 @@ class MockSSHMainService {
 
 	readonly disconnectCalls: string[] = [];
 	readonly connectCalls: ISSHAgentHostConfig[] = [];
-	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string }> = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string; remoteAgentHostCommand?: string; agentForward?: boolean; userInitiated?: boolean; preferredAgentLocation?: RemoteAgentHostLocationPreference }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
@@ -122,8 +124,8 @@ class MockSSHMainService {
 		};
 	}
 
-	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
-		this.reconnectCalls.push({ sshConfigHost, name });
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation });
 		return {
 			connectionId: this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`,
 			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
@@ -273,6 +275,29 @@ class CapturingNotificationService extends TestNotificationService {
 	}
 }
 
+/** In-memory stand-in for {@link IRemoteAgentHostLocationPreferenceService}, keyed the same way as the real storage-backed implementation. */
+class TestRemoteAgentHostLocationPreferenceService implements IRemoteAgentHostLocationPreferenceService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _preferences = new Map<string, RemoteAgentHostLocationPreference>();
+
+	private readonly _onDidChangePreference = new Emitter<string>();
+	readonly onDidChangePreference = this._onDidChangePreference.event;
+
+	getPreference(hostKey: string): RemoteAgentHostLocationPreference | undefined {
+		return this._preferences.get(hostKey);
+	}
+
+	setPreference(hostKey: string, preference: RemoteAgentHostLocationPreference): void {
+		this._preferences.set(hostKey, preference);
+		this._onDidChangePreference.fire(hostKey);
+	}
+
+	dispose(): void {
+		this._onDidChangePreference.dispose();
+	}
+}
+
 suite('SSHRemoteAgentHostService (renderer)', () => {
 
 	const disposables = new DisposableStore();
@@ -284,6 +309,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
 	let quickInputServiceStub: Partial<IQuickInputService>;
+	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -305,6 +331,11 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
 		notificationService = new CapturingNotificationService();
 		instantiationService.stub(INotificationService, notificationService as Partial<INotificationService>);
+		locationPreferenceService = disposables.add(new TestRemoteAgentHostLocationPreferenceService());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, locationPreferenceService as Partial<IRemoteAgentHostLocationPreferenceService>);
+		instantiationService.stub(IDialogService, {
+			prompt: (() => { throw new Error('unexpected dialogService.prompt call'); }) as unknown as IDialogService['prompt'],
+		} as Partial<IDialogService>);
 
 		const clientWaiters: DeferredPromise<MockProtocolClient>[] = [];
 		waitForClient = (index: number): Promise<MockProtocolClient> => {
@@ -356,6 +387,58 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {
+		locationPreferenceService.setPreference('ssh:remote.example', 'editor');
+
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		assert.strictEqual(mainService.connectCalls.length, 1);
+		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, 'editor');
+	});
+
+	test('connect omits preferredAgentLocation from the main-process config when no preference is stored', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		assert.strictEqual(mainService.connectCalls.length, 1);
+		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, undefined);
+	});
+
+	test('reconnect threads the stored location preference for sshConfigHost into the main-process reconnect call', async () => {
+		locationPreferenceService.setPreference('ssh:remote.example', 'dedicated');
+
+		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
+		await awaitClientThenResolve(0);
+		await reconnectPromise;
+
+		assert.strictEqual(mainService.reconnectCalls.length, 1);
+		assert.strictEqual(mainService.reconnectCalls[0].sshConfigHost, 'remote.example');
+		assert.strictEqual(mainService.reconnectCalls[0].preferredAgentLocation, 'dedicated');
+	});
+
+	test('reconnect omits preferredAgentLocation from the main-process call when no preference is stored', async () => {
+		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
+		await awaitClientThenResolve(0);
+		await reconnectPromise;
+
+		assert.strictEqual(mainService.reconnectCalls.length, 1);
+		assert.strictEqual(mainService.reconnectCalls[0].preferredAgentLocation, undefined);
+	});
+
+	test('connect uses the preference for its own stable connection key, not an unrelated host\'s', async () => {
+		locationPreferenceService.setPreference('ssh:remote.example', 'editor');
+		locationPreferenceService.setPreference('ssh:other.example', 'dedicated');
+
+		const connectPromise = service.connect({ ...sampleConfig, host: 'other.example', sshConfigHost: 'other.example' });
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, 'dedicated', 'must use the preference for this config\'s own key, not an unrelated host\'s');
 	});
 
 	test('incompatible handshake keeps SSH tunnel registered for server upgrade', async () => {
@@ -641,11 +724,12 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	});
 });
 
-suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
+suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () => {
 
 	const disposables = new DisposableStore();
 	let mainService: MockSSHMainService;
-	let quickInputServiceStub: Partial<IQuickInputService>;
+	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
+	let dialogServiceStub: Partial<IDialogService>;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -658,14 +742,23 @@ suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
-		quickInputServiceStub = {};
-		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
+		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
 		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
 		instantiationService.stub(ISSHRelayClientFactory, {
 			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
 		});
+
+		locationPreferenceService = disposables.add(new TestRemoteAgentHostLocationPreferenceService());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, locationPreferenceService as Partial<IRemoteAgentHostLocationPreferenceService>);
+
+		// Default to throwing so any test that doesn't expect the modal to
+		// appear fails loudly if the implementation shows it unexpectedly.
+		dialogServiceStub = {
+			prompt: (() => { throw new Error('unexpected dialogService.prompt call'); }) as unknown as IDialogService['prompt'],
+		};
+		instantiationService.stub(IDialogService, dialogServiceStub as IDialogService);
 
 		// Instantiating the service is enough to register the
 		// onDidRequestEndpointSelection/onDidCancelEndpointSelection listeners;
@@ -676,66 +769,108 @@ suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const connectionKey = 'ssh:remote.example';
+
 	const editorCandidate: ISSHEndpointCandidate = {
 		type: 'editor',
 		pid: 111,
-		instanceId: 'editor-instance-1',
+		instanceId: 'editor-instance-2',
 		quality: 'stable',
 		endpoint: { type: 'socket', path: '/run/agent-host/editor-111.sock' },
+	};
+	const otherEditorCandidate: ISSHEndpointCandidate = {
+		type: 'editor',
+		pid: 333,
+		instanceId: 'editor-instance-1',
+		endpoint: { type: 'socket', path: '/run/agent-host/editor-333.sock' },
 	};
 	const standaloneCandidate: ISSHEndpointCandidate = {
 		type: 'standalone',
 		pid: 222,
-		instanceId: 'standalone-instance-1',
+		instanceId: 'standalone-instance-2',
 		endpoint: { type: 'tcp', host: '127.0.0.1', port: 43210 },
 	};
+	const otherStandaloneCandidate: ISSHEndpointCandidate = {
+		type: 'standalone',
+		pid: 444,
+		instanceId: 'standalone-instance-1',
+		endpoint: { type: 'tcp', host: '127.0.0.1', port: 43211 },
+	};
 
-	function makeRequest(candidates: readonly ISSHEndpointCandidate[]): ISSHEndpointSelectionRequest {
-		return { requestId: 'req-1', connectionKey: 'ssh:remote.example', displayHost: 'remote.example', candidates };
+	function makeRequest(candidates: readonly ISSHEndpointCandidate[], key = connectionKey): ISSHEndpointSelectionRequest {
+		return { requestId: 'req-1', connectionKey: key, displayHost: 'remote.example', candidates };
 	}
 
-	test('shows a picker with a localized item per candidate plus a spawn-new item, and responds with the chosen candidate', async () => {
-		let capturedItems: (IQuickPickItem & { selection: ISSHEndpointSelection })[] | undefined;
-		let capturedTitle: string | undefined;
-		let capturedPlaceholder: string | undefined;
-		quickInputServiceStub.pick = (async (items: unknown, options?: { title?: string; placeHolder?: string }) => {
-			capturedItems = items as (IQuickPickItem & { selection: ISSHEndpointSelection })[];
-			capturedTitle = options?.title;
-			capturedPlaceholder = options?.placeHolder;
-			return capturedItems[0];
-		}) as unknown as IQuickInputService['pick'];
+	test('no stored preference with a live editor shows the shared modal and persists a chosen "editor" preference', async () => {
+		dialogServiceStub.prompt = (async () => ({ result: 'editor' })) as unknown as IDialogService['prompt'];
 
 		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
-		assert.strictEqual(capturedTitle, 'Select a Remote Agent Host on remote.example');
-		assert.strictEqual(capturedPlaceholder, 'Choose a running agent host to connect to, or start a new one');
-		assert.strictEqual(capturedItems?.length, 3, 'one item per candidate plus the spawn-new item');
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-2' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
+	});
 
-		const [editorItem, standaloneItem, spawnItem] = capturedItems!;
-		assert.strictEqual(editorItem.label, '$(window) Editor Instance');
-		assert.strictEqual(editorItem.description, 'PID 111');
-		assert.strictEqual(editorItem.detail, 'stable · socket /run/agent-host/editor-111.sock');
-		assert.deepStrictEqual(editorItem.selection, { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-1' });
+	test('no stored preference with a live editor shows the shared modal and persists a chosen "dedicated" preference', async () => {
+		dialogServiceStub.prompt = (async () => ({ result: 'dedicated' })) as unknown as IDialogService['prompt'];
 
-		assert.strictEqual(standaloneItem.label, '$(vm) Standalone Agent Host');
-		assert.strictEqual(standaloneItem.description, 'PID 222');
-		assert.strictEqual(standaloneItem.detail, '127.0.0.1:43210');
-		assert.deepStrictEqual(standaloneItem.selection, { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-1' });
-
-		assert.strictEqual(spawnItem.label, '$(add) Start New Dedicated Agent Host');
-		assert.deepStrictEqual(spawnItem.selection, { kind: 'spawn' });
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-1' } },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'dedicated');
+	});
+
+	test('no stored preference and no live editor resolves to a dedicated selection without prompting or persisting anything', async () => {
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), undefined);
+	});
+
+	test('no stored preference and no live candidates at all spawns a new dedicated host without prompting', async () => {
+		mainService.fireEndpointSelectionRequest(makeRequest([]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'spawn' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), undefined);
+	});
+
+	test('a stored "editor" preference bypasses the modal and resolves to the live editor candidate', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'editor');
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-2' } },
 		]);
 	});
 
-	test('responds with a spawn selection when the "start new" item is chosen', async () => {
-		quickInputServiceStub.pick = (async (items: unknown) =>
-			(items as (IQuickPickItem & { selection: ISSHEndpointSelection })[]).at(-1)) as unknown as IQuickInputService['pick'];
+	test('a stored "dedicated" preference bypasses the modal even when an editor is live', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'dedicated');
 
-		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
+		]);
+	});
+
+	test('a stored "dedicated" preference with no live standalone endpoint spawns a new one', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'dedicated');
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
@@ -743,29 +878,64 @@ suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
 		]);
 	});
 
-	test('responds with undefined when the user dismisses the picker', async () => {
-		quickInputServiceStub.pick = (async () => undefined) as unknown as IQuickInputService['pick'];
+	test('a stored "editor" preference with no live editor falls back to a dedicated selection without mutating the stored preference', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'editor');
 
 		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: undefined },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor', 'a live-editor-unavailable fallback must not downgrade the stored preference, so a future connect can prefer an editor again');
+	});
+
+	test('a stored "editor" preference with neither a live editor nor a live standalone spawns a new dedicated host', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'editor');
+
+		mainService.fireEndpointSelectionRequest(makeRequest([]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'spawn' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
+	});
+
+	test('resolves to the live editor candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'editor');
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, otherEditorCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 333, instanceId: 'editor-instance-1' } },
 		]);
 	});
 
-	test('a main-process cancellation aborts the open picker cleanly and responds with undefined', async () => {
-		let capturedToken: CancellationToken | undefined;
-		quickInputServiceStub.pick = ((_items: unknown, _options: unknown, token: CancellationToken) => new Promise(resolve => {
-			capturedToken = token;
-			const listener = token.onCancellationRequested(() => {
-				listener.dispose();
-				resolve(undefined);
-			});
-		})) as unknown as IQuickInputService['pick'];
+	test('resolves to the live standalone candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+		locationPreferenceService.setPreference(connectionKey, 'dedicated');
 
-		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
-		assert.ok(capturedToken, 'picker should have been opened synchronously with a cancellation token');
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate, otherStandaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 444, instanceId: 'standalone-instance-1' } },
+		]);
+	});
+
+	test('a main-process cancellation aborts the open modal cleanly, responds with undefined, and persists nothing', async () => {
+		let capturedToken: CancellationToken | undefined;
+		dialogServiceStub.prompt = ((prompt: { token?: CancellationToken }) => new Promise(resolve => {
+			capturedToken = prompt.token;
+			const listener = prompt.token?.onCancellationRequested(() => {
+				listener?.dispose();
+				resolve({ result: undefined });
+			});
+		})) as unknown as IDialogService['prompt'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		assert.ok(capturedToken, 'the modal should have been opened synchronously with a cancellation token');
 
 		const responsePromise = mainService.waitForEndpointSelectionResponse();
 		mainService.fireEndpointSelectionCancel('req-1');
@@ -774,19 +944,46 @@ suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
 			{ requestId: 'req-1', selection: undefined },
 		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), undefined);
 	});
 
-	test('cancelling an unrelated requestId does not abort the current picker', async () => {
-		quickInputServiceStub.pick = (async () => undefined) as unknown as IQuickInputService['pick'];
+	test('the user dismissing the modal responds with undefined and does not persist a preference', async () => {
+		dialogServiceStub.prompt = (async () => ({ result: undefined })) as unknown as IDialogService['prompt'];
 
-		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: undefined },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), undefined);
+	});
+
+	test('cancelling an unrelated requestId does not abort the current modal', async () => {
+		dialogServiceStub.prompt = (async () => ({ result: undefined })) as unknown as IDialogService['prompt'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
 		mainService.fireEndpointSelectionCancel('some-other-request');
 		await mainService.waitForEndpointSelectionResponse();
 
-		// The picker resolved on its own (user dismissed it); the unrelated
+		// The modal resolved on its own (user dismissed it); the unrelated
 		// cancel event must not have interfered with routing the response.
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
 			{ requestId: 'req-1', selection: undefined },
 		]);
+	});
+
+	test('preferences are isolated per connectionKey: a preference stored for one host does not suppress the modal for another', async () => {
+		locationPreferenceService.setPreference('ssh:other.example', 'dedicated');
+		dialogServiceStub.prompt = (async () => ({ result: 'editor' })) as unknown as IDialogService['prompt'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate], connectionKey));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-2' } },
+		]);
+		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
+		assert.strictEqual(locationPreferenceService.getPreference('ssh:other.example'), 'dedicated');
 	});
 });

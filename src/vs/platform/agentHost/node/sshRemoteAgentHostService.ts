@@ -20,6 +20,7 @@ import { IProductService } from '../../product/common/productService.js';
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
+	computeSSHConnectionKey,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConfigSanitized,
 	type ISSHConnectProgress,
@@ -32,6 +33,7 @@ import {
 	type ISSHResolvedConfig,
 	type SSHAgentHostLifecycle,
 } from '../common/sshRemoteAgentHost.js';
+import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	type AgentHostEndpointAddress,
@@ -724,9 +726,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
-		const connectionKey = config.sshConfigHost
-			? `ssh:${config.sshConfigHost}`
-			: `${config.username}@${config.host}:${config.port ?? 22}`;
+		const connectionKey = computeSSHConnectionKey(config);
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
@@ -899,6 +899,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, live);
 				};
 
+				// Deterministic dedicated (standalone) selection: reuse a live
+				// standalone (lowest `instanceId` first, so repeated silent
+				// attempts are stable) when one exists, or spawn a new
+				// dedicated one otherwise. Shared by the stored-preference
+				// paths below and the silent/background reconnect policy —
+				// neither ever opens the picker.
+				const selectDedicated = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
+					if (standalones.length === 0) {
+						return { chosen: await spawnDedicated(), lifecycle: 'managed' };
+					}
+					const [deterministic] = [...standalones].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+					return { chosen: deterministic, lifecycle: 'external' };
+				};
+
 				// Selection policy (requirement 2): with no editor entries,
 				// reuse a live standalone deterministically when exactly one
 				// exists, otherwise spawn (zero) or prompt (multiple). With
@@ -906,21 +920,43 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// endpoint plus "spawn", since silent reuse could otherwise
 				// steal a session out from under another open editor window.
 				//
-				// The above only applies to user-initiated connects. A
-				// silent/background reconnect (`config.userInitiated ===
-				// false`, e.g. the startup/auto-reconnect path) must never
-				// open the picker and must never silently attach to an
-				// `editor`-owned endpoint — it deterministically reuses a
-				// live `standalone` (picking the lowest `instanceId` so
-				// repeated silent attempts are stable) when one exists, or
-				// spawns a new dedicated one otherwise.
+				// A renderer-supplied `config.preferredAgentLocation` (the
+				// stored `IRemoteAgentHostLocationPreferenceService` choice
+				// for this host, threaded in from the renderer before this
+				// connect/reconnect call) is explicit consent and takes
+				// priority over everything below, including
+				// `userInitiated`: a stored `editor` preference lets even a
+				// silent/background reconnect land on a live `editor`-owned
+				// endpoint (falling back to dedicated selection — without
+				// mutating the stored preference — if none is live), and a
+				// stored `dedicated` preference always selects dedicated.
+				// Neither ever emits an endpoint-selection request, since
+				// the choice is already known.
+				//
+				// Without a stored preference, the previous behavior is
+				// unchanged: a silent/background reconnect (`config.userInitiated
+				// === false`, e.g. the startup/auto-reconnect path) must
+				// never open the picker and must never silently attach to
+				// an `editor`-owned endpoint — it deterministically reuses a
+				// live `standalone` when one exists, or spawns a new
+				// dedicated one otherwise. A user-initiated connect with no
+				// stored preference still shows the picker when an editor
+				// entry exists, giving the renderer's preference-resolution
+				// flow (see `_resolveEndpointSelection`) a chance to prompt
+				// and persist a fresh choice.
 				const selectEndpoint = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
-					if (config.userInitiated === false) {
-						if (standalones.length === 0) {
-							return { chosen: await spawnDedicated(), lifecycle: 'managed' };
+					if (config.preferredAgentLocation === 'editor') {
+						if (editors.length > 0) {
+							const [deterministic] = [...editors].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+							return { chosen: deterministic, lifecycle: 'external' };
 						}
-						const [deterministic] = [...standalones].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-						return { chosen: deterministic, lifecycle: 'external' };
+						return selectDedicated();
+					}
+					if (config.preferredAgentLocation === 'dedicated') {
+						return selectDedicated();
+					}
+					if (config.userInitiated === false) {
+						return selectDedicated();
 					}
 					if (editors.length === 0) {
 						if (standalones.length === 0) {
@@ -1065,7 +1101,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1091,6 +1127,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			remoteAgentHostCommand,
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
+			preferredAgentLocation,
 		}, /* replaceRelay */ true);
 	}
 

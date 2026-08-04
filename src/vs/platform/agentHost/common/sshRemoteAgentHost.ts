@@ -8,6 +8,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 export type { IRelayMessage } from './relayTransport.js';
@@ -67,15 +68,49 @@ export interface ISSHAgentHostConfig {
 	 * Defaults to `true` when omitted, preserving today's picker-eligible
 	 * behavior for every existing caller that doesn't set this explicitly.
 	 *
-	 * When explicitly `false`, endpoint selection never shows the
-	 * main↔renderer picker and never silently attaches to an `editor`-owned
-	 * endpoint even if one is the only live endpoint — it deterministically
-	 * reuses a live `standalone` endpoint when one exists, or spawns a new
-	 * dedicated one otherwise. This keeps unattended reconnects from
-	 * blocking on renderer UI or stealing a session out from under another
-	 * open editor window.
+	 * When explicitly `false` and {@link preferredAgentLocation} is unset,
+	 * endpoint selection never shows the main↔renderer picker and never
+	 * silently attaches to an `editor`-owned endpoint even if one is the
+	 * only live endpoint — it deterministically reuses a live `standalone`
+	 * endpoint when one exists, or spawns a new dedicated one otherwise.
+	 * This keeps unattended reconnects from blocking on renderer UI or
+	 * stealing a session out from under another open editor window.
 	 */
 	readonly userInitiated?: boolean;
+	/**
+	 * The renderer's previously stored {@link IRemoteAgentHostLocationPreferenceService}
+	 * choice for this host's stable connection key (see
+	 * {@link computeSSHConnectionKey}), threaded through so the main process
+	 * can honor it without ever emitting an {@link ISSHEndpointSelectionRequest}.
+	 * Takes priority over {@link userInitiated}: a stored `editor` preference
+	 * lets even a silent/background reconnect (`userInitiated: false`) land on
+	 * a live `editor`-owned endpoint (falling back to `dedicated` selection,
+	 * without mutating the stored preference, if none is live), and a stored
+	 * `dedicated` preference always selects a dedicated endpoint. When unset,
+	 * behavior is unchanged: {@link userInitiated} alone governs whether the
+	 * picker may be shown. Non-secret; safe to keep in the sanitized config.
+	 */
+	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
+}
+
+/**
+ * Compute the stable per-host key used to key in-flight SSH connections,
+ * the shared endpoint-selection request/candidates, and this host's
+ * persisted {@link RemoteAgentHostLocationPreference}. Uses the SSH config
+ * host alias when available (`ssh:<alias>`), falling back to
+ * `user@host:port` for config-less (explicit credential) connections. Both
+ * the node-side SSH service and the renderer-side preference lookup must
+ * use this exact key so a preference set on one path is honored by the
+ * other. `username`/`host`/`port` are optional since callers that only
+ * know a {@link ISSHAgentHostConfig.sshConfigHost sshConfigHost} alias
+ * up front (e.g. the renderer's `reconnect()`, before the main process has
+ * resolved the alias to a hostname) never reach the fallback branch that
+ * needs them.
+ */
+export function computeSSHConnectionKey(config: { sshConfigHost?: string; username?: string; host?: string; port?: number }): string {
+	return config.sshConfigHost
+		? `ssh:${config.sshConfigHost}`
+		: `${config.username}@${config.host}:${config.port ?? 22}`;
 }
 
 /**
@@ -416,6 +451,9 @@ export interface ISSHRemoteAgentHostMainService {
 	 *
 	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
 	 * Defaults to `true` (picker-eligible) when omitted.
+	 * @param preferredAgentLocation See {@link ISSHAgentHostConfig.preferredAgentLocation}.
+	 * The renderer computes this from its stored preference for this host's
+	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
 }

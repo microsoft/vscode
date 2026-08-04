@@ -9,18 +9,21 @@ import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../../nls.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import {
 	ITunnelAgentHostService,
+	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_CHANNEL,
 	TunnelAgentHostsSettingId,
 	type ICachedTunnel,
@@ -45,84 +48,78 @@ const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
 /** Storage key for tunnels the user explicitly disconnected. */
 const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
 
-interface ITunnelGatewayPickItem extends IQuickPickItem {
-	readonly selection: ITunnelGatewaySelection;
+/** Endpoints of `type`, sorted deterministically by `instanceId`. */
+function sortedGatewayEndpoints(inventory: ITunnelGatewayInventory, type: TunnelGatewayServerType): ITunnelGatewayEndpoint[] {
+	return inventory.endpoints
+		.filter(endpoint => endpoint.type === type)
+		.sort((a, b) => a.instanceId.localeCompare(b.instanceId));
 }
 
-function gatewayEndpointLabel(endpoint: ITunnelGatewayEndpoint): string {
-	return endpoint.type === 'editor'
-		? localize('gatewayEndpointEditor', "Editor (PID {0})", endpoint.pid)
-		: localize('gatewayEndpointStandalone', "Standalone Agent Host (PID {0})", endpoint.pid);
-}
-
-function gatewayEndpointDescription(endpoint: ITunnelGatewayEndpoint): string {
-	const parts: string[] = [];
-	if (endpoint.quality) {
-		parts.push(endpoint.quality);
-	}
-	if (endpoint.tunnelName) {
-		parts.push(endpoint.tunnelName);
-	}
-	parts.push(endpoint.endpointLabel);
-	return parts.join(' · ');
+/** The live `editor` endpoint to use, chosen deterministically when several exist. */
+export function selectEditorGatewayEndpoint(inventory: ITunnelGatewayInventory): ITunnelGatewayEndpoint | undefined {
+	return sortedGatewayEndpoints(inventory, 'editor')[0];
 }
 
 /**
- * Build the quick pick items for every live endpoint in a gateway inventory,
- * plus a trailing item to spawn a brand new dedicated standalone instance.
- * Exported so the picker's exact content can be unit tested without driving
- * a real {@link IQuickInputService}.
+ * Deterministic dedicated-agent-host selection: reuse the first live
+ * standalone instance if one exists, otherwise request a new dedicated one.
+ * Never selects an `editor` endpoint.
  */
-export function buildGatewayPickItems(inventory: ITunnelGatewayInventory): ITunnelGatewayPickItem[] {
-	const items: ITunnelGatewayPickItem[] = inventory.endpoints.map(endpoint => ({
-		label: gatewayEndpointLabel(endpoint),
-		description: gatewayEndpointDescription(endpoint),
-		selection: { instanceId: endpoint.instanceId },
-	}));
-	items.push({
-		label: localize('gatewayNewDedicated', "Start New Dedicated Agent Host"),
-		selection: { newDedicated: true },
-	});
-	return items;
-}
-
-/**
- * Deterministic selection used when an inventory has no `editor` entries to
- * disambiguate interactively: reuse the first live standalone instance if
- * one exists, otherwise request a new dedicated one.
- */
-export function autoGatewaySelection(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
-	const standalone = inventory.endpoints.find(endpoint => endpoint.type === 'standalone');
+export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
+	const standalone = sortedGatewayEndpoints(inventory, 'standalone')[0];
 	return standalone ? { instanceId: standalone.instanceId } : { newDedicated: true };
+}
+
+/** Inputs needed to resolve a protocol-v6 gateway endpoint selection. See {@link resolveGatewaySelection}. */
+export interface IGatewaySelectionRequest {
+	/** Stable {@link IRemoteAgentHostLocationPreferenceService} key, e.g. `tunnel:<tunnelId>`. */
+	readonly hostKey: string;
+	/** User-facing tunnel name shown in the location-preference modal. */
+	readonly hostLabel: string;
+	readonly inventory: ITunnelGatewayInventory;
+	readonly userInitiated: boolean;
 }
 
 /**
  * Resolve which agent host endpoint to select for a protocol-v6 gateway
- * session: deterministically auto-selected when there is nothing to
- * disambiguate (no `editor` entries) or the connection is not user-initiated,
- * or via a standard, accessible {@link IQuickInputService.pick} otherwise.
- * Returns `undefined` if the user cancels the picker.
+ * session, driven by the user's saved {@link IRemoteAgentHostLocationPreferenceService}
+ * preference for the host rather than an endpoint picker:
  *
- * Background/auto-connect (`userInitiated: false`) must never prompt and
- * must never choose an `editor` endpoint, so it always falls back to
- * {@link autoGatewaySelection} regardless of what the inventory contains.
+ * - A saved `'editor'` preference selects the live editor endpoint if one
+ *   exists, or falls back to a dedicated endpoint (without changing the
+ *   preference) if it doesn't — a stored editor preference is explicit
+ *   consent, so this applies even for a background reconnect.
+ * - A saved `'dedicated'` preference always falls back to a dedicated
+ *   endpoint and never prompts.
+ * - With no saved preference: falls back to a dedicated endpoint (no prompt,
+ *   no persistence) when no editor endpoint exists, or for a background
+ *   connection; otherwise prompts with {@link promptRemoteAgentHostLocationPreference}
+ *   and persists the user's choice.
+ *
+ * Returns `undefined` only when the user cancels that modal.
  */
-export async function pickGatewaySelection(
-	quickInputService: IQuickInputService,
-	inventory: ITunnelGatewayInventory,
-	options?: { readonly userInitiated?: boolean },
+export async function resolveGatewaySelection(
+	locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+	dialogService: IDialogService,
+	request: IGatewaySelectionRequest,
 ): Promise<ITunnelGatewaySelection | undefined> {
-	const userInitiated = options?.userInitiated ?? true;
-	const hasEditorEntry = inventory.endpoints.some(endpoint => endpoint.type === 'editor');
-	if (!userInitiated || !hasEditorEntry) {
-		return autoGatewaySelection(inventory);
+	const { hostKey, hostLabel, inventory, userInitiated } = request;
+	const editor = selectEditorGatewayEndpoint(inventory);
+	const preference = locationPreferenceService.getPreference(hostKey);
+
+	if (preference === 'editor') {
+		return editor ? { instanceId: editor.instanceId } : selectDedicatedGatewayFallback(inventory);
+	}
+	if (preference === 'dedicated' || !editor || !userInitiated) {
+		return selectDedicatedGatewayFallback(inventory);
 	}
 
-	const picked = await quickInputService.pick(buildGatewayPickItems(inventory), {
-		title: localize('gatewayPickTitle', "Select Agent Host"),
-		placeHolder: localize('gatewayPickPlaceholder', "Choose an agent host to connect to, or start a new one"),
-	});
-	return picked?.selection;
+	const chosen = await promptRemoteAgentHostLocationPreference(dialogService, hostLabel);
+	if (!chosen) {
+		return undefined;
+	}
+	locationPreferenceService.setPreference(hostKey, chosen);
+	return chosen === 'editor' ? { instanceId: editor.instanceId } : selectDedicatedGatewayFallback(inventory);
 }
 
 /**
@@ -216,7 +213,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
@@ -261,15 +259,19 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${tunnel.name}' (${tunnel.tunnelId})`);
 
 		// Protocol-v6 tunnels expose a registry-based endpoint selection
-		// gateway: prepare it first and let the user (or a deterministic
-		// auto-selection) pick a target before completing the connection.
-		// Protocol-v5 tunnels have no gateway — `prepareSelection` returns
-		// `undefined` and we fall back to the legacy direct-connect path
-		// with no picker.
+		// gateway: prepare it first and resolve a target by the user's saved
+		// location preference before completing the connection. Protocol-v5
+		// tunnels have no gateway — `prepareSelection` returns `undefined`
+		// and we fall back to the legacy direct-connect path with no prompt.
 		const session = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
 		let result: ITunnelConnectResult;
 		if (session) {
-			const selection = await pickGatewaySelection(this._quickInputService, session.inventory, { userInitiated: options?.userInitiated });
+			const selection = await resolveGatewaySelection(this._locationPreferenceService, this._dialogService, {
+				hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
+				hostLabel: tunnel.name,
+				inventory: session.inventory,
+				userInitiated: options?.userInitiated ?? true,
+			});
 			if (!selection) {
 				this._logService.info(`${LOG_PREFIX} Agent host selection cancelled for tunnel '${tunnel.name}'`);
 				await this._mainService.cancelSelection(session.selectionId);
