@@ -516,8 +516,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 				return session;
 			},
 		};
-		// Root value unset (default launcher's getRootValue returns undefined).
-		const launcher = createTestLauncher();
+		// The renderer uses an empty object as the merge-safe wire sentinel when
+		// policy is cleared; the launcher must still omit managedSettings.
+		const launcher = createTestLauncherWithRootValues({
+			[AgentHostManagedPermissionsConfigKey]: {},
+		});
 		const basePlan = {
 			client,
 			sessionId: 'session-1',

@@ -1505,14 +1505,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * settings via `inspect(...).policyValue` — user/workspace values are
 	 * ignored so only enterprise policy affects the runtime's
 	 * `managedSettings.permissions`. When no policy applies, the derived value
-	 * is `undefined` and the root config key is cleared.
+	 * is `undefined` and an empty-object clear sentinel is forwarded so the
+	 * merge-based root config drops any previously forwarded permissions.
 	 */
 	private _updateManagedPermissions(): void {
 		const permissions = deriveManagedPermissions({
 			globalAutoApprove: this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
 			terminalAutoApproveEnabled: this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
 		});
-		this._dispatchRootConfig({ [AgentHostManagedPermissionsConfigKey]: permissions });
+		// Root config patches merge over existing values. An empty object is
+		// the wire-safe clear sentinel because JSON drops `undefined`.
+		this._dispatchRootConfig({ [AgentHostManagedPermissionsConfigKey]: permissions ?? {} });
 	}
 
 	private _updatePreferLongContextEnabled(): void {

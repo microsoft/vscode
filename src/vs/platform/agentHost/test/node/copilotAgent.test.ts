@@ -4453,6 +4453,7 @@ suite('CopilotAgent', () => {
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
 			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
+			_ensureChatSession: (session: URI, chat: URI) => Promise<CopilotAgentSession | undefined>;
 		};
 
 		interface IFakeChatRecorder {
@@ -4496,6 +4497,7 @@ suite('CopilotAgent', () => {
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
 				getMessages: getMessages ?? (async () => []),
+				async destroySession(): Promise<void> { rec.disposed = true; },
 				dispose(): void { rec.disposed = true; owned?.dispose(); },
 			} as unknown as CopilotAgentSession;
 			return { rec, fake };
@@ -5260,6 +5262,32 @@ suite('CopilotAgent', () => {
 					bSends: [],
 					bResets: [],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('sendMessage refreshes a peer chat when managed permissions change', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'route-managed-refresh');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [];
+				const old = makeFakeChatSession(session, 'sdk-old');
+				const fresh = makeFakeChatSession(session, 'sdk-fresh');
+				let ensureCalls = 0;
+				(agent as unknown as ChatInternals)._ensureChatSession = async () => {
+					ensureCalls++;
+					return ensureCalls === 1 ? old.fake : fresh.fake;
+				};
+
+				configurationService.updateRootConfig({
+					[AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' },
+				});
+				await agent.chats.sendMessage(chat, 'after-policy-change', undefined);
+
+				assert.strictEqual(old.rec.disposed, true);
+				assert.deepStrictEqual(fresh.rec.sends.map(send => send.prompt), ['after-policy-change']);
 			} finally {
 				await disposeAgent(agent);
 			}

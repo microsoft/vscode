@@ -380,6 +380,14 @@ export function deriveManagedPermissions(inputs: IManagedPermissionPolicyInputs)
 	return Object.keys(permissions).length ? permissions : undefined;
 }
 
+/**
+ * Treat the empty object used as the merge-safe root-config clear sentinel as
+ * no managed policy.
+ */
+export function normalizeManagedPermissions(permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
+	return permissions && Object.keys(permissions).length > 0 ? permissions : undefined;
+}
+
 const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
 	type: 'object',
 	title: localize('agentHost.config.managedPermissions.title', "Managed Permissions"),
