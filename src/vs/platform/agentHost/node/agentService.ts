@@ -491,7 +491,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Built-in generic provider: completes files in the session's workspace folder.
 		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
-			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
+			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles, this._logService),
 		));
 		// Built-in generic provider: completes `#chat:<title>` references to other
 		// chats in the same session, attaching a chat transcript attachment.

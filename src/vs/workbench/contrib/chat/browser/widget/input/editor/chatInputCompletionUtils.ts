@@ -14,6 +14,10 @@ export function getAttachedContextCompletionFilterText(leader: string, name: str
 	return `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
 }
 
+export function getAgentHostResourceCompletionFilterText(insertText: string, resourcePath: string): string {
+	return `${insertText} ${insertText.charAt(0)}${resourcePath}`;
+}
+
 export function escapeForCharClass(text: string): string {
 	return text.replace(/[-\\^\]]/g, '\\$&');
 }

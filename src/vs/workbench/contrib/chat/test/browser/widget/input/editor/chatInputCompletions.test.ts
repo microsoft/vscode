@@ -17,7 +17,7 @@ import { createTextModel } from '../../../../../../../../editor/test/common/test
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAgentHostResourceCompletionFilterText, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
@@ -87,6 +87,7 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.File,
 			}],
@@ -107,6 +108,7 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.Text,
 			}],
@@ -224,6 +226,17 @@ suite('attached context completion ranking', () => {
 			at: '@Screen Recording.mov @attachment:Screen Recording.mov Screen Recording.mov file',
 			hash: '#Screen Recording.mov #attachment:Screen Recording.mov Screen Recording.mov file',
 		});
+	});
+});
+
+suite('agent host resource completion filtering', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches inserted basenames and resource paths', () => {
+		assert.strictEqual(
+			getAgentHostResourceCompletionFilterText('@index.ts', '/workspace/src/index.ts'),
+			'@index.ts @/workspace/src/index.ts',
+		);
 	});
 });
 

@@ -13,6 +13,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { getAgentHostFileCompletionRoots } from '../../node/agentHostFileCompletionUtils.js';
 import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
 
 suite('AgentHostWorkspaceFiles', () => {
@@ -66,6 +67,17 @@ suite('AgentHostWorkspaceFiles', () => {
 		assert.ok(names.some(p => p.endsWith('/sub/b.txt')), `expected sub/b.txt in ${names.join(',')}`);
 	});
 
+	test('caches an empty directory as a successful result', async () => {
+		const dir = createTempDir();
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const workingDirectory = URI.file(dir);
+
+		const first = await files.getFiles(workingDirectory, CancellationToken.None);
+		const second = await files.getFiles(workingDirectory, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, cacheHit: first === second }, { first: [], cacheHit: true });
+	});
+
 	test('respects .gitignore', async () => {
 		const dir = createTempDir();
 		writeFileSync(join(dir, '.gitignore'), 'ignored.txt\n');
@@ -78,6 +90,29 @@ suite('AgentHostWorkspaceFiles', () => {
 
 		assert.ok(names.some(p => p.endsWith('/kept.txt')));
 		assert.ok(!names.some(p => p.endsWith('/ignored.txt')), `ignored.txt should not be listed: ${names.join(',')}`);
+	});
+
+	test('uses outer-root ignore semantics when a declared nested root is covered', async () => {
+		const dir = createTempDir();
+		const nestedDir = join(dir, 'sub');
+		mkdirSync(nestedDir);
+		writeFileSync(join(dir, '.gitignore'), 'sub/parent-ignored.txt\n');
+		writeFileSync(join(nestedDir, '.gitignore'), 'nested-ignored.txt\n');
+		writeFileSync(join(nestedDir, 'kept.txt'), 'kept');
+		writeFileSync(join(nestedDir, 'parent-ignored.txt'), 'ignored by parent');
+		writeFileSync(join(nestedDir, 'nested-ignored.txt'), 'ignored by nested');
+
+		const roots = getAgentHostFileCompletionRoots([URI.file(dir), URI.file(nestedDir)]);
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const results = await Promise.all(roots.enumerationRoots.map(root => files.getFiles(root, CancellationToken.None)));
+
+		assert.deepStrictEqual({
+			enumeratedRoots: roots.enumerationRoots.map(root => root.path),
+			files: results.flat().map(uri => uri.path.slice(URI.file(dir).path.length + 1)).sort(),
+		}, {
+			enumeratedRoots: [URI.file(dir).path],
+			files: ['.gitignore', 'sub/.gitignore', 'sub/kept.txt'],
+		});
 	});
 
 	test('excludes the .git directory', async () => {

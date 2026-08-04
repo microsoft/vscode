@@ -100,6 +100,7 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		for (const item of result.items) {
 			const built = this._buildItem(position, item, ctx.context);
 			if (built) {
+				built.sortText ??= suggestions.length.toString().padStart(6, '0');
 				suggestions.push(built);
 			}
 		}
