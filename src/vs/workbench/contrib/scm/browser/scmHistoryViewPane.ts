@@ -285,6 +285,22 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	}
 });
 
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.collapseAll',
+			title: localize('collapseAll', "Collapse All"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			menu: { id: MenuId.SCMHistoryTitle, group: '99_collapse', order: 1 },
+			f1: false
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.collapseAll();
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1981,6 +1997,12 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	setViewMode(viewMode: ViewMode): void {
 		this._treeViewModel.setViewMode(viewMode);
+	}
+
+	collapseAll() {
+		if (this._tree !== undefined) {
+			this._tree.collapseAll();
+		}
 	}
 
 	private _createTree(container: HTMLElement): void {
