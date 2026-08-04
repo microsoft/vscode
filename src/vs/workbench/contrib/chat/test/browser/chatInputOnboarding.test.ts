@@ -37,8 +37,20 @@ suite('Chat input onboarding', () => {
 		const card = context.container.ownerDocument.createElement('div');
 		card.classList.add('chat-input-onboarding-card');
 		context.container.appendChild(card);
-		return toDisposable(() => card.remove());
+		const disposable = toDisposable(() => card.remove());
+		return {
+			announce: () => { announceCalls++; },
+			focus: () => { focusCardCalls++; },
+			dispose: () => disposable.dispose(),
+		};
 	}
+
+	let announceCalls = 0;
+	let focusCardCalls = 0;
+	setup(() => {
+		announceCalls = 0;
+		focusCardCalls = 0;
+	});
 
 	test('owns one card and restores focus when it is dismissed', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.ownsCard');
@@ -97,6 +109,21 @@ suite('Chat input onboarding', () => {
 		disposables.add(onboarding.registerHost(host.container, host.root));
 
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
+	});
+
+	test('announces on show and focuses the card on demand', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
+		const host = createHost(disposables);
+		disposables.add(onboarding.registerHost(host.container, host.root));
+
+		const focusedWhenHidden = onboarding.focusCard();
+		const shown = onboarding.show(createCard);
+		const focusedWhileVisible = onboarding.focusCard();
+		onboarding.showIfNeeded(createCard); // no-op while already visible, must not re-announce
+
+		assert.deepStrictEqual(
+			{ focusedWhenHidden, shown, focusedWhileVisible, announceCalls, focusCardCalls },
+			{ focusedWhenHidden: false, shown: true, focusedWhileVisible: true, announceCalls: 1, focusCardCalls: 1 });
 	});
 
 	test('handles unmodified keyboard dismissal and action activation', () => {

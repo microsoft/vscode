@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -543,7 +543,7 @@ export interface IDictationOnboardingBannerOptions {
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
  */
-export class DictationOnboardingBanner extends Disposable {
+export class DictationOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
 
 	readonly domNode: HTMLElement;
 
@@ -627,6 +627,14 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 		this.waveform.start();
 		this.logAction('shown');
+	}
+
+	announce(): void {
+		this.card.announce();
+	}
+
+	focus(): void {
+		this.card.focus();
 	}
 
 	/**
@@ -916,7 +924,13 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	}
 
 	show(): boolean {
-		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
+		const shown = this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
+		if (shown) {
+			// The user explicitly asked to see the introduction, so move focus onto
+			// the card and announce its name rather than leaving them to hunt for it.
+			this.onboarding.focusCard();
+		}
+		return shown;
 	}
 
 	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void {

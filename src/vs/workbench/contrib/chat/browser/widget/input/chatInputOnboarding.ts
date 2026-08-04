@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType, setVisibility, trackFocus } from '../../../../../../base/browser/dom.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -29,6 +30,16 @@ export interface IChatInputOnboardingContext {
 	readonly dismiss: (restoreFocus?: boolean) => void;
 }
 
+/**
+ * The onboarding card returned by the create callback. `announce` alerts that
+ * the card opened without moving focus; `focus` moves focus onto the card and
+ * announces it, so screen reader users can hear and reach it.
+ */
+export interface IChatInputOnboardingBanner extends IDisposable {
+	announce(): void;
+	focus(): void;
+}
+
 export interface IChatInputOnboardingCardOptions {
 	readonly container: HTMLElement;
 	readonly className: string;
@@ -48,6 +59,7 @@ export class ChatInputOnboarding extends Disposable {
 
 	private readonly hosts = new Set<IChatInputOnboardingHost>();
 	private readonly currentOnboarding = this._register(new MutableDisposable<IDisposable>());
+	private currentBanner: IChatInputOnboardingBanner | undefined;
 	private activeHost: IChatInputOnboardingHost | undefined;
 
 	get isVisible(): boolean {
@@ -85,7 +97,7 @@ export class ChatInputOnboarding extends Disposable {
 		});
 	}
 
-	showIfNeeded(createOnboarding: (context: IChatInputOnboardingContext) => IDisposable): boolean {
+	showIfNeeded(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
 		if (this.currentOnboarding.value) {
 			return true;
 		}
@@ -95,7 +107,7 @@ export class ChatInputOnboarding extends Disposable {
 		return this.show(createOnboarding);
 	}
 
-	show(createOnboarding: (context: IChatInputOnboardingContext) => IDisposable): boolean {
+	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -108,21 +120,46 @@ export class ChatInputOnboarding extends Disposable {
 		host.container.classList.add(this.options.hostClass);
 		onboardingStore.add(toDisposable(() => host.container.classList.remove(this.options.hostClass)));
 
+		let banner: IChatInputOnboardingBanner;
 		try {
-			onboardingStore.add(createOnboarding({
+			banner = createOnboarding({
 				container: host.container,
 				dismiss: (restoreFocus = true) => this.hide(restoreFocus),
-			}));
+			});
+			onboardingStore.add(banner);
 		} catch (error) {
 			this.activeHost = undefined;
 			onboardingStore.dispose();
 			throw error;
 		}
 
+		this.currentBanner = banner;
+		onboardingStore.add(toDisposable(() => {
+			if (this.currentBanner === banner) {
+				this.currentBanner = undefined;
+			}
+		}));
 		this.currentOnboarding.value = onboardingStore;
 		this.setTipsVisible(host, false);
 		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+
+		// Let screen reader users know a card just opened. Focus is left where it
+		// was so the user is not pulled away; a command moves focus onto the card
+		// on demand and reads its label.
+		banner.announce();
+		return true;
+	}
+
+	/**
+	 * Move focus onto the visible card so its label is announced. Returns `false`
+	 * when there is no card to focus.
+	 */
+	focusCard(): boolean {
+		if (!this.currentBanner) {
+			return false;
+		}
+		this.currentBanner.focus();
 		return true;
 	}
 
@@ -160,8 +197,14 @@ export class ChatInputOnboardingCard extends Disposable {
 
 	readonly domNode: HTMLElement;
 
+	private readonly ariaLabel: string;
+	private readonly ariaDescription: string | undefined;
+
 	constructor(options: IChatInputOnboardingCardOptions) {
 		super();
+
+		this.ariaLabel = options.ariaLabel;
+		this.ariaDescription = options.ariaDescription;
 
 		this.domNode = options.container.ownerDocument.createElement('div');
 		this.domNode.classList.add(options.className);
@@ -174,6 +217,11 @@ export class ChatInputOnboardingCard extends Disposable {
 		options.container.appendChild(this.domNode);
 		this._register(toDisposable(() => this.domNode.remove()));
 
+		// Make the card a focus target so a command (or the controller when the
+		// card is shown) can move focus onto it, letting the screen reader read
+		// the region label and description. `-1` keeps it out of the Tab order.
+		this.domNode.tabIndex = -1;
+
 		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
@@ -182,6 +230,24 @@ export class ChatInputOnboardingCard extends Disposable {
 				options.onEscape();
 			}
 		}));
+	}
+
+	/**
+	 * Announce that the card opened without moving focus, so screen reader users
+	 * are told something appeared while staying where they are.
+	 */
+	announce(): void {
+		alert(this.ariaLabel);
+	}
+
+	/**
+	 * Move focus onto the card and announce its label so screen reader users
+	 * hear what opened. Focusing the region alone is not reliably announced, so
+	 * the label (and description, if any) are alerted explicitly.
+	 */
+	focus(): void {
+		this.domNode.focus();
+		alert(this.ariaDescription ? `${this.ariaLabel}. ${this.ariaDescription}` : this.ariaLabel);
 	}
 
 	addAction(options: IChatInputOnboardingActionOptions): HTMLElement {

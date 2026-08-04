@@ -313,12 +313,12 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), false);
 	});
 
-	test('focuses the introduction in screen reader mode', () => {
-		const service = createService(disposables, [], [], [], true);
+	test('focuses the introduction when shown from the command', () => {
+		const service = createService(disposables);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
-		service.showIfNeeded();
+		service.show();
 		const card = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-banner');
 
 		assert.deepStrictEqual(
