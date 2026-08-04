@@ -6,6 +6,8 @@
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
+// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
+import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
@@ -95,7 +97,7 @@ import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -325,7 +327,7 @@ function ensureThemeLoaded(theme: ColorThemeData): Promise<void> {
 export async function setupTheme(container: HTMLElement, theme: ColorThemeData, scopeThemingParticipants = false): Promise<void> {
 	await ensureThemeLoaded(theme);
 	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants);
-	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 }
 
 /**
@@ -374,6 +376,19 @@ function parseReverseOption(value: unknown): ReverseStylesheetsOption {
 	}
 	return false;
 }
+
+/** Inputs exposed as Component Explorer controls. */
+const fixtureInputSchema = z.object({
+	reverseStylesheets: z.union([
+		z.boolean(),
+		z.object({
+			fromIndex: z.number(),
+			toIndex: z.number(),
+		}),
+	]).default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
+	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
+});
 
 function getPlatformClass(): string {
 	const alwaysUseMac = true;
@@ -611,10 +626,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidChangeFeedbackScope: Event.None,
+		activeFeedbackSessionResource: constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE),
 		onDidAddFeedback: Event.None,
 		onDidConvertFeedback: Event.None,
 		onDidAddReply: Event.None,
 		onDidSubmitFeedback: Event.None,
+		onDidRevealSessionComment: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
@@ -623,6 +641,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getFeedback: () => [],
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getFeedbackSessionResource: () => undefined,
+		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },
@@ -876,6 +896,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
+		inputSchema: fixtureInputSchema,
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);

@@ -18,6 +18,16 @@ function content(str: string): IChatMarkdownContent {
 suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('voice progress is not renderable', () => {
+		assert.deepStrictEqual(
+			annotateSpecialMarkdownContent([
+				{ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' },
+				content('Visible response'),
+			]),
+			[content('Visible response')]
+		);
+	});
+
 	suite('extractVulnerabilitiesFromText', () => {
 		test('single line', async () => {
 			const before = 'some code ';

@@ -30,6 +30,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTypes.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -48,6 +49,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -162,6 +164,36 @@ suite('AgentHostClientTools', () => {
 				success: true,
 				pastTenseMessage: 'Ran 5 tests',
 				content: [{ type: ToolResultContentType.Text, text: 'All 5 tests passed' }],
+				error: undefined,
+			});
+		});
+
+		test('converts prompt TSX results to text content', () => {
+			const result: IToolResult = {
+				content: [{
+					kind: 'promptTsx',
+					value: {
+						node: {
+							type: PromptNodeType.Piece,
+							ctor: PieceCtorKind.Other,
+							children: [
+								{ type: PromptNodeType.Text, text: '<diagnostics>', lineBreakBefore: undefined },
+								{ type: PromptNodeType.Text, text: '1 problem found', lineBreakBefore: true },
+								{ type: PromptNodeType.Text, text: '</diagnostics>', lineBreakBefore: true },
+							],
+						},
+					},
+				}],
+				toolResultMessage: 'Checked math.js, 1 problem found',
+			};
+
+			assert.deepStrictEqual(toolResultToProtocol(result, 'problems'), {
+				success: true,
+				pastTenseMessage: 'Checked math.js, 1 problem found',
+				content: [{
+					type: ToolResultContentType.Text,
+					text: '<diagnostics>\n1 problem found\n</diagnostics>',
+				}],
 				error: undefined,
 			});
 		});
@@ -564,6 +596,18 @@ suite('AgentHostClientTools', () => {
 				resolve: () => undefined,
 				isNewSession: () => false,
 			});
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				getInitialSessionConfig: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				applyConfigChange: async () => undefined,
+				tryRebind: async () => undefined,
+				disposeSession: async () => { },
+				getResolvedConfig: () => undefined,
+				refreshResolvedConfig: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 			instantiationService.stub(IAgentHostToolSetEnablementService, {
 				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),

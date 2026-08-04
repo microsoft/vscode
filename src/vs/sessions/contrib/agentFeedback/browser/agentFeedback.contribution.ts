@@ -6,6 +6,7 @@
 import './agentFeedbackEditorInputContribution.js';
 import './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -48,19 +49,15 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 
 		const feedbackChanged = observableFromEvent(
 			this,
-			agentFeedbackService.onDidChangeFeedback,
+			Event.any(agentFeedbackService.onDidChangeFeedback, agentFeedbackService.onDidChangeFeedbackScope),
 			e => e,
 		);
 
 		this._register(autorun(reader => {
 			feedbackChanged.read(reader);
-			const activeSession = sessionsService.activeSession.read(reader);
 			menuRegistration.clear();
-			if (!activeSession) {
-				contextKey.set(false);
-				return;
-			}
-			const feedback = agentFeedbackService.getFeedback(activeSession.resource);
+			const sessionResource = agentFeedbackService.activeFeedbackSessionResource.read(reader);
+			const feedback = agentFeedbackService.getFeedback(sessionResource);
 			const count = feedback.filter(item => item.state === AgentFeedbackState.Accepted).length;
 			contextKey.set(count > 0);
 
