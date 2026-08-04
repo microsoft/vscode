@@ -8,7 +8,6 @@ import { TokenErrorReason } from '../../../platform/authentication/common/copilo
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -17,7 +16,6 @@ import { TelemetryData } from '../../../platform/telemetry/common/telemetryData'
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { GHPR_EXTENSION_ID } from '../../chatSessions/vscode/chatSessionsUriHandler';
-import { resolveClientBYOKAllowed } from '../../byok/vscode-node/byokPolicy';
 import { EXTENSION_ID } from '../../common/constants';
 
 const welcomeViewContextKeys = {
@@ -40,8 +38,6 @@ const debugReportFeedbackContextKey = 'github.copilot.debugReportFeedback';
 const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisabled';
 const blackbirdExternalIndexingDisabledContextKey = 'github.copilot.blackbirdExternalIndexingDisabled';
 
-const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
-
 const debugContextKey = 'github.copilot.chat.debug';
 
 const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiveSession';
@@ -61,7 +57,6 @@ export class ContextKeysContribution extends Disposable {
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
-		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@IExperimentationService private readonly _expService: IExperimentationService
@@ -70,7 +65,6 @@ export class ContextKeysContribution extends Disposable {
 
 		void this._inspectContext().catch(console.error);
 		void this._updatePermissiveSessionContext().catch(console.error);
-		void this._updateClientByokEnabledContext().catch(console.error);
 		this._register(_authenticationService.onDidAuthenticationChange(async () => await this._onAuthenticationChange()));
 		this._register(_authenticationService.onDidCopilotTokenChange(() => this._onCopilotTokenChange()));
 		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext()));
@@ -225,10 +219,6 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
-	private async _updateClientByokEnabledContext() {
-		commands.executeCommand('setContext', clientByokEnabledContextKey, await resolveClientBYOKAllowed(this._authenticationService, this._extensionContext, this._logService, this._configService));
-	}
-
 	private _updateShowLogViewContext() {
 		if (this._showLogView) {
 			return;
@@ -252,7 +242,6 @@ export class ContextKeysContribution extends Disposable {
 	private async _onAuthenticationChange() {
 		this._inspectContext();
 		this._updatePermissiveSessionContext();
-		this._updateClientByokEnabledContext();
 	}
 
 	/**
@@ -263,7 +252,6 @@ export class ContextKeysContribution extends Disposable {
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
 		this._updateBlackbirdExternalIndexingDisabledContext();
-		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
 	}
 

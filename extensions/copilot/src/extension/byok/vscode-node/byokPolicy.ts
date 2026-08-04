@@ -20,15 +20,23 @@ function normalizeEndpointUrl(url: string | undefined): string | undefined {
 
 function getClientBYOKEnterprisePolicyCacheKey(authService: IAuthenticationService, configurationService: IConfigurationService): string {
 	const authProvider = configurationService.getConfig(ConfigKey.Shared.AuthProvider);
-	const source = JSON.stringify([
-		authService.anyGitHubSession?.account.id,
+	const accountId = authService.anyGitHubSession?.account.id;
+	const source = [
+		accountId,
 		authProvider,
 		authProvider === AuthProviderId.GitHubEnterprise ? configurationService.getNonExtensionConfig<string>('github-enterprise.uri') : undefined,
-		normalizeEndpointUrl(configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl)),
-		normalizeEndpointUrl(configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl)),
-		configurationService.getConfig(ConfigKey.Shared.DebugOverrideAuthType),
-	]);
-	const sourceHash = createHash('sha256').update(source).digest('hex');
+	];
+	// Authenticated policy comes from the GitHub account's Copilot token. Endpoint overrides only
+	// distinguish static/test sources that do not expose an account identity.
+	if (!accountId) {
+		source.push(
+			normalizeEndpointUrl(configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl)),
+			normalizeEndpointUrl(configurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl)),
+			configurationService.getConfig(ConfigKey.Shared.DebugOverrideAuthType),
+		);
+	}
+	const serializedSource = JSON.stringify(source);
+	const sourceHash = createHash('sha256').update(serializedSource).digest('hex');
 	return `${clientBYOKEnterprisePolicyCachePrefix}.${sourceHash}`;
 }
 
@@ -40,7 +48,10 @@ function getCachedClientBYOKEnterprisePolicy(extensionContext: IVSCodeExtensionC
 	return extensionContext.globalState.get<boolean>(cacheKey);
 }
 
-async function updateCachedClientBYOKEnterprisePolicy(extensionContext: IVSCodeExtensionContext, logService: ILogger, cacheKey: string, allowed: boolean | undefined): Promise<void> {
+async function updateCachedClientBYOKEnterprisePolicy(extensionContext: IVSCodeExtensionContext, logService: ILogger, cacheKey: string, allowed: boolean | undefined, isCurrent: () => boolean): Promise<void> {
+	if (!isCurrent()) {
+		return;
+	}
 	let memoryCache = clientBYOKEnterprisePolicyMemoryCaches.get(extensionContext);
 	if (!memoryCache) {
 		memoryCache = new Map();
@@ -58,7 +69,7 @@ async function updateCachedClientBYOKEnterprisePolicy(extensionContext: IVSCodeE
  * Live token policy wins. Known non-managed states clear stale enterprise policy, while unknown
  * failures use the last policy observed for the current account and otherwise allow independent BYOK.
  */
-export async function resolveClientBYOKAllowed(authService: IAuthenticationService, extensionContext: IVSCodeExtensionContext, logService: ILogger, configurationService: IConfigurationService): Promise<boolean> {
+export async function resolveClientBYOKAllowed(authService: IAuthenticationService, extensionContext: IVSCodeExtensionContext, logService: ILogger, configurationService: IConfigurationService, isCurrent: () => boolean = () => true): Promise<boolean> {
 	if (!authService.hasCopilotTokenSource) {
 		return true;
 	}
@@ -68,11 +79,11 @@ export async function resolveClientBYOKAllowed(authService: IAuthenticationServi
 		const copilotToken = await authService.getCopilotToken();
 		const allowed = isClientBYOKAllowed(true, copilotToken);
 		const managedPolicy = copilotToken.isInternal || copilotToken.isIndividual ? undefined : allowed;
-		await updateCachedClientBYOKEnterprisePolicy(extensionContext, logService, cacheKey, managedPolicy);
+		await updateCachedClientBYOKEnterprisePolicy(extensionContext, logService, cacheKey, managedPolicy, isCurrent);
 		return allowed;
 	} catch (error) {
 		if (error instanceof NotSignedUpError || error instanceof SubscriptionExpiredError) {
-			await updateCachedClientBYOKEnterprisePolicy(extensionContext, logService, cacheKey, undefined);
+			await updateCachedClientBYOKEnterprisePolicy(extensionContext, logService, cacheKey, undefined, isCurrent);
 			return true;
 		}
 		return getCachedClientBYOKEnterprisePolicy(extensionContext, cacheKey) ?? true;

@@ -10,6 +10,7 @@ import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, In
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { ILogger } from '../../../../platform/log/common/logService';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { resolveClientBYOKAllowed } from '../byokPolicy';
 
 function mockToken(props: { isInternal?: boolean; isIndividual?: boolean; isClientBYOKEnabled?: boolean }): CopilotToken {
@@ -58,14 +59,17 @@ function createLogService(): ILogger {
 	return { error: vi.fn() } as unknown as ILogger;
 }
 
-function createConfigurationService(options: { authProvider?: AuthProviderId; enterpriseUri?: string; proxyUrl?: string } = {}): IConfigurationService {
+function createConfigurationService(options: { authProvider?: AuthProviderId; enterpriseUri?: string; proxyUrl?: string; capiUrl?: string; authType?: 'hmac' | 'token' } = {}): IConfigurationService {
 	return {
 		getConfig: vi.fn(config => {
 			if (config === ConfigKey.Shared.DebugOverrideProxyUrl) {
 				return options.proxyUrl;
 			}
+			if (config === ConfigKey.Shared.DebugOverrideCAPIUrl) {
+				return options.capiUrl;
+			}
 			if (config === ConfigKey.Shared.DebugOverrideAuthType) {
-				return 'hmac';
+				return options.authType ?? 'hmac';
 			}
 			if (config === ConfigKey.Shared.AuthProvider) {
 				return options.authProvider ?? AuthProviderId.GitHub;
@@ -246,12 +250,42 @@ describe('resolveClientBYOKAllowed', () => {
 		expect(allowed).toBe(true);
 	});
 
-	it('does not share cached enterprise policy between sessionless proxy sources', async () => {
+	it('preserves authenticated enterprise policy across Copilot endpoint overrides', async () => {
 		const extensionContext = createExtensionContext();
 		const logService = createLogService();
-		await resolveClientBYOKAllowed(createAuthService({ sessionless: true, token: mockToken({}) }), extensionContext, logService, createConfigurationService({ proxyUrl: 'https://proxy-one.example.com' }));
+		await resolveClientBYOKAllowed(
+			createAuthService({ token: mockToken({}) }),
+			extensionContext,
+			logService,
+			createConfigurationService({ proxyUrl: 'https://proxy-one.example.com', capiUrl: 'https://capi-one.example.com', authType: 'hmac' })
+		);
 
-		const allowed = await resolveClientBYOKAllowed(createAuthService({ sessionless: true, error: new Error('network unavailable') }), extensionContext, logService, createConfigurationService({ proxyUrl: 'https://proxy-two.example.com' }));
+		const allowed = await resolveClientBYOKAllowed(
+			createAuthService({ error: new Error('network unavailable') }),
+			extensionContext,
+			logService,
+			createConfigurationService({ proxyUrl: 'https://proxy-two.example.com', capiUrl: 'https://capi-two.example.com', authType: 'token' })
+		);
+
+		expect(allowed).toBe(false);
+	});
+
+	it('does not share cached enterprise policy between sessionless endpoint sources', async () => {
+		const extensionContext = createExtensionContext();
+		const logService = createLogService();
+		await resolveClientBYOKAllowed(
+			createAuthService({ sessionless: true, token: mockToken({}) }),
+			extensionContext,
+			logService,
+			createConfigurationService({ proxyUrl: 'https://proxy-one.example.com', capiUrl: 'https://capi-one.example.com', authType: 'hmac' })
+		);
+
+		const allowed = await resolveClientBYOKAllowed(
+			createAuthService({ sessionless: true, error: new Error('network unavailable') }),
+			extensionContext,
+			logService,
+			createConfigurationService({ proxyUrl: 'https://proxy-two.example.com', capiUrl: 'https://capi-two.example.com', authType: 'token' })
+		);
 
 		expect(allowed).toBe(true);
 	});
@@ -300,5 +334,29 @@ describe('resolveClientBYOKAllowed', () => {
 
 		expect(allowed).toBe(true);
 		expect(logService.error).toHaveBeenCalledOnce();
+	});
+
+	it('keeps a superseded resolution from replacing the cached policy', async () => {
+		const olderToken = new DeferredPromise<CopilotToken>();
+		const newerToken = new DeferredPromise<CopilotToken>();
+		const authService = createAuthService({});
+		vi.mocked(authService.getCopilotToken)
+			.mockImplementationOnce(() => olderToken.p)
+			.mockImplementationOnce(() => newerToken.p)
+			.mockRejectedValueOnce(new Error('network unavailable'));
+		const extensionContext = createExtensionContext();
+		const logService = createLogService();
+		const configurationService = createConfigurationService();
+		let generation = 0;
+		const olderGeneration = ++generation;
+		const olderResult = resolveClientBYOKAllowed(authService, extensionContext, logService, configurationService, () => olderGeneration === generation);
+		const newerGeneration = ++generation;
+		const newerResult = resolveClientBYOKAllowed(authService, extensionContext, logService, configurationService, () => newerGeneration === generation);
+		await newerToken.complete(mockToken({ isClientBYOKEnabled: true }));
+		expect(await newerResult).toBe(true);
+		await olderToken.complete(mockToken({}));
+		expect(await olderResult).toBe(false);
+
+		expect(await resolveClientBYOKAllowed(authService, extensionContext, logService, configurationService)).toBe(true);
 	});
 });
