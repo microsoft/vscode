@@ -6,7 +6,7 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -205,12 +205,13 @@ class AutomationCardsSection extends Disposable {
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
-		const runBtn = this.createIconButton(actions, Codicon.play, localize('runNow', "Run now"), false);
+		const buttonBar = this.disposables.add(new ButtonBar(actions));
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), false);
 		this.disposables.add(runBtn.onDidClick(() => {
 			void this.runNow(automation);
 		}));
 
-		const deleteBtn = this.createIconButton(actions, Codicon.trash, localize('deleteAutomation', "Delete"), false);
+		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), false);
 		this.disposables.add(deleteBtn.onDidClick(() => {
 			void this.confirmDelete(automation);
 		}));
@@ -226,13 +227,13 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private createIconButton(container: HTMLElement, icon: ThemeIcon, tooltip: string, disabled: boolean): Button {
-		const button = this.disposables.add(new Button(container, {
+	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
+		const button = buttonBar.addButton({
 			ariaLabel: tooltip,
 			disabled,
 			supportIcons: true,
 			title: tooltip,
-		}));
+		});
 		button.label = `$(${icon.id})`;
 		button.element.classList.add('automations-card-action-button');
 		return button;
