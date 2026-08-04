@@ -3316,17 +3316,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 	}
 
-	async setMcpServerEnablement(sessionId: string, serverId: string, enablement: CustomizationEnablement[]): Promise<void> {
+	async setCustomizationEnablement(sessionId: string, customizationId: string, enablement: CustomizationEnablement[]): Promise<void> {
 		const connection = this.connection;
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!connection || !cached) {
 			return;
 		}
-		const separator = serverId.indexOf('/');
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionCustomizationToggled,
-			id: separator >= 0 ? serverId.slice(separator + 1) : serverId,
+			id: customizationId,
 			enablement,
 		});
 	}

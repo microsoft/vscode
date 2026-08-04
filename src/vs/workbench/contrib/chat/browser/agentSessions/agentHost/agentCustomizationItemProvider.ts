@@ -9,6 +9,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -81,7 +83,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
@@ -101,7 +103,32 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
-			actions: this._getItemActions?.(customization, clientId),
+			actions: [
+				...getPluginEnablementActions(
+					customization,
+					this._customAgentsService.getWorkingDirectories(sessionResource),
+					(kind, enabled) => {
+						const currentCustomization = this._customAgentsService.getCustomizations(sessionResource).find(candidate =>
+							candidate.type === CustomizationType.Plugin && candidate.id === customization.id);
+						if (!currentCustomization) {
+							return;
+						}
+						const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+						this._customAgentsService.setCustomizationEnablement(
+							sessionResource,
+							customization.id,
+							withCustomizationEnablement(
+								currentCustomization.enablement,
+								kind,
+								kind === CustomizationEnablementKind.Workspace
+									? workingDirectories.map(uri => ({ kind, uri, enabled }))
+									: { kind, enabled },
+							),
+						);
+					},
+				),
+				...(this._getItemActions?.(customization, clientId) ?? []),
+			],
 		};
 	}
 
@@ -240,7 +267,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// expanded below so individual user files appear in per-type tabs.
 				let item: ICustomizationItem;
 				if (!isBundleItem) {
-					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					item = this.toItem(sessionResource, sessionCustomization, AICustomizationSources.plugin);
 					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
 				} else {
 					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
@@ -339,6 +366,68 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return children;
 	}
 }
+
+function getPluginEnablementActions(
+	customization: PluginCustomization,
+	workingDirectories: readonly string[],
+	setEnablement: (kind: CustomizationEnablementKind, enabled: boolean) => void,
+): ICustomizationItemAction[] {
+	const actions: ICustomizationItemAction[] = [];
+	const addAction = (kind: CustomizationEnablementKind, enabled: boolean, id: string, label: string) => {
+		actions.push({
+			id,
+			label,
+			run: () => setEnablement(kind, enabled),
+		});
+	};
+
+	const globallyEnabled = findDecisiveCustomizationEnablement(customization.enablement, CustomizationEnablementKind.Global)?.enabled ?? true;
+	addAction(
+		CustomizationEnablementKind.Global,
+		!globallyEnabled,
+		globallyEnabled ? 'plugin.agentHost.disable' : 'plugin.agentHost.enable',
+		globallyEnabled ? localize('pluginDisable', "Disable") : localize('pluginEnable', "Enable"),
+	);
+
+	if (workingDirectories.length > 0) {
+		const workspaceEnabled = findDecisiveCustomizationEnablement(customization.enablement, CustomizationEnablementKind.Workspace)?.enabled ?? true;
+		addAction(
+			CustomizationEnablementKind.Workspace,
+			!workspaceEnabled,
+			workspaceEnabled ? 'plugin.agentHost.disableWorkspace' : 'plugin.agentHost.enableWorkspace',
+			workspaceEnabled ? localize('pluginDisableWorkspace', "Disable (Workspace)") : localize('pluginEnableWorkspace', "Enable (Workspace)"),
+		);
+	}
+
+	const sessionEnabled = findDecisiveCustomizationEnablement(customization.enablement, CustomizationEnablementKind.Session)?.enabled ?? true;
+	addAction(
+		CustomizationEnablementKind.Session,
+		!sessionEnabled,
+		sessionEnabled ? 'plugin.agentHost.disableSession' : 'plugin.agentHost.enableSession',
+		sessionEnabled ? localize('pluginDisableSession', "Disable (Session)") : localize('pluginEnableSession', "Enable (Session)"),
+	);
+
+	return actions;
+}
+
+/**
+ * The decision that governs a given scope's action label, following inheritance
+ * rather than looking only for an entry of that exact kind: a workspace action
+ * reflects the global decision it would inherit, and a session action reflects
+ * the currently effective decision. Each action therefore always offers the
+ * inverse of what the user sees today at that scope.
+ */
+function findDecisiveCustomizationEnablement(enablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind): CustomizationEnablement | undefined {
+	switch (kind) {
+		case CustomizationEnablementKind.Global:
+			return enablement?.find(entry => entry.kind === CustomizationEnablementKind.Global);
+		case CustomizationEnablementKind.Workspace:
+			return enablement?.find(entry => entry.kind === CustomizationEnablementKind.Workspace || entry.kind === CustomizationEnablementKind.Global);
+		case CustomizationEnablementKind.Session:
+			return enablement?.[0];
+	}
+}
+
 function isParentOrEqual(folderURI: string, childURI: string): boolean {
 	try {
 		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(childURI), URI.parse(folderURI));

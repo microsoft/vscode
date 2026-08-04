@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService, ILoggerService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -24,7 +24,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly dispatched: IDispatchedToggle[] = [];
 	readonly workingDirectories = ['file:///repo'];
 
-	constructor(readonly customizations: McpServerCustomization[]) { }
+	constructor(readonly customizations: Customization[]) { }
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
 	setCustomizationEnabled(rawId: string, enablement: CustomizationEnablement[]): void {
@@ -108,6 +108,35 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		assert.deepStrictEqual(target.dispatched, [{ rawId: 'github', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }]);
 	});
 
+	test('dispatches a plugin scope toggle with the complete enablement array', () => {
+		const sut = createSut();
+		const target = new FakeTarget([{
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'file:///plugin-1',
+			name: 'Plugin One',
+			enabled: false,
+			enablement: [
+				{ kind: CustomizationEnablementKind.Session, enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+		}]);
+		sut.setTarget(session, target);
+
+		sut.setCustomizationEnablement(session, 'plugin-1', [
+			{ kind: CustomizationEnablementKind.Session, enabled: true },
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+		]);
+
+		assert.deepStrictEqual(target.dispatched, [{
+			rawId: 'plugin-1',
+			enablement: [
+				{ kind: CustomizationEnablementKind.Session, enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+		}]);
+	});
+
 	test('preserves enablement updates that occur after retrieving a server', () => {
 		const sut = createSut();
 		const target = new FakeTarget([mcpServer('github', 'GitHub', true, { kind: CustomizationEnablementKind.Global, enabled: true })]);
@@ -183,5 +212,27 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 			),
 			[{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
 		);
+	});
+
+	test('masks the enabled state of an MCP server contained by a disabled plugin', () => {
+		const sut = createSut();
+		sut.setTarget(session, new FakeTarget([{
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'file:///plugin-1',
+			name: 'Plugin One',
+			enabled: false,
+			children: [mcpServer('github', 'GitHub', true, { kind: CustomizationEnablementKind.Session, enabled: true })],
+		}]));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			name: server.name,
+			enabled: server.enabled,
+			enablement: server.enablement,
+		})), [{
+			name: 'GitHub',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		}]);
 	});
 });

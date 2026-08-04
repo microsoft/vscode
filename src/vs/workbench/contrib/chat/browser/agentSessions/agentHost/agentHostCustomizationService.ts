@@ -82,6 +82,9 @@ export interface IAgentHostCustomizationService {
 	/** Updates the host-owned global or working-directory enablement policy. */
 	setMcpServerEnablement(sessionResource: URI, serverName: string, state: ContributionEnablementState): void;
 
+	/** Updates the full scoped enablement set for a top-level customization. */
+	setCustomizationEnablement(sessionResource: URI, customizationId: string, enablement: CustomizationEnablement[]): void;
+
 	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
 	 * `serverId` in the agent-host session `sessionResource`, making its hidden
@@ -122,6 +125,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 		return ContributionEnablementState.EnabledProfile;
 	}
 	setMcpServerEnablement(_sessionResource: URI, _serverName: string, _state: ContributionEnablementState): void {
+		// no-op
+	}
+	setCustomizationEnablement(_sessionResource: URI, _customizationId: string, _enablement: CustomizationEnablement[]): void {
 		// no-op
 	}
 	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -329,6 +335,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		target.setCustomizationEnabled(customization.id, enablement);
 	}
 
+	setCustomizationEnablement(sessionResource: URI, customizationId: string, enablement: CustomizationEnablement[]): void {
+		const target = this._resolveTarget(sessionResource);
+		if (target?.customizations.some(customization => customization.id === customizationId)) {
+			target.setCustomizationEnabled(customizationId, enablement);
+		}
+	}
+
 	protected _fireCustomAgentsChanged(): void {
 		this._onDidChangeCustomAgents.fire();
 	}
@@ -337,10 +350,23 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomizations.fire();
 	}
 
+	/**
+	 * Flattens every MCP server customization into a single list, applying the
+	 * container cascade: a child of a disabled plugin is surfaced as disabled
+	 * even though its own resolved `enabled` may be `true`, because the host
+	 * masks children of a disabled container rather than erasing their own
+	 * decisions (see AI_CUSTOMIZATIONS.md, "Container Enablement and the
+	 * Cascade").
+	 */
 	private _flattenMcpServers(customizations: readonly Customization[]): McpServerCustomization[] {
-		return customizations.flatMap(c => c.type === CustomizationType.McpServer
-			? [c]
-			: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []);
+		return customizations.flatMap(container => {
+			if (container.type === CustomizationType.McpServer) {
+				return [container];
+			}
+			const masked = container.type === CustomizationType.Plugin && !container.enabled;
+			return container.children?.filter(child => child.type === CustomizationType.McpServer)
+				.map(child => masked ? { ...child, enabled: false } : child) ?? [];
+		});
 	}
 
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {

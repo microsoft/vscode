@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { buildMutableConfigSchema } from '../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, unscopeCustomizationId } from '../../common/agentHostSessionsProvider.js';
 import { ChatInteractivity, effectiveChatInteractivity } from '../../services/sessions/common/session.js';
 
 suite('buildMutableConfigSchema', () => {
@@ -67,6 +67,21 @@ suite('effectiveChatInteractivity', () => {
 			activeFull: ChatInteractivity.Full,
 			activeReadOnly: ChatInteractivity.ReadOnly,
 			activeHidden: ChatInteractivity.Hidden,
+		});
+	});
+
+	// Regression: stripping a leading segment unconditionally corrupted unscoped
+	// plugin ids (`file:///p` -> `//p`), so the host silently found nothing to
+	// toggle and plugin disable did nothing in the Agents window.
+	test('unscopes only ids that resolved to an MCP server', () => {
+		assert.deepStrictEqual({
+			scopedServer: unscopeCustomizationId('auth/file:///p/.mcp.json#mcp=slack', 'auth/file:///p/.mcp.json#mcp=slack'),
+			plugin: unscopeCustomizationId('file:///Users/me/plugin', undefined),
+			pluginWithNoSlash: unscopeCustomizationId('plugin-1', undefined),
+		}, {
+			scopedServer: 'file:///p/.mcp.json#mcp=slack',
+			plugin: 'file:///Users/me/plugin',
+			pluginWithNoSlash: 'plugin-1',
 		});
 	});
 });
