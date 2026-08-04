@@ -337,11 +337,11 @@
 
 .automations-run-card {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size160);
+	flex-direction: row;
+	align-items: center;
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: 6px;
+	overflow: hidden;
 }
 
 .automations-run-card.clickable {
@@ -352,7 +352,63 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.automations-run-card.clickable:focus-within {
+.automations-run-card-main {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size160);
+	border: none;
+	border-radius: 0;
+	outline: none;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+}
+
+.automations-run-card.clickable .automations-run-card-main {
+	cursor: pointer;
+}
+
+.automations-run-card-main:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-run-card-actions {
+	flex: 0 0 auto;
+	padding-right: var(--vscode-spacing-size80);
+	opacity: 0;
+}
+
+.automations-run-card:hover .automations-run-card-actions,
+.automations-run-card:focus-within .automations-run-card-actions {
+	opacity: 1;
+}
+
+.automations-run-card-actions .monaco-button.automations-run-card-delete-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.automations-run-card-actions .monaco-button.automations-run-card-delete-button:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-run-card-actions .monaco-button.automations-run-card-delete-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
