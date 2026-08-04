@@ -37,8 +37,10 @@ import { hasNativeContextMenu } from '../../../../platform/window/common/window.
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
+import { NewChatInputWidget } from '../../chat/browser/newChatInput.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -925,6 +927,25 @@ export function renderForm(
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 
+	const automationSession = derived(reader => {
+		const session = sessionsManagementService.automationSession.read(reader);
+		return session ? reader.store.add(new VisibleSession(session, session.mainChat.read(undefined))) : undefined;
+	});
+	const automationSessionLoading = derived(reader => automationSession.read(reader)?.loading.read(reader) ?? false);
+	const newChatInput = disposables.add(scopedInstantiationService.createInstance(NewChatInputWidget, {
+		session: automationSession,
+		getContextFolderUri: () => state.folderUri,
+		sendRequest: async () => false,
+		canSendRequest: constObservable(false),
+		loading: automationSessionLoading,
+		historyKey: constObservable(undefined),
+		placeholder: localize('automation.form.newChatInput.placeholder', "Describe what you want to automate"),
+		renderSessionTypePickerInControls: false,
+		usePersistedDraftState: false,
+	}));
+	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
+	newChatInput.render(newChatInputHost, promptHost);
+
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
 			const modes = chatInput.currentChatModesObs.get();
@@ -1005,9 +1026,11 @@ export function renderForm(
 	}));
 
 	chatInput.layout(580);
+	newChatInput.layout(0, 580);
 	queueMicrotask(() => {
 		if (!disposables.isDisposed) {
 			chatInput.layout(580);
+			newChatInput.layout(0, 580);
 		}
 	});
 
@@ -1016,6 +1039,7 @@ export function renderForm(
 			const width = entry.contentRect.width;
 			if (width > 0) {
 				chatInput.layout(width);
+				newChatInput.layout(0, width);
 			}
 		}
 	}, DOM.getWindow(promptHost)));

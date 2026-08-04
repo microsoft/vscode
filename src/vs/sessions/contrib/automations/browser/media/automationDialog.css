@@ -294,6 +294,19 @@
 	min-width: 0;
 }
 
+.automation-form-new-chat-input {
+	width: 100%;
+}
+
+.automation-form-new-chat-input .new-chat-input-container {
+	display: block;
+	max-width: none;
+}
+
+.automation-form-new-chat-input .new-chat-bottom-container {
+	display: none;
+}
+
 /*
  * Hide chips from the embedded chat input's primary toolbar that don't fit
  * the automation dialog's reduced surface:

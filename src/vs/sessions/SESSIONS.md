@@ -89,6 +89,8 @@ The `sessions.showSessionsPicker` command globally prioritizes non-archived sess
 
 The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
+During the automation-dialog composer migration, the dialog renders a disabled `NewChatInputWidget` below its existing `ChatInputPart`. The new widget wraps the independent `ISessionsManagementService.automationSession` draft locally and disables persisted new-session input state, so mounting it cannot read or overwrite the global new-session composer draft.
+
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
 ### Layer 3 — Providers (`contrib/providers/`)
