@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -19,9 +19,9 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -43,6 +43,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly disposed: URI[] = [];
 	readonly dispatched: IDispatchedAction[] = [];
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
+	readonly disposeAttempts: URI[] = [];
+	createGate: DeferredPromise<void> | undefined;
+	failNextCreate = false;
+	failNextDispose = false;
+	private readonly _onAgentHostStart = new Emitter<void>();
+	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
 	/** Agents advertised by the (stubbed) root state; drives capability gating. */
 	rootStateAgents: AgentInfo[] = [];
@@ -64,12 +70,35 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	resolveQueue: (Promise<ResolveSessionConfigResult> | ResolveSessionConfigResult)[] = [];
 
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		this.createCalls.push(config!);
-		return config!.session!;
+		assert.ok(config?.session);
+		this.createCalls.push(config);
+		if (this.failNextCreate) {
+			this.failNextCreate = false;
+			throw new Error('create failed');
+		}
+		const gate = this.createGate;
+		this.createGate = undefined;
+		if (gate) {
+			await gate.p;
+		}
+		return config.session;
 	}
 
 	override async disposeSession(session: URI): Promise<void> {
+		this.disposeAttempts.push(session);
+		if (this.failNextDispose) {
+			this.failNextDispose = false;
+			throw new Error('dispose failed');
+		}
 		this.disposed.push(session);
+	}
+
+	fireAgentHostStart(): void {
+		this._onAgentHostStart.fire();
+	}
+
+	dispose(): void {
+		this._onAgentHostStart.dispose();
 	}
 
 	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
@@ -118,38 +147,49 @@ function untitledChatUri(id: string): URI {
 	return URI.from({ scheme: 'agent-host-copilot', path: `/untitled-${id}` });
 }
 
-function expectedBackendUri(id: string): URI {
-	return URI.from({ scheme: 'copilot', path: `/untitled-${id}` });
-}
-
 // ---- Tests -----------------------------------------------------------------
 
 suite('AgentHostUntitledProvisionalSessionService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let agentHost: MockAgentHostService;
+	let importStore: AgentHostImportConversationStore;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
 	let untrustedFolders: Set<string>;
 	let workspaceFolders: URI[];
+	let workspaceConfiguration: URI | null;
+	let workspaceName: string | undefined;
+	let workbenchState: WorkbenchState;
+	let isSessionsWindow: boolean;
 
 	setup(async () => {
-		agentHost = new MockAgentHostService();
+		agentHost = ds.add(new MockAgentHostService());
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
 		workspaceFolders = [];
+		workspaceConfiguration = null;
+		workspaceName = undefined;
+		workbenchState = WorkbenchState.EMPTY;
+		isSessionsWindow = false;
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
-		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace(): IWorkspace {
-				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
+				return {
+					id: 'workspace',
+					folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)),
+					configuration: workspaceConfiguration,
+					name: workspaceName,
+				};
 			}
+			override getWorkbenchState(): WorkbenchState { return workbenchState; }
 		});
 		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
@@ -157,7 +197,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
-		insta.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
+		importStore = new AgentHostImportConversationStore();
+		insta.stub(IAgentHostImportConversationStore, importStore);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
 	});
@@ -165,12 +206,59 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {
 		agentHost.resolveQueue = [];
 		const ui = untitledChatUri('a');
-		const a = await provisional.getOrCreate(ui, 'copilot', undefined);
-		const b = await provisional.getOrCreate(ui, 'copilot', undefined);
-		assert.strictEqual(a?.toString(), expectedBackendUri('a').toString());
-		assert.strictEqual(b?.toString(), a.toString());
-		assert.strictEqual(agentHost.createCalls.length, 1);
-		assert.deepStrictEqual(agentHost.createCalls[0].config, { isolation: 'folder' });
+		const [a, b] = await Promise.all([
+			provisional.getOrCreate(ui, 'copilot', undefined),
+			provisional.getOrCreate(ui, 'copilot', undefined),
+		]);
+		assert.deepStrictEqual({
+			provider: a?.scheme,
+			isOpaque: a?.path !== ui.path,
+			reused: b?.toString() === a?.toString(),
+			createCount: agentHost.createCalls.length,
+			config: agentHost.createCalls[0].config,
+		}, {
+			provider: 'copilot',
+			isOpaque: true,
+			reused: true,
+			createCount: 1,
+			config: { isolation: 'folder' },
+		});
+	});
+
+	test('getOrCreate includes Editor multi-root workspace metadata', async () => {
+		workspaceFolders = [URI.file('/workspace/one')];
+		workspaceConfiguration = URI.parse('vscode-remote://ssh-remote+host/work/demo.code-workspace');
+		workspaceName = 'Demo Workspace';
+		workbenchState = WorkbenchState.WORKSPACE;
+
+		await provisional.getOrCreate(untitledChatUri('multi-root'), 'copilot', workspaceFolders[0]);
+
+		assert.deepStrictEqual(agentHost.createCalls[0]._meta, {
+			multiRoot: {
+				workspaceFile: workspaceConfiguration.toString(),
+				name: workspaceName,
+			},
+		});
+	});
+
+	test('getOrCreate omits multi-root metadata without a workspace configuration', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workbenchState = WorkbenchState.WORKSPACE;
+
+		await provisional.getOrCreate(untitledChatUri('multi-root-no-config'), 'copilot', workspaceFolders[0]);
+
+		assert.strictEqual(agentHost.createCalls[0]._meta, undefined);
+	});
+
+	test('getOrCreate omits multi-root metadata in the Agents window', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		isSessionsWindow = true;
+
+		await provisional.getOrCreate(untitledChatUri('agents-window'), 'copilot', workspaceFolders[0]);
+
+		assert.strictEqual(agentHost.createCalls[0]._meta, undefined);
 	});
 
 	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {
@@ -199,11 +287,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const workingDirectory = URI.from({ scheme: 'file', path: '/trusted-folder' });
 		const ui = untitledChatUri('trusted-folder');
 		const result = await provisional.getOrCreate(ui, 'copilot', workingDirectory);
-		assert.strictEqual(result?.toString(), expectedBackendUri('trusted-folder').toString());
-		assert.strictEqual(agentHost.createCalls.length, 1);
+		assert.deepStrictEqual({
+			provider: result?.scheme,
+			isOpaque: result?.path !== ui.path,
+			createCount: agentHost.createCalls.length,
+		}, {
+			provider: 'copilot',
+			isOpaque: true,
+			createCount: 1,
+		});
 	});
 
-	test('applyConfigChange dispatches SessionConfigChanged synchronously after mutating entry.config', async () => {
+	test('applyConfigChange dispatches SessionConfigChanged before schema re-resolution completes', async () => {
 		const ui = untitledChatUri('b');
 		// Resolve never returns — proves mutate+dispatch happen before the
 		// re-resolve await.
@@ -225,7 +320,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(agentHost.dispatched.length, 1, 'dispatched before re-resolve await');
 		assert.strictEqual(agentHost.dispatched[0].type, ActionType.SessionConfigChanged);
 		assert.deepStrictEqual(agentHost.dispatched[0].config, { isolation: 'worktree' });
-		assert.strictEqual(agentHost.dispatched[0].channel, expectedBackendUri('b').toString());
+		assert.strictEqual(agentHost.dispatched[0].channel, agentHost.createCalls[0].session?.toString());
 
 		// Unblock so the queued re-resolve completes and the outer promise settles.
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
@@ -370,7 +465,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(changeFires, 0, 'no onDidChange fire when overlay is unchanged');
 	});
 
-	test('tryRebind sees latest entry.config from a synchronously-completed applyConfigChange', async () => {
+	test('tryRebind waits for pending config reconciliation', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workspaceName = 'Demo Workspace';
+		workbenchState = WorkbenchState.WORKSPACE;
 		const ui = untitledChatUri('g');
 		// Block the re-resolve so it does NOT run before tryRebind's read.
 		const blocked = new DeferredPromise<ResolveSessionConfigResult>();
@@ -385,17 +484,148 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await Promise.resolve();
 		await timeout(0);
 
-		// Now perform a rebind. The new backend session must be created with the
-		// up-to-date config the user just set — proving entry.config was mutated
-		// synchronously, not deferred behind the (still-blocked) re-resolve.
+		// Rebind must wait behind the config operation rather than graduating
+		// with a partially reconciled draft.
 		const newUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-g' });
-		await provisional.tryRebind(ui, newUi, 'copilot', undefined);
+		const rebind = provisional.tryRebind(ui, newUi, 'copilot', undefined);
+		assert.strictEqual(agentHost.createCalls.some(c => c.session?.path === '/real-g'), false);
+		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+		await rebind;
 
 		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-g');
 		assert.ok(reboundCreate, 'rebind triggered a createSession');
-		assert.strictEqual(reboundCreate!.config?.['isolation'], 'worktree');
+		assert.deepStrictEqual({
+			isolation: reboundCreate.config?.['isolation'],
+			_meta: reboundCreate._meta,
+		}, {
+			isolation: 'worktree',
+			_meta: {
+				multiRoot: {
+					workspaceFile: workspaceConfiguration.toString(),
+					name: workspaceName,
+				},
+			},
+		});
+	});
 
-		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+	test('tryRebind retries when config changes during final session creation', async () => {
+		const ui = untitledChatUri('rebind-config-race');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-config-race' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const oldBackend = provisional.get(ui);
+		assert.ok(oldBackend);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		await timeout(0);
+		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+		gate.complete();
+		const [rebound] = await Promise.all([rebind, configChange]);
+
+		const finalCreates = agentHost.createCalls.filter(call => call.session?.path === '/real-config-race');
+		assert.deepStrictEqual({
+			finalCreateCount: finalCreates.length,
+			firstCandidateDisposed: agentHost.disposed.filter(uri => uri.path === '/real-config-race').length,
+			oldBackendDisposed: agentHost.disposed.some(uri => uri.toString() === oldBackend.toString()),
+			rebound: rebound?.toString(),
+			current: provisional.get(realUi)?.toString(),
+			finalConfig: finalCreates.at(-1)?.config,
+		}, {
+			finalCreateCount: 2,
+			firstCandidateDisposed: 1,
+			oldBackendDisposed: true,
+			rebound: URI.from({ scheme: 'copilot', path: '/real-config-race' }).toString(),
+			current: URI.from({ scheme: 'copilot', path: '/real-config-race' }).toString(),
+			finalConfig: { isolation: 'worktree' },
+		});
+	});
+
+	test('tryRebind disposes its candidate when the old entry is retired during creation', async () => {
+		const ui = untitledChatUri('rebind-dispose-race');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-race' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const oldBackend = provisional.get(ui);
+		assert.ok(oldBackend);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		await timeout(0);
+		const disposal = provisional.disposeSession(ui);
+		gate.complete();
+		const [rebound] = await Promise.all([rebind, disposal]);
+
+		assert.deepStrictEqual({
+			rebound,
+			oldMapping: provisional.get(ui),
+			newMapping: provisional.get(realUi),
+			disposed: agentHost.disposed.map(uri => uri.toString()).sort(),
+		}, {
+			rebound: undefined,
+			oldMapping: undefined,
+			newMapping: undefined,
+			disposed: [
+				oldBackend.toString(),
+				URI.from({ scheme: 'copilot', path: '/real-dispose-race' }).toString(),
+			].sort(),
+		});
+	});
+
+	test('tryRebind restores an imported conversation when final creation fails', async () => {
+		const ui = untitledChatUri('rebind-import-failure');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-import-failure' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const turn: Turn = { id: 'turn', message: { text: 'hello', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+		const imported = { turns: [turn], model: { id: 'test-model' } };
+		importStore.set(realUi, imported);
+		agentHost.failNextCreate = true;
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot', undefined);
+
+		assert.deepStrictEqual({
+			rebound,
+			imported: importStore.take(realUi),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: undefined,
+			imported,
+			disposed: [URI.from({ scheme: 'copilot', path: '/real-import-failure' }).toString()],
+		});
+	});
+
+	test('tryRebind blocks deterministic URI reuse until failed disposal is retried', async () => {
+		const ui = untitledChatUri('rebind-dispose-failure');
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-failure' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const pendingRead = provisional.waitForPending(ui);
+		await timeout(0);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+		agentHost.failNextDispose = true;
+		gate.complete();
+
+		await assert.rejects(rebind, /Cannot safely retry rebound session/);
+		assert.strictEqual(await pendingRead, undefined);
+		await configChange;
+		const reboundUri = URI.from({ scheme: 'copilot', path: '/real-dispose-failure' });
+		assert.deepStrictEqual({
+			attempts: agentHost.disposeAttempts.filter(uri => uri.toString() === reboundUri.toString()).length,
+			disposed: agentHost.disposed.filter(uri => uri.toString() === reboundUri.toString()).length,
+		}, {
+			attempts: 1,
+			disposed: 0,
+		});
+
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		assert.strictEqual(agentHost.disposed.filter(uri => uri.toString() === reboundUri.toString()).length, 1);
 	});
 
 	test('disposeSession drops the entry and its overlay', async () => {
@@ -446,6 +676,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
 		await provisional.applyConfigChange(ui, 'copilot', folderA, { isolation: 'worktree' });
 		assert.strictEqual(agentHost.createCalls.length, 1);
+		const original = agentHost.createCalls[0].session;
+		assert.ok(original);
 
 		// Re-resolve response for the recreation at the new cwd.
 		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
@@ -455,16 +687,46 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const recreate = agentHost.createCalls[agentHost.createCalls.length - 1];
 		assert.deepStrictEqual({
 			createCount: agentHost.createCalls.length,
-			disposedOld: agentHost.disposed.some(d => d.toString() === expectedBackendUri('cwd1').toString()),
-			recreatedSession: recreate.session?.toString(),
+			disposedOld: agentHost.disposed.some(d => d.toString() === original.toString()),
+			recreatedWithFreshUri: recreate.session?.toString() !== original.toString(),
+			currentSession: provisional.get(ui)?.toString(),
 			recreatedCwd: recreate.workingDirectories?.[0]?.toString(),
 			recreatedConfig: recreate.config?.['isolation'],
 		}, {
 			createCount: 2,
 			disposedOld: true,
-			recreatedSession: expectedBackendUri('cwd1').toString(),
+			recreatedWithFreshUri: true,
+			currentSession: recreate.session?.toString(),
 			recreatedCwd: folderB.toString(),
 			recreatedConfig: 'worktree',
+		});
+	});
+
+	test('folder change listeners can wait for the queued replacement', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('cwd-listener');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'folder' } }];
+		let pendingReplacement: Promise<URI | undefined> | undefined;
+		cleanup.add(provisional.onDidChange(resource => {
+			if (!pendingReplacement && resource.toString() === ui.toString()) {
+				pendingReplacement = provisional.waitForPending(ui);
+			}
+		}));
+
+		folderService.setFolder(ui, folderB);
+		assert.ok(pendingReplacement);
+		const replacement = await pendingReplacement;
+
+		assert.deepStrictEqual({
+			replacement: replacement?.toString(),
+			current: provisional.get(ui)?.toString(),
+			cwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+		}, {
+			replacement: agentHost.createCalls.at(-1)?.session?.toString(),
+			current: agentHost.createCalls.at(-1)?.session?.toString(),
+			cwd: folderB.toString(),
 		});
 	});
 
@@ -479,6 +741,166 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		assert.strictEqual(agentHost.createCalls.length, 1, 'no recreate for unchanged folder');
 		assert.strictEqual(agentHost.disposed.length, 0);
+	});
+
+	test('rapid folder changes converge on the latest folder', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const folderC = URI.file('/repoC');
+		const ui = untitledChatUri('rapid');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		const original = provisional.get(ui);
+		assert.ok(original);
+		agentHost.resolveQueue = [
+			{ schema: makeSchema(false), values: { isolation: 'folder' } },
+			{ schema: makeSchema(false), values: { isolation: 'folder' } },
+		];
+
+		folderService.setFolder(ui, folderB);
+		folderService.setFolder(ui, folderC);
+		await flush();
+
+		assert.deepStrictEqual({
+			createCount: agentHost.createCalls.length,
+			current: provisional.get(ui)?.toString(),
+			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			createCount: 2,
+			current: agentHost.createCalls.at(-1)?.session?.toString(),
+			latestCwd: folderC.toString(),
+			disposed: [original.toString()],
+		});
+	});
+
+	test('untrusted folder change retires the hidden generation and recreates on rollback', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('trust-change');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		const original = provisional.get(ui);
+		assert.ok(original);
+		untrustedFolders.add(folderB.toString());
+
+		folderService.setFolder(ui, folderB);
+		await flush();
+
+		assert.deepStrictEqual({
+			current: provisional.get(ui),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			createCount: agentHost.createCalls.length,
+		}, {
+			current: undefined,
+			disposed: [original.toString()],
+			createCount: 1,
+		});
+
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'folder' } }];
+		folderService.setFolder(ui, folderA);
+		await flush();
+		assert.deepStrictEqual({
+			current: provisional.get(ui)?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			recreated: provisional.get(ui)?.toString() !== original.toString(),
+		}, {
+			current: agentHost.createCalls.at(-1)?.session?.toString(),
+			createCount: 2,
+			disposed: [original.toString()],
+			recreated: true,
+		});
+	});
+
+	test('failed folder replacement cleans up its candidate and recreates on retry', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('failed-change');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		const original = provisional.get(ui);
+		assert.ok(original);
+		agentHost.failNextCreate = true;
+
+		folderService.setFolder(ui, folderB);
+		await flush();
+		const failedCandidate = agentHost.createCalls[1].session;
+		assert.ok(failedCandidate);
+
+		assert.deepStrictEqual({
+			current: provisional.get(ui),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			createCount: agentHost.createCalls.length,
+		}, {
+			current: undefined,
+			disposed: [failedCandidate.toString(), original.toString()],
+			createCount: 2,
+		});
+
+		const retried = await provisional.getOrCreate(ui, 'copilot', folderB);
+		assert.deepStrictEqual({
+			retried: retried?.toString(),
+			latestCwd: agentHost.createCalls.at(-1)?.workingDirectories?.[0]?.toString(),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			retried: agentHost.createCalls.at(-1)?.session?.toString(),
+			latestCwd: folderB.toString(),
+			disposed: [failedCandidate.toString(), original.toString()],
+		});
+	});
+
+	test('config changed during creation retires the stale candidate', async () => {
+		const folder = URI.file('/repo');
+		const ui = untitledChatUri('config-race');
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+		const initialCreate = provisional.getOrCreate(ui, 'copilot', folder);
+		await timeout(0);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+
+		const configChange = provisional.applyConfigChange(ui, 'copilot', folder, { isolation: 'worktree' });
+		gate.complete();
+		await Promise.all([initialCreate, configChange]);
+
+		const stale = agentHost.createCalls[0].session;
+		const current = agentHost.createCalls.at(-1)?.session;
+		assert.deepStrictEqual({
+			createCount: agentHost.createCalls.length,
+			staleDisposed: agentHost.disposed.map(uri => uri.toString()),
+			current: provisional.get(ui)?.toString(),
+			currentConfig: agentHost.createCalls.at(-1)?.config,
+			dispatchChannel: agentHost.dispatched.at(-1)?.channel,
+		}, {
+			createCount: 2,
+			staleDisposed: stale ? [stale.toString()] : [],
+			current: current?.toString(),
+			currentConfig: { isolation: 'worktree' },
+			dispatchChannel: current?.toString(),
+		});
+	});
+
+	test('dispose queued behind creation cannot publish or deadlock', async () => {
+		const ui = untitledChatUri('dispose-race');
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+		const creation = provisional.getOrCreate(ui, 'copilot', URI.file('/repo'));
+		await timeout(0);
+
+		const disposal = provisional.disposeSession(ui);
+		gate.complete();
+		await Promise.all([creation, disposal]);
+		const createdSession = agentHost.createCalls[0].session;
+		assert.ok(createdSession);
+
+		assert.deepStrictEqual({
+			current: provisional.get(ui),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			current: undefined,
+			createCount: 1,
+			disposed: [createdSession.toString()],
+		});
 	});
 
 	test('folder change with no provisional entry is a no-op', async () => {
@@ -508,8 +930,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await provisional.getOrCreate(singleRoot, 'copilot', folderA);
 
 		assert.deepStrictEqual({
-			multiRoot: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('multi').toString())?.workingDirectories?.map(d => d.toString()),
-			singleRoot: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('single').toString())?.workingDirectories?.map(d => d.toString()),
+			multiRoot: agentHost.createCalls[0].workingDirectories?.map(d => d.toString()),
+			singleRoot: agentHost.createCalls[1].workingDirectories?.map(d => d.toString()),
 		}, {
 			multiRoot: [folderB.toString(), folderA.toString(), folderC.toString()],
 			singleRoot: [folderA.toString()],
@@ -534,8 +956,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await provisional.getOrCreate(single, 'copilot', folderB);
 
 		assert.deepStrictEqual({
-			advertising: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('cap-multi').toString())?.workingDirectories?.map(d => d.toString()),
-			nonAdvertising: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('cap-single').toString())?.workingDirectories?.map(d => d.toString()),
+			advertising: agentHost.createCalls[0].workingDirectories?.map(d => d.toString()),
+			nonAdvertising: agentHost.createCalls[1].workingDirectories?.map(d => d.toString()),
 		}, {
 			advertising: [folderB.toString(), folderA.toString(), folderC.toString()],
 			nonAdvertising: [folderB.toString()],
