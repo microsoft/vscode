@@ -333,10 +333,6 @@ export abstract class BaseLayoutController extends Disposable {
 				&& !this._editorGroupsService.groups.some(group => !group.isEmpty)) {
 				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
 			}
-			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
-				&& !this._hasActiveAuxViewContainers()) {
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			}
 		}));
 		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
 			try {
@@ -464,9 +460,8 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * Records a whole-side-pane toggle while {@link _togglingSidePane} is set.
-	 * Collapse is recorded from the will event using the pre-toggle aux state;
-	 * reopen is recorded from did using the filtered resulting aux state.
+	 * Records a completed whole-side-pane toggle from the did event's before/after
+	 * state while {@link _togglingSidePane} is still set.
 	 */
 	protected _onSidePaneToggled(_collapsed: boolean, _previousAuxiliaryBarVisible: boolean, _auxiliaryBarVisible: boolean): void { }
 

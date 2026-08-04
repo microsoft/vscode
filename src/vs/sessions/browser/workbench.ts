@@ -2341,10 +2341,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	/**
-	 * Hook invoked when the side pane (editor part and/or auxiliary bar) transitions
-	 * from *fully hidden* to visible. The base classic/mobile layout has no docked
-	 * side pane, so this is a no-op; {@link SinglePaneWorkbench} overrides it to
-	 * fire {@link onDidRevealSidePane}.
+	 * Fires when the side pane (editor part and/or auxiliary bar) transitions from
+	 * fully hidden to visible.
 	 */
 	protected _onSidePaneRevealed(): void {
 		this._onDidRevealSidePane.fire();

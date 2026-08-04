@@ -2651,42 +2651,6 @@ suite('LayoutController (desktop)', () => {
 
 	// --- [D10] Toggle Side Panel with an empty aux bar ---
 
-	test('[D10] toggling the side pane with no aux containers reveals the editor, not an empty aux bar', () => {
-		createController({ activeAuxViewContainerIds: [] });
-		// Side pane fully closed; editors exist but no aux view containers.
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.editorGroupsHaveContent = true;
-		harness.setPartHiddenCalls = [];
-
-		harness.layoutService.toggleSidePane();
-
-		assert.deepStrictEqual({
-			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
-			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
-		}, {
-			editorVisible: true,
-			auxiliaryBarVisible: false,
-		});
-	});
-
-	test('[D10] toggling the side pane with neither editors nor aux containers reveals nothing', () => {
-		createController({ activeAuxViewContainerIds: [] });
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.editorGroupsHaveContent = false;
-		harness.setPartHiddenCalls = [];
-
-		harness.layoutService.toggleSidePane();
-
-		assert.deepStrictEqual({
-			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
-			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
-		}, {
-			editorVisible: false,
-			auxiliaryBarVisible: false,
-		});
-	});
 
 	// --- Single-pane managed docked tabs (Changes + Files placeholder) ---
 

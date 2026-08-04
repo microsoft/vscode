@@ -246,7 +246,7 @@ and hands control back once the user reopens the sessions sidebar manually.
 - **Side-pane close [D9]** — the side-pane toggle's UI entry point (the `Toggle Side Panel` action: menu
   item, keybinding, command-palette entry, toggled icon) is registered by the base controller, but its
   handler calls the workbench layout service's `toggleSidePane()` directly. The workbench remembers/restores the raw editor/aux visibility and emits `onWillToggleSidePane` / `onDidToggleSidePane` with one
-  `{ visible, editor, auxiliaryBar }` state. Will only establishes toggle suppression; did carries `{ before, after }`, records collapse/reopen after completion, and the shared
+  `{ editor, auxiliaryBar }` state. Will only establishes toggle suppression; did carries `{ before, after }`, records collapse/reopen after completion, and the shared
   `onDidRevealSidePane` event filters unavailable editor/aux content after both parts settle; did-toggle
   records that filtered result and clears `_togglingSidePane`. The [D2]
   listener therefore skips every intermediate part change without the command calling through a controller

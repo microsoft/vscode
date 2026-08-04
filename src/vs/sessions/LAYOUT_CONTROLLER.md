@@ -193,16 +193,15 @@ and activating a File or Changes editor reveals the matching detail panel once w
 explicit hides for the same active editor. When the main editor part has no tabs, the docked detail panel is
 hidden with the editor so the whole side pane closes to chat-only; opening a tab restores it through the
 normal editor-open and active-tab detail mapping. The detail-panel toggle reveals editor content when it hides the
-detail from an editor-hidden state. On a whole-side-pane reopen, the workbench briefly toggles both parts
-visible; `BaseLayoutController` handles `onDidToggleSidePane` synchronously and refines that composition
-using the remembered state, `_hasActiveAuxViewContainers()`, and `hasEditors`, preferring the editor and
-never leaving an empty aux bar visible. The `Toggle Side Panel` command is additionally
+detail from an editor-hidden state. On a whole-side-pane reopen, the workbench restores the remembered editor/detail composition. The
+controller uses `onDidRevealSidePane` for editor-content checks; auxiliary-bar cleanup remains with the
+layout-specific strategies so transiently unhydrated workspace views are not hidden. The `Toggle Side Panel` command is additionally
 **disabled** for quick chats (`precondition: IsQuickChatSessionContext.negate()`), since a quick chat has
 no side pane to toggle.
 
-`Workbench.toggleSidePane()` emits `onWillToggleSidePane` and `onDidToggleSidePane` with one
-`ISidePaneState` (`{ visible, editor, auxiliaryBar }`) and returns the actual final `visible` value after
-listeners run. The command calls this layout operation directly. `BaseLayoutController` sets
+`Workbench.toggleSidePane()` emits `onWillToggleSidePane` and a completed
+`onDidToggleSidePane({ before, after })`; each state contains `{ editor, auxiliaryBar }`. The method returns
+the actual final visibility after listeners run. The command calls this layout operation directly. `BaseLayoutController` sets
 `_togglingSidePane` from will; did supplies `{ before, after }`, so collapse/reopen recording happens only after the transition and still has the pre-toggle aux visibility. On a fully-closed → visible transition,
 the shared `onDidRevealSidePane` event fires once after both parts settle; the controller hides any revealed
 part that has no content. The did-toggle listener then records the filtered result and clears the flag. The workbench remembers/restores raw editor/aux visibility and owns the
