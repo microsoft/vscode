@@ -102,6 +102,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;
 				override getRecentWorkspaces() { return []; }
+				override async getWorkspaceToRestore() { return undefined; }
+				override async isExistingWorkspace() { return true; }
 			}());
 			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

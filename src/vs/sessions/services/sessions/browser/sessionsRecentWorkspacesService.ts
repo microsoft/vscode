@@ -12,10 +12,15 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isRecentFolder, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { ISessionWorkspace } from '../common/session.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
+const STORAGE_KEY_HAS_SENT_REQUEST = 'sessions.hasSentRequest';
+const STORAGE_KEY_LAST_REQUEST_WORKSPACE = 'sessions.lastRequestWorkspace';
+const LEGACY_TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 
@@ -49,13 +54,16 @@ export interface ISessionsRecentWorkspacesService {
 	 * first, then (when `includeVSCodeRecents` is `true`, the default) VS
 	 * Code's own recently opened folders (deduplicated against own history).
 	 *
-	 * Pass `false` to restrict to the sessions' own recently-picked history
-	 * only, e.g. to restore the last explicit selection made in an Agents
-	 * Window folder picker, so an unrelated folder the user merely opened in
-	 * a regular VS Code window never silently becomes a new session's
-	 * default workspace.
+	 * Pass `false` to restrict the result to the sessions' own recently-picked
+	 * history.
 	 */
 	getRecentWorkspaces(includeVSCodeRecents?: boolean): IRecentWorkspace[];
+
+	/** Returns the highest-priority existing workspace to preselect in a new-session view. */
+	getWorkspaceToRestore(): Promise<IRecentWorkspace | undefined>;
+
+	/** Returns whether `folderUri` can be validated as an existing folder, pruning authoritative stale entries. */
+	isExistingWorkspace(folderUri: URI): Promise<boolean>;
 
 	/** Records `folderUri` as most-recently used; `checked` un-checks every other entry. */
 	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void;
@@ -76,17 +84,34 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	readonly onDidChangeRecentWorkspaces: Event<void> = this._onDidChangeRecentWorkspaces.event;
 
 	private _vsCodeRecentFolderUris: URI[] = [];
+	private readonly _initialRecentWorkspacesRefresh: Promise<void>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IFileService private readonly fileService: IFileService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
-		this._refreshVSCodeRecentWorkspaces();
+		this._initialRecentWorkspacesRefresh = this._refreshVSCodeRecentWorkspaces();
 		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._refreshVSCodeRecentWorkspaces()));
+		this._register(sessionsManagementService.onDidSendRequest(({ session }) => {
+			this.storageService.store(STORAGE_KEY_HAS_SENT_REQUEST, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const folderUri = session.workspace.get()?.folders[0]?.root;
+			if (!folderUri) {
+				return;
+			}
+			const lastRequestWorkspace: IStoredRecentWorkspace = {
+				uri: folderUri.toJSON(),
+				providerId: session.providerId,
+				checked: true,
+			};
+			this.storageService.store(STORAGE_KEY_LAST_REQUEST_WORKSPACE, JSON.stringify(lastRequestWorkspace), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.addRecentWorkspace(folderUri, session.providerId, true);
+		}));
 	}
 
 	getRecentWorkspaces(includeVSCodeRecents = true): IRecentWorkspace[] {
@@ -101,6 +126,42 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.map(uri => ({ uri: uri.toJSON(), providerId: undefined, checked: false }) satisfies IStoredRecentWorkspace);
 
 		return this._resolveStored([...own, ...vsCode]);
+	}
+
+	async getWorkspaceToRestore(): Promise<IRecentWorkspace | undefined> {
+		await this._initialRecentWorkspacesRefresh;
+
+		const lastRequestWorkspace = this._getLastRequestWorkspace();
+		const hasSentRequest = this.storageService.getBoolean(STORAGE_KEY_HAS_SENT_REQUEST, StorageScope.PROFILE, false);
+		const vsCodeCandidates = this._vsCodeRecentFolderUris.map(uri => ({ uri: uri.toJSON(), providerId: undefined, checked: false }));
+		let candidates: IStoredRecentWorkspace[];
+		if (lastRequestWorkspace) {
+			candidates = [lastRequestWorkspace, ...this._excludeDuplicateCandidates(vsCodeCandidates, [lastRequestWorkspace])];
+		} else if (!hasSentRequest && this.storageService.getNumber(LEGACY_TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) > 0) {
+			// Migrate existing profiles from the request counter used before semantic request-workspace storage.
+			const own = this._getStoredRecentWorkspaces();
+			const prioritizedOwn = [...own.filter(candidate => candidate.checked), ...own.filter(candidate => !candidate.checked)];
+			candidates = [...prioritizedOwn, ...this._excludeDuplicateCandidates(vsCodeCandidates, prioritizedOwn)];
+		} else {
+			candidates = vsCodeCandidates;
+		}
+
+		for (const candidate of candidates) {
+			const folderUri = URI.revive(candidate.uri);
+			if (!await this.isExistingWorkspace(folderUri)) {
+				continue;
+			}
+			const resolved = this._resolveWorkspace(folderUri, candidate.providerId);
+			if (resolved) {
+				return { workspace: resolved.workspace, providerId: resolved.providerId, checked: candidate.checked };
+			}
+		}
+		return undefined;
+	}
+
+	private _excludeDuplicateCandidates(candidates: IStoredRecentWorkspace[], existing: IStoredRecentWorkspace[]): IStoredRecentWorkspace[] {
+		const existingKeys = new Set(existing.map(candidate => this.uriIdentityService.extUri.getComparisonKey(URI.revive(candidate.uri))));
+		return candidates.filter(candidate => !existingKeys.has(this.uriIdentityService.extUri.getComparisonKey(URI.revive(candidate.uri))));
 	}
 
 	private _resolveStored(stored: readonly IStoredRecentWorkspace[]): IRecentWorkspace[] {
@@ -175,6 +236,33 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.filter(uri => !hasWorktreesPathSegment(uri))
 			.slice(0, MAX_VSCODE_RECENT_WORKSPACES);
 		this._onDidChangeRecentWorkspaces.fire();
+	}
+
+	async isExistingWorkspace(folderUri: URI): Promise<boolean> {
+		try {
+			const stat = await this.fileService.stat(folderUri);
+			if (stat.isDirectory) {
+				return true;
+			}
+			this.removeRecentWorkspace(folderUri);
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				this.removeRecentWorkspace(folderUri);
+			}
+		}
+		return false;
+	}
+
+	private _getLastRequestWorkspace(): IStoredRecentWorkspace | undefined {
+		const raw = this.storageService.get(STORAGE_KEY_LAST_REQUEST_WORKSPACE, StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			return JSON.parse(raw) as IStoredRecentWorkspace;
+		} catch {
+			return undefined;
+		}
 	}
 
 	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {

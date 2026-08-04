@@ -30,7 +30,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { AutomationsWorkspacePicker } from '../../../automations/browser/automationDialog.js';
@@ -48,9 +48,14 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
+const STORAGE_KEY_HAS_SENT_REQUEST = 'sessions.hasSentRequest';
+const STORAGE_KEY_LAST_REQUEST_WORKSPACE = 'sessions.lastRequestWorkspace';
+const LEGACY_TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
 
 // ---- Mock providers ---------------------------------------------------------
 
@@ -261,7 +266,16 @@ function seedStorage(storageService: IStorageService, entries: { uri: URI; provi
 		checked: e.checked,
 	}));
 	storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
+	storageService.store(LEGACY_TOTAL_SESSIONS_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
+
+const existingFoldersFileService = upcastPartial<IFileService>({
+	stat: async resource => upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true }),
+});
+
+const sessionsManagementService = upcastPartial<ISessionsManagementService>({
+	onDidSendRequest: Event.None,
+});
 
 function createTestPicker(
 	disposables: DisposableStore,
@@ -273,6 +287,7 @@ function createTestPicker(
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
 	options?: IWorkspacePickerOptions,
+	fileService: IFileService = existingFoldersFileService,
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -281,7 +296,9 @@ function createTestPicker(
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
+	instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 	instantiationService.stub(IRemoteAgentHostService, {});
 	instantiationService.stub(IQuickInputService, {});
 	instantiationService.stub(IClipboardService, {});
@@ -315,12 +332,15 @@ async function createResolvedRecentWorkspacesService(
 	storageService: IStorageService,
 	providersService: MockSessionsProvidersService,
 	workspacesService: IWorkspacesService,
+	managementService: ISessionsManagementService = sessionsManagementService,
 ): Promise<ISessionsRecentWorkspacesService> {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IStorageService, storageService);
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IFileService, existingFoldersFileService);
 	instantiationService.stub(IWorkspacesService, workspacesService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
+	instantiationService.stub(ISessionsManagementService, managementService);
 	const recentWorkspacesService = disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService));
 	await new Promise<void>(resolve => {
 		const listener = recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
@@ -335,6 +355,20 @@ async function createResolvedRecentWorkspacesService(
 
 function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: string | undefined, message?: string): void {
 	assert.strictEqual(picker.selectedResolved?.providerId, expectedProviderId, message);
+}
+
+async function waitForSelection(picker: WorkspacePicker): Promise<void> {
+	if (picker.selectedFolderUri) {
+		return;
+	}
+	await Event.toPromise(Event.once(picker.onDidSelectWorkspace));
+}
+
+async function waitForSelectedProvider(picker: WorkspacePicker, providerId: string): Promise<void> {
+	if (picker.selectedResolved?.providerId === providerId) {
+		return;
+	}
+	await Event.toPromise(Event.once(Event.filter(picker.onDidSelectWorkspace, () => picker.selectedResolved?.providerId === providerId)));
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -355,10 +389,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('restore picks checked entry even when remote is disconnected (before grace period)', () => {
-		// Restore is honored synchronously: the picker shows the checked entry
-		// while we wait to see if the connection comes up. The grace-period
-		// fallback (covered in a separate test) only fires later.
+	test('restore picks checked entry even when remote is disconnected (before grace period)', async () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
@@ -371,11 +402,12 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider, localProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
-	test('restore ignores VS Code\'s global recents, using only the sessions\' own history', async () => {
+	test('restore uses Agents history after a request has been sent', async () => {
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
 
@@ -400,11 +432,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		);
 
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recentWorkspacesService);
+		await waitForSelection(picker);
 
 		assert.strictEqual(picker.selectedFolderUri?.toString(), ownUri.toString(), 'restore selects only the sessions-owned entry, not the VS Code global recent');
 	});
 
-	test('restore selects nothing when own history is empty, even with VS Code global recents present', async () => {
+	test('restore uses VS Code global recents before the first Agents request', async () => {
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
 
@@ -415,8 +448,89 @@ suite('WorkspacePicker - Connection Status', () => {
 		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
 
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recentWorkspacesService);
+		await waitForSelection(picker);
 
-		assert.strictEqual(picker.selectedFolderUri, undefined, 'restore selects nothing when there is no owned history to restore from');
+		assert.strictEqual(picker.selectedFolderUri?.toString(), globalUri.toString());
+	});
+
+	test('restore uses the last request workspace after an Agents request', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+
+		const lastRequestUri = URI.file('/local/request-project');
+		const laterPickedUri = URI.file('/local/picked-project');
+		const globalUri = URI.file('/local/global-project');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: laterPickedUri, providerId: 'local-1', checked: true }]);
+		storage.store(STORAGE_KEY_HAS_SENT_REQUEST, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(STORAGE_KEY_LAST_REQUEST_WORKSPACE, JSON.stringify({
+			uri: lastRequestUri.toJSON(),
+			providerId: 'local-1',
+			checked: true,
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const workspacesService = {
+			getRecentlyOpened: async () => ({ workspaces: [{ folderUri: globalUri }], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+
+		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService);
+		await waitForSelection(picker);
+
+		assert.strictEqual(picker.selectedFolderUri?.toString(), lastRequestUri.toString());
+	});
+
+	test('successful requests update the workspace restored next time', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+		const requestUri = URI.file('/local/request-project');
+		const workspace = localProvider.resolveWorkspace(requestUri);
+		assert.ok(workspace);
+
+		const didSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
+		const managementService = upcastPartial<ISessionsManagementService>({ onDidSendRequest: didSendRequest.event });
+		const storage = disposables.add(new TestStorageService());
+		const workspacesService = {
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService, managementService);
+		const session = upcastPartial<ISession>({
+			providerId: localProvider.id,
+			workspace: constObservable(workspace),
+		});
+
+		didSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ session }));
+		const restored = await recentWorkspacesService.getWorkspaceToRestore();
+
+		assert.strictEqual(restored?.workspace.uri.toString(), requestUri.toString());
+	});
+
+	test('restore skips and removes missing workspace candidates', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+
+		const missingUri = URI.file('/local/missing');
+		const existingUri = URI.file('/local/existing');
+		const removed: URI[] = [];
+		const workspacesService = {
+			getRecentlyOpened: async () => ({ workspaces: [{ folderUri: missingUri }, { folderUri: existingUri }], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+			removeRecentlyOpened: async (uris: URI[]) => removed.push(...uris),
+		} as unknown as IWorkspacesService;
+		const fileService = upcastPartial<IFileService>({
+			stat: async resource => upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: extUri.isEqual(resource, existingUri) }),
+		});
+
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService, undefined, undefined, fileService);
+		await waitForSelection(picker);
+
+		assert.deepStrictEqual({
+			selected: picker.selectedFolderUri?.toString(),
+			removed: removed.map(uri => uri.toString()),
+		}, {
+			selected: existingUri.toString(),
+			removed: [missingUri.toString()],
+		});
 	});
 
 	test('filters worktree checkout folders from VS Code global recents only', async () => {
@@ -466,8 +580,8 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
-
-		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored synchronously');
+		await waitForSelection(picker);
+		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		const events: Array<URI | undefined> = [];
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
@@ -490,6 +604,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		// Connection succeeds quickly.
 		await timeout(100);
@@ -527,7 +642,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'local-1', 'User pick preserved across grace-period elapse');
 	}));
 
-	test('restore picks checked entry while remote is connecting (no fallback flicker)', () => {
+	test('restore picks checked entry while remote is connecting (no fallback flicker)', async () => {
 		// SSH remote: provider registers in Disconnected state and immediately
 		// starts connecting. We restore the checked entry immediately rather than
 		// falling back to a different workspace and swapping later.
@@ -543,6 +658,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider, localProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
@@ -555,7 +671,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
-	test('connecting provider that fails falls back to no selection', () => {
+	test('connecting provider that fails falls back to no selection', async () => {
 		// Real SSH remote lifecycle: starts Disconnected, transitions Connecting,
 		// then fails back to Disconnected. The picker must clear the selection
 		// and fire onDidSelectWorkspace(undefined) so the view pane calls unsetNewSession().
@@ -569,6 +685,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection is restored while connecting');
 
@@ -586,7 +703,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual(events, [undefined], 'onDidSelectWorkspace fired with undefined');
 	});
 
-	test('restore picks connected remote provider', () => {
+	test('restore picks connected remote provider', async () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
@@ -597,11 +714,12 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
-	test('disconnect preserves selection (renders grayed; no auto-clear)', () => {
+	test('disconnect preserves selection (renders grayed; no auto-clear)', async () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
@@ -612,6 +730,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect — selection is preserved (the user picked it; we keep honoring it).
@@ -657,7 +776,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
-	test('reconnect keeps the selection (no extra event fires)', () => {
+	test('reconnect keeps the selection (no extra event fires)', async () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
@@ -668,6 +787,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect / reconnect cycle — selection preserved throughout.
@@ -726,7 +846,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
-	test('local provider is never treated as unavailable', () => {
+	test('local provider is never treated as unavailable', async () => {
 		const localProvider = createMockProvider('local-1');
 
 		const storage = disposables.add(new TestStorageService());
@@ -736,11 +856,12 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		providersService.setProviders([localProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
+		await waitForSelection(picker);
 
 		assertSelectedProvider(picker, 'local-1', 'Local provider workspace should always be selectable');
 	});
 
-	test('restore picks the stored workspace when its provider registers after another provider', () => {
+	test('restore picks the stored workspace when its provider registers after another provider', async () => {
 		// Regression: previously the picker filtered restore through `activeProviderId`,
 		// which auto-locked to whichever provider registered first. If the stored
 		// workspace belonged to a provider that registered later than another available
@@ -768,6 +889,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Now the late provider arrives.
 		const agentHostProvider = createMockProvider('local-agent-host');
 		providersService.setProviders([copilotProvider, agentHostProvider]);
+		await waitForSelectedProvider(picker, 'local-agent-host');
 
 		assertSelectedProvider(picker, 'local-agent-host', 'Stored workspace should be restored once its provider registers');
 	});
@@ -824,6 +946,7 @@ suite('AutomationsWorkspacePicker', () => {
 			new TestNotificationService(),
 			TestAutomationsWorkspacePicker,
 		) as TestAutomationsWorkspacePicker;
+		await waitForSelection(picker);
 		const state = {
 			isQuickChat: false,
 			folderUri,
@@ -994,6 +1117,7 @@ suite('AutomationsWorkspacePicker', () => {
 			undefined,
 			{ canSelectWorkspace: () => trustResult.p },
 		) as TestAutomationsWorkspacePicker;
+		await waitForSelection(picker);
 		const model = new AutomationIsolationModel({
 			isQuickChat: false,
 			folderUri: selectedFolder,
@@ -1298,7 +1422,9 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IFileService, existingFoldersFileService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
+	instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 	instantiationService.stub(IRemoteAgentHostService, {});
 	instantiationService.stub(IQuickInputService, {});
 	instantiationService.stub(IClipboardService, {});
@@ -1413,7 +1539,9 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IUriIdentityService, { extUri });
+		instantiationService.stub(IFileService, existingFoldersFileService);
 		instantiationService.stub(ISessionsProvidersService, providersService);
+		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, {});
 		instantiationService.stub(IQuickInputService, {});
 		instantiationService.stub(IClipboardService, {});

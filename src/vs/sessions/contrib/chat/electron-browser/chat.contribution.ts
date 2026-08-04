@@ -26,6 +26,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -44,6 +45,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
@@ -108,9 +110,17 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			await this.openExistingSession(sessionResource);
 			return;
 		}
-		if (folderUri) {
+		if (folderUri && await this._isExistingFolder(folderUri)) {
 			await this.selectFolder(folderUri);
 		}
+	}
+
+	private async _isExistingFolder(folderUri: URI): Promise<boolean> {
+		const exists = await this.recentWorkspacesService.isExistingWorkspace(folderUri);
+		if (!exists) {
+			this.logService.info(`[AgentsHandoff] Ignoring unavailable workspace: ${folderUri.toString()}`);
+		}
+		return exists;
 	}
 
 	private async openExistingSession(sessionResource: URI): Promise<void> {

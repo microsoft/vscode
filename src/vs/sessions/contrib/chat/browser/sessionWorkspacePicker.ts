@@ -113,6 +113,8 @@ export class WorkspacePicker extends Disposable {
 	private _selectedFolderUri: URI | undefined;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 	private _selectionGeneration = 0;
+	private _restorationGeneration = 0;
+	private _restorationPromise: Promise<void> | undefined;
 
 	/**
 	 * Set to `true` once the user has explicitly picked or cleared a workspace.
@@ -206,12 +208,12 @@ export class WorkspacePicker extends Disposable {
 			this._pickerGroupContext.reset();
 		}));
 
-		// Restore selected workspace from storage
-		const restored = this._restoreSelectedWorkspace();
-		this._applySelection(restored);
-		if (this._selectedResolved) {
-			this._watchForConnectionFailure(this._selectedResolved);
-		}
+		void this._restoreSelection();
+		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
+			if (!this._userHasPicked) {
+				void this._restoreSelection();
+			}
+		}));
 
 		// React to provider registrations/removals: re-validate the current
 		// selection, and if the user hasn't explicitly picked yet, re-restore
@@ -233,14 +235,7 @@ export class WorkspacePicker extends Disposable {
 				}
 			}
 			if (!this._userHasPicked) {
-				const restoredNow = this._restoreSelectedWorkspace();
-				if (restoredNow && !this._isSelectedFolder(restoredNow.workspace.folders[0]?.root)) {
-					this._applySelection(restoredNow);
-					this._updateTriggerLabel();
-					this._onDidChangeSelection.fire();
-					this._onDidSelectWorkspace.fire(this._selectedFolderUri);
-					this._watchForConnectionFailure(restoredNow);
-				}
+				void this._restoreSelection();
 			}
 		}));
 
@@ -558,7 +553,7 @@ export class WorkspacePicker extends Disposable {
 	 * when the item is a browse action or command rather than a workspace.
 	 */
 	private _reportPickerClosed(item: IWorkspacePickerItem): void {
-		const beforeFromStorage = this._restoreCheckedWorkspace();
+		const beforeFromStorage = this._getCheckedWorkspace();
 		const before = beforeFromStorage ?? this._selectedResolved;
 		const afterUri = item.folderUri;
 		const afterResolved = afterUri ? this._resolveFolder(afterUri) : undefined;
@@ -999,41 +994,50 @@ export class WorkspacePicker extends Disposable {
 		return this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri);
 	}
 
-	private _restoreSelectedWorkspace(): IResolvedFolderWorkspace | undefined {
-		// Try the checked entry first
-		const checked = this._restoreCheckedWorkspace();
-		if (checked) {
-			return checked;
+	private _restoreSelection(): Promise<void> {
+		if (this._restorationPromise) {
+			return this._restorationPromise;
 		}
-
-		// Fall back to the first resolvable recent workspace from a connected provider.
-		// Fallbacks (vs. the user's explicit checked pick) require the provider
-		// to be ready: we don't want to silently land on, e.g., a disconnected
-		// remote workspace that the user never picked. Restrict to the sessions'
-		// own recent history (not VS Code's global recents) so restoration never
-		// seeds a new session from a folder merely opened in another window.
-		try {
-			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
-				if (this._isProviderUnavailable(recent.providerId)) {
-					continue;
-				}
-				return recent;
+		const restoration = this._doRestoreSelection();
+		this._restorationPromise = restoration;
+		const clearRestoration = () => {
+			if (this._restorationPromise === restoration) {
+				this._restorationPromise = undefined;
 			}
-			return undefined;
-		} catch {
-			return undefined;
+		};
+		void restoration.then(clearRestoration, clearRestoration);
+		return restoration;
+	}
+
+	private async _doRestoreSelection(): Promise<void> {
+		const generation = ++this._restorationGeneration;
+		const restored = await this._restoreSelectedWorkspace();
+		if (generation !== this._restorationGeneration || this._userHasPicked) {
+			return;
+		}
+		const folderUri = restored?.workspace.folders[0]?.root;
+		if ((!folderUri && !this._selectedFolderUri) || this._isSelectedFolder(folderUri)) {
+			return;
+		}
+		this._applySelection(restored);
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
+		if (restored) {
+			this._watchForConnectionFailure(restored);
 		}
 	}
 
-	/**
-	 * Restore only the checked (previously selected) workspace if any
-	 * provider can resolve its URI. The provider's connection status is
-	 * intentionally NOT checked — we honor the user's explicit pick even
-	 * if the remote is still connecting or currently disconnected. The
-	 * trigger label reflects the connection state separately
-	 * (spinner / grayed).
-	 */
-	private _restoreCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
+	private async _restoreSelectedWorkspace(): Promise<IResolvedFolderWorkspace | undefined> {
+		const recent = await this.recentWorkspacesService.getWorkspaceToRestore();
+		if (!recent || (!recent.checked && this._isProviderUnavailable(recent.providerId))) {
+			return undefined;
+		}
+		return recent;
+	}
+
+	/** Returns the checked (previously selected) workspace if a provider can resolve it. */
+	private _getCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
 		try {
 			return this.recentWorkspacesService.getRecentWorkspaces(false).find(recent => recent.checked);
 		} catch {
