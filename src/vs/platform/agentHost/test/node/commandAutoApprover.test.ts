@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
+import { assertTreeSitterReady } from './treeSitterReadinessTestUtils.js';
 
 suite('CommandAutoApprover', () => {
 
@@ -16,12 +17,7 @@ suite('CommandAutoApprover', () => {
 
 	setup(async () => {
 		approver = disposables.add(new CommandAutoApprover(new NullLogService()));
-		const readiness = await approver.initialize();
-		// Without a working parser and both grammars every command silently
-		// degrades to `noMatch`, which shows up as dozens of confusing
-		// assertion mismatches instead of one clear failure. Fail fast here so
-		// a packaging/dependency regression is obvious. See issue #328863.
-		assert.deepStrictEqual(readiness, { parser: true, bash: true, powershell: true }, 'tree-sitter must be fully available for these tests');
+		assertTreeSitterReady(await approver.initialize());
 	});
 
 	suite('shouldAutoApprove', () => {

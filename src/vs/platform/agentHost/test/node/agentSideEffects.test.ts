@@ -47,6 +47,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { assertTreeSitterReady } from './treeSitterReadinessTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -3010,7 +3011,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 			// Rule resolvability requires a successful tree-sitter parse.
-			await sideEffects.initialize();
+			assertTreeSitterReady(await sideEffects.initialize());
 
 			const cases = [
 				['tc-shell-rules-1', { requestSandboxBypass: false, shellLanguage: 'bash' as const }],
@@ -3054,7 +3055,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
-			await sideEffects.initialize();
+			assertTreeSitterReady(await sideEffects.initialize());
 
 			// `get-childitem` only matches the default `Get-ChildItem` allow rule
 			// under PowerShell's case-insensitive matching. Missing language fails

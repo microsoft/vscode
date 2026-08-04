@@ -26,11 +26,11 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 		try {
 			stat = fs.statSync(path.join(ROOT, entryPath));
 		} catch (err) {
-			// A dangling symlink cannot be stat'ed and is safe to skip. Any
-			// other failure would silently drop files from the cache manifest,
-			// producing an incomplete node_modules archive that later fails in
-			// confusing ways, so surface it instead.
-			if (isDanglingSymbolicLink(entryPath)) {
+			// A symlink whose target does not exist cannot be stat'ed and is
+			// safe to skip. Any other failure would silently drop files from
+			// the cache manifest, producing an incomplete node_modules archive
+			// that later fails in confusing ways, so surface it instead.
+			if (isDanglingSymbolicLink(entryPath, err)) {
 				continue;
 			}
 			throw new Error(`Failed to stat '${entryPath}' while listing node_modules`, { cause: err });
@@ -46,7 +46,12 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 	}
 }
 
-function isDanglingSymbolicLink(entryPath: string): boolean {
+function isDanglingSymbolicLink(entryPath: string, err: unknown): boolean {
+	// Only a missing target explains the failure; errors such as EACCES, EIO or
+	// ELOOP indicate a real problem even when the entry is a symlink.
+	if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+		return false;
+	}
 	try {
 		return fs.lstatSync(path.join(ROOT, entryPath)).isSymbolicLink();
 	} catch {

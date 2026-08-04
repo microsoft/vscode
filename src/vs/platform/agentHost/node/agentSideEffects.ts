@@ -74,6 +74,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import type { ITreeSitterReadiness } from './commandAutoApprover.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
@@ -596,9 +597,12 @@ export class AgentSideEffects extends Disposable {
 	 * Initializes async resources (tree-sitter WASM) used for command
 	 * auto-approval. Await this before any session events can arrive to
 	 * guarantee that auto-approval checks are fully synchronous.
+	 *
+	 * Resolves with which shells can actually be analyzed; an unavailable shell
+	 * fails closed (commands require confirmation) rather than blocking startup.
 	 */
-	initialize(): Promise<void> {
-		return this._permissionManager.initialize().then(() => undefined);
+	initialize(): Promise<ITreeSitterReadiness> {
+		return this._permissionManager.initialize();
 	}
 
 	// ---- Agent registration -------------------------------------------------
