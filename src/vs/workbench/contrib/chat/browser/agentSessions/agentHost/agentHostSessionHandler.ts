@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -5248,8 +5249,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the requested directory, or either side is unavailable.
 	 */
 	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
-		const requestedDir = this._resolveRequestedWorkingDirectory(sessionResource);
+		const requestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+		const requestedDir = requestedDirectories?.[0];
 		if (!requestedDir || requestedDir.scheme !== 'file') {
+			return uri;
+		}
+		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(uri, requestedDirectories);
+		if (!owningRequestedDirectory || !extUriBiasedIgnorePathCase.isEqual(owningRequestedDirectory, requestedDir)) {
 			return uri;
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
@@ -5259,9 +5265,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return uri;
 		}
 		if (extUriBiasedIgnorePathCase.isEqual(requestedDir, resolvedDir)) {
-			return uri;
-		}
-		if (!extUriBiasedIgnorePathCase.isEqualOrParent(uri, requestedDir)) {
 			return uri;
 		}
 		const rel = extUriBiasedIgnorePathCase.relativePath(requestedDir, uri);
