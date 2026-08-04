@@ -14,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
  * order of user-created groups and workspace sections relative to each other.
  *
  * The order is stored as a flat list of opaque identities (the sessions list
- * uses `group:<id>` for groups and stable `workspace:*` identities for workspace sections).
+ * uses `group:<id>` for groups and `workspace:<label>` for workspace sections).
  * It is purely local (persisted to profile storage) and not synced to
  * providers. Identities the user has never moved fall back to a caller-provided
  * default order, so newly created groups / discovered workspaces appear in their

@@ -107,7 +107,6 @@ export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessio
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
-export const SessionSectionCanCreateContext = new RawContextKey<boolean>('sessionSection.canCreate', true);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 
@@ -134,11 +133,6 @@ export interface ISessionSection {
 	readonly id: string;
 	readonly label: string;
 	readonly sessions: ISession[];
-	readonly canCreateSession?: boolean;
-}
-
-export function canCreateSessionForSection(section: ISessionSection | undefined): boolean {
-	return !!section && section.canCreateSession !== false && section.sessions.length > 0;
 }
 
 /**
@@ -1033,7 +1027,6 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
-		SessionSectionCanCreateContext.bindTo(template.contextKeyService).set(element.canCreateSession !== false);
 		template.toolbar.context = element;
 	}
 
@@ -2707,8 +2700,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return false;
 		}
 		if (targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
-			const targetSectionId = this.sessionWorkspaceSectionId(target);
-			return dragged.every(s => this.sessionWorkspaceSectionId(s) === targetSectionId);
+			const targetLabel = sessionWorkspaceLabel(target);
+			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
 		}
 		return true;
 	}
@@ -2735,8 +2728,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
 			scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
 			if (targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
-				const targetSectionId = this.sessionWorkspaceSectionId(target);
-				scope = scope.filter(s => this.sessionWorkspaceSectionId(s) === targetSectionId);
+				const targetLabel = sessionWorkspaceLabel(target);
+				scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
 			}
 		}
 
@@ -2875,13 +2868,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			ids.add(`group:${group.id}`);
 		}
 		for (const session of this._sessionsManagementService.getSessions()) {
-			ids.add(this.sessionWorkspaceSectionId(session));
+			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 		}
 		return ids;
-	}
-
-	private sessionWorkspaceSectionId(session: ISession): string {
-		return getSessionWorkspaceSectionDescriptor(session).id;
 	}
 
 	private setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void {
@@ -3493,48 +3482,38 @@ export function groupSessionsForList(
 	return sections;
 }
 
-export interface ISessionWorkspaceSectionDescriptor {
-	readonly id: string;
-	readonly label: string;
-	readonly canCreateSession: boolean;
-}
-
-/** Returns the stable workspace-section identity and presentation for a session. */
-export function getSessionWorkspaceSectionDescriptor(session: ISession): ISessionWorkspaceSectionDescriptor {
-	const workspace = session.workspace.get();
-	const label = workspace?.label || localize('unknown', "Unknown");
-	return {
-		id: `workspace:${label}`,
-		label,
-		canCreateSession: workspace?.canCreateSession !== false,
-	};
+/** The workspace group label a session belongs to (matches {@link groupByWorkspace}). */
+function sessionWorkspaceLabel(session: ISession): string {
+	return session.workspace.get()?.label || localize('unknown', "Unknown");
 }
 
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
-	const groups = new Map<string, ISessionSection>();
+	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
-		const descriptor = getSessionWorkspaceSectionDescriptor(session);
-		let group = groups.get(descriptor.id);
+		const label = sessionWorkspaceLabel(session);
+		let group = groups.get(label);
 		if (!group) {
-			group = { ...descriptor, sessions: [] };
-			groups.set(descriptor.id, group);
-		} else if (!descriptor.canCreateSession && group.canCreateSession !== false) {
-			group = { ...group, canCreateSession: false };
-			groups.set(descriptor.id, group);
+			group = [];
+			groups.set(label, group);
 		}
-		group.sessions.push(session);
+		group.push(session);
 	}
 
 	const unknownWorkspaceLabel = localize('unknown', "Unknown");
-	const unknownWorkspaceId = `workspace:${unknownWorkspaceLabel}`;
-	const result = [...groups.values()]
-		.filter(section => section.id !== unknownWorkspaceId)
-		.sort((a, b) => a.label.localeCompare(b.label));
+	const order = [...groups.keys()]
+		.filter(k => k !== unknownWorkspaceLabel)
+		.sort((a, b) => a.localeCompare(b));
+
+	const result: ISessionSection[] = order.map(label => ({
+		id: `workspace:${label}`,
+		label,
+		sessions: groups.get(label)!,
+	}));
 
 	// "Unknown Workspace" always at the bottom
-	const unknownWorkspace = groups.get(unknownWorkspaceId);
+	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
 	if (unknownWorkspace) {
-		result.push(unknownWorkspace);
+		result.push({ id: `workspace:${unknownWorkspaceLabel}`, label: unknownWorkspaceLabel, sessions: unknownWorkspace });
 	}
 
 	return result;

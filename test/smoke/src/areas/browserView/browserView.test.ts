@@ -53,12 +53,13 @@ export function setup(logger: Logger): void {
 			baseUrl = `http://127.0.0.1:${address.port}`;
 		});
 
-		afterEach(async () => {
-			for (const page of openPages) {
-				if (!page.isClosed()) {
-					await page.close();
-				}
-			}
+		afterEach(async function () {
+			const app = this.app as Application;
+			const pageClosePromises = [...openPages]
+				.filter(page => !page.isClosed())
+				.map(page => page.waitForEvent('close'));
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			await Promise.all(pageClosePromises);
 			openPages.clear();
 		});
 
@@ -100,6 +101,7 @@ export function setup(logger: Logger): void {
 			const workbenchPage = app.code.driver.currentPage;
 			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+			await browserPage.locator('body').click({ position: { x: 1, y: 1 } });
 			await browserPage.keyboard.press(`${modifier}+f`);
 			const findWidget = workbenchPage.locator('.browser-find-widget-wrapper .simple-find-part.visible');
 			const findInput = findWidget.locator('.monaco-findInput input');
