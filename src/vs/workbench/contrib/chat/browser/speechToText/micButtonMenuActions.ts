@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
 import { DictationSettingId } from './chatSpeechToTextService.js';
 import { SHOW_DICTATION_ONBOARDING_COMMAND } from './dictationOnboarding.js';
@@ -78,13 +79,13 @@ function createShowDictationOnboardingAction(commandService: ICommandService): I
  * removes the toolbar affordance — dictation can still be launched with its
  * Cmd/Ctrl+I shortcut, and the button can be restored from Settings.
  */
-function createToggleDictationButtonAction(configurationService: IConfigurationService): IAction {
-	const shown = configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+function createToggleButtonAction(configurationService: IConfigurationService, settingId: DictationSettingId.ShowButton | AgentsVoiceSettingId.ShowButton, id: string, label: string): IAction {
+	const shown = configurationService.getValue<boolean>(settingId) !== false;
 	return toAction({
-		id: 'chat.dictation.toggleButton',
-		label: localize('dictation.microphoneButton', "Microphone Button"),
+		id,
+		label,
 		checked: shown,
-		run: () => configurationService.updateValue(DictationSettingId.ShowButton, !shown),
+		run: () => configurationService.updateValue(settingId, !shown),
 	});
 }
 
@@ -112,7 +113,7 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 	return Separator.join(
 		[
 			createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
-			createToggleDictationButtonAction(configurationService),
+			createToggleButtonAction(configurationService, DictationSettingId.ShowButton, 'chat.dictation.toggleButton', localize('dictation.microphoneButton', "Microphone Button")),
 			createDisableDictationAction(commandService, configurationService),
 		],
 		[
@@ -168,6 +169,7 @@ export function getVoiceModeContextMenuActions(commandService: ICommandService, 
 	return Separator.join(
 		[
 			createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
+			createToggleButtonAction(configurationService, AgentsVoiceSettingId.ShowButton, 'chat.voiceMode.toggleButton', localize('voiceMode.button', "Voice Mode Button")),
 			createDisableVoiceModeAction(commandService, configurationService),
 		],
 		[
