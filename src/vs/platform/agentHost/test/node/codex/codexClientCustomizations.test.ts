@@ -4,15 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition, type IParsedPlugin, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
+import { FileService } from '../../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../log/common/log.js';
+import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CodexClientCustomizationStore, codexMcpServersFromPlugins, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
+	const disposables = new DisposableStore();
+	let fileService: FileService;
+
+	setup(() => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+	});
+
+	teardown(() => disposables.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -28,6 +43,14 @@ suite('codexClientCustomizations', () => {
 	function skillDef(pluginDir: string, name: string): IParsedSkill {
 		const uri = URI.file(`${pluginDir}/skills/${name}/SKILL.md`);
 		return { uri, name, description: `${name} desc`, customization: { type: CustomizationType.Skill, id: `skill:${name}`, uri: uri.toString(), name } };
+	}
+
+	function agentDef(uri: URI, name: string): IParsedAgent {
+		return { uri, name, customization: { type: CustomizationType.Agent, id: `agent:${name}`, uri: uri.toString(), name } };
+	}
+
+	function instructionDef(uri: URI, name: string): IParsedRule {
+		return { uri, name, customization: { type: CustomizationType.Rule, id: `rule:${name}`, uri: uri.toString(), name } };
 	}
 
 	function parsed(overrides: Partial<IParsedPlugin> = {}): IParsedPlugin {
@@ -102,6 +125,63 @@ suite('codexClientCustomizations', () => {
 		// hardcoded posix path.
 		const skillsRoot = (pluginDir: string) => URI.file(`${pluginDir}/skills`).fsPath;
 		assert.deepStrictEqual(codexSkillRootsFromPlugins(plugins), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
+		assert.deepStrictEqual(codexSkillCapabilityRoots(plugins).map(root => root.fsPath), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
+	});
+
+	test('converts agent markdown and plugin instructions into codex launch configuration', async () => {
+		const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/agents/reviewer.agent.md' });
+		const instructionUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/rules/repo.instructions.md' });
+		await fileService.writeFile(agentUri, VSBuffer.fromString(`---\nname: Reviewer\ndescription: Reviews carefully\nmodel: gpt-test\n---\nReview the change and report risks.`));
+		await fileService.writeFile(instructionUri, VSBuffer.fromString(`---\ndescription: Repository rules\n---\nAlways run focused tests.`));
+		const plugins = [plugin('p', undefined, parsed({
+			agents: [agentDef(agentUri, 'reviewer')],
+			instructions: [instructionDef(instructionUri, 'repo')],
+		}))];
+
+		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: agentUri.toString() }, fileService);
+
+		assert.deepStrictEqual(config, {
+			agentRoles: [{
+				name: 'Reviewer',
+				description: 'Reviews carefully',
+				instructions: 'Review the change and report risks.',
+				model: 'gpt-test',
+			}],
+			developerInstructions: 'Always run focused tests.\n\nReview the change and report risks.',
+		});
+		assert.strictEqual(codexAgentRoleToml(config.agentRoles[0]), [
+			'name = "Reviewer"',
+			'description = "Reviews carefully"',
+			'developer_instructions = "Review the change and report risks."',
+			'model = "gpt-test"',
+			'',
+		].join('\n'));
+	});
+
+	test('matches a selected source agent to its host-synced plugin copy', async () => {
+		const sourcePluginUri = URI.from({ scheme: Schemas.inMemory, path: '/source/plugin' });
+		const syncedPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/synced/plugin' });
+		const sourceAgentUri = URI.joinPath(sourcePluginUri, 'agents', 'reviewer.agent.md');
+		const syncedAgentUri = URI.joinPath(syncedPluginUri, 'agents', 'reviewer.agent.md');
+		await fileService.writeFile(syncedAgentUri, VSBuffer.fromString(`---\nname: Reviewer\ndescription: Reviews carefully\n---\nApply synced reviewer instructions.`));
+		const synced: ISyncedCustomization = {
+			customization: {
+				type: CustomizationType.Plugin,
+				id: 'synced-plugin',
+				uri: sourcePluginUri.toString(),
+				name: 'Synced Plugin',
+				enabled: true,
+			},
+			pluginDir: syncedPluginUri,
+		};
+		const plugins: ICodexClientPlugin[] = [{
+			synced,
+			parsed: parsed({ agents: [agentDef(syncedAgentUri, 'reviewer')] }),
+		}];
+
+		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: sourceAgentUri.toString() }, fileService);
+
+		assert.strictEqual(config.developerInstructions, 'Apply synced reviewer instructions.');
 	});
 
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {

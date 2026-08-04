@@ -1201,6 +1201,32 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
 		});
 
+		test('accepts customization updates while creating a provisional session', async () => {
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			class ProvisionalCustomizationAgent extends MockAgent {
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					return { ...await super.createSession(config), provisional: true };
+				}
+
+				override getSessionCustomizations = async (session: URI) => {
+					this.fireProgress({
+						kind: 'action',
+						resource: session,
+						action: { type: ActionType.SessionCustomizationUpdated, customization },
+					});
+					return [];
+				};
+			}
+
+			const agent = new ProvisionalCustomizationAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+
+			const session = await service.createSession({ provider: agent.id });
+
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.customizations, [customization]);
+		});
+
 		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {
 			class CapturingAgent extends MockAgent {
 				lastConfig: IAgentCreateSessionConfig | undefined;

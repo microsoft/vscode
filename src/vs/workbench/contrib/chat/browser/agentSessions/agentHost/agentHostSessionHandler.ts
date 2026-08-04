@@ -1337,6 +1337,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		);
 		this._activeSessions.set(sessionResource, session);
+		this._ensureActiveClient(resolvedSession);
 
 		if (!isNewSession) {
 			// Only wire up pending-message/draft sync once the chat URI has been
@@ -1845,7 +1846,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._activeClientService.getActiveClient(this._config.sessionType, this._config.connection.clientId);
 	}
 
-	private _ensureActiveClientForMessage(backendSession: URI): void {
+	private _ensureActiveClient(backendSession: URI): void {
 		const state = this._getSessionState(backendSession.toString());
 		const activeClient = this._getCurrentActiveClient();
 		const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
@@ -2431,7 +2432,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// turn goes out. We only do this on turn start (not on session open)
 		// so that opening a session doesn't eagerly register this client while
 		// another client is in the middle of a turn.
-		this._ensureActiveClientForMessage(session);
+		this._ensureActiveClient(session);
 
 		// Model and agent selection now travel on the turn message itself rather
 		// than via the removed `session/modelChanged` / `session/agentChanged`

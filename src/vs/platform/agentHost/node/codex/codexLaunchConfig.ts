@@ -24,7 +24,18 @@ export function isCodexThreadProviderCompatible(usageSource: CodexUsageSource, m
 }
 
 /** Explicitly bind a compatible resumed thread to the current global usage source. */
-export function buildCodexResumeParams(usageSource: CodexUsageSource, threadId: string, mcpServers: Readonly<Record<string, unknown>>, workingDirectories?: readonly string[]): ThreadResumeParams {
+export function buildCodexResumeParams(
+	usageSource: CodexUsageSource,
+	threadId: string,
+	mcpServers: Readonly<Record<string, unknown>>,
+	workingDirectories?: readonly string[],
+	configOverrides: Readonly<Record<string, JsonValue>> = {},
+	developerInstructions?: string,
+): ThreadResumeParams {
+	const config = {
+		...configOverrides,
+		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
+	};
 	return {
 		threadId,
 		modelProvider: usageSource === 'copilot' ? 'vscode-proxy' : 'openai',
@@ -32,7 +43,8 @@ export function buildCodexResumeParams(usageSource: CodexUsageSource, threadId: 
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
 		} : {}),
-		...(Object.keys(mcpServers).length > 0 ? { config: { mcp_servers: mcpServers as JsonValue } } : {}),
+		...(Object.keys(config).length > 0 ? { config } : {}),
+		...(developerInstructions ? { developerInstructions } : {}),
 	};
 }
 

@@ -922,6 +922,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			customizations: [...(customizationsByType.get(sessionType)?.get() ?? [])],
 		}),
 		getCustomizations: (sessionType: string) => derived(reader => customizationsByType.get(sessionType)?.read(reader) ?? []),
+		getCustomAgents: () => constObservable([]),
 		getClientTools: () => constObservable<readonly ToolDefinition[]>([]),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);

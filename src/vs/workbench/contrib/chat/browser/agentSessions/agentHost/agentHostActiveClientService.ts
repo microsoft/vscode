@@ -15,7 +15,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostCopilotMultiRootEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -24,7 +24,7 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, shouldSyncWorkspaceDotMcp } from './agentHostLocalCustomizations.js';
+import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -65,6 +65,9 @@ export interface IAgentHostActiveClientService {
 
 	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]>;
 
+	/** Selectable local agents available before the host has parsed the customization refs. */
+	getCustomAgents(sessionType: string): IObservable<readonly AgentCustomization[]>;
+
 	/**
 	 * Returns the tools this client advertises to the agent host for `sessionType`.
 	 *
@@ -80,6 +83,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _customizationsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly ClientPluginCustomization[]>>>;
+	private readonly _customAgentsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly AgentCustomization[]>>>;
 
 	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
@@ -102,6 +106,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
+		this._customAgentsByType = observableValue('agentHostCustomAgentsByType', new Map());
 
 		// Pass `undefined` for the model: agent-host sessions use server-side model selection.
 		this._allToolsObs = this._toolsService.observeTools(undefined);
@@ -113,6 +118,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
+		const customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
 		// Gate for seeding folder-root `.mcp.json` servers from every workspace
 		// folder (not just the session's primary). Evaluated fresh on each sync
 		// so folder/setting changes are reflected. See `shouldSyncWorkspaceDotMcp`.
@@ -125,14 +131,19 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options);
+				const [refs, agents] = await Promise.all([
+					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options),
+					resolveLocalCustomAgents(this._fileService, syncProvider, this._agentPluginService),
+				]);
 				if (seq !== updateSeq) {
 					return;
 				}
-				if (equals(customizations.get(), refs)) {
-					return;
+				if (!equals(customizations.get(), refs)) {
+					customizations.set(refs, undefined);
 				}
-				customizations.set(refs, undefined);
+				if (!equals(customAgents.get(), agents)) {
+					customAgents.set(agents, undefined);
+				}
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -151,6 +162,22 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			this._promptsService.onDidChangeSkills,
 			this._promptsService.onDidChangeInstructions,
 		)(() => scheduleUpdate()));
+		// Plugin discovery completes asynchronously and may happen after the
+		// agent registration's initial customization resolution. Observe the
+		// plugin inventory and its mutable contributions so newly discovered,
+		// enabled, or updated plugins are published without restarting.
+		store.add(autorun(reader => {
+			for (const plugin of this._agentPluginService.plugins.read(reader)) {
+				plugin.enablement.read(reader);
+				plugin.hooks.read(reader);
+				plugin.commands.read(reader);
+				plugin.skills.read(reader);
+				plugin.agents.read(reader);
+				plugin.instructions.read(reader);
+				plugin.mcpServerDefinitions.read(reader);
+			}
+			scheduleUpdate();
+		}));
 		// Re-resolve when MCP servers configured in VS Code change (added,
 		// removed, enabled/disabled, or reconfigured) so they stay in sync.
 		store.add(autorun(reader => {
@@ -171,11 +198,27 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			}
 		}));
 		store.add(this._setCustomizations(sessionType, customizations));
+		store.add(this._setCustomAgents(sessionType, customAgents));
 		return {
 			syncProvider,
 			bundler,
 			dispose: () => store.dispose(),
 		};
+	}
+
+	private _setCustomAgents(sessionType: string, customAgents: IObservable<readonly AgentCustomization[]>): IDisposable {
+		const next = new Map(this._customAgentsByType.get());
+		next.set(sessionType, customAgents);
+		this._customAgentsByType.set(next, undefined);
+		return toDisposable(() => {
+			const current = this._customAgentsByType.get();
+			if (current.get(sessionType) !== customAgents) {
+				return;
+			}
+			const removed = new Map(current);
+			removed.delete(sessionType);
+			this._customAgentsByType.set(removed, undefined);
+		});
 	}
 
 	private _setCustomizations(sessionType: string, customizations: IObservable<readonly ClientPluginCustomization[]>): IDisposable {
@@ -203,6 +246,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]> {
 		return derived(reader => this._customizationsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOMIZATIONS);
+	}
+
+	getCustomAgents(sessionType: string): IObservable<readonly AgentCustomization[]> {
+		return derived(reader => this._customAgentsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOM_AGENTS);
 	}
 
 	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
@@ -235,6 +282,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 }
 
 const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze([]);
+const EMPTY_CUSTOM_AGENTS: readonly AgentCustomization[] = Object.freeze([]);
 
 /** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */
 const CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY = 50;

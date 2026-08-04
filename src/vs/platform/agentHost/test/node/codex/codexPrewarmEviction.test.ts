@@ -6,6 +6,8 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
+import * as fs from 'fs';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -20,8 +22,11 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
+import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession } from '../../../common/agentService.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -48,6 +53,8 @@ interface ITestWireRequest {
 		readonly runtimeWorkspaceRoots?: readonly string[];
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly sandboxPolicy?: SandboxPolicy;
+		readonly config?: Record<string, unknown>;
+		readonly developerInstructions?: string;
 	};
 }
 
@@ -274,6 +281,72 @@ suite('CodexAgent prewarm eviction', () => {
 
 	test('waits for and evicts an in-flight folder prewarm when the first send resolves to a worktree', async () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
+	});
+
+	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		const pluginDir = URI.file('/plugin');
+		const agentUri = URI.file('/plugin/agents/reviewer.agent.md');
+		const instructionUri = URI.file('/plugin/rules/repo.instructions.md');
+		const skillUri = URI.file('/plugin/skills/greet/SKILL.md');
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
+		await agent['_fileService'].writeFile(instructionUri, VSBuffer.fromString('---\ndescription: Repo rules\n---\nRun focused tests.'));
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: greet\ndescription: Greets\n---\nSay hello.'));
+		const parsed: IParsedPlugin = {
+			format: PluginFormat.OpenPlugin,
+			hooks: [],
+			agents: [{ uri: agentUri, name: 'Reviewer', description: 'Reviews changes', customization: { type: CustomizationType.Agent, id: 'agent', uri: agentUri.toString(), name: 'Reviewer' } }],
+			instructions: [{ uri: instructionUri, name: 'repo', customization: { type: CustomizationType.Rule, id: 'rule', uri: instructionUri.toString(), name: 'repo' } }],
+			skills: [{ uri: skillUri, name: 'greet', description: 'Greets', customization: { type: CustomizationType.Skill, id: 'skill', uri: skillUri.toString(), name: 'greet' } }],
+			mcpServers: [{
+				name: 'local',
+				uri: URI.file('/plugin/.mcp.json'),
+				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+			}],
+		};
+		const { session } = await agent.createSession({ workingDirectories: [repo], model: { id: 'gpt-test' }, agent: { uri: agentUri.toString() } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.clientCustomizations.setClient('test', [{
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			parsed,
+		}]);
+
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		const agents = start.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+		const roleFile = await fs.promises.readFile(agents.Reviewer.config_file, 'utf8');
+		peer.push({ id: start.id, result: { thread: { id: 'thread-custom' } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			mcp: start.params.config?.['mcp_servers'],
+			agentDescription: agents.Reviewer.description,
+			developerInstructions: start.params.developerInstructions,
+			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+			roleFile,
+		}, {
+			mcp: { local: { command: 'node', args: ['server.js'] } },
+			agentDescription: 'Reviews changes',
+			developerInstructions: 'Run focused tests.\n\nReview carefully.',
+			capabilityPaths: [URI.file('/plugin/skills').fsPath],
+			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
+		});
+		peer.exit();
 	});
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
