@@ -83,6 +83,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentEditorComments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
@@ -175,6 +179,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/agentsVoice",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
@@ -224,6 +232,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/speech",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/styleOverrides",
 			"project": "vscode-workbench"
 		},
 		{
@@ -296,6 +308,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeOnboarding",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/onboarding",
 			"project": "vscode-workbench"
 		},
 		{
@@ -633,6 +649,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/automations",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -677,6 +697,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/customViewTest",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/fileTreeView",
 			"project": "vscode-sessions"
 		},
@@ -689,11 +713,23 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/sideChat",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/policyBlocked",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/git",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/github",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},
 		{
@@ -706,6 +742,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionInputBanners",
 			"project": "vscode-sessions"
 		},
 		{
@@ -730,6 +770,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/editor",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/onboardingTours",
 			"project": "vscode-sessions"
 		}
 	]

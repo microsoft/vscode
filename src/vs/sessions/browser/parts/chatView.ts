@@ -105,6 +105,20 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Submit the current composer input, returning whether it was sent. */
+	submitInput(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	/**
+	 * Attach the given resources as context to this view's chat input. The
+	 * default implementation is a no-op; subclasses that host a chat widget
+	 * (e.g. `ChatView`) override this to add the attachments to the widget.
+	 */
+	attach(_uris: URI[]): void {
+		// no-op by default
+	}
+
 	/**
 	 * Notifies the view whether it is the currently active session in the
 	 * sessions grid. Subclasses may use this to adjust their visual styling
@@ -112,6 +126,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * is a no-op.
 	 */
 	setActive(_active: boolean): void {
+		// no-op by default
+	}
+
+	/**
+	 * Notifies the view whether it is currently shown. Unlike {@link setActive},
+	 * inactive sessions displayed side by side are still visible.
+	 */
+	setVisible(_visible: boolean): void {
 		// no-op by default
 	}
 

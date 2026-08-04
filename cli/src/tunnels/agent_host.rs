@@ -29,7 +29,7 @@ use crate::options::Quality;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
+use crate::util::command::{kill_tree, new_script_command};
 use crate::util::errors::{AnyError, CodeError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::http::{empty_body, full_body, HyperBody};
@@ -562,10 +562,35 @@ impl AgentHostManager {
 	}
 
 	/// Kills the currently running server, if any.
+	///
+	/// The server is launched via a bash/cmd shim (`<server>/bin/code-server-<quality>`)
+	/// which `spawn`s the underlying `node ... server-main.js` child. A plain
+	/// `child.kill()` only terminates the shim and reparents the node child to
+	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
+	/// the node process is reaped along with the launcher. See issue #319516.
 	pub async fn kill_running_server(&self) {
 		let mut running = self.running.lock().await;
 		if let Some(mut server) = running.take() {
-			let _ = server.child.kill().await;
+			if let Some(pid) = server.child.id() {
+				let _ = kill_tree(pid).await;
+			}
+			// Reap the child so we don't leave a zombie. Bound the wait so a
+			// process that ignores SIGTERM can't wedge the supervisor's
+			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
+			// the graceful shutdown doesn't land in time.
+			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
+				.await
+				.is_err()
+			{
+				warning!(
+					self.log,
+					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
+					REAP_TIMEOUT.as_secs()
+				);
+				let _ = server.child.kill().await;
+				let _ = server.child.wait().await;
+			}
 		}
 	}
 

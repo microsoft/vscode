@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as childProcess from 'child_process';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Terminal, TerminalOptions } from 'vscode';
 import { ILogService } from '../../../../../../platform/log/common/logService';
 import { ITerminalService, NullTerminalService } from '../../../../../../platform/terminal/common/terminalService';
@@ -24,14 +24,14 @@ vi.mock('child_process', () => ({
 }));
 
 interface MockTerminal extends Pick<Terminal, 'show' | 'sendText' | 'dispose'> {
-	show: ReturnType<typeof vi.fn>;
-	sendText: ReturnType<typeof vi.fn>;
-	dispose: ReturnType<typeof vi.fn>;
+	show: Mock;
+	sendText: Mock;
+	dispose: Mock;
 }
 
 class TestTerminalService extends NullTerminalService {
 	public mockTerminal: MockTerminal;
-	public createTerminalSpy: ReturnType<typeof vi.fn>;
+	public createTerminalSpy: Mock;
 
 	constructor() {
 		super();
@@ -49,8 +49,8 @@ class TestTerminalService extends NullTerminalService {
 }
 
 interface MockLanguageModelServer extends Pick<ClaudeLanguageModelServer, 'start' | 'getConfig'> {
-	start: ReturnType<typeof vi.fn>;
-	getConfig: ReturnType<typeof vi.fn>;
+	start: Mock;
+	getConfig: Mock;
 }
 
 describe('TerminalSlashCommand', () => {
@@ -58,7 +58,7 @@ describe('TerminalSlashCommand', () => {
 	let testTerminalService: TestTerminalService;
 	let mockLogService: ILogService;
 	let mockLanguageModelServer: MockLanguageModelServer;
-	let execFileMock: ReturnType<typeof vi.fn>;
+	let execFileMock: Mock;
 	let mockSessionStateService: IClaudeSessionStateService;
 
 	const TEST_SESSION_ID = 'test-uuid-1234';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 15
-
 declare module 'vscode' {
 
 	/**
@@ -129,12 +127,52 @@ declare module 'vscode' {
 		readonly hasHooksEnabled: boolean;
 
 		/**
+		 * Whether this request was submitted through Agents Voice Mode.
+		 */
+		readonly isVoiceModeInput?: boolean;
+
+		/**
 		 * When true, this request was initiated by the system (e.g. a terminal
 		 * command completion notification) rather than by the user typing a
 		 * message. Extensions can use this to render the prompt differently
 		 * and skip billing.
 		 */
 		readonly isSystemInitiated?: boolean;
+	}
+
+	/**
+	 * A transient progress update intended for Voice Mode narration.
+	 */
+	export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+	export class ChatResponseVoiceProgressPart {
+		/**
+		 * A stable identifier used to de-duplicate the progress update.
+		 */
+		readonly id: ChatResponseVoiceProgressStage;
+		/**
+		 * The concise text to narrate.
+		 */
+		readonly value: string;
+		/**
+		 * Creates a Voice Mode progress update.
+		 * @param id A stable identifier used to de-duplicate the update.
+		 * @param value The concise text to narrate.
+		 */
+		constructor(id: ChatResponseVoiceProgressStage, value: string);
+	}
+
+	export interface ExtendedChatResponseParts {
+		ChatResponseVoiceProgressPart: ChatResponseVoiceProgressPart;
+	}
+
+	export interface ChatResponseStream {
+		/**
+		 * Reports transient progress for Voice Mode narration.
+		 * @param id A stable identifier used to de-duplicate the update.
+		 * @param value The concise text to narrate.
+		 */
+		voiceProgress(id: ChatResponseVoiceProgressStage, value: string): void;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -459,12 +497,6 @@ declare module 'vscode' {
 	export interface LanguageModelToolInformation {
 		/**
 		 * The full reference name of this tool as used in agent definition files.
-		 *
-		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
-		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
-		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
-		 *
-		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
 		 */
 		readonly fullReferenceName?: string;
 	}

@@ -100,6 +100,7 @@ export class NodeSocket implements ISocket {
 	private readonly _errorListener: (err: NodeJS.ErrnoException) => void;
 	private readonly _closeListener: (hadError: boolean) => void;
 	private readonly _endListener: () => void;
+	private _endTimeoutHandle: Timeout | undefined;
 	private _canWrite = true;
 
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
@@ -127,12 +128,11 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
-		let endTimeoutHandle: Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;
-			if (endTimeoutHandle) {
-				clearTimeout(endTimeoutHandle);
+			if (this._endTimeoutHandle) {
+				clearTimeout(this._endTimeoutHandle);
 			}
 		};
 		this.socket.on('close', this._closeListener);
@@ -140,16 +140,22 @@ export class NodeSocket implements ISocket {
 		this._endListener = () => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			this._canWrite = false;
-			endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
+			this._endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
 		};
 		this.socket.on('end', this._endListener);
 	}
 
-	public dispose(): void {
+	public dispose(destroySocket = true): void {
+		if (this._endTimeoutHandle) {
+			clearTimeout(this._endTimeoutHandle);
+			this._endTimeoutHandle = undefined;
+		}
 		this.socket.off('error', this._errorListener);
 		this.socket.off('close', this._closeListener);
 		this.socket.off('end', this._endListener);
-		this.socket.destroy();
+		if (destroySocket) {
+			this.socket.destroy();
+		}
 	}
 
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {

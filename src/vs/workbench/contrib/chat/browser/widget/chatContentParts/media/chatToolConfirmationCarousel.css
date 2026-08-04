@@ -63,14 +63,18 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		flex: 1 1 auto;
 		min-width: 0;
 		overflow: hidden;
 	}
 
 	.chat-tool-carousel-collapsed-title {
+		flex: 1 1 auto;
+		min-width: 0;
 		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		font-size: var(--vscode-chat-font-size-body-s);
-		white-space: nowrap;
+		overflow-wrap: anywhere;
+		white-space: normal;
 		color: var(--vscode-foreground);
 	}
 

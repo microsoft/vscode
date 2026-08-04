@@ -14,7 +14,6 @@ import { IConversationOptions } from '../../../platform/chat/common/conversation
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
-import { isAnthropicFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -23,6 +22,7 @@ import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignor
 import { ILogService } from '../../../platform/log/common/logService';
 import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
+import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -40,6 +40,7 @@ import { assertType, Mutable } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseTextEditPart, LanguageModelToolResult2 } from '../../../vscodeTypes';
 import { CodeBlocksMetadata, CodeBlockTrackingChatResponseStream } from '../../codeBlocks/node/codeBlockProcessor';
+import { Intent } from '../../common/constants';
 import { CopilotInteractiveEditorResponse, InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { formatHookErrorMessage, HookAbortError, isHookAbortError, processHookResults } from '../../intents/node/hookResultProcessor';
 import { EmptyPromptError, IToolCallingBuiltPromptEvent, IToolCallingLoopOptions, IToolCallingResponseEvent, IToolCallLoopResult, ToolCallingLoop, ToolCallingLoopFetchOptions, ToolCallLimitBehavior } from '../../intents/node/toolCallingLoop';
@@ -57,7 +58,7 @@ import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry'
 import { IntentInvocationMetadata } from './conversation';
 import { IDocumentContext } from './documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor, TelemetryData } from './intents';
-import { ConversationalBaseTelemetryData, createTelemetryWithId, sendModelMessageTelemetry } from './telemetry';
+import { ConversationalBaseTelemetryData, createTelemetryWithId, getModeNameForTelemetry, sendModelMessageTelemetry } from './telemetry';
 
 export interface IDefaultIntentRequestHandlerOptions {
 	maxToolCallIterations: number;
@@ -102,6 +103,7 @@ export class DefaultIntentRequestHandler {
 		@IChatHookService private readonly _chatHookService: IChatHookService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWebSocketManager private readonly _chatWebSocketManager: IChatWebSocketManager,
 	) {
 		// Initialize properties
 		this.turn = conversation.getLatestTurn();
@@ -111,6 +113,9 @@ export class DefaultIntentRequestHandler {
 		if (isToolCallLimitCancellation(this.request)) {
 			// Just some friendly text instead of an empty message on cancellation:
 			this.stream.markdown(l10n.t("Let me know if there's anything else I can help with!"));
+			if (this.request.subAgentInvocationId) {
+				this._chatWebSocketManager.closeConnection(this.conversation.sessionId, this.request.subAgentInvocationId);
+			}
 			return {};
 		}
 
@@ -190,6 +195,10 @@ export class DefaultIntentRequestHandler {
 			const chatResult = { errorDetails: { message: errorMessage } };
 			this.turn.setResponse(TurnStatus.Error, { message: errorMessage, type: 'meta' }, undefined, chatResult);
 			return chatResult;
+		} finally {
+			if (this.request.subAgentInvocationId) {
+				this._chatWebSocketManager.closeConnection(this.conversation.sessionId, this.request.subAgentInvocationId);
+			}
 		}
 	}
 
@@ -324,6 +333,7 @@ export class DefaultIntentRequestHandler {
 				onHitToolCallLimit: this.handlerOptions.confirmOnMaxToolIterations !== false
 					? ToolCallLimitBehavior.Confirm : ToolCallLimitBehavior.Stop,
 				request: this.request,
+				enableVoiceProgress: this.intent.id === Intent.Agent,
 				documentContext: this.documentContext,
 				streamParticipants: this.makeResponseStreamParticipants(intentInvocation),
 				temperature: this.handlerOptions.temperature ?? this.options.temperature,
@@ -454,16 +464,16 @@ export class DefaultIntentRequestHandler {
 			requestId,
 			this.documentContext?.document,
 			baseModelTelemetry,
-			this.getModeNameForTelemetry()
+			this.resolveModeNameForTelemetry()
 		);
 
 		return chatResult;
 	}
 
-	private getModeNameForTelemetry(): string {
-		const modeInstructionsName = this.request.modeInstructions2?.name?.toLowerCase();
-		if (modeInstructionsName) {
-			return this.request.modeInstructions2?.isBuiltin ? this.request.modeInstructions2.name.toLowerCase() : 'custom';
+	private resolveModeNameForTelemetry(): string {
+		const modeName = getModeNameForTelemetry(this.request.modeInstructions2);
+		if (modeName !== undefined) {
+			return modeName;
 		}
 
 		if (this.intent.id === 'editAgent') {
@@ -651,7 +661,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		if (extraVars?.hasVariables()) {
 			return {
 				...context,
-				chatVariables: ChatVariablesCollection.merge(context.chatVariables, extraVars),
+				chatVariables: ChatVariablesCollection.mergeAndDedup(context.chatVariables, extraVars),
 			};
 		}
 
@@ -704,6 +714,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			},
 			debugName,
 			conversationId: this.options.conversation.sessionId,
+			webSocketConnectionId: this.options.request.subAgentInvocationId,
 			turnId: opts.turnId,
 			finishedCb: (text, index, delta) => {
 				this.telemetry.markReceivedToken();
@@ -773,8 +784,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 	protected override async getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]> {
 		const tools = await this.options.invocation.getAvailableTools?.() ?? [];
 
-		// Skip tool grouping when Anthropic tool search is enabled
-		if (isAnthropicFamily(this.options.invocation.endpoint) && this.options.invocation.endpoint.supportsToolSearch) {
+		if (this.options.invocation.endpoint.supportsToolSearch) {
 			return tools;
 		}
 

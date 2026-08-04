@@ -71,7 +71,7 @@ export class SessionDataService implements ISessionDataService {
 	}
 
 	getSessionDataDir(session: URI): URI {
-		return this.getSessionDataDirById(AgentSession.id(session));
+		return URI.joinPath(this._basePath, this._sanitizedSessionKey(session));
 	}
 
 	getSessionDataDirById(sessionId: string): URI {
@@ -80,7 +80,21 @@ export class SessionDataService implements ISessionDataService {
 	}
 
 	private _sanitizedSessionKey(session: URI): string {
-		return AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		return this._dataKey(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	}
+
+	/**
+	 * Derives the per-URI storage key. Chat channel URIs
+	 * (`ahp-chat://<chatId>/<base64(session)>`) carry the chat id in the
+	 * authority while encoding the SAME owning-session URI in the path, so
+	 * keying only by the path (via {@link AgentSession.id}) would collapse
+	 * every peer chat of a session onto one data directory and database.
+	 * Prefixing with the authority gives each chat its own storage while
+	 * leaving plain session URIs (no authority) unchanged.
+	 */
+	private _dataKey(uri: URI): string {
+		const id = AgentSession.id(uri);
+		return uri.authority ? `${uri.authority}-${id}` : id;
 	}
 
 	openDatabase(session: URI): IReference<ISessionDatabase> {
@@ -96,7 +110,7 @@ export class SessionDataService implements ISessionDataService {
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI): Promise<void> {
+	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
 		const dir = this.getSessionDataDir(session);
 		// Fire the will-delete event first so subscribers (notably the
 		// checkpoint service) can perform async cleanup that needs the
@@ -106,6 +120,7 @@ export class SessionDataService implements ISessionDataService {
 		try {
 			this._onWillDeleteSessionData.fire({
 				session,
+				workingDirectories,
 				waitUntil: p => { pending.push(p); },
 			});
 		} catch (err) {

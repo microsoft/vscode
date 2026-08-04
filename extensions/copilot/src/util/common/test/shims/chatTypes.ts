@@ -80,6 +80,13 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseVoiceProgressPart {
+	constructor(
+		readonly id: vscode.ChatResponseVoiceProgressStage,
+		readonly value: string,
+	) { }
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -182,6 +189,20 @@ export class ChatResponsePullRequestPart {
 		this.description = description;
 		this.author = author;
 		this.linkTag = linkTag;
+	}
+}
+
+
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
 	}
 }
 
@@ -619,6 +640,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;

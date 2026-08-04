@@ -6,6 +6,8 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -35,8 +37,12 @@ export enum BrowserViewCommandId {
 	// History
 	ShowHistory = `${commandPrefix}.showHistory`,
 
+	// Permissions
+	ManagePermissions = `${commandPrefix}.managePermissions`,
+
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddElementCommentToChat = `${commandPrefix}.addElementCommentToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
@@ -63,8 +69,26 @@ export interface IElementAncestor {
 	readonly classNames?: string[];
 }
 
+export enum BrowserElementSelectionMode {
+	Select = 'select',
+	Comment = 'comment'
+}
+
+export interface IBrowserElementSelectionOptions {
+	readonly highlightFocusedElement?: boolean;
+	readonly continuous?: boolean;
+	readonly mode?: BrowserElementSelectionMode;
+}
+
+export interface IBrowserElementSelectionState {
+	readonly active: boolean;
+	readonly options: IBrowserElementSelectionOptions;
+}
+
 export interface IElementData {
 	readonly url?: string;
+	readonly elementId?: string;
+	readonly comment?: string;
 	readonly outerHTML: string;
 	readonly computedStyle: string;
 	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
@@ -75,6 +99,16 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserElementComment {
+	readonly elementId: string;
+	readonly body: string;
+}
+
+export interface IBrowserElementCommentsUpdate {
+	readonly comments?: readonly IBrowserElementComment[];
+	readonly pendingCommentIdsToDiscard?: readonly string[];
+}
+
 export interface IBrowserViewRect {
 	readonly x: number;
 	readonly y: number;
@@ -82,17 +116,70 @@ export interface IBrowserViewRect {
 	readonly height: number;
 }
 
+export interface IBrowserViewPreloadLocalizedStrings {
+	readonly addComment: string;
+	readonly addCommentPlaceholder: string;
+	readonly commentOnSelectedElement: string;
+	readonly elementComment: string;
+	readonly elementCommentWithBody: string;
+	readonly emptyElementComment: string;
+	readonly removeComment: string;
+	readonly removeElementComment: string;
+}
+
 export interface IBrowserViewTheme {
 	readonly focusBorder?: string;
 	readonly buttonBackground?: string;
 	readonly buttonForeground?: string;
+	readonly widgetBackground?: string;
+	readonly widgetForeground?: string;
+	readonly widgetBorder?: string;
+	readonly widgetShadow?: string;
+	readonly contrastBorder?: string;
+	readonly descriptionForeground?: string;
+	readonly inputPlaceholderForeground?: string;
+	readonly toolbarHoverBackground?: string;
 	readonly font?: string;
+	readonly reducedMotion?: boolean;
 }
 
-export interface IBrowserViewConfiguration {
+/**
+ * The full set of configuration a window contributes for the browser views it
+ * owns. Sent as a single unit by the owning window.
+ */
+export interface IBrowserViewWindowConfiguration {
+	/** Theme variables for injected UI. */
+	readonly theme: IBrowserViewTheme;
+	/** Map of command ID to accelerator label for context menus. */
+	readonly keybindings: { [commandId: string]: string };
+
+	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
+	/**
+	 * Resolved tunnel-proxy credentials for the window's remote browser views,
+	 * produced by the window's local node extension host (which hosts the HTTPS
+	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
+	 * is used. Applied to the Electron sessions of the window's remote views.
+	 */
+	readonly proxyInfo?: ITunnelProxyInfo;
+	/**
+	 * The window's contribution to the `file://` allowlist used by integrated
+	 * browser sessions. Main unions every window's contribution into a
+	 * process-wide allowlist; entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
+	 * workspace folder paths.
+	 */
+	readonly trustedFileRoots: readonly string[];
+	/**
+	 * Whether Workspace Trust is disabled entirely
+	 * (`security.workspace.trust.enabled: false`) for this window. When
+	 * `true`, every `file://` request is allowed regardless of
+	 * {@link trustedFileRoots} since there is no meaningful notion of an
+	 * untrusted folder to enforce.
+	 */
+	readonly trustAllFiles: boolean;
 }
 
 export interface IBrowserViewBounds {
@@ -180,7 +267,7 @@ export interface IBrowserViewCreatedEvent {
 
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
-	readonly scope: BrowserViewStorageScope;
+	readonly sessionOptions: IBrowserSessionOptions;
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
@@ -188,6 +275,7 @@ export interface IBrowserViewCreateOptions {
 export interface IBrowserViewStorageKeys {
 	readonly history?: string;
 	readonly favicons?: string;
+	readonly permissions?: string;
 }
 
 export interface IBrowserViewState {
@@ -205,8 +293,10 @@ export interface IBrowserViewState {
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
+	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
-	isElementSelectionActive: boolean;
+	elementSelectionState: IBrowserElementSelectionState;
+	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 }
@@ -274,6 +364,18 @@ export interface IBrowserViewFaviconChangeEvent {
 	favicon: string | undefined;
 }
 
+export interface IBrowserViewPermissionRequestEvent {
+	origin: string;
+	category: PermissionCategory;
+	device?: IBrowserViewDeviceRequest;
+}
+
+export interface IBrowserViewDeviceRequest {
+	requestId: string;
+	deviceType: BrowserDeviceType;
+	devices: IBrowserDeviceCandidate[];
+}
+
 export interface IBrowserViewFindInPageOptions {
 	recompute?: boolean;
 	forward?: boolean;
@@ -291,6 +393,11 @@ export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
 	Ephemeral = 'ephemeral'
+}
+
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
@@ -344,14 +451,14 @@ export interface IBrowserViewService {
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
-	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
-	/**
-	 * Fires exactly once per area-selection session, terminating it. Receives the user-drawn
-	 * rectangle on success, or `undefined` if the picker was cancelled.
-	 */
+	onDynamicDidRemoveElementComment(id: string): Event<string>;
+	onDynamicDidChangeElementSelectionState(id: string): Event<IBrowserElementSelectionState>;
 	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
+	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
+	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -531,6 +638,32 @@ export interface IBrowserViewService {
 	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
 
 	/**
+	 * Record permission decisions for an origin in this view's session. This is
+	 * the single write API for permissions: it is used both by the management UI
+	 * and to answer an outstanding {@link onDynamicDidRequestPermission} prompt.
+	 * Recording a decision for a category auto-resolves any pending request for
+	 * that (origin, category). The only values ever stored are `'allow'` and
+	 * `'deny'`; passing a `null` decision clears the saved choice, falling back
+	 * to the category default. Changes are persisted immediately.
+	 *
+	 * @param id The browser view identifier
+	 * @param origin The origin (URL or origin string) to record decisions for
+	 * @param grants The per-category decisions to record
+	 */
+	setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+
+	/**
+	 * Answer an in-progress hardware-device chooser raised via
+	 * {@link onDynamicDidRequestPermission} (its `device` payload). Pass the
+	 * chosen `deviceId`, or `null` to cancel the chooser.
+	 *
+	 * @param id The browser view identifier
+	 * @param requestId The device request to answer
+	 * @param deviceId The selected device id, or `null` to cancel
+	 */
+	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/**
 	 * Get captured console logs for a browser view.
 	 * Console messages are automatically captured from the moment the view is created.
 	 * @param id The browser view identifier
@@ -541,12 +674,21 @@ export interface IBrowserViewService {
 	/**
 	 * Toggle element selection mode in a browser view.
 	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
-	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionState}.
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 * @param options Options to update while enabling or continuing element selection.
 	 */
-	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+
+	/**
+	 * Synchronize the element comments displayed in a browser view.
+	 *
+	 * @param id The browser view identifier
+	 * @param update The comment state to synchronize
+	 */
+	setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void>;
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.
@@ -560,33 +702,10 @@ export interface IBrowserViewService {
 	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
-	 * Update the theme used by injected UI across all browser views.
-	 * @param theme The theme variables to apply
-	 */
-	updateTheme(theme: IBrowserViewTheme): Promise<void>;
-
-	/**
-	 * Update the keybinding accelerators used in browser view context menus.
-	 * @param keybindings A map of command ID to accelerator label
-	 */
-	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
-
-	/**
-	 * Update workbench configuration that affect browser view behavior.
-	 * @param config The configuration to apply
-	 */
-	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
-
-	/**
-	 * Replace the calling window's contribution to the `file://` allowlist
-	 * used by integrated browser sessions. Main unions every window's
-	 * contribution into a process-wide allowlist; entries are dropped when
-	 * the window is destroyed.
+	 * Replace the calling window's configuration for the browser views it owns.
 	 *
 	 * @param windowId The calling window's `vscodeWindowId`.
-	 * @param roots Normalized filesystem paths the window deems trusted —
-	 * usually `getTrustedUris()` plus, when the workspace itself is trusted,
-	 * its workspace folder paths.
+	 * @param config The configuration to apply.
 	 */
-	updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void>;
+	updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void>;
 }

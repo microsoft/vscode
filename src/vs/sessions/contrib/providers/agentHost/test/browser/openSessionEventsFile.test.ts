@@ -11,7 +11,7 @@ import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from 
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
 import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
@@ -70,6 +70,50 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
+		);
+	});
+
+	test('local AH copilotcli session resolves from COPILOT_HOME', () => {
+		const result = resolveEventsUri(
+			URI.parse('agent-host-copilotcli:/abc'),
+			userHome,
+			() => undefined,
+			{ COPILOT_HOME: '/custom/copilot' },
+		);
+		assert.deepStrictEqual(
+			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
+			{ kind: 'ok', resource: 'file:///custom/copilot/session-state/abc/events.jsonl' },
+		);
+	});
+
+	test('copilot log roots resolve beside session-state', () => {
+		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		const remoteLogs = buildRemoteCopilotLogsUri(conn);
+		assert.deepStrictEqual({
+			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
+			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
+			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			remoteLogs: remoteLogs ? {
+				scheme: remoteLogs.scheme,
+				authority: remoteLogs.authority,
+				isLogsPath: remoteLogs.path.endsWith('/home/remote/.copilot/logs'),
+			} : undefined,
+		}, {
+			rawId: 'abc',
+			nonCopilotRawId: undefined,
+			localLogs: 'file:///home/me/.copilot/logs',
+			remoteLogs: {
+				scheme: 'vscode-agent-host',
+				authority: 'localhost__4321',
+				isLogsPath: true,
+			},
+		});
+	});
+
+	test('local copilot log root resolves from COPILOT_HOME', () => {
+		assert.strictEqual(
+			buildLocalCopilotLogsUri(userHome, { COPILOT_HOME: '/custom/copilot' }).toString(),
+			'file:///custom/copilot/logs',
 		);
 	});
 

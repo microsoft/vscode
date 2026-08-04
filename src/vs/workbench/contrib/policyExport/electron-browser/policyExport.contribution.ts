@@ -20,12 +20,22 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { PolicyCategory, PolicyCategoryData } from '../../../../base/common/policy.js';
 import { ExportedPolicyDataDto } from '../common/policyDto.js';
 import { join } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 interface ExtensionConfigurationPolicyEntry {
 	readonly name: string;
 	readonly category: string;
 	readonly minimumVersion: `${number}.${number}`;
 	readonly description: string;
+}
+
+/**
+ * A reference-shaped entry in the distro `extensionConfigurationPolicy`: the extension setting
+ * attaches to a policy *owned* by an in-code setting (which provides the catalog metadata and the
+ * `value` callback) via a `policyReference` pointer.
+ */
+interface ExtensionConfigurationPolicyReferenceEntry {
+	readonly policyReference: { readonly name: string };
 }
 
 export class PolicyExportContribution extends Disposable implements IWorkbenchContribution {
@@ -109,16 +119,35 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				// Checks DISTRO_PRODUCT_JSON env var (for testing),
 				// then falls back to fetching from GitHub API with GITHUB_TOKEN.
 				const distroProduct = await this.getDistroProductJson();
-				const extensionPolicies = distroProduct['extensionConfigurationPolicy'] as Record<string, ExtensionConfigurationPolicyEntry> | undefined;
+				const extensionPolicies = distroProduct['extensionConfigurationPolicy'] as Record<string, ExtensionConfigurationPolicyEntry | ExtensionConfigurationPolicyReferenceEntry> | undefined;
+				// Reference-shaped product entries (extension settings attaching to an in-code-owned
+				// policy), collected by owning policy name so they can be linked below.
+				const productReferencesByPolicyName = new Map<string, string[]>();
 				if (extensionPolicies) {
 					const existingKeys = new Set(policyData.policies.map(p => p.key));
 					let added = 0;
+					let referenced = 0;
 					for (const [key, entry] of Object.entries(extensionPolicies)) {
 						if (existingKeys.has(key)) {
 							continue;
 						}
-						if (!entry.description || !entry.category) {
-							throw new Error(`Extension policy '${key}' is missing required 'description' or 'category' field.`);
+						// A reference entry carries a `policyReference` pointer; the owner — and its
+						// `value` callback — is declared by an in-code setting. Link it below instead
+						// of merging it as an owner.
+						if (hasKey(entry, { policyReference: true })) {
+							const ownerName = entry.policyReference?.name;
+							if (!ownerName) {
+								throw new Error(`Extension policy reference '${key}' is missing required 'policyReference.name' field.`);
+							}
+							const list = productReferencesByPolicyName.get(ownerName) ?? [];
+							list.push(key);
+							productReferencesByPolicyName.set(ownerName, list);
+							referenced++;
+							continue;
+						}
+						// Owner ("parent") entry: full catalog metadata is required.
+						if (!entry.name || !entry.category || !entry.description) {
+							throw new Error(`Extension policy '${key}' is missing required 'name', 'category', or 'description' field.`);
 						}
 						policyData.policies.push({
 							key,
@@ -134,8 +163,46 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 						});
 						added++;
 					}
-					this.log(`Merged ${added} extension configuration policies.`);
+					this.log(`Merged ${added} extension configuration policies (${referenced} references).`);
 				}
+
+				// Link policyReference settings and enforce type match (same value is applied verbatim).
+				// References come from both in-code settings (`getPolicyReferenceConfigurations`) and
+				// reference-shaped distro product entries collected above.
+				const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
+				const linkedProductReferenceNames = new Set<string>();
+				let linkedReferences = 0;
+				for (const policy of policyData.policies) {
+					const references = new Set<string>(policyReferenceConfigurations.get(policy.name) ?? []);
+					const productReferences = productReferencesByPolicyName.get(policy.name);
+					if (productReferences) {
+						for (const productRefKey of productReferences) {
+							references.add(productRefKey);
+						}
+						linkedProductReferenceNames.add(policy.name);
+					}
+					if (references.size > 0) {
+						for (const referenceKey of references) {
+							const referenceType = configurationProperties[referenceKey]?.type;
+							// Extension-contributed reference settings are not registered in the
+							// headless export process, so their type cannot be validated here; only
+							// enforce the type match for settings present in the registry.
+							if (referenceType !== undefined && referenceType !== policy.type) {
+								throw new Error(`Policy '${policy.name}': setting '${referenceKey}' (type '${referenceType}') declares a 'policyReference' to a policy of type '${policy.type}'. A 'policyReference' must match the owning setting's type.`);
+							}
+						}
+						policy.referencedSettings = [...references].sort();
+						linkedReferences += references.size;
+					}
+				}
+				// A reference must point at an owner. An unmatched product reference means the
+				// in-code owner was not loaded/registered — surface it rather than silently dropping.
+				for (const policyName of productReferencesByPolicyName.keys()) {
+					if (!linkedProductReferenceNames.has(policyName)) {
+						throw new Error(`Extension policy reference to '${policyName}' has no owning policy. Ensure an in-code setting declares 'policy: { name: '${policyName}', ... }'.`);
+					}
+				}
+				this.log(`Linked ${linkedReferences} referenced settings across ${policyData.policies.length} policies.`);
 
 				const disclaimerComment = `/** THIS FILE IS AUTOMATICALLY GENERATED USING \`npm run export-policy-data\`. DO NOT MODIFY IT MANUALLY. **/`;
 				const policyDataFileContent = `${disclaimerComment}\n${JSON.stringify(policyData, null, 4)}\n`;

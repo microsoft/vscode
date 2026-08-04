@@ -29,7 +29,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -115,8 +115,6 @@ const defaultModalEditorAllowableCommands = new Set([
 	TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
 ]);
 
-const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
-
 export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
@@ -149,6 +147,7 @@ export class ModalEditorPart {
 		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 	}
 
@@ -160,6 +159,14 @@ export class ModalEditorPart {
 		this.layoutService.mainContainer.appendChild(modalElement);
 		disposables.add(toDisposable(() => modalElement.remove()));
 
+		// Context key service scoped to the entire modal element so that the
+		// modal-level context keys (e.g. `editorPartModal`) are active when focus
+		// is anywhere inside the modal. Both the editor part and the sidebar
+		// content are wired up to descend from this service so that commands like
+		// closing the modal on `Escape` work regardless of which area has focus
+		// (e.g. the sidebar changes tree).
+		const modalContextKeyService = disposables.add(this.contextKeyService.createScoped(modalElement));
+
 		disposables.add(addDisposableListener(modalElement, EventType.MOUSE_DOWN, e => {
 			if (e.target === modalElement) {
 				EventHelper.stop(e, true);
@@ -169,10 +176,10 @@ export class ModalEditorPart {
 			}
 		}));
 
-		let useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+		let useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_MODAL_EDITOR_SETTING)) {
-				useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+				useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 			}
 		}));
 
@@ -262,7 +269,7 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, disposables);
+		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
@@ -270,8 +277,12 @@ export class ModalEditorPart {
 			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
 		}
 
-		// Create the editor part
-		const editorPart = disposables.add(this.instantiationService.createInstance(
+		// Create the editor part (scoped to the modal context key service so that
+		// the editor area also descends from it)
+		const modalInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, modalContextKeyService]
+		)));
+		const editorPart = disposables.add(modalInstantiationService.createInstance(
 			ModalEditorPartImpl,
 			mainWindow.vscodeWindowId,
 			this.editorPartsView,
@@ -361,6 +372,7 @@ export class ModalEditorPart {
 						description: activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
 					},
 					{
+						title: activeEditor.getTitle(Verbosity.LONG),
 						icon: activeEditor.getIcon(),
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}
@@ -727,7 +739,7 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, modalContextKeyService: IContextKeyService, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
@@ -740,10 +752,15 @@ export class ModalEditorPart {
 		sidebarContainer.style.width = `${sidebarWidth}px`;
 		setVisibility(visible, sidebarContainer);
 
+		// Context key service scoped to the sidebar container, descending from the
+		// modal context key service so that content rendered here (e.g. the changes
+		// tree) inherits the modal-level context keys.
+		const sidebarContextKeyService = disposables.add(modalContextKeyService.createScoped(sidebarContainer));
+
 		// Let the caller render content
 		const onDidLayoutEmitter = disposables.add(new Emitter<{ readonly height: number; readonly width: number }>());
 		const contentDisposable = disposables.add(new MutableDisposable());
-		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event);
+		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event, sidebarContextKeyService);
 
 		// Sash for resizing sidebar.
 		// Prefer the measured header height so the sash aligns with the real chrome
@@ -819,7 +836,7 @@ export class ModalEditorPart {
 			updateContent: (newContent: IModalEditorSidebar) => {
 				contentDisposable.clear();
 				sidebarContainer.textContent = '';
-				contentDisposable.value = newContent.render(sidebarContainer, onDidLayoutEmitter.event);
+				contentDisposable.value = newContent.render(sidebarContainer, onDidLayoutEmitter.event, sidebarContextKeyService);
 			},
 		};
 	}
@@ -893,10 +910,10 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly modalContextKeyService: IContextKeyService,
 	) {
 		const id = ModalEditorPartImpl.COUNTER++;
-		super(editorPartsView, `workbench.parts.modalEditor.${id}`, localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+		super(editorPartsView, `workbench.parts.modalEditor.${id}`, localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
 
 		this._maximized = options?.maximized ?? false;
 		this._size = options?.size;
@@ -929,7 +946,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	enforceModalPartOptions(): void {
-		const useModalForAll = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING) === 'all';
+		const useModalForAll = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all';
 		const editorCount = this.groups.reduce((count, group) => count + group.count, 0);
 		const showTabs = useModalForAll && editorCount > 1 ? 'multiple' : 'none';
 
@@ -993,21 +1010,28 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	protected override handleContextKeys(): void {
-		const isModalEditorPartContext = EditorPartModalContext.bindTo(this.scopedContextKeyService);
+
+		// Bind the modal-level context keys to the modal context key service which
+		// is scoped to the entire modal element (not just the editor part
+		// container). This keeps them active when focus is anywhere inside the
+		// modal, including the sidebar (e.g. the changes tree). Otherwise commands
+		// like closing the modal on `Escape` would not fire while the sidebar has
+		// focus.
+		const isModalEditorPartContext = EditorPartModalContext.bindTo(this.modalContextKeyService);
 		isModalEditorPartContext.set(true);
 
-		const isMaximizedContext = EditorPartModalMaximizedContext.bindTo(this.scopedContextKeyService);
+		const isMaximizedContext = EditorPartModalMaximizedContext.bindTo(this.modalContextKeyService);
 		isMaximizedContext.set(this._maximized);
 		this._register(this.onDidChangeMaximized(maximized => isMaximizedContext.set(maximized)));
 
-		const hasNavigationContext = EditorPartModalNavigationContext.bindTo(this.scopedContextKeyService);
+		const hasNavigationContext = EditorPartModalNavigationContext.bindTo(this.modalContextKeyService);
 		hasNavigationContext.set(!!this._navigation && this._navigation.total > 1);
 		this._register(this.onDidChangeNavigation(navigation => hasNavigationContext.set(!!navigation && navigation.total > 1)));
 
-		const sidebarContext = EditorPartModalSidebarContext.bindTo(this.scopedContextKeyService);
+		const sidebarContext = EditorPartModalSidebarContext.bindTo(this.modalContextKeyService);
 		sidebarContext.set(this._hasSidebar);
 
-		const sidebarVisibleContext = EditorPartModalSidebarVisibleContext.bindTo(this.scopedContextKeyService);
+		const sidebarVisibleContext = EditorPartModalSidebarVisibleContext.bindTo(this.modalContextKeyService);
 		sidebarVisibleContext.set(this._hasSidebar && !this._sidebarHidden);
 		this._register(this.onDidToggleSidebar(() => sidebarVisibleContext.set(this._hasSidebar && !this._sidebarHidden)));
 

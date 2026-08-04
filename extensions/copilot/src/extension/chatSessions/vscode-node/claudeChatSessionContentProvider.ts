@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_CONTEXT_SIZE_PROPERTY, CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
+import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -90,6 +90,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
+		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -162,6 +163,21 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const permissionMode = selectedPermissionId;
 			const selectedFolderUri = getSelectedFolderUri(chatSessionContext.inputState);
 			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
+			let untrustedDirectory: URI | undefined;
+			for (const directory of [folderInfo.cwd, ...folderInfo.additionalDirectories]) {
+				const directoryUri = URI.file(directory);
+				if (!await this._workspaceService.isResourceTrusted(directoryUri)) {
+					untrustedDirectory = directoryUri;
+					break;
+				}
+			}
+			if (untrustedDirectory) {
+				return {
+					errorDetails: {
+						message: vscode.l10n.t("Workspace '{0}' is not trusted", untrustedDirectory.fsPath)
+					}
+				};
+			}
 
 			// Commit UI state to session state service before invoking agent manager
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);
@@ -176,10 +192,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
 			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
-
-			const rawContextSize = request.modelConfiguration?.[CLAUDE_CONTEXT_SIZE_PROPERTY];
-			const contextSize = typeof rawContextSize === 'number' && rawContextSize > 0 ? rawContextSize : undefined;
-			this.sessionStateService.setContextSizeForSession(effectiveSessionId, contextSize);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
@@ -344,7 +356,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 			Event.any(
 				Event.filter(_configurationService.onDidChangeConfiguration,
 					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
-				_authenticationService.onDidAuthenticationChange,
+				_authenticationService.onDidCopilotTokenChange,
 			),
 			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
 				// True is a fallback because the input group state currently doesn't support updating the values after initialization

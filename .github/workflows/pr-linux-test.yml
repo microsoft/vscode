@@ -13,13 +13,19 @@ on:
       remote_tests:
         type: boolean
         default: false
+      unit_and_integration_tests:
+        type: boolean
+        default: true
+      smoke_tests:
+        type: boolean
+        default: true
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -55,19 +61,12 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache/restore@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: tar -xzf .build/node_modules_cache/cache.tgz
+          key-prefix: node_modules-linux
+          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -107,14 +106,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
       - name: Create .build folder
         run: mkdir -p .build
@@ -218,6 +209,48 @@ jobs:
           FONTCONFIG_EOF
           echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
 
+      # Root-cause fix for the intermittent Electron startup SIGSEGV on Linux CI.
+      # Symbolizing the crash dumps shows the fault is a Pango concurrency bug, not
+      # a VS Code bug:
+      #
+      #   pango: fc_thread_func -> init_in_thread -> FcInit()       (pangofc-fontmap.c)
+      #   fontconfig: FcInit -> FcConfigParseAndLoadFromMemory -> _FcConfigParse
+      #   libexpat: XML_ParseBuffer -> libc (NULL deref, SIGSEGV)
+      #
+      # Pango >= 1.52's pango_fc_font_map_init() unconditionally spawns a
+      # "[pango] fontconfig" thread that runs FcInit(). That races against the
+      # Electron/Chromium main thread's own fontconfig use during startup and
+      # corrupts fontconfig's global config while it is being parsed. There is no
+      # env var to disable the Pango thread, and it is still present in Pango 1.56.
+      #
+      # Eliminate the race by initializing fontconfig once, single-threaded, from
+      # an ELF constructor that runs before main() (and therefore before any thread
+      # exists). Pango's later threaded FcInit() then finds fontconfig already
+      # initialized and returns immediately, so the concurrent parse never happens.
+      - name: Pre-initialize fontconfig to avoid Pango threaded FcInit crash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/fcpreinit.c" <<'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+
+          __attribute__((constructor))
+          static void preinit_fontconfig(void)
+          {
+            void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+            if (handle) {
+              int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+              if (fc_init) {
+                fc_init();
+              }
+            }
+          }
+          CEOF
+          gcc -shared -fPIC -O2 -o "$RUNNER_TEMP/libfcpreinit.so" "$RUNNER_TEMP/fcpreinit.c" -ldl
+          echo "Built fontconfig pre-init shim at $RUNNER_TEMP/libfcpreinit.so"
+          # Preload it for every subsequent step that launches Electron/Chromium.
+          echo "LD_PRELOAD=$RUNNER_TEMP/libfcpreinit.so${LD_PRELOAD:+:$LD_PRELOAD}" >> "$GITHUB_ENV"
+
       - name: Fontconfig diagnostics and cache reset
         run: |
           set -e
@@ -253,6 +286,12 @@ jobs:
           echo ""
           echo "--- fontconfig version ---"
           fc-cache --version 2>&1 | head -1
+          echo ""
+          echo "--- fontconfig pre-init shim (LD_PRELOAD) ---"
+          echo "LD_PRELOAD=${LD_PRELOAD:-<unset>}"
+          if [ -n "${LD_PRELOAD:-}" ]; then
+            ls -l "${LD_PRELOAD%%:*}" 2>/dev/null || true
+          fi
         continue-on-error: true
 
       - name: Transpile client and extensions
@@ -280,25 +319,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
 
-      - name: Build integration tests
+      - name: Compile extensions for integration tests & smoke tests
         run: |
           set -e
           npm run gulp \
@@ -320,34 +360,36 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: Compile Copilot extension
-        run: npm --prefix extensions/copilot run compile
-
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
         run: npm run compile
 
-      - name: Compile extensions for smoke tests
-        run: npm run gulp compile-extension-media
+      - name: Compile Copilot Chat extension for smoke tests
+        if: ${{ inputs.smoke_tests }}
+        working-directory: extensions/copilot
+        run: npm run compile
 
       # Remove the musl-libc Claude Code native binary so the bundled
       # @anthropic-ai/claude-agent-sdk in extensions/copilot falls through to the
@@ -362,6 +404,7 @@ jobs:
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
       - name: Remove musl Claude binary on glibc Linux
+        if: ${{ inputs.smoke_tests }}
         run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
@@ -371,35 +414,35 @@ jobs:
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
+        if: ${{ inputs.smoke_tests && always() }}
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:
           DISPLAY: ":10"
 
       - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        if: ${{ inputs.smoke_tests && always() }}
         run: |
           set -e
           ps -ef
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7

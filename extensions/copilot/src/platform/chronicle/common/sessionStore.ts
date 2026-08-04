@@ -9,6 +9,19 @@ import { createServiceIdentifier } from '../../../util/common/services';
 
 export const ISessionStore = createServiceIdentifier<ISessionStore>('ISessionStore');
 
+/**
+ * Options controlling how the {@link ISessionStore} backing database is opened.
+ */
+export interface SessionStoreOptions {
+	/**
+	 * Whether the database file lives on a remote/network filesystem (e.g. an
+	 * SSH-Remote workspace). When set, the store avoids WAL mode and uses a
+	 * rollback journal with a longer busy timeout, since network filesystems do
+	 * not provide the POSIX locking guarantees WAL relies on.
+	 */
+	readonly remote?: boolean;
+}
+
 // ── Row types (same as copilot-agent-runtime SessionStore) ──────────────────────
 
 /**

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
-	BASELINE_TURN_ID,
 	ChangesetKind,
 	buildChangesetUri,
 	buildCompareTurnsChangesetUri,
@@ -44,19 +43,10 @@ suite('changesetUri', () => {
 		assert.throws(() => buildChangesetUri(sessionUri, 'with/slash'));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, ''));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, 'a/b'));
-		assert.throws(() => buildTurnChangesetUri(sessionUri, BASELINE_TURN_ID));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, '', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', ''));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 'a/b', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', 'a/b'));
-		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', BASELINE_TURN_ID));
-	});
-
-	test('compare URI accepts BASELINE_TURN_ID on the original side', () => {
-		const uri = buildCompareTurnsChangesetUri(sessionUri, BASELINE_TURN_ID, 't2');
-		assert.strictEqual(uri, 'copilot:/abc-123/changeset/compare/baseline/t2');
-		assert.deepStrictEqual(parseCompareTurnsChangesetUri(uri),
-			{ sessionUri, originalTurnId: BASELINE_TURN_ID, modifiedTurnId: 't2' });
 	});
 
 	test('parseChangesetUri identifies the well-known kinds', () => {
