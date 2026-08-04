@@ -21,7 +21,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -1876,6 +1876,100 @@ suite('AgentHostClientTools', () => {
 				invocations: [true],
 				declines: 0,
 			});
+		}));
+
+		// Two sibling resources (default chat + peer chat) share one backend
+		// session and therefore one session-level `inputNeeded` queue. Opening
+		// each used to install its own watcher, so a single client-tool request
+		// was invoked once per open resource — running real side effects N
+		// times. The watcher is now ref-counted per backend session, so it
+		// executes exactly once no matter how many siblings are open.
+		async function openSiblingResourcesWithClaimedClientTool(
+			handler: AgentHostSessionHandler,
+			connection: MockAgentHostConnection,
+		): Promise<{ sessionResource: URI; peerResource: URI; chat: string }> {
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/session-1', fragment: 'peer-1' });
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chat = buildDefaultChatUri(backendSession);
+			const peerChat = buildChatUri(backendSession, 'peer-1');
+			const summary: SessionSummary = {
+				resource: backendSession,
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: '2025-01-01T00:00:00.000Z',
+				modifiedAt: '2025-01-01T00:00:00.000Z',
+			};
+
+			// Advertise the peer chat so the sibling resource resolves and
+			// installs its own turn/inputNeeded watchers against the shared
+			// backend session.
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionChatAdded,
+				summary: createDefaultChatSummary(summary, peerChat),
+			} as SessionAction);
+
+			connection.applySessionAction(URI.parse(chat), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(URI.parse(chat), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'client-tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			});
+			connection.applySessionAction(URI.parse(chat), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'client-tool-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			// Only the default chat carries the tool call, so only its observer
+			// claims it — the peer observer renders an empty chat.
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await handler.provideChatSessionContent(peerResource, CancellationToken.None);
+
+			applyRunningClientExecution(connection, chat, 'turn-1', {
+				toolCallId: 'client-tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+			});
+			await timeout(5001);
+			return { sessionResource, peerResource, chat };
+		}
+
+		test('two sibling resources on one backend session execute a client tool exactly once', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			await openSiblingResourcesWithClaimedClientTool(handler, connection);
+
+			assert.deepStrictEqual({
+				invocations: toolsService.invokedToolCalls.filter(invocation => invocation.chatStreamToolCallId === 'client-tool-1').length,
+			}, {
+				invocations: 1,
+			});
+		}));
+
+		test('a claimed client tool executes with the claiming observer\'s session resource as context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const { sessionResource } = await openSiblingResourcesWithClaimedClientTool(handler, connection);
+
+			assert.deepStrictEqual(
+				toolsService.invokedToolCalls
+					.filter(invocation => invocation.chatStreamToolCallId === 'client-tool-1')
+					.map(invocation => invocation.context?.sessionResource.toString()),
+				[sessionResource.toString()],
+			);
 		}));
 
 		test('denies an unclaimed confirmable client tool after the grace window without executing it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

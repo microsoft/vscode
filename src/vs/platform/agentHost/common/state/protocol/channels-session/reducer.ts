@@ -22,15 +22,6 @@ function withStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean
 }
 
 /**
- * Reflects the session-level {@link SessionState.inputNeeded | input queue}
- * into the activity bits of `status`. A non-empty queue promotes the activity
- * to {@link SessionStatus.InputNeeded}; emptying it clears the
- * input-needed-specific bit. Since `InputNeeded` implies
- * {@link SessionStatus.InProgress}, an unblocked turn falls back to
- * `InProgress` while an already-idle session stays idle. Orthogonal flags
- * (`IsRead` / `IsArchived`) are preserved.
- */
-/**
  * Whether an entry blocks on the *user*.
  *
  * {@link SessionInputRequestKind.ToolClientExecution} is work delegated to a
@@ -42,6 +33,15 @@ function awaitsUser(request: SessionInputRequest): boolean {
 	return request.kind !== SessionInputRequestKind.ToolClientExecution;
 }
 
+/**
+ * Reflects the session-level {@link SessionState.inputNeeded | input queue}
+ * into the activity bits of `status`. A queue holding any user-blocking entry
+ * promotes the activity to {@link SessionStatus.InputNeeded}; draining those
+ * entries clears the input-needed-specific bit. Since `InputNeeded` implies
+ * {@link SessionStatus.InProgress}, an unblocked turn falls back to
+ * `InProgress` while an already-idle session stays idle. Orthogonal flags
+ * (`IsRead` / `IsArchived`) are preserved.
+ */
 function withInputNeededStatus(status: SessionStatus, inputNeeded: readonly SessionInputRequest[]): SessionStatus {
 	if (inputNeeded.some(awaitsUser)) {
 		return (status & ~STATUS_ACTIVITY_MASK) | SessionStatus.InputNeeded;
