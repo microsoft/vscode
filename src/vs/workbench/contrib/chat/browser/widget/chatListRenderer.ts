@@ -264,6 +264,50 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 	return index;
 }
 
+function isSessionCreatedTool(part: IChatRendererContent): boolean {
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+		&& part.toolSpecificData?.kind === 'sessionCreated';
+}
+
+export function getFinalResponseStartIndexAfterMovingSessionCreatedTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
+	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+	if (finalResponseStartIndex === undefined) {
+		return undefined;
+	}
+
+	let movedToolCount = 0;
+	for (let index = 0; index < finalResponseStartIndex; index++) {
+		if (isSessionCreatedTool(content[index])) {
+			movedToolCount++;
+		}
+	}
+	return finalResponseStartIndex - movedToolCount;
+}
+
+export function isFinalResponseRendered(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number | undefined): boolean {
+	return finalResponseStartIndex !== undefined && content[finalResponseStartIndex]?.kind === 'markdownContent';
+}
+
+export function moveSessionCreatedToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
+	const sessionCreatedTools = content.filter(isSessionCreatedTool);
+	if (sessionCreatedTools.length === 0) {
+		return [...content];
+	}
+
+	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingSessionCreatedTools(content);
+	if (finalResponseStartIndex === undefined) {
+		return [...content];
+	}
+
+	const reordered = content.filter(part => !isSessionCreatedTool(part));
+	let insertionIndex = finalResponseStartIndex;
+	while (reordered[insertionIndex]?.kind === 'markdownContent') {
+		insertionIndex++;
+	}
+	reordered.splice(insertionIndex, 0, ...sessionCreatedTools);
+	return reordered;
+}
+
 export function formatCompletedResponseDisclosureLabel(stepCount: number, elapsedMs: number | undefined): string {
 	const elapsed = formatChatResponseElapsedTime(elapsedMs);
 	if (stepCount === 1) {
@@ -1548,7 +1592,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			content.push(...annotateSpecialMarkdownContent(element.response.value));
+			const responseContent = annotateSpecialMarkdownContent(element.response.value);
+			content.push(...(element.isComplete ? moveSessionCreatedToolsAfterFinalResponse(responseContent) : responseContent));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
 			}
@@ -2369,9 +2414,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const finalResponseStartIndex = getFinalResponseStartIndex(content);
-		if (finalResponseStartIndex === undefined || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
+		const responseContent = annotateSpecialMarkdownContent(element.response.value);
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingSessionCreatedTools(responseContent);
+		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
+		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
+			return;
+		}
+		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
+		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+			this.removeCompletedResponseDisclosure(templateData);
+			if (finalResponsePart instanceof ChatMarkdownContentPart) {
+				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
+					this.updateCompletedResponseDisclosure(element, content, templateData, false);
+				}));
+			}
 			return;
 		}
 
@@ -2466,12 +2523,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private removeCompletedResponseDisclosure(templateData: IChatListItemTemplate): void {
+		templateData.completedResponseDisclosureDisposables.clear();
 		const details = templateData.completedResponseDisclosure;
 		if (!details) {
 			return;
 		}
 
-		templateData.completedResponseDisclosureDisposables.clear();
 		while (details.childNodes.length > 1) {
 			details.before(details.childNodes[1]);
 		}
@@ -2490,7 +2547,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The morpher's own buffer + rAF loop is the sole rate limiter.
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
-		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
+		const responseContent = annotateSpecialMarkdownContent(element.response.value);
+		const renderableResponse = element.isComplete ? moveSessionCreatedToolsAfterFinalResponse(responseContent) : responseContent;
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;

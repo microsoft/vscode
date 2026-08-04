@@ -11,7 +11,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionTurnFileChange } from '../../../services/sessions/common/session.js';
 
 const LAST_TURN_CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'chat-last-turn-changes-multi-diff-source';
 
@@ -95,7 +95,7 @@ export class LastTurnChangesMultiDiffSourceResolver extends Disposable implement
 		// The chat's resource is fixed for this editor, so resolve the owning chat
 		// once here rather than re-finding it on every observable read.
 		const chat = this._sessionsManagementService.getSessionForChatResource(chatResource)?.chat;
-		const lastTurnChanges = chat?.lastTurnChanges ?? constObservable<readonly ISessionFileChange[]>([]);
+		const lastTurnChanges = chat?.lastTurnChanges ?? constObservable<readonly ISessionTurnFileChange[]>([]);
 
 		// Reuse the row for a file we've already seen (keeping its first origin) and
 		// keep the previous array reference when no new file appears, so the diff
@@ -113,6 +113,9 @@ export class LastTurnChangesMultiDiffSourceResolver extends Disposable implement
 			const seen = new Set<string>();
 			let addedNewFile = false;
 			for (const change of changes) {
+				if (change.isOutsideWorkspace) {
+					continue;
+				}
 				// The on-disk resource of the file: the live file whose current
 				// content is shown as the modified side of the diff.
 				const onDiskUri = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
