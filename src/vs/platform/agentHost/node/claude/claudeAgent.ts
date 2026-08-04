@@ -1231,6 +1231,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._disposeSequencer.queue(sessionId, async () => {
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
+			this._otelService.releaseSessionTraceContext(session.toString());
 		});
 	}
 

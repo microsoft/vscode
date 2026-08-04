@@ -37,12 +37,12 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSkillsToContainers } from './codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexMcpServersFromPlugins, codexSkillRootsFromPlugins, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
@@ -52,6 +52,7 @@ import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
@@ -70,6 +71,7 @@ import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
+import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
 import type { CommandExecutionRequestApprovalResponse } from './protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
@@ -837,6 +839,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
@@ -1269,6 +1272,23 @@ export class CodexAgent extends Disposable implements IAgent {
 		return session.multiRootEnabled && (session.workingDirectories?.length ?? 0) > 1;
 	}
 
+	private async _selectedCapabilityRoots(session: ICodexSession): Promise<SelectedCapabilityRoot[]> {
+		const candidates = codexSelectedCapabilityRootCandidates(session.workingDirectories ?? []);
+		const resolved = await Promise.all(candidates.map(async candidate => {
+			try {
+				const stat = await this._fileService.stat(URI.file(candidate.location.path));
+				return stat.isDirectory ? candidate : undefined;
+			} catch (error) {
+				const result = toFileOperationResult(error);
+				if (result !== FileOperationResult.FILE_NOT_FOUND) {
+					this._logService.warn(`[Codex] selected capability root metadata lookup failed: id=${candidate.id}, result=${result}`);
+				}
+				return undefined;
+			}
+		}));
+		return resolved.filter(candidate => candidate !== undefined);
+	}
+
 	private async _refreshModels(): Promise<void> {
 		const usageSource = this._usageSource;
 		if (usageSource === 'openai') {
@@ -1469,7 +1489,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 
 		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
-		const launchConfig = buildCodexLaunchConfig(usageSource, process.env, proxyHandle, extraArgs);
+		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
+		const launchConfig = buildCodexLaunchConfig(usageSource, process.env, proxyHandle, extraArgs, telemetry);
 		const env = launchConfig.env;
 		const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
 		if (userCodexHome) {
@@ -3077,6 +3098,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _traceContext(session: ICodexSession) {
+		return this._otelService.getSessionTraceContext(session.sessionId, session.sessionUri.toString());
+	}
+
 	private async _materialize(session: ICodexSession): Promise<void> {
 		if (session.disposed) {
 			return;
@@ -3110,16 +3135,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const multiRootActive = this._isMultiRootActive(session);
 		const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+		const selectedCapabilityRoots = multiRootActive ? await this._selectedCapabilityRoots(session) : [];
 		const startResult = await conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
 			cwd: session.workingDirectory.fsPath,
 			...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
+			...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 			model: model.id,
 			approvalPolicy,
 			sandbox: sandboxMode,
 			approvalsReviewer,
 			config: threadConfig,
 			dynamicTools: this._buildDynamicTools(session),
-		});
+		}, this._traceContext(session));
 		const threadId = startResult.thread.id;
 		if (multiRootActive && !session.workingDirectories && startResult.runtimeWorkspaceRoots?.length) {
 			session.workingDirectories = startResult.runtimeWorkspaceRoots.map(path => URI.file(path));
@@ -3413,6 +3440,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					buildCodexResumeParams(this._usageSource, threadId, mcpServers, runtimeWorkspaceRoots),
+					this._traceContext(session),
 				);
 				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
 					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
@@ -3449,7 +3477,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				input: input.slice(),
 				model: model.id,
 				...turnOptions,
-			});
+			}, this._traceContext(session));
 			// The thread now has committed history; client tools are locked to
 			// what was registered at `thread/start` and won't be re-applied.
 			session.firstTurnSent = true;
@@ -3571,10 +3599,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session) {
-			return;
+		if (session) {
+			await this._teardownSessionInMemory(session, sessionId);
 		}
-		await this._teardownSessionInMemory(session, sessionId);
+		this._otelService.releaseSessionTraceContext(sessionUri.toString());
 	}
 
 	/**

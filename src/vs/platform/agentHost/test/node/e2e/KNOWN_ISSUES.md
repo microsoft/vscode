@@ -284,6 +284,7 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
   - `counts lines in a file`
   - `renames a workspace file`
   - `runs a deterministic shell command`
+  - `secondary workspace skill reaches the Codex model request`
 - Recording mode remains enabled so a future capture or provider update can be evaluated.
 
 ### Claude subagent replay on Windows
