@@ -74,11 +74,12 @@
 	cursor: pointer;
 	overflow: hidden;
 }
+/* Codicons use the base 16px token rather than an unsupported intermediate size. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 /* Session title - primary label in the command center box. */

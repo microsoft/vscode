@@ -433,6 +433,39 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].label, 'Claude');
 	});
 
+	test('model variants sharing metadata ids remain visible across promoted and other sections', () => {
+		const auto = createAutoModel();
+		const copilotSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol');
+		const copilotTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const byokSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol', 'openai');
+		const byokTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra', 'openai');
+		const copilotOther = createModel('gpt-5.5', 'GPT-5.5');
+		const byokOther = createModel('gpt-5.5', 'GPT-5.5', 'openai');
+		const languageModelsService = createLanguageModelsServiceStub([
+			{ vendor: 'copilot', displayName: 'Copilot', groups: [] },
+			{
+				vendor: 'openai',
+				displayName: 'OpenAI',
+				groups: [{ name: 'OpenAI (Work)', modelIdentifiers: [byokSol.identifier, byokTerra.identifier, byokOther.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, copilotSol, copilotTerra, copilotOther, byokSol, byokTerra, byokOther], {
+			recentModelIds: [copilotSol.identifier, byokSol.identifier, copilotTerra.identifier, byokTerra.identifier],
+			languageModelsService,
+		});
+
+		assert.deepStrictEqual(getActionItems(items)
+			.filter(item => !item.isSectionToggle && item.label !== 'Auto' && item.item?.id !== 'manageModels')
+			.map(item => ({ id: item.item?.id, section: item.section, provider: item.badge })), [
+			{ id: copilotSol.identifier, section: undefined, provider: 'Copilot' },
+			{ id: byokSol.identifier, section: undefined, provider: 'OpenAI (Work)' },
+			{ id: copilotTerra.identifier, section: undefined, provider: 'Copilot' },
+			{ id: copilotOther.identifier, section: 'other', provider: undefined },
+			{ id: byokOther.identifier, section: 'other', provider: undefined },
+			{ id: byokTerra.identifier, section: 'other', provider: undefined },
+		]);
+	});
+
 	test('recently used model not in models list but in controlModels shows as unavailable (upgrade for free user)', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
@@ -909,6 +942,47 @@ suite('buildModelPickerItems', () => {
 		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
 		// Buckets sorted alphabetically by resolved group display name.
 		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
+	});
+
+	test('Other Models respects the configured BYOK group name for agent-host models', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const googleModelIdentifier = 'google/GoogleBYOK/gemini-2.5-pro';
+		const google = createAgentHostModel('google/gemini-2.5-pro', 'Gemini 2.5 Pro', { id: 'google' });
+		const googleWithByokIdentifier = {
+			...google,
+			metadata: { ...google.metadata, byokModelIdentifier: googleModelIdentifier },
+		};
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'google', displayName: 'Google', groups: [{ name: 'GoogleBYOK', modelIdentifiers: [googleModelIdentifier] }] },
+		]);
+
+		const items = callBuild([auto, cli, googleWithByokIdentifier], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'GoogleBYOK']);
+	});
+
+	test('Other Models keeps identically named agent-host BYOK groups from different providers separate', () => {
+		const auto = createAutoModel();
+		const googleModelIdentifier = 'google/Default/gemini-2.5-pro';
+		const openaiModelIdentifier = 'openai/Default/gpt-5';
+		const google = createAgentHostModel('google/gemini-2.5-pro', 'Gemini 2.5 Pro', { id: 'google' });
+		const openai = createAgentHostModel('openai/gpt-5', 'GPT-5', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'google', displayName: 'Google', groups: [{ name: 'Default', modelIdentifiers: [googleModelIdentifier] }] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [{ name: 'Default', modelIdentifiers: [openaiModelIdentifier] }] },
+		]);
+
+		const items = callBuild([
+			auto,
+			{ ...google, metadata: { ...google.metadata, byokModelIdentifier: googleModelIdentifier } },
+			{ ...openai, metadata: { ...openai.metadata, byokModelIdentifier: openaiModelIdentifier } },
+		], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Default', 'Default']);
 	});
 
 	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {

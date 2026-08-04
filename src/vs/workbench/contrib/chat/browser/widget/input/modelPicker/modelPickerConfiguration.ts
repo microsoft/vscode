@@ -73,7 +73,7 @@ export class ModelPickerConfiguration {
 
 		const labelParts: string[] = [];
 		const ariaParts: string[] = [];
-		if (effortConfig) {
+		if (effortConfig && effortConfig.value !== undefined) {
 			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
 			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
 				? effortConfig.schema.enumItemLabels[enumIndex]
@@ -81,13 +81,22 @@ export class ModelPickerConfiguration {
 			labelParts.push(effortLabel);
 			ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
 		}
-		if (tokensConfig) {
+		if (tokensConfig && tokensConfig.value !== undefined) {
 			const enumIndex = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
 			const tokensLabel = enumIndex >= 0 && tokensConfig.schema.enumItemLabels?.[enumIndex]
 				? tokensConfig.schema.enumItemLabels[enumIndex]
 				: formatTokenCount(Number(tokensConfig.value));
 			labelParts.push(tokensLabel);
 			ariaParts.push(localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel));
+		}
+
+		if (!labelParts.length) {
+			// First-party producers always supply a default, but configuration schemas can also come
+			// from third-party extensions via the LM API. Fall back to a generic label rather than
+			// hiding the button, so the configuration stays reachable.
+			const fallbackLabel = effortConfig?.schema.title ?? tokensConfig?.schema.title ?? localize('chat.modelPicker.configureLabel', "Configure");
+			labelParts.push(fallbackLabel);
+			ariaParts.push(fallbackLabel);
 		}
 
 		dom.reset(button, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));
@@ -140,6 +149,7 @@ export class ModelPickerConfiguration {
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
+				reserveSubmenuSpace: false,
 			}),
 		);
 
@@ -218,6 +228,7 @@ export class ModelPickerConfiguration {
 						}
 					},
 					kind: ActionListItemKind.Action,
+					className: 'chat-model-picker-config-option',
 					label: displayLabel,
 					description: isDefault ? defaultLabel : undefined,
 					ariaDescription: ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined,

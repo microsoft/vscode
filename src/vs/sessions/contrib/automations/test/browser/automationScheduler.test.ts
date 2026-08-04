@@ -14,7 +14,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
-import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -22,6 +22,7 @@ import { createAutomationService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
+const SESSION_RESOURCE = 'vscode-chat-session://copilot/sess-1';
 
 class FakeLeaderElection implements IAutomationLeaderElection {
 	private readonly _isLeader: ISettableObservable<boolean>;
@@ -61,12 +62,16 @@ class RecordingRunner implements IAutomationRunner {
 	): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
 		const operation = (async () => {
-			const run = await this.service.recordRunStart(automation.id, trigger, leaderWindowId);
-			await this.service.updateRun(run.id, { status: 'completed' });
+			const claim = await this.service.recordRunStart(automation.id, trigger, leaderWindowId);
+			if (!claim.claimed) {
+				return { kind: 'alreadyRunning', activeRun: claim.run } satisfies IAutomationRunDispatch;
+			}
+			const run = await this.service.updateRun(claim.run.id, { status: 'completed' }) ?? claim.run;
+			return { kind: 'started', run, sessionResource: SESSION_RESOURCE } satisfies IAutomationRunDispatch;
 		})();
 		return {
 			whenDispatched: operation,
-			whenCompleted: operation,
+			whenCompleted: operation.then(() => undefined),
 		};
 	}
 }
@@ -79,7 +84,7 @@ class SkippingRunner implements IAutomationRunner {
 	runOnce(automation: IAutomation, trigger: AutomationRunTrigger): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
 		return {
-			whenDispatched: Promise.resolve(),
+			whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' }),
 			whenCompleted: Promise.resolve(),
 		};
 	}
@@ -276,7 +281,7 @@ suite('AutomationSchedulerCore', () => {
 		const firstService = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		firstService.setClockForTesting(() => T0);
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
-		const run = await firstService.recordRunStart(a.id, 'manual', 1);
+		const run = (await firstService.recordRunStart(a.id, 'manual', 1)).run;
 		firstService.dispose();
 
 		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
@@ -328,7 +333,7 @@ suite('AutomationSchedulerCore', () => {
 		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
-		const inFlight = await service.recordRunStart(a.id, 'schedule', 1);
+		const inFlight = (await service.recordRunStart(a.id, 'schedule', 1)).run;
 
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
@@ -383,7 +388,7 @@ suite('AutomationSchedulerCore', () => {
 				this.calls++;
 				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
 				return {
-					whenDispatched: Promise.resolve(),
+					whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'error' }),
 					whenCompleted,
 				};
 			}

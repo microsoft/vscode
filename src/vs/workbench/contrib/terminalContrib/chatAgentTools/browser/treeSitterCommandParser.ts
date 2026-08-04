@@ -11,12 +11,17 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { SedFileWriteParser } from '../../../../../platform/terminal/common/autoApprove/sedFileWriteParser.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
-import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
 	PowerShell = 'powershell',
+}
+
+export interface IAutoApprovalCommandParseResult {
+	readonly subCommands: string[];
+	readonly hasUnanalyzableSyntax: boolean;
 }
 
 /**
@@ -64,6 +69,29 @@ export class TreeSitterCommandParser extends Disposable {
 		}
 		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
 		return captures.map(e => e.node.text);
+	}
+
+	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
+		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
+		const query = languageId === TreeSitterCommandParserLanguage.PowerShell
+			? '(command) @command (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
+			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
+		const captures = await this._queryTree(languageId, masked, query);
+		const subCommands: string[] = [];
+		let hasUnanalyzableSyntax = false;
+		for (const capture of captures) {
+			if (capture.name === 'command') {
+				subCommands.push(masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex));
+			} else if (capture.name === 'unanalyzable') {
+				// Prefix env assignments (`FOO=bar git status`) are children of the
+				// command node and are handled by the existing transient-env deny
+				// path; only standalone shell-state mutations fail closed here.
+				if (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command') {
+					hasUnanalyzableSyntax = true;
+				}
+			}
+		}
+		return { subCommands, hasUnanalyzableSyntax };
 	}
 
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {

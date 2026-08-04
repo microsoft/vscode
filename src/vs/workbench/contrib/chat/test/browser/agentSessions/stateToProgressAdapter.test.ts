@@ -7,14 +7,16 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -95,6 +97,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
+		toModelDisplayName: raw => displayNames[raw],
 		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
@@ -123,6 +126,23 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('detects the canonical automatic reply answer', () => {
+		assert.deepStrictEqual([
+			containsAutomaticReplyAnswer({
+				question: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: AgentHostAutoReplyAnswer },
+				},
+			}),
+			containsAutomaticReplyAnswer({
+				question: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'User answer' },
+				},
+			}),
+		], [true, false]);
+	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
 		test('supports absolute paths and file URIs with validated locations', () => {
@@ -242,6 +262,28 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.content.value, 'Shell command completed');
 		});
 
+		test('worktree failure notification restores as warning', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Worktree creation failed',
+					_meta: toAgentSystemNotificationMeta({
+						kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+						severity: AgentSystemNotificationSeverity.Warning,
+					}),
+				}],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(response.parts[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
 		test('reasoning response part restores as thinking progress carrying its id', () => {
 			const turn = createTurn({
 				responseParts: [{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' }],
@@ -279,6 +321,56 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(details.inputLanguage, 'json');
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' }]);
 			assert.strictEqual(details.isError, false);
+		});
+
+		test('restores an answered ask-user interaction as a hidden tool plus conversational summary', () => {
+			const turn = createTurn({
+				responseParts: [
+					{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: createCompletedToolCall({ toolName: 'ask_user' }),
+					},
+					{
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'input-1',
+							questions: [{
+								id: 'q1',
+								kind: ChatInputQuestionKind.SingleSelect,
+								message: 'What should we work on?',
+								required: true,
+								options: [
+									{ id: 'fix', label: 'Fix a bug' },
+									{ id: 'feature', label: 'Implement a feature' },
+								],
+							}],
+							answers: {
+								q1: {
+									state: ChatInputAnswerState.Submitted,
+									value: { kind: ChatInputAnswerValueKind.Selected, value: 'fix' },
+								},
+							},
+						},
+						response: ChatInputResponseKind.Accept,
+					},
+				],
+			});
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const parts = history[1].type === 'response' ? history[1].parts : [];
+			const tool = parts[0] as IChatToolInvocationSerialized;
+			const carousel = parts[1];
+
+			assert.deepStrictEqual({
+				toolPresentation: tool.presentation,
+				carouselKind: carousel.kind,
+				answerPresentation: carousel.kind === 'questionCarousel' ? carousel.answerPresentation : undefined,
+				answer: carousel.kind === 'questionCarousel' ? carousel.data?.q1 : undefined,
+			}, {
+				toolPresentation: ToolInvocationPresentation.HiddenAfterComplete,
+				carouselKind: 'questionCarousel',
+				answerPresentation: 'conversation',
+				answer: { selectedValue: 'fix', freeformValue: undefined },
+			});
 		});
 
 		test('generic failed tool call in history uses error text as output', () => {
@@ -454,21 +546,33 @@ suite('stateToProgressAdapter', () => {
 
 		test('maps turn usage to chat usage progress for restored history', () => {
 			const turn = createTurn({
-				usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' },
+				usage: {
+					inputTokens: 1200,
+					outputTokens: 300,
+					model: 'gpt-5',
+					_meta: {
+						turnTokenTotals: [{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
+				},
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Done' }],
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }));
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(
 				response.parts.map(part => part.kind === 'usage'
-					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens }
+					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens, modelTotals: part.modelTotals }
 					: { kind: part.kind }),
 				[
-					{ kind: 'usage', promptTokens: 1200, completionTokens: 300 },
+					{
+						kind: 'usage',
+						promptTokens: 1200,
+						completionTokens: 300,
+						modelTotals: [{ model: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
 					{ kind: 'markdownContent' },
 				],
 			);
@@ -536,6 +640,39 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
 			assert.strictEqual(termData.terminalCommandOutput.text, 'hello');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+		});
+
+		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
+			const turn = createTurn({
+				responseParts: [
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-marked',
+							toolInput: 'my-custom-script',
+							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-unmarked',
+							toolInput: 'echo hello',
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+				],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(
+				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
+				[true, undefined],
+				'flag is copied from tool call meta and absent otherwise');
 		});
 
 		test('terminal tool call in history carries the LM intention', () => {
@@ -844,6 +981,43 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
+		test('renders ask-user tools as waiting progress that hides after completion', () => {
+			const toolNames = ['ask_user', 'AskUserQuestion', 'request_user_input'];
+			const live = toolNames.map(toolName => {
+				const invocation = toolCallStateToInvocation(createToolCallState({ toolName }));
+				return {
+					message: invocation.invocationMessage,
+					presentation: invocation.presentation,
+				};
+			});
+			const restored = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'ask_user' }), undefined, URI.file('/'), 'local');
+			const failed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'ask_user', success: false }), undefined, URI.file('/'), 'local');
+
+			assert.deepStrictEqual({ live, restoredPresentation: restored.presentation, failedPresentation: failed.presentation }, {
+				live: toolNames.map(() => ({
+					message: 'Waiting for answer...',
+					presentation: ToolInvocationPresentation.HiddenAfterComplete,
+				})),
+				restoredPresentation: ToolInvocationPresentation.HiddenAfterComplete,
+				failedPresentation: undefined,
+			});
+		});
+
+		test('marks Agent Host input requests for conversational answer rendering', () => {
+			const carousel = createInputRequestCarousel({
+				id: 'input-1',
+				questions: [{
+					id: 'q1',
+					kind: ChatInputQuestionKind.SingleSelect,
+					message: 'Choose one',
+					required: true,
+					options: [{ id: 'a', label: 'Option A' }],
+				}],
+			}, 'local');
+
+			assert.strictEqual(carousel.answerPresentation, 'conversation');
+		});
+
 		test('attaches automation result data to live and restored configureAutomation calls', () => {
 			const content: ToolResultContent[] = [{
 				type: ToolResultContentType.Text,
@@ -1038,13 +1212,6 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
 		});
 
-		test('creates invocation without toolArguments', () => {
-			const tc = createToolCallState({});
-
-			const invocation = toolCallStateToInvocation(tc);
-			assert.strictEqual(invocation.toolCallId, 'tc-1');
-		});
-
 		test('sets subagent toolSpecificData from _meta for subagent toolKind', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Review code', subagentAgentName: 'code-reviewer' },
@@ -1217,12 +1384,33 @@ suite('stateToProgressAdapter', () => {
 		type AnyToolCallState = Parameters<typeof rawToolCallStateToPreparedInvocation>[0];
 
 		test('toolCallStateToStreamingInvocation starts in the native Streaming state', () => {
-			const tc: AnyToolCallState = { toolCallId: 'tc-stream', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming };
+			const tc: AnyToolCallState = {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				displayName: 'Bash',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"npm test","description":"Run',
+				invocationMessage: 'Running npm test',
+			};
 			const invocation = toolCallStateToStreamingInvocation(tc, undefined);
-			assert.strictEqual(invocation.toolCallId, 'tc-stream');
-			assert.strictEqual(invocation.toolId, 'bash');
-			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
-			assert.strictEqual(IChatToolInvocation.isComplete(invocation), false);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				toolCallId: invocation.toolCallId,
+				toolId: invocation.toolId,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+				isComplete: IChatToolInvocation.isComplete(invocation),
+			}, {
+				toolCallId: 'tc-stream',
+				toolId: 'bash',
+				partialInput: { command: 'npm test', description: 'Run' },
+				streamingMessage: 'Running npm test',
+				isComplete: false,
+			});
 		});
 
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
@@ -1245,6 +1433,32 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+			});
+		});
+
+		test('finalizeToolInvocation preserves cancellation from streaming', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-cancelled',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			finalizeToolInvocation(invocation, {
+				toolCallId: 'tc-cancelled',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				status: ToolCallStatus.Cancelled,
+				invocationMessage: 'Running client tool',
+				reason: ToolCallCancellationReason.Denied,
+				reasonMessage: 'Denied by the server',
+			});
+
+			assert.deepStrictEqual(invocation.state.get(), {
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Denied,
+				reasonMessage: 'Denied by the server',
+				parameters: undefined,
+				confirmationMessages: undefined,
 			});
 		});
 
@@ -1720,6 +1934,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result[0].kind, 'systemNotification');
 			if (result[0].kind !== 'systemNotification') { return; }
 			assert.strictEqual(result[0].content.value, 'Shell command completed');
+		});
+
+		test('produces warning for active worktree failure notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Worktree creation failed',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Worktree creation failed'),
+			});
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -2693,6 +2923,29 @@ suite('stateToProgressAdapter', () => {
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
 			});
+		});
+	});
+
+	suite('usageInfoToChatUsage', () => {
+		test('carries whole-turn per-model token totals and resolves display names', () => {
+			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
+
+			assert.deepStrictEqual(usageInfoToChatUsage(
+				{ inputTokens: 30, outputTokens: 40, _meta: { turnTokenTotals } },
+				model => model === 'claude-opus-4.8' ? 'Claude Opus 4.8' : undefined,
+			), {
+				kind: 'usage',
+				promptTokens: 30,
+				completionTokens: 40,
+				copilotCredits: undefined,
+				sessionCopilotCredits: undefined,
+				promptTokenDetails: undefined,
+				modelTotals: [{ ...turnTokenTotals[0], model: 'Claude Opus 4.8' }],
+			} satisfies IChatUsage);
+		});
+
+		test('reports no totals when the provider did not supply any', () => {
+			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
 		});
 	});
 });

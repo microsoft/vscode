@@ -14,7 +14,7 @@ import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -26,18 +26,26 @@ import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserElementSelectionMode, IBrowserElementSelectionOptions, IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
+import { toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -97,8 +105,37 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
 const BrowserCategory = localize2('browserCategory', "Browser");
 
-const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+const CONTEXT_BROWSER_ELEMENT_SELECTION_MODE = new RawContextKey<BrowserElementSelectionMode | undefined>('browserElementSelectionMode', undefined, localize('browser.elementSelectionMode', "The active element selection mode"));
 const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
+
+class BrowserElementCommentingAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly type = AccessibleViewType.Help;
+	readonly priority = 110;
+	readonly name = 'browserElementCommenting';
+	readonly when = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Comment);
+
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
+		const editorPane = accessor.get(IEditorService).activeEditorPane;
+		if (!(editorPane instanceof BrowserEditor)) {
+			return undefined;
+		}
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.BrowserElementCommenting,
+			{ type: AccessibleViewType.Help },
+			() => [
+				localize('browser.elementCommentingAccessibilityHelp.overview', "You are in Integrated Browser element commenting mode."),
+				localize('browser.elementCommentingAccessibilityHelp.navigation', "Use Tab and Shift+Tab to move through focusable page elements. Press Enter to comment on the focused element."),
+				localize('browser.elementCommentingAccessibilityHelp.composer', "In the comment input, press Enter to add the comment or Escape to cancel it."),
+				localize('browser.elementCommentingAccessibilityHelp.continuous', "Commenting mode remains active after adding a comment. Press Escape outside the comment input to stop commenting."),
+				localize('browser.elementCommentingAccessibilityHelp.pins', "Numbered comment pins are in the page tab order. Focus a pin to preview its comment, then Tab to its Remove Comment button."),
+			].join('\n'),
+			() => editorPane.focus(),
+			AccessibilityVerbositySettingId.BrowserElementCommenting
+		);
+	}
+}
+
+AccessibleViewRegistry.register(new BrowserElementCommentingAccessibilityHelp());
 
 type IntegratedBrowserAddScreenshotToChatAddedEvent = {
 	screenshotType: 'viewport' | 'area' | 'fullPage';
@@ -116,8 +153,14 @@ type IntegratedBrowserAddScreenshotToChatAddedClassification = {
  * console log attachment to chat, and agent sharing.
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
-	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
+	private readonly _elementSelectionModeContext: IContextKey<BrowserElementSelectionMode | undefined>;
 	private readonly _areaSelectionActiveContext: IContextKey<boolean>;
+	private _elementSelectionMode: BrowserElementSelectionMode | undefined;
+	private readonly _commentReferences = new Map<string, { elementId: string; attachmentIds: readonly string[]; widget: IChatWidget; browserModel: IBrowserViewModel }>();
+	private readonly _commentReferenceListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
+	private readonly _commentModelListeners = this._register(new DisposableMap<IBrowserViewModel, DisposableStore>());
+	private readonly _disposedCommentModels = new WeakSet<IBrowserViewModel>();
+	private readonly _commentSessionsWithComments = new Set<IBrowserViewModel>();
 
 	// Share with Agent
 	private readonly _shareButtonContainer: HTMLElement;
@@ -135,9 +178,11 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 	) {
 		super(editor);
-		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
 		this._areaSelectionActiveContext = CONTEXT_BROWSER_AREA_SELECTION_ACTIVE.bindTo(contextKeyService);
 
 		// Build share toggle button
@@ -163,9 +208,25 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}));
 
 		// Auto-disable element selection when the user sends a chat request.
-		this._register(this.chatService.onDidSubmitRequest(() => {
-			if (this.editor.model?.isElementSelectionActive) {
+		this._register(this.chatService.onDidSubmitRequest(event => {
+			if (this.editor.model?.elementSelectionState.active) {
 				void this.editor.model.toggleElementSelection(false);
+			}
+			const submittedComments = [...this._commentReferences]
+				.filter(([, reference]) => reference.widget.viewModel && isEqual(reference.widget.viewModel.sessionResource, event.chatSessionResource));
+			if (submittedComments.length > 0) {
+				const browserModels = new Set(submittedComments.map(([, reference]) => reference.browserModel));
+				const widgets = new Set(submittedComments.map(([, reference]) => reference.widget));
+				for (const [attachmentId] of submittedComments) {
+					this._commentReferences.delete(attachmentId);
+				}
+				for (const widget of widgets) {
+					this._disposeCommentReferenceListenerIfUnused(widget);
+				}
+				for (const browserModel of browserModels) {
+					this._syncElementComments(browserModel);
+					this._disposeCommentModelListenerIfUnused(browserModel);
+				}
 			}
 		}));
 	}
@@ -181,17 +242,49 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			this._updateSharingState(false);
 		}));
 		store.add(model.onDidSelectElement(async data => {
+			const tracksComment = data.comment !== undefined && data.elementId !== undefined;
+			if (tracksComment) {
+				this._ensureCommentModelListeners(model);
+			}
+			let attached = false;
 			try {
-				await this._attachElementDataToChat(data, model);
+				attached = await this._attachElementDataToChat(data, model);
 			} catch (error) {
 				this.logService.error('BrowserEditor.addElementToChat: Failed to attach element', error);
+			}
+			if (!attached && data.comment !== undefined && data.elementId && !this._disposedCommentModels.has(model)) {
+				this._syncElementComments(model, [data.elementId]);
+			}
+			if (tracksComment) {
+				this._disposeCommentModelListenerIfUnused(model);
 			}
 		}));
 
 		// Sync context key with model state
-		this._elementSelectionActiveContext.set(model.isElementSelectionActive);
-		store.add(model.onDidChangeElementSelectionActive(active => {
-			this._elementSelectionActiveContext.set(active);
+		this._elementSelectionMode = model.elementSelectionState.active ? model.elementSelectionState.options.mode : undefined;
+		this._elementSelectionModeContext.set(this._elementSelectionMode);
+		store.add(model.onDidChangeElementSelectionState(state => {
+			const wasCommenting = this._elementSelectionMode === BrowserElementSelectionMode.Comment;
+			this._elementSelectionMode = state.active ? state.options.mode : undefined;
+			this._elementSelectionModeContext.set(this._elementSelectionMode);
+			const isCommenting = this._elementSelectionMode === BrowserElementSelectionMode.Comment;
+			const accessibilityHelpHint = isCommenting && state.active
+				? this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.BrowserElementCommenting)
+				: undefined;
+			this.accessibilityService.status(isCommenting
+				? state.active
+					? accessibilityHelpHint
+						? localize('browser.elementCommentingEnabledWithAccessibilityHelp', "Element commenting enabled. Press Enter to comment on the focused element. {0}", accessibilityHelpHint)
+						: localize('browser.elementCommentingEnabled', "Element commenting enabled. Press Enter to comment on the focused element.")
+					: localize('browser.elementCommentingDisabled', "Element commenting disabled.")
+				: state.active
+					? localize('browser.elementSelectionEnabled', "Element selection enabled. Press Enter to add the focused element to chat.")
+					: localize('browser.elementSelectionDisabled', "Element selection disabled."));
+			if (isCommenting && !wasCommenting) {
+				this._commentSessionsWithComments.delete(model);
+			} else if (wasCommenting && !isCommenting && this._commentSessionsWithComments.delete(model)) {
+				this._focusChatInputForComments(model);
+			}
 		}));
 		this._areaSelectionActiveContext.set(model.isAreaSelectionActive);
 		store.add(model.onDidChangeAreaSelectionActive(active => {
@@ -200,7 +293,11 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	}
 
 	override onModelDetached(): void {
-		this._elementSelectionActiveContext.reset();
+		if (this.editor.model) {
+			this._commentSessionsWithComments.delete(this.editor.model);
+		}
+		this._elementSelectionModeContext.reset();
+		this._elementSelectionMode = undefined;
 		this._areaSelectionActiveContext.reset();
 	}
 
@@ -290,8 +387,8 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	 * {@linkcode IChatWidget.attachmentModel.addContext} so the attachment is
 	 * not silently discarded.
 	 */
-	private async _revealChatWidgetForAttachment(): Promise<IChatWidget | undefined> {
-		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+	private async _revealChatWidgetForAttachment(preserveFocus = false): Promise<IChatWidget | undefined> {
+		const widget = await this.chatWidgetService.revealWidget(preserveFocus) ?? this.chatWidgetService.lastFocusedWidget;
 		if (widget && !widget.viewModel) {
 			await Event.toPromise(widget.onDidChangeViewModel);
 		}
@@ -313,7 +410,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	// -- Element Selection ----------------------------------------------
 
-	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
+	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel): Promise<boolean> {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -336,8 +433,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const value = createElementContextValue(elementData, displayNameFull);
+		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
+		const screenshotBuffer = attachImages
+			? await model.captureScreenshot({
+				quality: 90,
+				pageRect: bounds
+			})
+			: undefined;
 
-		toAttach.push({
+		const elementEntry: IChatRequestVariableEntry = {
 			id: 'element-' + Date.now(),
 			name: displayNameShort,
 			fullName: displayNameFull,
@@ -350,29 +454,29 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			computedStyles: elementData.computedStyles,
 			dimensions: elementData.dimensions,
 			innerText,
-		});
-
-		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
-		if (attachImages) {
-			const screenshotBuffer = await model.captureScreenshot({
-				quality: 90,
-				pageRect: bounds
-			});
-
-			toAttach.push({
-				id: 'element-screenshot-' + Date.now(),
-				name: 'Element Screenshot',
-				fullName: 'Element Screenshot',
-				kind: 'image',
-				value: screenshotBuffer.buffer
-			});
-		}
+			imageData: screenshotBuffer?.buffer,
+			imageMimeType: screenshotBuffer ? 'image/jpeg' : undefined,
+		};
+		toAttach.push(elementEntry);
 
 		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
-			return;
+			return false;
 		}
-		if (!await this._attachToChat(toAttach)) {
-			return;
+		const widget = await this._revealChatWidgetForAttachment(elementData.comment !== undefined);
+		if (!widget?.attachmentModel || this._disposedCommentModels.has(model)) {
+			return false;
+		}
+		widget.attachmentModel.addContext(...toAttach);
+		if (elementData.comment !== undefined && elementData.elementId) {
+			if (!this._insertElementCommentReference(widget, model, elementEntry, toAttach.map(attachment => attachment.id), elementData.elementId, elementData.comment)) {
+				widget.attachmentModel.delete(...toAttach.map(attachment => attachment.id));
+				return false;
+			}
+			if (model.elementSelectionState.active) {
+				this._commentSessionsWithComments.add(model);
+			} else {
+				widget.focusInput();
+			}
 		}
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
@@ -388,6 +492,182 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
 			attachImages
 		});
+		return true;
+	}
+
+	private _insertElementCommentReference(widget: IChatWidget, browserModel: IBrowserViewModel, attachment: IChatRequestVariableEntry, attachmentIds: readonly string[], elementId: string, comment: string): boolean {
+		const inputModel = widget.inputEditor.getModel();
+		const dynamicVariableModel = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+		if (!inputModel || !dynamicVariableModel) {
+			return false;
+		}
+
+		const insertionPosition = widget.inputEditor.getPosition() ?? inputModel.getFullModelRange().getEndPosition();
+		const prefix = insertionPosition.column > 1 ? '\n' : '';
+		const suffix = insertionPosition.column < inputModel.getLineMaxColumn(insertionPosition.lineNumber) ? '\n' : '';
+		const reference = `@${attachment.name}`;
+		const commentText = comment ? ` ${comment}` : '';
+		const text = `${prefix}${reference}${commentText}${suffix}`;
+		if (!widget.inputEditor.executeEdits('browserElementComment', [{ range: Range.fromPositions(insertionPosition), text }])) {
+			return false;
+		}
+		const referenceStart = prefix ? { lineNumber: insertionPosition.lineNumber + 1, column: 1 } : insertionPosition;
+		const referenceRange = new Range(referenceStart.lineNumber, referenceStart.column, referenceStart.lineNumber, referenceStart.column + reference.length);
+		dynamicVariableModel.addReference(toAttachedContextDynamicVariable(attachment, referenceRange));
+		widget.inputEditor.setPosition({
+			lineNumber: referenceRange.endLineNumber,
+			column: referenceRange.endColumn + commentText.length
+		});
+
+		this._commentReferences.set(attachment.id, { elementId, attachmentIds, widget, browserModel });
+		this._ensureCommentReferenceListeners(widget, dynamicVariableModel);
+		this._ensureCommentModelListeners(browserModel);
+		this._syncElementComments(browserModel);
+		return true;
+	}
+
+	private _ensureCommentReferenceListeners(widget: IChatWidget, dynamicVariableModel: ChatDynamicVariableModel): void {
+		if (this._commentReferenceListeners.has(widget)) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(dynamicVariableModel.onDidChangeReferences(() => this._syncElementCommentsForWidget(widget)));
+		store.add(widget.inputEditor.onDidChangeModelContent(() => this._syncElementCommentsForWidget(widget)));
+		store.add(widget.attachmentModel.onDidChange(event => {
+			for (const [attachmentId, tracked] of this._commentReferences) {
+				if (tracked.widget === widget && event.deleted.includes(attachmentId)) {
+					this._removeElementCommentReference(tracked.browserModel, tracked.elementId);
+				}
+			}
+		}));
+		this._commentReferenceListeners.set(widget, store);
+	}
+
+	private _ensureCommentModelListeners(browserModel: IBrowserViewModel): void {
+		if (this._commentModelListeners.has(browserModel)) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(browserModel.onDidRemoveElementComment(elementId => this._removeElementCommentReference(browserModel, elementId)));
+		store.add(browserModel.onDidNavigate(() => this._detachElementCommentReferences(browserModel)));
+		store.add(browserModel.onWillDispose(() => {
+			this._disposedCommentModels.add(browserModel);
+			this._detachElementCommentReferences(browserModel, false);
+		}));
+		this._commentModelListeners.set(browserModel, store);
+	}
+
+	private _syncElementCommentsForWidget(widget: IChatWidget): void {
+		const browserModels = new Set<IBrowserViewModel>();
+		for (const reference of this._commentReferences.values()) {
+			if (reference.widget === widget) {
+				browserModels.add(reference.browserModel);
+			}
+		}
+		for (const browserModel of browserModels) {
+			this._syncElementComments(browserModel);
+		}
+	}
+
+	private _syncElementComments(browserModel: IBrowserViewModel, pendingCommentIdsToDiscard?: readonly string[]): void {
+		const comments: { elementId: string; body: string }[] = [];
+		for (const [attachmentId, tracked] of this._commentReferences) {
+			if (tracked.browserModel !== browserModel) {
+				continue;
+			}
+			const inputModel = tracked.widget.inputEditor.getModel();
+			const dynamicVariableModel = tracked.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+			if (!inputModel || !dynamicVariableModel) {
+				continue;
+			}
+			const variable = dynamicVariableModel.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			if (!variable) {
+				this._deleteCommentAttachments(attachmentId, tracked);
+				continue;
+			}
+			const line = inputModel.getLineContent(variable.range.endLineNumber);
+			comments.push({
+				elementId: tracked.elementId,
+				body: line.slice(variable.range.endColumn - 1).trimStart()
+			});
+		}
+		void browserModel.setElementComments({ comments, pendingCommentIdsToDiscard });
+	}
+
+	private _removeElementCommentReference(browserModel: IBrowserViewModel, elementId: string): void {
+		for (const [attachmentId, tracked] of this._commentReferences) {
+			if (tracked.browserModel !== browserModel || tracked.elementId !== elementId) {
+				continue;
+			}
+			const dynamicVariableModel = tracked.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+			const variable = dynamicVariableModel?.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			const inputModel = tracked.widget.inputEditor.getModel();
+			if (variable && inputModel) {
+				const lineNumber = variable.range.startLineNumber;
+				const lineRange = lineNumber < inputModel.getLineCount()
+					? new Range(lineNumber, 1, lineNumber + 1, 1)
+					: lineNumber > 1
+						? new Range(lineNumber - 1, inputModel.getLineMaxColumn(lineNumber - 1), lineNumber, inputModel.getLineMaxColumn(lineNumber))
+						: inputModel.getFullModelRange();
+				tracked.widget.inputEditor.executeEdits('browserElementComment', [{
+					range: lineRange,
+					text: ''
+				}]);
+			}
+			this._deleteCommentAttachments(attachmentId, tracked);
+		}
+	}
+
+	private _detachElementCommentReferences(browserModel: IBrowserViewModel, syncComments = true): void {
+		this._commentSessionsWithComments.delete(browserModel);
+		const widgets = new Set<IChatWidget>();
+		for (const [attachmentId, reference] of this._commentReferences) {
+			if (reference.browserModel === browserModel) {
+				widgets.add(reference.widget);
+				this._commentReferences.delete(attachmentId);
+			}
+		}
+		for (const widget of widgets) {
+			this._disposeCommentReferenceListenerIfUnused(widget);
+		}
+		this._commentModelListeners.deleteAndDispose(browserModel);
+		if (syncComments) {
+			void browserModel.setElementComments({ comments: [] });
+		}
+	}
+
+	private _focusChatInputForComments(browserModel: IBrowserViewModel): void {
+		for (const reference of this._commentReferences.values()) {
+			if (reference.browserModel === browserModel) {
+				reference.widget.focusInput();
+				return;
+			}
+		}
+	}
+
+	private _deleteCommentAttachments(elementAttachmentId: string, tracked: { attachmentIds: readonly string[]; widget: IChatWidget; browserModel: IBrowserViewModel }): void {
+		this._commentReferences.delete(elementAttachmentId);
+		tracked.widget.attachmentModel.delete(...tracked.attachmentIds);
+		this._disposeCommentReferenceListenerIfUnused(tracked.widget);
+		this._disposeCommentModelListenerIfUnused(tracked.browserModel);
+	}
+
+	private _disposeCommentReferenceListenerIfUnused(widget: IChatWidget): void {
+		for (const reference of this._commentReferences.values()) {
+			if (reference.widget === widget) {
+				return;
+			}
+		}
+		this._commentReferenceListeners.deleteAndDispose(widget);
+	}
+
+	private _disposeCommentModelListenerIfUnused(browserModel: IBrowserViewModel): void {
+		for (const reference of this._commentReferences.values()) {
+			if (reference.browserModel === browserModel) {
+				return;
+			}
+		}
+		this._commentModelListeners.deleteAndDispose(browserModel);
 	}
 
 	// -- Console Logs ---------------------------------------------------
@@ -584,7 +864,7 @@ class AddElementToChatAction extends Action2 {
 			icon: Codicon.inspect,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
-			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
+			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Select),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '1_element',
@@ -594,18 +874,83 @@ class AddElementToChatAction extends Action2 {
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-			}, {
-				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape
+				args: { highlightFocusedElement: true },
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	run(accessor: ServicesAccessor, argument?: IBrowserElementSelectionOptions | BrowserEditor): void {
+		const browserEditor = argument instanceof BrowserEditor ? argument : accessor.get(IEditorService).activeEditorPane;
 		if (browserEditor instanceof BrowserEditor) {
 			browserEditor.ensureBrowserFocus();
-			void browserEditor.model?.toggleElementSelection(undefined);
+			const model = browserEditor.model;
+			if (model) {
+				const options = argument instanceof BrowserEditor ? undefined : argument;
+				const isActiveMode = model.elementSelectionState.active && model.elementSelectionState.options.mode !== BrowserElementSelectionMode.Comment;
+				void model.toggleElementSelection(!isActiveMode, { ...options, continuous: false, mode: BrowserElementSelectionMode.Select });
+			}
+		}
+	}
+}
+
+class AddElementCommentToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddElementCommentToChat;
+
+	constructor() {
+		super({
+			id: AddElementCommentToChatAction.ID,
+			title: localize2('browser.addElementCommentToChatAction', 'Comment on Elements'),
+			category: BrowserCategory,
+			icon: Codicon.comment,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Comment),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '1_element',
+				order: 2,
+				when: ChatContextKeys.enabled
+			},
+			keybinding: [{
+				weight: KeybindingWeight.WorkbenchContrib + 50,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
+				args: { continuous: true, mode: BrowserElementSelectionMode.Comment, highlightFocusedElement: true }
+			}],
+		});
+	}
+
+	run(accessor: ServicesAccessor, argument?: IBrowserElementSelectionOptions | BrowserEditor): void {
+		const browserEditor = argument instanceof BrowserEditor ? argument : accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.ensureBrowserFocus();
+			const options = argument instanceof BrowserEditor ? undefined : argument;
+			const model = browserEditor.model;
+			if (model) {
+				const isActiveMode = model.elementSelectionState.active && model.elementSelectionState.options.mode === BrowserElementSelectionMode.Comment;
+				void model.toggleElementSelection(!isActiveMode, { ...options, continuous: true, mode: BrowserElementSelectionMode.Comment });
+			}
+		}
+	}
+}
+
+class StopElementSelectionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.browser.stopElementSelection',
+			title: localize2('browser.stopElementSelectionAction', 'Stop Element Selection'),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, ContextKeyExpr.has(CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.key)),
+			keybinding: {
+				when: ContextKeyExpr.has(CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.key),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			void browserEditor.model?.toggleElementSelection(false);
 		}
 	}
 }
@@ -623,8 +968,8 @@ class AddConsoleLogsToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: '1_element',
-				order: 2,
+				group: '2_logs',
+				order: 1,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -650,7 +995,7 @@ class AddScreenshotToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: '2_screenshots',
+				group: '3_screenshots',
 				order: 1,
 				when: ChatContextKeys.enabled
 			}
@@ -678,7 +1023,7 @@ class AddAreaScreenshotToChatAction extends Action2 {
 			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: '2_screenshots',
+				group: '3_screenshots',
 				order: 2,
 				when: ChatContextKeys.enabled
 			}
@@ -706,7 +1051,7 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: '2_screenshots',
+				group: '3_screenshots',
 				order: 3,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
 			}
@@ -721,6 +1066,8 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 }
 
 registerAction2(AddElementToChatAction);
+registerAction2(AddElementCommentToChatAction);
+registerAction2(StopElementSelectionAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
 registerAction2(AddAreaScreenshotToChatAction);
@@ -735,7 +1082,10 @@ MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
 	group: BrowserActionGroup.Tools,
 	order: 1,
 	when: ChatContextKeys.enabled,
-	isSplitButton: true
+	isSplitButton: {
+		togglePrimaryAction: true,
+		primaryActionIds: [AddElementToChatAction.ID, AddElementCommentToChatAction.ID]
+	}
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({

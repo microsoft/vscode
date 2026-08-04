@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.59.0",
+  "version": "0.61.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.131.0",
+    "vscode": "^1.133.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -160,7 +160,7 @@
         "icon": "$(folder)",
         "userDescription": "%copilot.codebase.tool.description%",
         "modelDescription": "Run a natural language search for relevant code or documentation comments from the user's current workspace. Returns relevant code snippets from the user's current workspace if it is large, or the full contents of the workspace if it is small.",
-        "when": "!config.github.copilot.chat.semanticSearchTool.disabled",
+        "when": "config.github.copilot.chat.semanticSearchTool.mode != disabled",
         "tags": [
           "codesearch",
           "vscode_codesearch"
@@ -3418,7 +3418,7 @@
           },
           "github.copilot.chat.preferLongContext.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
           },
           "github.copilot.enable": {
@@ -4170,6 +4170,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.claudeSonnet5Prompt.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.claudeSonnet5Prompt.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55GetChangedFilesTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4215,10 +4224,20 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.semanticSearchTool.disabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.semanticSearchTool.disabled%",
+          "github.copilot.chat.semanticSearchTool.mode": {
+            "type": "string",
+            "default": "enabled",
+            "enum": [
+              "enabled",
+              "disabled",
+              "preferred"
+            ],
+            "markdownEnumDescriptions": [
+              "%github.copilot.config.semanticSearchTool.mode.enabled%",
+              "%github.copilot.config.semanticSearchTool.mode.disabled%",
+              "%github.copilot.config.semanticSearchTool.mode.preferred%"
+            ],
+            "markdownDescription": "%github.copilot.config.semanticSearchTool.mode%",
             "tags": [
               "experimental",
               "onExp"
@@ -5618,7 +5637,7 @@
         },
         {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
-          "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
+          "when": "chatSessionType == copilot-cloud-agent && chatSessionPullRequest != 'none' && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
         },
         {
@@ -6832,7 +6851,7 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && (!agentHostEnabled || (isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
         "supportsAutoModel": false,
@@ -7245,7 +7264,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
     "@github/copilot": "^1.0.73",
-    "@google/genai": "^1.22.0",
+    "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",

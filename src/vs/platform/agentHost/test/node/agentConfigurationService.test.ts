@@ -49,7 +49,7 @@ suite('AgentConfigurationService', () => {
 		};
 	}
 
-	function makeSummary(resource: string, workingDirectory?: string): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
 		return {
 			resource,
 			provider: 'copilot',
@@ -58,7 +58,7 @@ suite('AgentConfigurationService', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
-			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
 		};
 	}
 
@@ -156,7 +156,31 @@ suite('AgentConfigurationService', () => {
 		});
 	});
 
-	// ---- updateSessionConfig ----------------------------------------------
+	// ---- getEffectiveWorkingDirectories -----------------------------------
+
+	suite('getEffectiveWorkingDirectories', () => {
+
+		test('returns the full ordered session set when set', () => {
+			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
+			manager.createSession(makeSummary(uri, 'file:///work', 'file:///work-2'));
+			assert.deepStrictEqual(service.getEffectiveWorkingDirectories(uri), ['file:///work', 'file:///work-2']);
+		});
+
+		test('falls back to the parent session set for subagents', () => {
+			const parent = URI.from({ scheme: 'copilot', path: '/parent' }).toString();
+			manager.createSession(makeSummary(parent, 'file:///work/parent', 'file:///work/parent-2'));
+
+			const child = buildSubagentSessionUri(parent, 'tc-3');
+			manager.createSession(makeSummary(child));
+			assert.deepStrictEqual(service.getEffectiveWorkingDirectories(child), ['file:///work/parent', 'file:///work/parent-2']);
+		});
+
+		test('returns undefined when neither layer has a working directory', () => {
+			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
+			manager.createSession(makeSummary(uri));
+			assert.strictEqual(service.getEffectiveWorkingDirectories(uri), undefined);
+		});
+	});
 
 	suite('updateSessionConfig', () => {
 

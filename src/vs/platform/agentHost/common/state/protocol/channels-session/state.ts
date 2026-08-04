@@ -75,12 +75,13 @@ export interface SessionMetadata {
 	/**
 	 * The working directories the session's agent has tool access to, as
 	 * maintained by the `session/workingDirectorySet` /
-	 * `session/workingDirectoryRemoved` actions. Directories are **equal peers** —
-	 * the session has no primary. Individual chats MAY restrict to a subset via
-	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`} and
-	 * designate one of their own directories as primary (see
-	 * {@link ChatState.primaryWorkingDirectory}); a chat that sets no subset
-	 * operates against this full set.
+	 * `session/workingDirectoryRemoved` actions. Directories are equal peers
+	 * except when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
+	 * entry is then a fixed process root). Individual chats MAY restrict to a
+	 * subset via {@link ChatSummary.workingDirectories | their own
+	 * `workingDirectories`}; a chat that sets none operates against this full
+	 * set.
 	 */
 	workingDirectories?: URI[];
 	/**
@@ -171,9 +172,12 @@ export interface SessionState extends SessionMetadata {
 	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
 	 * identifier the client needs to respond. A client answers by dispatching the
 	 * ordinary `chat/*` action to that chat's channel — see
-	 * {@link SessionInputRequest} for the per-variant response path. A present,
-	 * non-empty list implies {@link SessionStatus.InputNeeded} on
-	 * {@link SessionSummary.status}.
+	 * {@link SessionInputRequest} for the per-variant response path. A list
+	 * holding any entry other than
+	 * {@link SessionInputRequestKind.ToolClientExecution} implies
+	 * {@link SessionStatus.InputNeeded} on {@link SessionSummary.status};
+	 * client-execution entries are work delegated to a client rather than a
+	 * prompt, so they leave the session's activity unchanged.
 	 *
 	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
 	 * chats raise requests and removes them with `session/inputNeededRemoved`

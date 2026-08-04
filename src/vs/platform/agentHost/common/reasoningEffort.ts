@@ -56,3 +56,20 @@ export function getReasoningEffortDescription(level: string): string | undefined
 		default: return undefined;
 	}
 }
+
+/**
+ * Resolve the default reasoning effort for a model so the picker never renders an
+ * `undefined` selection. Prefers the declared default, then `'high'` for Claude/Kimi K3
+ * and `'medium'` otherwise, then the first supported level.
+ */
+export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[] | undefined, declaredDefault?: string, modelId?: string): string | undefined {
+	if (!supportedEfforts?.length) {
+		return undefined;
+	}
+	if (declaredDefault && supportedEfforts.includes(declaredDefault)) {
+		return declaredDefault;
+	}
+	const lowerId = modelId?.toLowerCase() ?? '';
+	const preferred = lowerId.startsWith('claude') || lowerId.includes('kimi-k3') ? 'high' : 'medium';
+	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
+}

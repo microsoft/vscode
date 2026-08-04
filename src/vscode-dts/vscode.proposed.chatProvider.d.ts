@@ -24,6 +24,11 @@ declare module 'vscode' {
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;
 		};
+
+		/**
+		 * Whether encrypted thinking state should be included in the response.
+		 */
+		readonly includeEncryptedThinking?: boolean;
 	}
 
 	/**

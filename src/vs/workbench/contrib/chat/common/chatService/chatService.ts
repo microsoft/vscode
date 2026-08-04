@@ -160,12 +160,44 @@ export interface IChatUsagePromptTokenDetail {
 	percentageOfPrompt: number;
 }
 
+/**
+ * Whole-turn token consumption attributed to a single model. Unlike
+ * {@link IChatUsage.promptTokens}, which describes only the most recent model
+ * call, these are sums across every model call the response made — including
+ * calls made by subagents, which may run on a different model.
+ */
+export interface IChatUsageModelTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
+}
+
 export interface IChatUsage {
 	promptTokens: number;
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	/**
+	 * The Copilot credit cost of whatever this usage describes — a turn's own
+	 * cost on a response's usage, a sub-agent's component cost on a sub-agent's.
+	 * Scoped to its container, so summing it across responses is only ever a
+	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
+	 */
 	copilotCredits?: number;
+	/**
+	 * Whole-turn token consumption per model, when the provider reports it.
+	 * Only agent host sessions supply this today.
+	 */
+	modelTotals?: readonly IChatUsageModelTotal[];
+	/**
+	 * The whole session's Copilot credit cost as reported by the backend, rather
+	 * than summed from the individual turns. Unlike {@link copilotCredits} this
+	 * deliberately describes more than its container: it is authoritative when
+	 * present, and covers work billed outside any turn (e.g. a compaction that
+	 * ran between turns). Not every backend reports it.
+	 */
+	sessionCopilotCredits?: number;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers
@@ -257,6 +289,12 @@ export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
 	shimmer?: boolean;
+	/**
+	 * Stable identity for a progress message that is updated over time. When
+	 * set, a later message with the same id replaces this one instead of being
+	 * appended, so live progress doesn't stack up rows.
+	 */
+	id?: string;
 }
 
 export interface IChatSystemNotificationPart {
@@ -483,14 +521,18 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
-	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	/** True when accepted/answered outside the carousel UI, such as by voice or automatic reply. */
 	answeredExternally?: boolean;
+	/** True when Copilot supplied the answer through automatic reply. */
+	autoReply?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
 	/** Terminal ID when the carousel was triggered by a terminal needing input */
 	terminalId?: string;
+	/** Visual treatment for the answered state. */
+	answerPresentation?: 'conversation';
 	kind: 'questionCarousel';
 }
 
@@ -578,6 +620,14 @@ export interface IChatHookPart {
 	subAgentInvocationId?: string;
 }
 
+export type ChatVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export interface IChatVoiceProgressPart {
+	readonly kind: 'voiceProgress';
+	readonly id: ChatVoiceProgressStage;
+	readonly value: string;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {
@@ -631,6 +681,8 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
+	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
@@ -1083,6 +1135,7 @@ export interface IChatPullRequestContent {
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
 	isActive?: boolean;
+	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	agentName?: string;
 	prompt?: string;
@@ -1376,6 +1429,8 @@ export interface IChatPlanReview {
 	data?: IChatPlanReviewResult;
 	/** Whether the widget has been responded to. */
 	isUsed?: boolean;
+	/** Whether the backing plan file changed after this summary was generated. */
+	isOutdated?: boolean;
 	/** Source attribution. */
 	source?: ToolDataSource;
 }
@@ -1443,6 +1498,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatThinkingPart
+	| IChatVoiceProgressPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
@@ -1782,6 +1838,7 @@ export interface IRemotePendingRequest {
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
+	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
 	/**
 	 * The configuration (e.g. context size, thinking effort) for the selected

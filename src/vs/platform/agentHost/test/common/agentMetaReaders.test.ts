@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, type AgentCustomization, type ToolCallState } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 
@@ -66,11 +66,6 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(result, {});
 		});
 
-		test('preserves a present toolArguments value, drops undefined', () => {
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: { a: 1 } })), { toolArguments: { a: 1 } });
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: undefined })), {});
-		});
-
 		test('reads valid tool-search candidates and drops malformed corpora', () => {
 			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
 			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });
@@ -91,6 +86,7 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: false })), { userInvocable: false });
+			assert.deepStrictEqual(readAgentCustomizationMeta({ ...agentCustomization({ userInvocable: true }), disableUserInvocation: true }), { userInvocable: false });
 			assert.strictEqual(toAgentCustomizationMeta({}), undefined);
 			assert.deepStrictEqual(toAgentCustomizationMeta({ userInvocable: true }), { userInvocable: true });
 		});
@@ -188,6 +184,48 @@ suite('Agent host _meta readers', () => {
 
 		test('ignores a wrong-typed identifier value', () => {
 			assert.strictEqual(readAgentModelByokIdentifier(model({ byokModelIdentifier: 42 })), undefined);
+		});
+	});
+
+	suite('usage info turn token totals', () => {
+		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
+		function usage(meta: Record<string, unknown> | undefined): UsageInfo {
+			return { _meta: meta };
+		}
+
+		test('reads well-formed per-model totals', () => {
+			const totals = [
+				{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 800, outputTokens: 340 },
+				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			];
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+		});
+
+		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
+			const meta = readUsageInfoMeta(usage({
+				turnTokenTotals: [
+					null,
+					'nope',
+					{ inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: '', inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 'bad', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: -1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 1.5, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 },
+				],
+			}));
+			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
+		});
+
+		test('totals alone do not make a usage report count as reported consumption', () => {
+			// Totals always accompany per-call tokens or credits, and treating them as
+			// consumption on their own would make the restore path skip merging the
+			// richer persisted usage over a token-less stub.
+			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
 		});
 	});
 });

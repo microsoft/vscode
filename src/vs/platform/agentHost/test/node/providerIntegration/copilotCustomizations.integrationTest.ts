@@ -64,12 +64,22 @@ const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
  */
 const WATCH_MUTATION_RETRY_INTERVAL_MS = 2_000;
 
+interface IWaitForAssertOptions {
+	readonly timeoutMs?: number;
+	readonly pollIntervalMs?: number;
+	/** Run before each attempt, inside the same try/catch as the assertion. */
+	readonly beforeAttempt?: () => Promise<void> | void;
+}
+
 async function waitForAssert(
 	assertion: () => Promise<void> | void,
-	beforeAttempt?: () => Promise<void>,
-	timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
-	pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
+	options: IWaitForAssertOptions = {},
 ): Promise<void> {
+	const {
+		timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
+		pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
+		beforeAttempt,
+	} = options;
 	const deadline = Date.now() + timeoutMs;
 	let lastError: unknown;
 	while (Date.now() < deadline) {
@@ -106,12 +116,14 @@ async function waitForAssert(
  */
 async function applyAndWaitForAssert(mutate: () => Promise<void>, assertion: () => Promise<void> | void): Promise<void> {
 	let nextMutationAt = 0;
-	await waitForAssert(assertion, async () => {
-		if (Date.now() < nextMutationAt) {
-			return;
-		}
-		nextMutationAt = Date.now() + WATCH_MUTATION_RETRY_INTERVAL_MS;
-		await mutate();
+	await waitForAssert(assertion, {
+		beforeAttempt: async () => {
+			if (Date.now() < nextMutationAt) {
+				return;
+			}
+			nextMutationAt = Date.now() + WATCH_MUTATION_RETRY_INTERVAL_MS;
+			await mutate();
+		},
 	});
 }
 

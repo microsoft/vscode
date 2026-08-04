@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@github/copilot": "^1.0.73",
-    "@github/copilot-sdk": "^1.0.8",
+    "@github/copilot": "^1.0.77",
+    "@github/copilot-sdk": "^1.0.9-preview.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/mxc-sdk": "0.6.1",
@@ -42,7 +42,7 @@
     "kerberos": "2.1.1",
     "minimist": "^1.2.8",
     "node-addon-api": "^6.0.0",
-    "node-pty": "^1.2.0-beta.13",
+    "node-pty": "^1.2.0-beta.15",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
     "tas-client": "0.3.1",
@@ -52,7 +52,7 @@
     "ws": "^8.19.0",
     "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "overrides": {
     "node-gyp-build": "4.8.1",
@@ -64,7 +64,7 @@
   "allowScripts": {
     "kerberos@2.1.1": true,
     "koffi@3.1.2": false,
-    "node-pty@1.2.0-beta.13": true,
+    "node-pty@1.2.0-beta.15": true,
     "@parcel/watcher@2.5.6": true,
     "@vscode/deviceid@0.1.5": true,
     "@vscode/fs-copyfile@2.0.0": true,
