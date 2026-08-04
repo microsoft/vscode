@@ -337,6 +337,11 @@ export interface ISessionsManagementService {
 	readonly newSession: IObservable<ISession | undefined>;
 
 	/**
+	 * Observable for the automation dialog's in-progress session draft.
+	 */
+	readonly automationSession: IObservable<ISession | undefined>;
+
+	/**
 	 * Create a new session for the given folder.
 	 *
 	 * When `options.providerId` is omitted, iterates registered providers and

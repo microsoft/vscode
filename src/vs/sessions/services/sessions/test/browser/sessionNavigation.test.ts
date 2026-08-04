@@ -106,6 +106,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;

@@ -76,6 +76,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _newSession = observableValue<ISession | undefined>(this, undefined);
 	readonly newSession: IObservable<ISession | undefined> = this._newSession;
 
+	/** Tracks the automation dialog's in-progress session draft. */
+	private readonly _automationSession = observableValue<ISession | undefined>(this, undefined);
+	readonly automationSession: IObservable<ISession | undefined> = this._automationSession;
+
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 
