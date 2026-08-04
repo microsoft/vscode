@@ -179,8 +179,6 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Folders in this session workspace. */
 	readonly folders: ISessionFolder[];
-	/** Whether a new session can be created for this workspace. Absent means supported. */
-	readonly canCreateSession?: boolean;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -849,7 +847,6 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.label !== b.label
 		|| a.description !== b.description
 		|| a.group !== b.group
-		|| (a.canCreateSession ?? true) !== (b.canCreateSession ?? true)
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
