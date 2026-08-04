@@ -7,7 +7,7 @@ import type { McpSdkServerConfigWithInstance, OnElicitation, Options, Permission
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -35,12 +35,12 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
 import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
-import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
-import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
+import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
@@ -75,6 +75,16 @@ export interface IMaterializeContext {
 	 */
 	readonly workingDirectory?: URI;
 	/**
+	 * The full ordered working-directory set the host resolved for this session's
+	 * first send (index 0 = the resolved process root, e.g. a worktree; 1..N =
+	 * additional directories). When present it replaces both the primary
+	 * ({@link workingDirectory}) and the session's additional-directory tail.
+	 * Takes precedence over {@link workingDirectory}; the latter is kept for
+	 * single-root callers that only resolve the primary. Omitted when the host
+	 * did not resolve a set (folder / workspace-less single-root sessions).
+	 */
+	readonly workingDirectories?: readonly URI[];
+	/**
 	 * Agent host's server-tool host. When present, the session exposes the
 	 * agent host's server tools (feedback "comments" today, more in the future)
 	 * as an in-process MCP server and advertises them as server tools. Omitted
@@ -90,6 +100,16 @@ function resolveCurrentPermissionMode(
 	permissionModeFallback: ClaudePermissionMode,
 ): ClaudePermissionMode {
 	return readClaudePermissionMode(configurationService, resource) ?? inheritedPermissionMode ?? permissionModeFallback;
+}
+
+function sameWorkingDirectories(a: readonly URI[] | undefined, b: readonly URI[] | undefined): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+	if (a.length !== b.length) {
+		return false;
+	}
+	return a.every((directory, index) => isEqual(directory, b[index]));
 }
 
 /**
@@ -152,7 +172,26 @@ export class ClaudeAgentSession extends Disposable {
 		return this._workingDirectory ?? this.workspace;
 	}
 	private _workingDirectory: URI | undefined;
-	private readonly _customizationWatcher = this._register(new DisposableStore());
+
+	/**
+	 * The additional (non-primary) working directories this session's agent is
+	 * granted tool access to, in order (they follow index 0 = the primary
+	 * {@link workingDirectory}). A worktree remap only replaces the primary, so
+	 * this tail is stable from creation and is preserved across every SDK
+	 * (re)materialization. Empty for single-root sessions.
+	 */
+	private _additionalDirectories: readonly URI[];
+
+	/**
+	 * The full ordered working-directory set (index 0 = primary, 1..N =
+	 * {@link _additionalDirectories}). `undefined` only when the session has no
+	 * resolved primary yet (workspace-less, pre-materialize).
+	 */
+	get workingDirectories(): readonly URI[] | undefined {
+		const primary = this.workingDirectory;
+		return primary ? [primary, ...this._additionalDirectories] : undefined;
+	}
+	private readonly _customizationWatcher = this._register(new MutableDisposable<DisposableStore>());
 
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
@@ -172,6 +211,7 @@ export class ClaudeAgentSession extends Disposable {
 		pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
 		permissionModeFallback: ClaudePermissionMode,
 		instantiationService: IInstantiationService,
+		additionalDirectories: readonly URI[] = [],
 	): ClaudeAgentSession {
 		return instantiationService.createInstance(
 			ClaudeAgentSession,
@@ -187,6 +227,7 @@ export class ClaudeAgentSession extends Disposable {
 			pendingClientToolCalls,
 			new SessionClientToolsDiff(),
 			permissionModeFallback,
+			additionalDirectories,
 		);
 	}
 
@@ -335,9 +376,11 @@ export class ClaudeAgentSession extends Disposable {
 		private readonly _pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
 		toolDiff: SessionClientToolsDiff,
 		private readonly _permissionModeFallback: ClaudePermissionMode,
+		additionalDirectories: readonly URI[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -351,21 +394,23 @@ export class ClaudeAgentSession extends Disposable {
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
+		this._additionalDirectories = additionalDirectories;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
-		this._watchCustomizations(this.workspace);
+		this._watchCustomizations(this.workingDirectories);
 	}
 
-	private _watchCustomizations(directory: URI | undefined): void {
-		this._customizationWatcher.clear();
-		const watcher = this._customizationWatcher.add(new ClaudeCustomizationWatcher(
-			directory,
+	private _watchCustomizations(directories: readonly URI[] | undefined): void {
+		const store = new DisposableStore();
+		const watcher = store.add(new ClaudeCustomizationWatcher(
+			directories,
 			this._environmentService.userHome,
 			this._fileService,
 			this._logService,
 		));
-		this._customizationWatcher.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
+		store.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
+		this._customizationWatcher.value = store;
 	}
 
 	/**
@@ -434,10 +479,22 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		// Adopt the host-resolved working directory (e.g. an isolated worktree)
 		// before it's read below; falls back to the session's `workspace` when the
-		// host didn't resolve a dedicated directory.
-		if (ctx.workingDirectory && !isEqual(ctx.workingDirectory, this.workingDirectory)) {
-			this._workingDirectory = ctx.workingDirectory;
-			this._watchCustomizations(ctx.workingDirectory);
+		// host didn't resolve a dedicated directory. The plural
+		// `workingDirectories` (index 0 = resolved primary, 1..N = additional
+		// roots) takes precedence and also refreshes the additional-directory
+		// tail; the singular `workingDirectory` stays supported for single-root
+		// callers that only resolve the primary.
+		const previousWorkingDirectories = this.workingDirectories;
+		const resolvedPrimary = ctx.workingDirectories?.[0] ?? ctx.workingDirectory;
+		if (resolvedPrimary && !isEqual(resolvedPrimary, this.workingDirectory)) {
+			this._workingDirectory = resolvedPrimary;
+		}
+		if (ctx.workingDirectories && ctx.workingDirectories.length > 0) {
+			this._additionalDirectories = ctx.workingDirectories.slice(1);
+		}
+		const currentWorkingDirectories = this.workingDirectories;
+		if (!sameWorkingDirectories(previousWorkingDirectories, currentWorkingDirectories)) {
+			this._watchCustomizations(currentWorkingDirectories);
 		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
@@ -447,11 +504,14 @@ export class ClaudeAgentSession extends Disposable {
 		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.resource, this._inheritedPermissionMode, this._permissionModeFallback);
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
 
 		const options = await buildOptions(
 			{
 				sessionId: this.sessionId,
 				workingDirectory: this.workingDirectory,
+				additionalDirectories: this._additionalDirectories,
 				model: this._provisionalModel,
 				abortController: this.abortController,
 				permissionMode,
@@ -463,6 +523,8 @@ export class ClaudeAgentSession extends Disposable {
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 				agent: agentName,
+				telemetry,
+				traceContext,
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -535,6 +597,7 @@ export class ClaudeAgentSession extends Disposable {
 					{
 						sessionId: this.sessionId,
 						workingDirectory: this.workingDirectory!,
+						additionalDirectories: this._additionalDirectories,
 						model: this._provisionalModel,
 						abortController: rebuildAbort,
 						permissionMode: liveMode,
@@ -546,6 +609,8 @@ export class ClaudeAgentSession extends Disposable {
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 						agent: rebuildAgentName,
+						telemetry,
+						traceContext,
 					},
 					ctx.transport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -1003,12 +1068,11 @@ export class ClaudeAgentSession extends Disposable {
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
-		const [discovered, rules, mcpServers, hooks, nativePlugins] = await Promise.all([
-			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
+		const [multiRoot, rules, mcpServers, hooks] = await Promise.all([
+			discoverClaudeMultiRootCustomizations(this.workingDirectories, userHome, this._fileService, this._logService),
 			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
 			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
 			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
-			scanClaudeNativePlugins(this.workingDirectory, userHome, this._fileService, this._logService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to
@@ -1028,7 +1092,7 @@ export class ClaudeAgentSession extends Disposable {
 		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
 		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
 		// both agents and skills, so the SDK-vs-curated decision lives in one place.
-		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, nativePlugins, this.workingDirectory, userHome, sdk);
+		const discoveredCustomizations = buildDiscoveredCustomizations([...multiRoot.discovered, ...rules], mcpServers, hooks, multiRoot.nativePlugins, multiRoot.workingDirectories, userHome, sdk);
 
 		// Final projection: the client-pushed tier first, then the discovered
 		// tier, with session MCP enablement applied to both.

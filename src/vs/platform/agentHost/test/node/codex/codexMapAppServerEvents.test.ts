@@ -6,9 +6,17 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
-import { ActionType } from '../../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
+import { chatReducer } from '../../../common/state/protocol/reducers.js';
+import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../../../node/activeClientState.js';
+
+/** Extracts the content of a Markdown response part emitted by a mapper action. */
+function markdownPartContent(action: SessionAction | ChatAction | undefined): string | undefined {
+	return action?.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+		? action.part.content
+		: undefined;
+}
 
 suite('codexMapAppServerEvents', () => {
 
@@ -211,6 +219,69 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		});
 		assert.strictEqual(state.itemToPartId.size, 0);
+	});
+
+	test('second agentMessage in a turn is seeded with a leading block separator', () => {
+		const state = createCodexSessionMapState();
+		const first = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const second = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'm2', text: '## Conclusion', phase: null, memoryCitation: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			first: markdownPartContent(first[0]),
+			second: markdownPartContent(second[0]),
+		}, {
+			first: 'Consolidating the recommendation and tradeoffs.',
+			second: '\n\n## Conclusion',
+		});
+	});
+
+	test('agentMessage block separator counter resets per turn', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: 'a', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: 'b', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		// A new turn resets the counter, so its first agentMessage is unseeded.
+		resetCodexTurnMapState(state);
+		const firstOfNextTurn = mapItemStarted(state, { item: { type: 'agentMessage', id: 'm3', text: 'c', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_b', startedAtMs: 0 });
+		assert.strictEqual(markdownPartContent(firstOfNextTurn[0]), 'c');
+	});
+
+	test('adjacent agentMessages keep a Markdown heading on its own line after coalescing', () => {
+		const state = createCodexSessionMapState();
+		let chat: ChatState = {
+			resource: 'ahp-chat://test',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			origin: { kind: ChatOriginKind.User },
+			turns: [],
+			activeTurn: undefined,
+		};
+		const apply = (actions: readonly (SessionAction | ChatAction)[]) => {
+			for (const action of actions) {
+				chat = chatReducer(chat, action as ChatAction);
+			}
+		};
+		apply(mapTurnStarted(state, {
+			threadId: 'thr_1',
+			turn: { id: 'turn_a', items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
+		}, 'prompt'));
+		// Preamble message, then the final-answer message; two distinct items.
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm1', delta: 'Consolidating the recommendation and tradeoffs.' }));
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm2', delta: '## Conclusion\n\nDone.' }));
+
+		// Adjacent markdown parts are coalesced by plain concatenation, so the
+		// joined text must keep `## Conclusion` at the start of a line.
+		const joined = (chat.activeTurn?.responseParts ?? [])
+			.map(part => part.kind === ResponsePartKind.Markdown ? part.content : '')
+			.join('');
+		assert.strictEqual(joined, 'Consolidating the recommendation and tradeoffs.\n\n## Conclusion\n\nDone.');
 	});
 
 	test('item/started for commandExecution emits ChatToolCallStart + Delta + Ready and registers tool-call entry', () => {

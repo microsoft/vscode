@@ -1,0 +1,24 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word DEFAULTSECRET. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word DEFAULTSECRET.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "fresh".
+    response:
+      content: fresh
+      stopReason: end_turn

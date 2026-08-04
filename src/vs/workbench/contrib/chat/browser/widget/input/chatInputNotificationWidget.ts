@@ -12,6 +12,7 @@ import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -19,7 +20,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -63,9 +64,11 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
+	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
+	readonly onDidChangeVisibility?: (visible: boolean) => void;
 }
 
 /**
@@ -80,6 +83,8 @@ export class ChatInputNotificationWidget extends Disposable {
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 	private _modelTargetChatSessionType: string | undefined;
+	private _sessionResource: URI | undefined;
+	private _visible = false;
 
 	constructor(
 		private readonly _delegate: IChatInputNotificationDelegate | undefined,
@@ -97,6 +102,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
+			this._sessionResource = this._delegate?.sessionResource?.read(reader);
 			this._render();
 		}));
 	}
@@ -106,6 +112,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		this._setVisible(!!notification);
 		// Announce what this chat input actually renders, so session-scoped
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
@@ -120,8 +127,17 @@ export class ChatInputNotificationWidget extends Disposable {
 		this._logShownTelemetry(notification);
 	}
 
+	private _setVisible(visible: boolean): void {
+		if (this._visible === visible) {
+			return;
+		}
+
+		this._visible = visible;
+		this._delegate?.onDidChangeVisibility?.(visible);
+	}
+
 	private _matchesSession(notification: IChatInputNotification): boolean {
-		return isChatInputNotificationApplicableToSessionType(notification, this._modelTargetChatSessionType);
+		return isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {
@@ -210,7 +226,13 @@ export class ChatInputNotificationWidget extends Disposable {
 
 			if (notification.description) {
 				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
-				descriptionElement.textContent = notification.description;
+				if (isMarkdownString(notification.description)) {
+					const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.description));
+					rendered.element.classList.add('chat-input-notification-description-markdown');
+					descriptionElement.appendChild(rendered.element);
+				} else {
+					descriptionElement.textContent = notification.description;
+				}
 			}
 
 			if (actions.length > 0) {

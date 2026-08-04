@@ -8,6 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -38,6 +39,7 @@ interface IMockSendMessageCall {
 	readonly attachments?: readonly MessageAttachment[];
 	readonly chat?: URI;
 	readonly senderClientId?: string;
+	readonly clientType?: AgentHostClientType;
 }
 
 /**
@@ -59,7 +61,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
-	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
+	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -85,6 +87,8 @@ export class MockAgent implements IAgent {
 	 * subagent turns via {@link buildSubagentTurnsFromHistory}.
 	 */
 	sessionMessages: IHistoryRecord[] = [];
+	/** Usage stamped onto every reconstructed turn (e.g. an Auto-model stub). */
+	turnUsageOverride: UsageInfo | undefined = undefined;
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -130,7 +134,7 @@ export class MockAgent implements IAgent {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
+		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -141,8 +145,15 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
-		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const call = {
+			session,
+			prompt,
+			attachments,
+			chat,
+			...(senderClientId ? { senderClientId } : {}),
+			...(clientType !== AgentHostClientType.Unknown ? { clientType } : {}),
+		};
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
@@ -153,8 +164,8 @@ export class MockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
-		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
+		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages });
 	}
 
 	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
@@ -167,7 +178,11 @@ export class MockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
 		}
-		return buildTurnsFromHistory(this.sessionMessages);
+		const turns = buildTurnsFromHistory(this.sessionMessages);
+		if (this.turnUsageOverride) {
+			return turns.map(turn => ({ ...turn, usage: this.turnUsageOverride }));
+		}
+		return turns;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -249,9 +264,11 @@ export class MockAgent implements IAgent {
 			const { session } = this._resolveChatTarget(chatUri);
 			return this.releaseSession(session);
 		},
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, context?: URI | IAgentChatContext): Promise<void> => {
-			const { session, chat } = this._resolveChatTarget(chatUri, context);
-			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
+			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
+			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
+			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
 		abort: (chat: URI): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat);
@@ -265,8 +282,8 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.changeAgent(session, agent, chat);
 		},
-		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(context ? resolveAgentChatContext(context, chat).session : chat);
+		getMessages: (chat: URI, _context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
 		},
 	};
 
@@ -829,11 +846,11 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(session.toString()) ? session : URI.parse(buildDefaultChatUri(session)), id: steeringMessage.id });
+				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(chat.toString()) ? chat : URI.parse(buildDefaultChatUri(chat)), id: steeringMessage.id });
 			});
 		}
 	}
@@ -935,8 +952,9 @@ export class ScriptedMockAgent implements IAgent {
 			return Promise.resolve();
 		},
 		releaseChat: async (): Promise<void> => { },
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, context?: URI | IAgentChatContext): Promise<void> => {
-			const { session, chat } = this._resolveChatTarget(chatUri, context);
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
+			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
+			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},
 		abort: (chat: URI): Promise<void> => {

@@ -112,10 +112,13 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 **`AgentService` (`node/agentService.ts`):**
 - Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without a `createSession` call in this process lifetime).
+- Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each entry through `IAgent.getSessionMetadata`, and applies the existing DB/state overlays.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes and releases every catalog chat in stable order: peers first, default last.
 - Fans session config changes out to concrete chats for chat-addressed providers.
 - Supplies the owning session's resolved context (`IAgentCreateChatOptions.inheritedContext` = `{ workingDirectory, config }`) when creating an additional chat, so the agent stands up the new chat's backing without reading it back from the parent session's own state (`_buildInheritedChatContext`). The working directory is the AH-resolved worktree/folder; model/agent continue through the client + draft path.
+- Records side-chat provenance in the catalog but leaves hidden context injection and visible-history filtering to the provider. The source is a stable turn id; active-turn partial response and selected text are immutable creation-time snapshots.
+- Passes the full ordered `workingDirectories` set and the initiating `AgentHostClientType` on each send while still supplying transient chat context. Providers launch in index 0, retain additional roots, and attribute usage/telemetry to the correct client surface.
 - Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
@@ -160,7 +163,17 @@ After Wave C2, the orchestrator persists its own peer-chat catalog (`PEER_CHATS_
 The `_sessionToProvider` map is populated only by `createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
 
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.**
-Some agents (e.g. Claude) back a peer chat with a fresh top-level SDK session minted in the same global store their own `IAgent.listSessions` enumerates, so the backing would leak into the session list as a phantom session. To suppress it, `IAgentCreateChatResult` carries an optional **first-class, non-opaque** `backingSession: URI` (distinct from the opaque `providerData` of I1 — the orchestrator reads it but still never parses `providerData`). On `createChat`, the orchestrator writes a persisted `peerChatBacking` marker (value = the owning peer chat's URI) into that backing session's own database (`_markPeerChatBacking`), and `AgentService.listSessions` drops any enumerated session whose database carries that marker (batched into the existing metadata-overlay read, mirroring the subagent filter). Because the marker is persisted, the suppression survives a host restart with no re-stamping. Agents whose peer chats do not have a separately-enumerable backing session (e.g. Copilot, whose peer SDK sessions live in the chat's data dir and are dropped by its own `listSessions`) may leave `backingSession` unset; Copilot sets it anyway for uniformity, which is harmless.
+Some agents (e.g. Claude) back a peer chat with a fresh top-level SDK session minted in the same global store their own `IAgent.listSessions` enumerates, so the backing would leak into the session list as a phantom session. To suppress it, `IAgentCreateChatResult` carries an optional **first-class, non-opaque** `backingSession: URI` (distinct from the opaque `providerData` of I1 — the orchestrator reads it but still never parses `providerData`). On `createChat`, the orchestrator writes a persisted `peerChatBacking` marker into that backing session's database. Peer backings never enter `AgentSessionRegistry`, and the one-time legacy backfill plus the list metadata overlay both consult the marker as defense in depth.
+
+---
+
+## 3a. Session Registry and Backfill
+
+`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime } }` in the reserved `agent-host-registry:/sessions` database. Writes are serialized; registration is idempotent and preserves the first observed start time.
+
+`AgentService` registers on successful create and restore, unregisters on definitive delete, and enumerates the registry rather than unioning provider SDK catalogs. Per-session metadata still comes from the owning provider and then flows through the normal persisted/live overlays. Idle provisional sessions stay hidden until materialization or turn activity.
+
+For profiles created before the registry existed, a persisted `backfilled` marker gates one legacy provider-enumeration sweep. The sweep merges discovered sessions without overwriting concurrent creates and excludes subagents plus `peerChatBacking` records.
 
 ---
 
@@ -173,6 +186,10 @@ interface AgentCapabilities {
     // presence (`{}`) signals multi-chat support; absence = unsupported
     multipleChats?: {
         fork?: boolean;               // can fork a chat from a turn
+        sideChat?: boolean;           // can branch hidden context without copied visible history
+    };
+    multipleWorkingDirectories?: {
+        immutablePrimary?: boolean;   // index 0 remains the fixed process root
     };
 }
 ```

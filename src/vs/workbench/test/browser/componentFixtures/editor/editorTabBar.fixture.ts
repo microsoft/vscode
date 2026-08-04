@@ -297,10 +297,12 @@ interface IRenderOptions {
 		readonly filePath?: 'on' | 'off' | 'last';
 		readonly icons?: boolean;
 	};
+	readonly breadcrumbsRightInset?: number;
 	readonly width?: number;
 	/** Whether this group is the active group. Inactive groups exercise the
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
 	readonly active?: boolean;
+	readonly dropTargetBetweenTabs?: boolean;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -469,12 +471,17 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		});
+		}, options.breadcrumbsRightInset);
 	};
 	groupView.relayoutFn = layout;
 
 	titleControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	titleControl.setActive(isGroupActive);
+	if (options.dropTargetBetweenTabs) {
+		const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
+		tabs[1]?.classList.add('drop-target-left');
+		tabs[2]?.classList.add('drop-target-right');
+	}
 	layout();
 }
 
@@ -499,6 +506,7 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		// breadcrumbs
 		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
 		BreadcrumbsIconsOff: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { icons: false } }) }),
+		BreadcrumbsWithRightInset: defineComponentFixture({ render: render(modernUI, { breadcrumbs: {}, breadcrumbsRightInset: 300 }) }),
 
 		// tabSizing
 		TabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),
@@ -569,6 +577,9 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// Very long labels: tab-label truncation / ellipsis with shrinking tabs.
 		LongLabelsShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }) }),
+
+		// Drag-and-drop insertion indicator between two tabs.
+		DropTargetBetweenTabs: defineComponentFixture({ render: render(modernUI, { dropTargetBetweenTabs: true }), additionalThemes }),
 
 		// --- Notable setting combinations ---
 

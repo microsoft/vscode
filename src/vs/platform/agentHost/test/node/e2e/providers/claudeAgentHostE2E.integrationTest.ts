@@ -61,6 +61,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	shellToolName: 'Bash',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
+	streamingFileCreateToolName: 'Write',
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Worktree isolation is now shared across agents via the host-owned
@@ -71,6 +72,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// isolation via the resolved working directory alone.
 	supportsHostTerminalTool: false,
 	supportsSubagents: true,
+	supportsSideChats: true,
 	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
 	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
 	subagentReplayUnstableOnWindows: true,
@@ -80,9 +82,10 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsPlanMode: false,
 	supportsMultipleChats: true,
 	supportsChatFork: true,
-	// The Claude SDK currently receives the AHP turn id as upToMessageId and
-	// rejects it as invalid when the fork is exercised against a real transcript.
+	// Claude cannot resolve a client-assigned AHP turn id to the SDK message
+	// anchor required to create the provider fork. See KNOWN_ISSUES.md.
 	supportsChatForkE2E: false,
+	supportsFileTools: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

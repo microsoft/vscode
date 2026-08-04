@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
+import { deepStrictEqual, ok } from 'assert';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { getTerminalSandboxReadAllowListForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxReadAllowList.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
@@ -215,6 +218,45 @@ suite('TreeSitterCommandParser', () => {
 		});
 	});
 
+	suite('extractAutoApprovalSubCommands', () => {
+		test('detects bash shell state mutations', async () => {
+			const commandLines = [
+				'FOO=bar && git status',
+				'export FOO=bar && git status',
+				'declare -x FOO=bar && git status',
+				'typeset FOO=bar && git status',
+				'readonly FOO=bar && git status',
+				'local FOO=bar && git status',
+			];
+			deepStrictEqual(await Promise.all(commandLines.map(commandLine => parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, commandLine))), commandLines.map(() => ({
+				subCommands: ['git status'],
+				hasUnanalyzableSyntax: true,
+			})));
+		});
+
+		test('preserves bash command assignments and arguments', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, 'FOO=bar git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, 'make install PREFIX=/usr/local'),
+			]), [
+				{ subCommands: ['FOO=bar git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['make install PREFIX=/usr/local'], hasUnanalyzableSyntax: false },
+			]);
+		});
+
+		test('detects PowerShell assignments and preserves equals arguments', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '$env:FOO="bar"; git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '[System.Environment]::SetEnvironmentVariable("FOO", "bar"); git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git log --format="%h|%s" -5'),
+			]), [
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
+			]);
+		});
+	});
+
 	suite('extractCommands', () => {
 		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedCommands: { keyword: string; args: string[] }[]) {
 			const result = await parser.extractCommands(languageId, commandLine);
@@ -253,6 +295,36 @@ suite('TreeSitterCommandParser', () => {
 				{ keyword: 'git', args: ['commit', '-m', 'test'] },
 			]
 		));
+
+		test('applies the Git runtime policy for common command formats', async () => {
+			for (const commandLine of [
+				'git status',
+				'/usr/bin/git status',
+				'HOME=/tmp git status',
+				'env git status',
+				'env -u HOME git status',
+				'env --unset HOME git status',
+				'env --unset=HOME git status',
+				'env HOME=/tmp git status',
+				'env -i -- git status',
+				'/usr/bin/env -u HOME /usr/bin/git status',
+			]) {
+				const commands = await parser.extractCommands(TreeSitterCommandParserLanguage.Bash, commandLine);
+				deepStrictEqual(commands, [{ keyword: 'git', args: ['status'] }], commandLine);
+				for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+					const allowRead = getTerminalSandboxReadAllowListForCommands(os, commands.map(command => command.keyword), commands);
+					ok(allowRead.includes('~/.gitconfig'), `${commandLine} should apply the Git read policy on ${os}`);
+					ok(allowRead.includes('~/.gnupg'), `${commandLine} should apply the GnuPG read policy on ${os}`);
+					deepStrictEqual(getTerminalSandboxRuntimeConfigurationForCommands(os, commands), {
+						network: { allowAllUnixSockets: true },
+						filesystem: {
+							allowRead: ['~/.gnupg'],
+							allowWrite: ['~/.gnupg'],
+						},
+					}, `${commandLine} on ${os}`);
+				}
+			}
+		});
 	});
 
 	suite('extractPwshDoubleAmpersandChainOperators', () => {

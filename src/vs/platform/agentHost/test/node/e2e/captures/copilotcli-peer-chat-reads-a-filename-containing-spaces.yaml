@@ -23,6 +23,7 @@ exchanges:
           content: Read the file at ${workdir}/peer file.txt and reply with its exact contents only.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: view
               input:
