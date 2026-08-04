@@ -195,7 +195,7 @@ export class ChatInputNotificationWidget extends Disposable {
 		// Dismiss button (in header row, pushed to the right)
 		if (notification.dismissible) {
 			const dismissButton = dom.append(headerRow, $('.chat-input-notification-dismiss'));
-			dismissButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
+			dismissButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.closeCompact)));
 			dismissButton.tabIndex = 0;
 			dismissButton.role = 'button';
 			dismissButton.ariaLabel = localize('dismissNotification', "Dismiss notification");

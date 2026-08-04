@@ -205,6 +205,11 @@
 	margin-left: auto;
 }
 
+.chat-input-notification .chat-input-notification-dismiss .codicon,
+.chat-input-notification .chat-input-notification-mute .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .chat-input-notification .chat-input-notification-dismiss:hover,
 .chat-input-notification .chat-input-notification-mute:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
