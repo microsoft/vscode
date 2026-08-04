@@ -280,9 +280,9 @@ class AutomationCardsSection extends Disposable {
 
 		const createButton = this.disposables.add(new Button(this.emptyContainer, {
 			...defaultButtonStyles,
-			title: localize('createAutomation', "Create automation"),
+			title: localize('createAutomation', "Create Automation"),
 		}));
-		createButton.label = localize('createAutomation', "Create automation");
+		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
 		this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
