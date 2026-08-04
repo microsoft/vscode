@@ -36,7 +36,12 @@ export interface IWebviewManagerService {
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
+	// Find in frame
 	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
-
 	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
+
+	// Clipboard
+	triggerCopy(windowId: WebviewWindowId, frameName: string): Promise<void>;
+	triggerPaste(windowId: WebviewWindowId, frameName: string): Promise<void>;
+	triggerCut(windowId: WebviewWindowId, frameName: string): Promise<void>;
 }

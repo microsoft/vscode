@@ -86,6 +86,23 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
+	public async triggerCopy(windowId: WebviewWindowId, frameName: string): Promise<void> {
+		this.getWebContentsForFrame(windowId, frameName)?.copy();
+	}
+
+	public async triggerPaste(windowId: WebviewWindowId, frameName: string): Promise<void> {
+		this.getWebContentsForFrame(windowId, frameName)?.paste();
+	}
+
+	public async triggerCut(windowId: WebviewWindowId, frameName: string): Promise<void> {
+		this.getWebContentsForFrame(windowId, frameName)?.cut();
+	}
+
+	private getWebContentsForFrame(windowId: WebviewWindowId, frameName: string) {
+		const frame = this.getFrameByName(windowId, frameName);
+		return webContents.fromFrame(frame);
+	}
+
 	private getFrameByName(windowId: WebviewWindowId, frameName: string): WebFrameMain {
 		const window = this.windowsMainService.getWindowById(windowId.windowId);
 		if (!window?.win) {
