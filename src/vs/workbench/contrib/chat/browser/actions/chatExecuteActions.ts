@@ -24,13 +24,13 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
@@ -252,30 +252,6 @@ export interface IToggleChatModeArgs {
 	sessionResource: URI | undefined;
 }
 
-type ChatModeChangeClassification = {
-	owner: 'digitarald';
-	comment: 'Reporting when agent is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent name' };
-	mode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent name' };
-	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
-	storage?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode (builtin, local, user, extension)' };
-	extensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension ID if the target mode is from an extension' };
-	toolsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom tools in the target mode'; 'isMeasurement': true };
-	handoffsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of handoffs in the target mode'; 'isMeasurement': true };
-	isClaudeAgent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the target mode is a Claude agent file from .claude/agents/' };
-};
-
-type ChatModeChangeEvent = {
-	fromMode: string;
-	mode: string;
-	requestCount: number;
-	storage?: string;
-	extensionId?: string;
-	toolsCount?: number;
-	handoffsCount?: number;
-	isClaudeAgent?: boolean;
-};
-
 class ToggleChatModeAction extends Action2 {
 
 	static readonly ID = ToggleAgentModeActionId;
@@ -325,25 +301,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		// Send telemetry for mode change
-		const storage = switchToMode.source?.storage ?? 'builtin';
-		const extensionId = switchToMode.source?.storage === 'extension' ? switchToMode.source.extensionId.value : undefined;
-		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
-		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
-
-		const modeUri = switchToMode.uri?.get();
-		const isClaudeAgent = modeUri ? isInClaudeAgentsFolder(modeUri) : undefined;
-
-		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: getModeNameForTelemetry(currentMode),
-			mode: getModeNameForTelemetry(switchToMode),
-			requestCount: requestCount,
-			storage,
-			extensionId,
-			toolsCount,
-			handoffsCount,
-			isClaudeAgent
-		});
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount);
 
 		widget.input.setChatMode(switchToMode.id, true, true);
 
