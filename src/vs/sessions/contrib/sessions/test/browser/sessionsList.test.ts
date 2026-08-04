@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -149,12 +149,12 @@ suite('Sessions - SessionsList Helpers', () => {
 				sessions: group.sessions.map(session => session.sessionId),
 				canCreateSession: group.canCreateSession,
 			})), [{
-				id: `workspace:multiRoot:${extUriBiasedIgnorePathCase.getComparisonKey(firstWorkspace)}`,
+				id: `workspace:multiRoot:${extUri.getComparisonKey(firstWorkspace)}`,
 				label: 'Shared Name',
 				sessions: ['1', '2'],
 				canCreateSession: false,
 			}, {
-				id: `workspace:multiRoot:${extUriBiasedIgnorePathCase.getComparisonKey(secondWorkspace)}`,
+				id: `workspace:multiRoot:${extUri.getComparisonKey(secondWorkspace)}`,
 				label: 'Shared Name',
 				sessions: ['3'],
 				canCreateSession: false,
@@ -168,7 +168,7 @@ suite('Sessions - SessionsList Helpers', () => {
 			});
 
 			assert.deepStrictEqual(getSessionWorkspaceSectionDescriptor(upperCaseSuffix), {
-				id: `workspace:multiRoot:${extUriBiasedIgnorePathCase.getComparisonKey(URI.file('/work/Fallback.CODE-WORKSPACE'))}`,
+				id: `workspace:multiRoot:${extUri.getComparisonKey(URI.file('/work/Fallback.CODE-WORKSPACE'))}`,
 				label: 'Fallback',
 				canCreateSession: false,
 			});
@@ -190,8 +190,8 @@ suite('Sessions - SessionsList Helpers', () => {
 			});
 		});
 
-		test('multi-root workspace identity follows filesystem-aware path casing', () => {
-			const groups = groupByWorkspace([
+		test('multi-root workspace identity follows the registered filesystem casing rules', () => {
+			const sessions = [
 				createSession('1', {
 					workspaceLabel: 'repo-a',
 					multiRoot: { workspaceFile: URI.parse('vscode-remote://ssh-remote+host/Work/Demo.code-workspace'), name: 'Demo' },
@@ -200,9 +200,17 @@ suite('Sessions - SessionsList Helpers', () => {
 					workspaceLabel: 'repo-b',
 					multiRoot: { workspaceFile: URI.parse('vscode-remote://ssh-remote+host/work/demo.code-workspace'), name: 'Demo' },
 				}),
-			]);
+			];
+			const caseSensitive = groupByWorkspace(sessions, resource => resource.toString());
+			const caseInsensitive = groupByWorkspace(sessions, resource => resource.toString().toLowerCase());
 
-			assert.deepStrictEqual(groups.map(group => group.sessions.map(session => session.sessionId)), [['1', '2']]);
+			assert.deepStrictEqual({
+				caseSensitive: caseSensitive.map(group => group.sessions.map(session => session.sessionId)),
+				caseInsensitive: caseInsensitive.map(group => group.sessions.map(session => session.sessionId)),
+			}, {
+				caseSensitive: [['1'], ['2']],
+				caseInsensitive: [['1', '2']],
+			});
 		});
 	});
 
