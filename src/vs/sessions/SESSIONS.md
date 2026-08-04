@@ -318,12 +318,16 @@ below.
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. The changes count, diff, and preview
-list are scoped to files under the session workspace folder or its working
-directory/worktree; edits outside those roots are treated as external files and
-do not inflate the pill or show as preview candidates. The preview pill itself
-stays a compact resource label (file icon + name); preview wording is kept to
-tooltips and actions, not rendered as visible pill text.
+confirmation does not end the active turn. Each `lastTurnChanges` entry carries
+`isOutsideWorkspace`, derived from the owning session's workspace folder,
+working directory, and worktree roots. `AgentHostSessionAdapter` caches that
+classification in its generic session-output cache under
+`isOutsideWorkspace:${uri.toString()}` and clears the cache when its workspace changes.
+The changes count and diff include only workspace entries, while the markdown
+preview pill includes only external entries. The completed-response pill receives
+the same per-session classification from its response-file provider. The preview
+pill itself stays a compact resource label (file icon + name); preview wording is
+kept to tooltips and actions, not rendered as visible pill text.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"

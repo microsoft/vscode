@@ -46,7 +46,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
@@ -3470,6 +3470,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('equivalent chat catalogs do not notify chat observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-stable');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-stable').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				session.chats.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
+		test('equivalent peer chat values do not notify observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-values');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-values').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), activity: 'Working' },
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+			const peer = session.chats.get()[1];
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				peer.updatedAt.read(reader);
+				peer.description.read(reader);
+				peer.lastTurnEnd.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');
@@ -4611,6 +4660,74 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	// ---- gitHubInfo / PR icon -------
+
+	test('equivalent session descriptions do not notify observers', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'description-stable', { title: 'Session' });
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'description-stable') as AgentHostSessionAdapter;
+		assert.ok(session);
+		session.status.set(SessionStatus.InProgress, undefined);
+		session.setActivity('Working');
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			session.description.read(reader);
+			updateCount++;
+		}));
+
+		session.status.set(SessionStatus.NeedsInput, undefined);
+
+		assert.strictEqual(updateCount, 1);
+	});
+
+	test('equivalent GitHub info does not notify observers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const makePullRequest = (): IGitHubPullRequest => ({
+			number: 42,
+			title: 'PR',
+			body: '',
+			state: GitHubPullRequestState.Closed,
+			author: { login: 'author', avatarUrl: '' },
+			headRef: 'feature',
+			headSha: 'head',
+			baseRef: 'main',
+			isDraft: false,
+			createdAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			mergedAt: undefined,
+			mergeable: false,
+			mergeableState: 'blocked',
+		});
+		const pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', makePullRequest());
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		agentHost.addSession(createSession('github-stable', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('github-stable', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'PR Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			gitHubInfo.read(reader);
+			updateCount++;
+		}));
+
+		pullRequest.set(makePullRequest(), undefined);
+
+		assert.strictEqual(updateCount, 1);
+	}));
 
 	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A GitHub service that resolves a PR number asynchronously (mirroring the
