@@ -62,6 +62,13 @@
 	color: var(--vscode-notificationLink-foreground);
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message code {
+	font-family: var(--monaco-monospace-font);
+	background-color: var(--vscode-textCodeBlock-background);
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
 	outline-width: 1px;
 	outline-style: solid;
