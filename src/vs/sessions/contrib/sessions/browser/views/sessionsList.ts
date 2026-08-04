@@ -3509,9 +3509,11 @@ export function getSessionWorkspaceSectionDescriptor(session: ISession, getWorks
 	if (multiRootWorkspace) {
 		const name = multiRootWorkspace.name?.trim();
 		const fileName = basename(multiRootWorkspace.workspaceFile);
+		const workspaceName = name || fileName.replace(/\.code-workspace$/i, '');
+		const workspaceLabel = localize('multiRootWorkspaceSectionLabel', "Workspace");
 		return {
 			id: `workspace:multiRoot:${getWorkspaceComparisonKey(multiRootWorkspace.workspaceFile)}`,
-			label: name || fileName.replace(/\.code-workspace$/i, ''),
+			label: `${workspaceName} (${workspaceLabel})`,
 			canCreateSession: false,
 		};
 	}

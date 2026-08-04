@@ -150,12 +150,12 @@ suite('Sessions - SessionsList Helpers', () => {
 				canCreateSession: group.canCreateSession,
 			})), [{
 				id: `workspace:multiRoot:${extUri.getComparisonKey(firstWorkspace)}`,
-				label: 'Shared Name',
+				label: 'Shared Name (Workspace)',
 				sessions: ['1', '2'],
 				canCreateSession: false,
 			}, {
 				id: `workspace:multiRoot:${extUri.getComparisonKey(secondWorkspace)}`,
-				label: 'Shared Name',
+				label: 'Shared Name (Workspace)',
 				sessions: ['3'],
 				canCreateSession: false,
 			}]);
@@ -169,7 +169,7 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			assert.deepStrictEqual(getSessionWorkspaceSectionDescriptor(upperCaseSuffix), {
 				id: `workspace:multiRoot:${extUri.getComparisonKey(URI.file('/work/Fallback.CODE-WORKSPACE'))}`,
-				label: 'Fallback',
+				label: 'Fallback (Workspace)',
 				canCreateSession: false,
 			});
 		});
