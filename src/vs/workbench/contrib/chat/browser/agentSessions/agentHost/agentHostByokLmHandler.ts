@@ -19,6 +19,7 @@ import {
 	IByokLmReasoningItem,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
@@ -51,6 +52,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -62,6 +64,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	}
 
 	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return { output: [], error: 'BYOK models are disabled by policy.' };
+		}
+
 		const modelIdentifier = this._resolveModelIdentifier(request.vendor, request.modelId);
 		if (!modelIdentifier) {
 			return { output: [], error: `No BYOK model found for ${request.vendor}/${request.modelId}` };
@@ -134,6 +140,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	}
 
 	async listModels(_token: CancellationToken): Promise<IByokLmModelInfo[]> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return [];
+		}
+
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);

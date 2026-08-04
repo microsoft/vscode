@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -54,6 +55,10 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	}
 }
 
+class TestChatEntitlementService extends mock<IChatEntitlementService>() {
+	override clientByokEnabled = true;
+}
+
 function byokModel(vendor: string, id: string, capabilities?: ILanguageModelChatMetadata['capabilities']): ILanguageModelChatMetadata {
 	return {
 		extension: new ExtensionIdentifier('test.byok'),
@@ -85,9 +90,36 @@ suite('AgentHostByokLmHandler', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService()));
+	function createHandler(service: ILanguageModelsService, entitlementService = new TestChatEntitlementService()): AgentHostByokLmHandler {
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), entitlementService));
 	}
+
+	test('does not expose or invoke BYOK models when disabled by policy', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => responseOf([]),
+		);
+		const entitlementService = new TestChatEntitlementService();
+		entitlementService.clientByokEnabled = false;
+		const handler = createHandler(service, entitlementService);
+
+		const models = await handler.listModels(CancellationToken.None);
+		const result = await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			models,
+			result,
+			requestSent: service.captured !== undefined,
+		}, {
+			models: [],
+			result: { output: [], error: 'BYOK models are disabled by policy.' },
+			requestSent: false,
+		});
+	});
 
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(
