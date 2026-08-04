@@ -636,7 +636,8 @@
 	margin-bottom: 4px;
 }
 
-.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown > p {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown > p,
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown > ul {
 	margin: 4px 0;
 }
 
