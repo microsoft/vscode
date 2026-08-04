@@ -3544,6 +3544,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('equivalent chat catalogs do not notify chat observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-stable');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-stable').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				session.chats.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');

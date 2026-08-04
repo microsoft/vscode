@@ -805,7 +805,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		};
 		this._defaultChat = mainChat;
 		this._mainChatObs = observableValue<IChat>(this, mainChat);
-		this._chatsObs = observableValue<readonly IChat[]>(this, [mainChat]);
+		this._chatsObs = observableValueOpts<readonly IChat[]>({ owner: this, equalsFn: arrayEquals }, [mainChat]);
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
 
