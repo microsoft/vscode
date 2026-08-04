@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IAgentModelInfo } from '../../common/agentService.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
@@ -77,4 +78,51 @@ export function parseClaudeModelSelection(selection: ModelSelection): { readonly
  */
 export function claudeTransportForProvider(provider: string): ClaudeTransportMode {
 	return provider === CLAUDE_PROVIDER_ANTHROPIC ? 'native' : 'proxy';
+}
+
+/**
+ * Decides the transport a single session should run on. This is the per-session
+ * counterpart to the host-global {@link resolveClaudeTransportMode}: when the
+ * per-session-provider feature is off, or the session has no explicit model yet,
+ * the session inherits the host default (`defaultMode`) so behavior is identical
+ * to today; when the feature is on and a model is selected, its provider decides
+ * (via {@link claudeTransportForProvider}), letting two concurrent sessions run
+ * on different transports.
+ */
+export function resolveClaudeSessionTransport(inputs: {
+	readonly perSessionProviderEnabled: boolean;
+	readonly model: ModelSelection | undefined;
+	readonly defaultMode: ClaudeTransportMode;
+}): ClaudeTransportMode {
+	const { perSessionProviderEnabled, model, defaultMode } = inputs;
+	if (!perSessionProviderEnabled || !model) {
+		return defaultMode;
+	}
+	return claudeTransportForProvider(parseClaudeModelSelection(model).provider);
+}
+
+/**
+ * Merges the two provider catalogs the Claude host fetches — the Copilot-CAPI
+ * (`proxy`) list and the native Anthropic (`native`) list — into the single flat
+ * catalog the picker renders. Each model's id is rewritten to a
+ * provider-qualified {@link toClaudeModelSelectionId} so selecting a row carries
+ * the transport with it, and so the same model offered by both providers yields
+ * two distinct, separately selectable rows rather than colliding.
+ *
+ * Proxy models come first to preserve the picker's `models[0]`-is-default
+ * convention for the common (Copilot) case. Every other field is passed through
+ * untouched. Either list may be empty — one source failing to fetch contributes
+ * nothing but must never blank the other — so merging an empty side just yields
+ * the other side's qualified models.
+ */
+export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], native: readonly IAgentModelInfo[]): IAgentModelInfo[] {
+	return [
+		...withQualifiedProvider(proxy, CLAUDE_PROVIDER_COPILOT),
+		...withQualifiedProvider(native, CLAUDE_PROVIDER_ANTHROPIC),
+	];
+}
+
+/** Re-id each model with its provider-qualified selection id, leaving all other fields intact. */
+function withQualifiedProvider(models: readonly IAgentModelInfo[], provider: string): IAgentModelInfo[] {
+	return models.map(model => ({ ...model, id: toClaudeModelSelectionId(provider, model.id) }));
 }

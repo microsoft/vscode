@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { claudeTransportForProvider, CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT, parseClaudeModelSelection, toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
+import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agentService.js';
+import { claudeTransportForProvider, CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 
 suite('claudeModelSelection', () => {
 
@@ -50,5 +51,76 @@ suite('claudeModelSelection', () => {
 			],
 			['native', 'proxy', 'proxy'],
 		);
+	});
+
+	suite('mergeClaudeModelCatalogs', () => {
+
+		const model = (id: string, name: string, supportsVision = false): IAgentModelInfo =>
+			({ provider: CLAUDE_AGENT_PROVIDER_ID, id, name, supportsVision });
+
+		test('lists proxy models first, qualifies each id by its provider, preserves every other field', () => {
+			const merged = mergeClaudeModelCatalogs(
+				[model('claude-opus-4-8', 'Claude Opus 4.8', true)],
+				[model('claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5')],
+			);
+			assert.deepStrictEqual(merged, [
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=copilot:claude-opus-4-8', name: 'Claude Opus 4.8', supportsVision: true },
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=anthropic:claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', supportsVision: false },
+			]);
+		});
+
+		test('one empty source does not blank the other (a single failed fetch keeps the other provider)', () => {
+			assert.deepStrictEqual(
+				[
+					mergeClaudeModelCatalogs([model('claude-opus-4-8', 'Opus')], []).map(m => m.id),
+					mergeClaudeModelCatalogs([], [model('claude-opus-4-8', 'Opus')]).map(m => m.id),
+				],
+				[
+					['@provider=copilot:claude-opus-4-8'],
+					['@provider=anthropic:claude-opus-4-8'],
+				],
+			);
+		});
+
+		test('the same model offered by both providers becomes two distinct, non-colliding rows', () => {
+			assert.deepStrictEqual(
+				mergeClaudeModelCatalogs([model('claude-opus-4-8', 'Opus')], [model('claude-opus-4-8', 'Opus')]).map(m => m.id),
+				['@provider=copilot:claude-opus-4-8', '@provider=anthropic:claude-opus-4-8'],
+			);
+		});
+	});
+
+	suite('resolveClaudeSessionTransport', () => {
+
+		test('the flag off always yields the host default, regardless of the selected model provider', () => {
+			assert.deepStrictEqual(
+				[
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: false, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-opus-4-8') }, defaultMode: 'proxy' }),
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: false, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4-8') }, defaultMode: 'native' }),
+				],
+				['proxy', 'native'],
+			);
+		});
+
+		test('the flag on with no explicit model falls back to the host default (preserving today\'s default)', () => {
+			assert.deepStrictEqual(
+				[
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: undefined, defaultMode: 'proxy' }),
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: undefined, defaultMode: 'native' }),
+				],
+				['proxy', 'native'],
+			);
+		});
+
+		test('the flag on derives the transport from the selected model\'s provider, overriding the default', () => {
+			assert.deepStrictEqual(
+				[
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-opus-4-8') }, defaultMode: 'proxy' }),
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4-8') }, defaultMode: 'native' }),
+					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: 'claude-opus-4-8' }, defaultMode: 'native' }),
+				],
+				['native', 'proxy', 'proxy'],
+			);
+		});
 	});
 });
