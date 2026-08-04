@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Always show the header divider for the automations view (overrides the
- * scroll-driven behavior from customViewGridPart.css).
- */
-.custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-band {
-	border-bottom-color: color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
-}
-
 .monaco-workbench .automations-cards-widget {
 	position: relative;
 	height: 100%;
