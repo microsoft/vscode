@@ -314,14 +314,16 @@ visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
-the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
-when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. The changes count, diff, and preview
-list are scoped to files under the session workspace folder or its working
-directory/worktree; edits outside those roots are treated as external files and
-do not inflate the pill or show as preview candidates. The preview pill itself
-stays a compact resource label (file icon + name); preview wording is kept to
-tooltips and actions, not rendered as visible pill text.
+the viewed chat's last-turn change streams while the turn streams. They remain
+visible when the chat transitions from `InProgress` to `NeedsInput`, since tool
+or input confirmation does not end the active turn. The changes count and multi-
+diff stay scoped to files under the session workspace folder or its working
+directory/worktree (`lastTurnChanges`); edits outside those roots do not inflate
+that pill. Preview pills prefer `lastTurnPreviewChanges` when present, so
+out-of-workspace markdown such as session-state `plan.md` can still appear as
+preview candidates without affecting the workspace-scoped count. The preview
+pill itself stays a compact resource label (file icon + name); preview wording
+is kept to tooltips and actions, not rendered as visible pill text.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"

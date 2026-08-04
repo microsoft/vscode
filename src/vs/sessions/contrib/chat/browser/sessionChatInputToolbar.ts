@@ -26,7 +26,7 @@ import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.
 import './media/sessionChatInputToolbar.css';
 
 /** The per-turn data both pills reflect. */
-interface ITurnData {
+export interface ITurnData {
 	readonly stats: IDiffStats;
 	/** Previewable files changed in the turn, primary (first) first. */
 	readonly previewFiles: readonly IPreviewFile[];
@@ -35,20 +35,10 @@ interface ITurnData {
 const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] };
 
 /**
- * Compute the current turn's diff stats and previewable files from the chat's
- * last-turn changes. Diff stats come from {@link IChat.lastTurnChanges}
- * (workspace/worktree scoped). Previewable files prefer
- * {@link IChat.lastTurnPreviewChanges} when present so out-of-workspace
- * markdown such as session-state `plan.md` still gets a preview pill, then
- * fall back to the scoped stream. Files are classified as created vs. edited
- * with the same rules as the Changes view (an addition has no original; a
- * deletion has no modified resource). Created files are listed before edited
- * ones so the primary (first) file is the first created one, falling back to
- * the first edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes
- * no last-turn changes (e.g. before its first turn, or a provider that can't
- * determine them).
+ * Diff stats from {@link IChat.lastTurnChanges}; preview files from
+ * {@link IChat.lastTurnPreviewChanges} when present, else the scoped stream.
  */
-function computeTurnData(chat: IChat, reader: IReader): ITurnData {
+export function computeTurnData(chat: IChat, reader: IReader): ITurnData {
 	const changes = chat.lastTurnChanges?.read(reader) ?? [];
 	const previewChanges = chat.lastTurnPreviewChanges?.read(reader) ?? changes;
 
