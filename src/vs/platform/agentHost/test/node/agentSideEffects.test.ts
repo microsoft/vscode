@@ -1867,6 +1867,10 @@ suite('AgentSideEffects', () => {
 					result: { success: true, pastTenseMessage: 'Read file' },
 				},
 			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-2', duration: 1000 },
+			});
 
 			assert.deepStrictEqual(
 				telemetryService.events.filter(event => event.eventName === 'languageModelToolInvoked').map(event => event.eventName),

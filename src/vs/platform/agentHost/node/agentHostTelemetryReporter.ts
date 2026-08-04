@@ -143,6 +143,7 @@ export interface IAgentHostTurnCompletedReport {
 	result: AgentHostTurnResult;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
 	failure: IAgentHostTurnFailure | undefined;
 }
@@ -150,10 +151,14 @@ export interface IAgentHostTurnCompletedReport {
 export interface IAgentHostToolInvokedReport {
 	provider: string;
 	session: string;
+	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
+	resultSizeInCharacters: number;
+	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 }
 
 export interface IAgentHostAskQuestionsToolInvokedEvent {
@@ -435,6 +440,16 @@ export interface IAgentHostStalledToolCallCompletedReport {
 	result: ToolInvokedResult;
 	totalTimeMs: number;
 	timeAfterStallMs: number;
+}
+
+function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): string | TelemetryTrustedValue<string> | undefined {
+	if (model === undefined) {
+		return undefined;
+	}
+	if (modelTelemetryKind === 'trusted') {
+		return new TelemetryTrustedValue(model);
+	}
+	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }
 
 export class AgentHostTelemetryReporter {
@@ -763,11 +778,7 @@ export class AgentHostTelemetryReporter {
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		const model = report.model === undefined
-			? undefined
-			: report.modelTelemetryKind === 'trusted'
-				? new TelemetryTrustedValue(report.model)
-				: report.modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
+		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -776,7 +787,7 @@ export class AgentHostTelemetryReporter {
 			totalTime: report.totalTime,
 			result: report.result,
 			model,
-			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
+			modelSelectionKind: report.modelSelectionKind,
 			permissionLevel: report.permissionLevel,
 			errorType: report.failure?.error.errorType,
 			failureStage: report.failure?.stage,
@@ -809,6 +820,9 @@ export class AgentHostTelemetryReporter {
 			toolSourceKind: report.toolSourceKind,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+			resultSizeInCharacters: report.resultSizeInCharacters,
+			turnId: report.turnId,
+			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 		});
 	}
 
