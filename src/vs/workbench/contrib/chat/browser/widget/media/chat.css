@@ -4602,6 +4602,183 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-scrollbar-prompt-markers {
+	overflow: visible;
+	/* Scrollbar .visible layer uses z-index 11; keep markers above it so marker clicks are not swallowed by the scrollbar. */
+	/* The container itself is non-interactive (pointer-events: none is set inline by the controller); only the child marker elements receive pointer events. */
+	isolation: isolate;
+	z-index: 12;
+}
+
+.chat-scrollbar-prompt-marker-preview {
+	max-inline-size: 280px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: #1e1e1e;
+	background-color: var(--vscode-editor-background, var(--vscode-sideBar-background, #1e1e1e));
+	background-image: none;
+	color: var(--vscode-editorHoverWidget-foreground);
+	box-shadow: var(--vscode-widget-shadow);
+	transform: translateY(-50%) translateX(var(--vscode-spacing-size80));
+	z-index: 13;
+}
+
+.chat-scrollbar-prompt-marker-preview.chat-scrollbar-prompt-marker-preview-visible {
+	transform: translateY(-50%) translateX(0);
+}
+
+.chat-scrollbar-prompt-marker-preview-type {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size80);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.chat-scrollbar-prompt-marker-preview-swatch {
+	inline-size: var(--vscode-spacing-size80);
+	block-size: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-scrollbarSlider-background);
+	flex: 0 0 auto;
+}
+
+.chat-scrollbar-prompt-marker-preview-text {
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.chat-scrollbar-prompt-marker-preview-time {
+	margin-top: var(--vscode-spacing-size80);
+	font-size: 11px;
+	opacity: 0.8;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
+	position: absolute;
+	box-sizing: border-box;
+	inline-size: var(--vscode-spacing-size60);
+	block-size: calc(var(--vscode-spacing-size120) + var(--vscode-spacing-size20));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: transparent;
+	opacity: 1;
+	pointer-events: auto;
+	transition: none;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::after {
+	content: '';
+	position: absolute;
+	inset-inline-end: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	inline-size: calc(
+		var(--chat-scrollbar-prompt-marker-resting-width, 100%)
+		+ ((3 - var(--chat-scrollbar-prompt-marker-hover-distance, 3)) / 3)
+		* (var(--chat-scrollbar-prompt-marker-magnified-width, var(--chat-scrollbar-prompt-marker-resting-width, 100%)) - var(--chat-scrollbar-prompt-marker-resting-width, 100%))
+		+ var(--vscode-spacing-size20)
+	);
+	block-size: calc(var(--vscode-spacing-size40) + var(--vscode-spacing-size20));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+	z-index: 0;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::before {
+	content: '';
+	position: absolute;
+	inset-inline-end: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	inline-size: calc(
+		var(--chat-scrollbar-prompt-marker-resting-width, 100%)
+		+ ((3 - var(--chat-scrollbar-prompt-marker-hover-distance, 3)) / 3)
+		* (var(--chat-scrollbar-prompt-marker-magnified-width, var(--chat-scrollbar-prompt-marker-resting-width, 100%)) - var(--chat-scrollbar-prompt-marker-resting-width, 100%))
+	);
+	block-size: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-scrollbarSlider-background);
+	z-index: 1;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::before {
+	transition: inline-size 0.2s cubic-bezier(0.4, 0, 0.2, 1), block-size 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.monaco-workbench.monaco-enable-motion .chat-scrollbar-prompt-marker-preview {
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.monaco-reduce-motion .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::before,
+.monaco-reduce-motion .chat-scrollbar-prompt-marker-preview {
+	transition: none;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.in-viewport::before,
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.active::before {
+	block-size: 3px;
+}
+
+.chat-scrollbar-prompt-markers.chat-scrollbar-prompt-markers-hover > .chat-scrollbar-prompt-marker::before {
+	block-size: var(--vscode-spacing-size40);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.focused {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-contrastBorder));
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt::before {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt.in-viewport::before,
+.chat-scrollbar-prompt-markers.chat-scrollbar-prompt-markers-hover > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt.in-viewport::before,
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-prompt.active::before {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.hc-black .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker,
+.hc-light .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
+	background-color: transparent;
+	box-sizing: border-box;
+	outline-offset: -1px;
+	outline-color: transparent;
+	outline-style: solid;
+	outline-width: var(--vscode-strokeThickness);
+
+	/* Keep a visible HC edge around the hovered/clickable hitbox. */
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::before,
+.hc-light .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::before {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	box-sizing: border-box;
+}
+
+.hc-black .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::after,
+.hc-light .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker::after {
+	background-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-scrollbar-prompt-marker-preview,
+.hc-light .chat-scrollbar-prompt-marker-preview {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-scrollbar-prompt-marker-preview-swatch,
+.hc-light .chat-scrollbar-prompt-marker-preview-swatch {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	box-sizing: border-box;
+}
+
 /* Pending request styles */
 .interactive-item-container.pending-request {
 	opacity: 0.7;

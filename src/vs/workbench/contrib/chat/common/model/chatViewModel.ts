@@ -16,7 +16,7 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
 
@@ -124,6 +124,7 @@ export interface IChatRequestViewModel {
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
+	readonly editedFileEvents?: readonly IChatAgentEditedFileEvent[];
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
@@ -533,6 +534,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestTimestamp() {
 		return this._model.requestTimestamp;
+	}
+
+	get editedFileEvents() {
+		return this._model.editedFileEvents;
 	}
 
 	get pendingKind() {

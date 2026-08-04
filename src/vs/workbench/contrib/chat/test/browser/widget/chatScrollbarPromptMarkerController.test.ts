@@ -1,0 +1,1595 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration, ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatScrollbarPromptMarkerController, IChatScrollbarPromptMarkerHost } from '../../../browser/widget/chatScrollbarPromptMarkerController.js';
+
+/**
+ * A self-contained fake host that mirrors the subset of ChatListWidget methods
+ * used by ChatScrollbarPromptMarkerController. This allows the controller to be
+ * tested in isolation without instantiating the full workbench.
+ */
+class FakeHost extends mock<IChatScrollbarPromptMarkerHost>() implements IChatScrollbarPromptMarkerHost {
+	override readonly renderHeight: number = 0;
+	readonly scrollHeight: number = 0;
+	private readonly _items: (IChatRequestViewModel | IChatResponseViewModel)[] = [];
+	private _focus: (IChatRequestViewModel | IChatResponseViewModel)[] = [];
+	private _layoutInfo: { parent: HTMLElement; insertBefore: HTMLElement } | undefined;
+	private readonly _viewportElements: Set<IChatRequestViewModel | IChatResponseViewModel>;
+	private readonly _visiblePromptRowId: string | undefined;
+
+	constructor(opts: {
+		renderHeight: number;
+		scrollHeight: number;
+		items?: (IChatRequestViewModel | IChatResponseViewModel)[];
+		heights?: Map<string, number>;
+		tops?: Map<string, number>;
+		focus?: (IChatRequestViewModel | IChatResponseViewModel)[];
+		viewportElements?: Set<IChatRequestViewModel | IChatResponseViewModel>;
+		visiblePromptRowId?: string;
+		layoutInfo?: { parent: HTMLElement; insertBefore: HTMLElement };
+	}) {
+		super();
+		this.renderHeight = opts.renderHeight;
+		this.scrollHeight = opts.scrollHeight;
+		this._items = opts.items ?? [];
+		this._focus = opts.focus ?? [];
+		this._viewportElements = opts.viewportElements ?? new Set();
+		this._visiblePromptRowId = opts.visiblePromptRowId;
+		this._layoutInfo = opts.layoutInfo;
+	}
+
+	override getOverviewRulerLayoutInfo() { return this._layoutInfo; }
+	override getItems() { return this._items; }
+	override getVisiblePromptRowId() { return this._visiblePromptRowId; }
+	override hasElement(element: IChatRequestViewModel | IChatResponseViewModel) { return this._items.includes(element); }
+	override isElementInViewport(element: IChatRequestViewModel | IChatResponseViewModel) { return this._viewportElements.has(element); }
+	override getFocus() { return this._focus; }
+	override reveal(element: IChatRequestViewModel | IChatResponseViewModel, relativeTop?: number) { void element; void relativeTop; }
+	override focusItem(item: IChatRequestViewModel | IChatResponseViewModel) { void item; }
+}
+
+/**
+ * Creates a minimal request view model for controller tests.
+ */
+function makeRequest(id: string): IChatRequestViewModel {
+	return {
+		id,
+		sessionResource: undefined as never,
+		dataId: id,
+		username: 'User',
+		message: undefined as never,
+		messageText: id,
+		attempt: 0,
+		variables: [],
+		currentRenderedHeight: undefined,
+		isComplete: true,
+		isCompleteAddedRequest: false,
+		isTerminalCommand: false,
+		agentOrSlashCommandDetected: false,
+		shouldBeRemovedOnSend: undefined as never,
+		shouldBeBlocked: undefined as never,
+		timestamp: 0,
+		requestTimestamp: undefined,
+		editedFileEvents: undefined,
+		isSystemInitiated: undefined,
+		slashCommand: undefined,
+	} as IChatRequestViewModel;
+}
+
+/**
+ * Creates a minimal response view model for controller tests.
+ */
+function makeResponse(requestId: string, parts: unknown[] = []): IChatResponseViewModel {
+	return {
+		id: `${requestId}-response`,
+		sessionResource: undefined as never,
+		model: { entireResponse: { value: parts } } as never,
+		dataId: `${requestId}-response`,
+		session: undefined as never,
+		username: 'Assistant',
+		agentOrSlashCommandDetected: false,
+		response: undefined as never,
+		usedContext: undefined,
+		contentReferences: [],
+		codeCitations: [],
+		progressMessages: [],
+		isComplete: true,
+		isCanceled: false,
+		isStale: false,
+		vote: undefined,
+		requestId,
+		replyFollowups: undefined,
+		errorDetails: undefined,
+		timestamp: 0,
+		result: undefined,
+		contentUpdateTimings: undefined,
+		confirmationAdjustedTimestamp: undefined as never,
+		usageObs: undefined as never,
+		completionTokenCountObs: undefined as never,
+		isCompleteAddedRequest: false,
+		isTerminalCommand: false,
+		currentRenderedHeight: undefined,
+		setVote: () => { },
+		setEditApplied: () => { },
+		vulnerabilitiesListExpanded: false,
+		shouldBeRemovedOnSend: undefined as never,
+		shouldBeBlocked: undefined as never,
+	} as IChatResponseViewModel;
+}
+
+/**
+ * Creates a configuration service pre-configured with the given click behavior.
+ */
+function makeConfigService(behavior: ChatScrollbarPromptMarkerClickBehavior): TestConfigurationService {
+	return new TestConfigurationService({
+		'chat.scrollbarPromptMarkers.clickBehavior': behavior,
+	});
+}
+
+/**
+ * Creates a layout info object with a parent element and an insertBefore element
+ * that has a fixed width for scrollbar width calculation.
+ */
+function makeLayoutInfo(width = 14): { parent: HTMLElement; insertBefore: HTMLElement } {
+	const parent = document.createElement('div');
+	const insertBefore = document.createElement('div');
+	parent.appendChild(insertBefore);
+	// Mock getBoundingClientRect to return the desired width
+	insertBefore.getBoundingClientRect = () => ({
+		width, height: 0, x: 0, y: 0,
+		left: 0, top: 0, right: width, bottom: 0,
+		toJSON: () => ({}),
+	});
+	return { parent, insertBefore };
+}
+
+suite('ChatScrollbarPromptMarkerController', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Helper to create a controller with the given host and behavior
+	function createController(host: IChatScrollbarPromptMarkerHost, behavior: ChatScrollbarPromptMarkerClickBehavior = ChatScrollbarPromptMarkerClickBehavior.Reveal): ChatScrollbarPromptMarkerController {
+		return disposables.add(new ChatScrollbarPromptMarkerController(
+			host,
+			makeConfigService(behavior),
+		));
+	}
+
+	async function flushAnimationFrames(): Promise<void> {
+		const targetWindow = dom.getWindow(document.body);
+		await new Promise<void>(resolve => {
+			targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve()));
+		});
+	}
+
+	function formatExpectedPreviewTimestamp(timestamp: number): string {
+		const date = new Date(timestamp);
+		const includeYear = date.getFullYear() !== new Date().getFullYear();
+		return safeIntl.DateTimeFormat(undefined, includeYear ? {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+		} : {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+		}).value.format(date);
+	}
+
+	function getMarkerMidpointY(controller: ChatScrollbarPromptMarkerController, markerId: string): number {
+		const marker = controller['container'].querySelector(`[data-marker-id="${markerId}"]`) as HTMLElement;
+		const top = parseFloat(marker.style.top);
+		const height = parseFloat(marker.style.height);
+		return top + (height / 2);
+	}
+
+	suite('layout', () => {
+		test('places the container inside the overview ruler parent and sizes it to renderHeight x scrollbarWidth', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.layout();
+
+			assert.strictEqual(controller['container'].parentElement, layoutInfo.parent);
+			assert.strictEqual(controller['container'].style.height, '200px');
+			assert.strictEqual(controller['container'].style.width, 'calc((var(--vscode-spacing-size160) * 2) + var(--vscode-spacing-size80))');
+			assert.strictEqual(controller['container'].style.insetInlineEnd, '14px');
+		});
+
+		test('re-attaches parent listeners when the overview ruler parent changes', () => {
+			const layoutInfo1 = makeLayoutInfo(14);
+			const layoutInfo2 = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo: layoutInfo1 });
+			const controller = createController(host);
+
+			controller.layout();
+			const listenersAfterFirst = controller['parentPointerDownListener'].value ? 1 : 0;
+
+			// Change to a new parent
+			(host as unknown as { _layoutInfo: unknown })._layoutInfo = layoutInfo2;
+			controller.layout();
+			const listenersAfterSecond = controller['parentPointerDownListener'].value ? 1 : 0;
+
+			assert.strictEqual(listenersAfterFirst, 1);
+			assert.strictEqual(listenersAfterSecond, 1);
+		});
+
+		test('does not re-attach listeners when the parent stays the same', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.layout();
+			const firstListener = controller['parentPointerDownListener'].value;
+
+			controller.layout();
+			const secondListener = controller['parentPointerDownListener'].value;
+
+			// Same listener object — not re-created
+			assert.strictEqual(firstListener, secondListener);
+		});
+
+		test('is a no-op when getOverviewRulerLayoutInfo returns undefined', () => {
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo: undefined });
+			const controller = createController(host);
+
+			controller.layout();
+
+			assert.strictEqual(controller['container'].parentElement, null);
+		});
+
+		test('is a no-op when disabled — does not insert DOM or attach listeners', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.setEnabled(false);
+			controller.layout();
+
+			// Container should not have been inserted into the DOM
+			assert.strictEqual(controller['container'].parentElement, null);
+			// Listeners should not have been attached
+			assert.strictEqual(controller['parentPointerDownListener'].value, undefined);
+			assert.strictEqual(controller['parentClickListener'].value, undefined);
+			assert.strictEqual(controller['parentPointerUpListener'].value, undefined);
+		});
+
+		test('setEnabled(true) after disabled installs DOM and listeners on next layout', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.setEnabled(false);
+			controller.setEnabled(true);
+			controller.layout();
+
+			// Container should now be in the DOM
+			assert.strictEqual(controller['container'].parentElement, layoutInfo.parent);
+			// Listeners should be attached
+			assert.notStrictEqual(controller['parentPointerDownListener'].value, undefined);
+		});
+	});
+
+	suite('renderMarkers', () => {
+		test('produces one marker element per descriptor with correct data attributes and styles', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r1-response', 100]]);
+			const tops = new Map([['r1', 0], ['r1-response', 100]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, res], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+			const markers = container.querySelectorAll('.chat-scrollbar-prompt-marker');
+
+			assert.strictEqual(markers.length, 1);
+
+			const promptMarker = markers[0] as HTMLElement;
+			assert.strictEqual(promptMarker.dataset.markerId, 'r1');
+			assert.strictEqual(promptMarker.dataset.markerType, 'prompt');
+			assert.strictEqual(promptMarker.style.insetInlineEnd, '0px');
+			assert.strictEqual(promptMarker.style.width, '8px');
+			assert.strictEqual(promptMarker.style.height, '14px');
+			assert.strictEqual(promptMarker.style.zIndex, '60');
+
+		});
+
+		test('responses do not create additional markers', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'questionCarousel', isUsed: false }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r1-response', 100]]);
+			const tops = new Map([['r1', 0], ['r1-response', 100]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, res], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker');
+
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual((markers[0] as HTMLElement).dataset.markerId, 'r1');
+		});
+
+		test('markers keep a uniform resting width and reveal proportional hover widths only on hover', () => {
+			const shortPrompt = makeRequest('short');
+			const longPrompt = {
+				...makeRequest('longer-prompt'),
+				messageText: 'This is a much longer prompt than the short one',
+			} as IChatRequestViewModel;
+			const questionResponse = makeResponse('short', [{ kind: 'questionCarousel', isUsed: false }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [shortPrompt, questionResponse, longPrompt],
+				layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+
+			const shortMarker = controller['container'].querySelector('[data-marker-id="short"]') as HTMLElement;
+			const longMarker = controller['container'].querySelector('[data-marker-id="longer-prompt"]') as HTMLElement;
+
+			assert.strictEqual(shortMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-resting-width'), '8px');
+			assert.strictEqual(longMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-resting-width'), '8px');
+			assert.strictEqual(shortMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-magnified-width'), '16px');
+			assert.strictEqual(longMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-magnified-width'), '32px');
+		});
+
+		test('maximumMarkers setting changes re-render the marker set immediately', async () => {
+			const requestA = makeRequest('r1');
+			const requestB = makeRequest('r2');
+			const requestC = makeRequest('r3');
+			const layoutInfo = makeLayoutInfo(14);
+			const configService = makeConfigService(ChatScrollbarPromptMarkerClickBehavior.Reveal);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [requestA, requestB, requestC],
+				layoutInfo,
+			});
+			const controller = disposables.add(new ChatScrollbarPromptMarkerController(host, configService));
+
+			controller.layout();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 3);
+
+			await configService.setUserConfiguration(ChatConfiguration.ScrollbarPromptMarkersMaxCount, 2);
+			configService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.ScrollbarPromptMarkersMaxCount,
+				affectedKeys: new Set([ChatConfiguration.ScrollbarPromptMarkersMaxCount]),
+				change: {
+					keys: [ChatConfiguration.ScrollbarPromptMarkersMaxCount],
+					overrides: [],
+				},
+				source: ConfigurationTarget.USER,
+			});
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 2);
+		});
+
+		test('active class follows the visible prompt row id', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r1-response', 100]]);
+			const tops = new Map([['r1', 0], ['r1-response', 100]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, res], heights, tops, layoutInfo,
+				visiblePromptRowId: 'r1',
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker');
+			const promptMarker = Array.from(markers).find(m => (m as HTMLElement).dataset.markerId === 'r1') as HTMLElement;
+
+			assert.strictEqual(promptMarker.classList.contains('active'), true);
+		});
+
+		test('focused class follows the focused marker id independently of the active prompt row', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, res], layoutInfo,
+				visiblePromptRowId: 'r1',
+				focus: [res],
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const promptMarker = controller['container'].querySelector('[data-marker-id="r1"]') as HTMLElement;
+
+			assert.strictEqual(promptMarker.classList.contains('focused'), true);
+		});
+
+		test('in-viewport class follows whether the prompt target intersects the chat viewport', () => {
+			const req = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const viewportElements = new Set<IChatRequestViewModel | IChatResponseViewModel>([req]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, req2], layoutInfo, viewportElements,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const promptMarker = controller['container'].querySelector('[data-marker-id="r1"]') as HTMLElement;
+			const secondPromptMarker = controller['container'].querySelector('[data-marker-id="r2"]') as HTMLElement;
+
+			assert.deepStrictEqual({ first: promptMarker.classList.contains('in-viewport'), second: secondPromptMarker.classList.contains('in-viewport') }, { first: true, second: false });
+
+			viewportElements.clear();
+			viewportElements.add(req2);
+			controller.refresh();
+
+			assert.deepStrictEqual({ first: promptMarker.classList.contains('in-viewport'), second: secondPromptMarker.classList.contains('in-viewport') }, { first: false, second: true });
+		});
+
+		test('stale markers are removed from the DOM when descriptors shrink', () => {
+			const req1 = makeRequest('r1');
+			const res1 = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r1-response', 100], ['r2', 100]]);
+			const tops = new Map([['r1', 0], ['r1-response', 100], ['r2', 200]]);
+			const host = new FakeHost({
+				renderHeight: 300, scrollHeight: 300,
+				items: [req1, res1, req2], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 2);
+
+			// Remove req2 and its response
+			(host as unknown as { _items: unknown[] })._items = [req1, res1];
+			controller.refresh();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+		});
+
+		test('marker DOM nodes are reused across renders when the descriptor id persists', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markerBefore = controller['container'].querySelector('.chat-scrollbar-prompt-marker');
+
+			controller.refresh();
+			const markerAfter = controller['container'].querySelector('.chat-scrollbar-prompt-marker');
+
+			assert.strictEqual(markerBefore, markerAfter);
+		});
+
+		test('repeated refresh calls do not accumulate marker DOM nodes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			for (let i = 0; i < 10; i++) {
+				controller.refresh();
+			}
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+		});
+
+		test('moving over a marker assigns localized hover distances around the nearest marker', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const req3 = makeRequest('r3');
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [req1, req2, req3],
+				layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['container'].getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			controller['onOverviewRulerMouseMove']({ clientX: 7, clientY: getMarkerMidpointY(controller, 'r2') } as MouseEvent);
+
+			assert.strictEqual(controller['container'].classList.contains('chat-scrollbar-prompt-markers-hover'), true);
+			assert.strictEqual((controller['container'].querySelector('[data-marker-id="r1"]') as HTMLElement).style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-distance'), '1');
+			assert.strictEqual((controller['container'].querySelector('[data-marker-id="r2"]') as HTMLElement).style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-distance'), '0');
+			assert.strictEqual((controller['container'].querySelector('[data-marker-id="r3"]') as HTMLElement).style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-distance'), '1');
+		});
+
+		test('active markers return to resting width when the pointer leaves the ruler', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [req, res],
+				visiblePromptRowId: 'r1',
+				layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['container'].getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			controller['onOverviewRulerMouseMove']({ clientX: 7, clientY: getMarkerMidpointY(controller, 'r1') } as MouseEvent);
+			assert.strictEqual(controller['container'].classList.contains('chat-scrollbar-prompt-markers-hover'), true);
+			assert.strictEqual((controller['container'].querySelector('[data-marker-id="r1"]') as HTMLElement).style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-distance'), '0');
+
+			controller['onOverviewRulerMouseMove']({ clientX: -60, clientY: getMarkerMidpointY(controller, 'r1') } as MouseEvent);
+			assert.strictEqual(controller['container'].classList.contains('chat-scrollbar-prompt-markers-hover'), false);
+			assert.strictEqual((controller['container'].querySelector('[data-marker-id="r1"]') as HTMLElement).style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-distance'), '3');
+			assert.strictEqual(controller['getTargetAtPoint'](-11, getMarkerMidpointY(controller, 'r1')), undefined);
+		});
+
+		test('hovering a prompt marker shows the preview with the prompt text', () => {
+			const req = makeRequest('r1');
+			const promptTimestamp = new Date('2000-01-02T03:04:00Z').getTime();
+			(req as unknown as { timestamp: number }).timestamp = promptTimestamp;
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [req],
+				layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['container'].getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			controller['onOverviewRulerMouseMove']({ clientX: 7, clientY: getMarkerMidpointY(controller, 'r1') } as MouseEvent);
+
+			assert.strictEqual(controller['preview'].style.display, '');
+			assert.strictEqual(controller['previewTypeRow'].style.display, 'none');
+			assert.strictEqual(controller['previewText'].textContent, 'r1');
+			assert.strictEqual(controller['previewTime'].textContent, formatExpectedPreviewTimestamp(promptTimestamp));
+		});
+
+		test('hovering a same-year prompt marker omits the year in the preview timestamp', () => {
+			const req = makeRequest('r1');
+			const now = new Date();
+			const promptTimestamp = new Date(now.getFullYear(), 0, 2, 3, 4, 0, 0).getTime();
+			(req as unknown as { timestamp: number }).timestamp = promptTimestamp;
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [req],
+				layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['container'].getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			controller['onOverviewRulerMouseMove']({ clientX: 7, clientY: getMarkerMidpointY(controller, 'r1') } as MouseEvent);
+
+			assert.strictEqual(controller['previewTime'].textContent, formatExpectedPreviewTimestamp(promptTimestamp));
+			assert.strictEqual(controller['previewTime'].textContent?.includes(String(now.getFullYear())), false);
+		});
+
+		test('a single marker is vertically centered using the fixed hitbox height', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 1]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 1000,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const marker = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+
+			assert.strictEqual(marker.style.height, '14px');
+			assert.strictEqual(marker.style.top, '93px');
+		});
+
+		test('multiple markers stack around the center with a fixed stride when space allows', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r2', 100]]);
+			const tops = new Map([['r1', 0], ['r2', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req1, req2], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = Array.from(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker')) as HTMLElement[];
+			const tops2 = markers.map(m => parseInt(m.style.top, 10));
+
+			assert.deepStrictEqual(tops2, [86, 100]);
+		});
+
+		test('dense stacks compress the stride but keep all hitboxes inside the ruler', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r2', 100]]);
+			const tops = new Map([['r1', 0], ['r2', 0]]);
+			const host = new FakeHost({
+				renderHeight: 50, scrollHeight: 200,
+				items: [req1, req2], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = Array.from(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker')) as HTMLElement[];
+
+			for (const marker of markers) {
+				const top = parseInt(marker.style.top, 10);
+				const height = parseInt(marker.style.height, 10);
+				assert.ok(top + height <= 50, `marker bottom ${top + height} should not exceed rulerHeight 50`);
+			}
+			assert.deepStrictEqual(markers.map(marker => parseInt(marker.style.top, 10)), [11, 25]);
+		});
+
+		test('three markers remain symmetrically centered when space allows', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const req3 = makeRequest('r3');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 10], ['r2', 10], ['r3', 10]]);
+			const tops = new Map([['r1', 35], ['r2', 38], ['r3', 41]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 50,
+				items: [req1, req2, req3], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = Array.from(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker')) as HTMLElement[];
+			assert.strictEqual(markers.length, 3);
+			assert.deepStrictEqual(markers.map(marker => parseInt(marker.style.top, 10)), [79, 93, 107]);
+		});
+
+		test('layout re-renders markers when renderHeight changes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 100]]);
+			let renderHeight = 200;
+			const host = new FakeHost({
+				renderHeight, scrollHeight: 400,
+				items: [req], heights, tops, layoutInfo,
+			});
+			Object.defineProperty(host, 'renderHeight', { get: () => renderHeight });
+			const controller = createController(host);
+
+			controller.layout();
+			const markerBefore = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			const topBefore = markerBefore.style.top;
+
+			renderHeight = 240;
+			controller.layout();
+			const markerAfter = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			assert.notStrictEqual(markerAfter.style.top, topBefore);
+		});
+	});
+
+	suite('setVisible', () => {
+		test('setVisible(false) hides the container; setVisible(true) shows it when renderHeight > 0', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.layout();
+			assert.notStrictEqual(controller['container'].style.display, 'none');
+
+			controller.setVisible(false);
+			assert.strictEqual(controller['container'].style.display, 'none');
+
+			controller.setVisible(true);
+			assert.notStrictEqual(controller['container'].style.display, 'none');
+		});
+	});
+
+	suite('getTargetAtPoint', () => {
+		test('returns the correct target for a click inside a centered marker hitbox', () => {
+			const req = makeRequest('r1');
+			const res = makeResponse('r1', [{ kind: 'externalEdit' }]);
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r1-response', 100]]);
+			const tops = new Map([['r1', 0], ['r1-response', 100]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req, res], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+
+			// Mock container getBoundingClientRect for hit-testing
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			const target = controller['getTargetAtPoint'](0, getMarkerMidpointY(controller, 'r1'));
+			assert.strictEqual(target?.target, req);
+		});
+
+		test('returns undefined for a click outside the container bounds', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			// Click far outside
+			const target = controller['getTargetAtPoint'](1000, 1000);
+			assert.strictEqual(target, undefined);
+		});
+
+		test('returns undefined when visible is false', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller.setVisible(false);
+
+			const container = controller['container'];
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			const target = controller['getTargetAtPoint'](0, getMarkerMidpointY(controller, 'r1'));
+			assert.strictEqual(target, undefined);
+		});
+
+		test('dense overlapping hitboxes choose the marker whose center is nearest to the click', () => {
+			const req = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100], ['r2', 100]]);
+			const tops = new Map([['r1', 0], ['r2', 0]]);
+			const host = new FakeHost({
+				renderHeight: 10, scrollHeight: 200,
+				items: [req, req2], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			const markerCenter = getMarkerMidpointY(controller, 'r1');
+			const secondCenter = getMarkerMidpointY(controller, 'r2');
+			const target = controller['getTargetAtPoint'](7, markerCenter + 0.1);
+			assert.strictEqual(target?.target, req);
+			const secondTarget = controller['getTargetAtPoint'](7, secondCenter - 0.1);
+			assert.strictEqual(secondTarget?.target, req2);
+		});
+	});
+
+	suite('edge cases', () => {
+		test('scrollHeight <= 0 no longer blocks rendering when renderHeight is available', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 0,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['markerById'].size, 1);
+			assert.strictEqual(controller['descriptorById'].size, 1);
+		});
+
+		test('renderHeight <= 0 clears all markers and hides the container', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 0, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+			assert.strictEqual(controller['container'].style.display, 'none');
+		});
+
+		test('getOverviewRulerLayoutInfo returns undefined → renderMarkers is a no-op', () => {
+			const req = makeRequest('r1');
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], layoutInfo: undefined,
+			});
+			const controller = createController(host);
+
+			controller.refresh();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+		});
+
+		test('no descriptors (empty items) → no marker elements', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [], layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+		});
+	});
+
+	suite('revealItem', () => {
+		function getDescriptor(controller: ChatScrollbarPromptMarkerController, markerId: string) {
+			const descriptor = controller['descriptorById'].get(markerId);
+			assert.ok(descriptor, `expected descriptor ${markerId}`);
+			return descriptor!;
+		}
+
+		test('setVisible(false) cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			let allowRetryChecks = false;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					if (!allowRetryChecks) {
+						return true;
+					}
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+			controller.layout();
+			allowRetryChecks = true;
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+			controller.setVisible(false);
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
+		test('setEnabled(false) cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			let allowRetryChecks = false;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					if (!allowRetryChecks) {
+						return true;
+					}
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+			controller.layout();
+			allowRetryChecks = true;
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+			controller.setEnabled(false);
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
+		test('dispose cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			let allowRetryChecks = false;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					if (!allowRetryChecks) {
+						return true;
+					}
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+			controller.layout();
+			allowRetryChecks = true;
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+			controller.dispose();
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
+		test('with Reveal calls reveal only and never focusItem', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.Reveal);
+			controller.layout();
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		});
+
+		test('with RevealAndFocus calls reveal immediately and retries focusItem across animation frames', async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementCountdown = 1;
+			let allowRetryChecks = false;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					if (!allowRetryChecks) {
+						return true;
+					}
+					if (hasElementCountdown > 0) {
+						hasElementCountdown--;
+						return false;
+					}
+					return true;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+			controller.layout();
+			allowRetryChecks = true;
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+
+			// reveal is called immediately; focusItem is deferred to animation frames
+			assert.deepStrictEqual(calls, ['reveal']);
+
+			// Flush scheduled animation frames deterministically
+			await flushAnimationFrames();
+
+			// focusItem should have been called once after hasElement returned true
+			assert.ok(calls.includes('focusItem'), `expected focusItem to be called, got: ${JSON.stringify(calls)}`);
+			assert.strictEqual(calls.filter(c => c === 'focusItem').length, 1);
+		});
+
+		test('last descriptor reveals near the bottom when it is not already visible', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const layoutInfo = makeLayoutInfo(14);
+			const calls: Array<{ id: string; relativeTop: number | undefined }> = [];
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req1, req2], layoutInfo });
+				}
+				override reveal() {
+					const [item, relativeTop] = arguments as unknown as [IChatRequestViewModel | IChatResponseViewModel, number | undefined];
+					calls.push({ id: item.id, relativeTop });
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.Reveal);
+			controller.layout();
+
+			controller['revealItem'](getDescriptor(controller, 'r2'));
+
+			assert.deepStrictEqual(calls, [{ id: 'r2', relativeTop: 0.95 }]);
+		});
+
+		test('in-viewport targets do not reveal again but still focus when configured', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const calls: string[] = [];
+			const viewportElements = new Set<IChatRequestViewModel | IChatResponseViewModel>([req]);
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], layoutInfo, viewportElements });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+			controller.layout();
+
+			controller['revealItem'](getDescriptor(controller, 'r1'));
+
+			assert.deepStrictEqual(calls, ['focusItem']);
+		});
+	});
+
+	suite('pointer/click event handling', () => {
+		test('pointerdown on a marker sets markerActivated, calls preventDefault/stopPropagation, and reveals', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+			}();
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			// Marker is at top=0, height=4 (set by renderMarkers via layout)
+			// No need to mock marker.getBoundingClientRect — hit-testing uses cached style values
+
+			let prevented = false;
+			let stopped = false;
+			const event = {
+				clientX: 7, clientY: Math.round(getMarkerMidpointY(controller, 'r1')),
+				pointerType: 'mouse',
+				button: 0,
+				preventDefault: () => { prevented = true; },
+				stopPropagation: () => { stopped = true; },
+			} as unknown as PointerEvent;
+
+			controller['onOverviewRulerPointerDown'](event);
+
+			assert.strictEqual(controller['markerActivated'], true);
+			assert.strictEqual(prevented, true);
+			assert.strictEqual(stopped, true);
+			assert.deepStrictEqual(calls, ['reveal']);
+		});
+
+		test('pointerdown outside any marker does not activate or reveal', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+			}();
+			const controller = createController(host);
+
+			controller.layout();
+			const container = controller['container'];
+			container.getBoundingClientRect = () => ({
+				width: 14, height: 200, x: 0, y: 0,
+				left: 0, top: 0, right: 14, bottom: 200,
+				toJSON: () => ({}),
+			});
+
+			let prevented = false;
+			const event = {
+				clientX: 7, clientY: 199, // outside marker Y range
+				preventDefault: () => { prevented = true; },
+				stopPropagation: () => { },
+			} as unknown as PointerEvent;
+
+			controller['onOverviewRulerPointerDown'](event);
+
+			assert.strictEqual(controller['markerActivated'], false);
+			assert.strictEqual(prevented, false);
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('pointerup and click are suppressed when markerActivated is true', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['markerActivated'] = true;
+
+			// pointerup happens before click in the event sequence
+			let pointerupPrevented = false;
+			let pointerupStopped = false;
+			const pointerupEvent = {
+				preventDefault: () => { pointerupPrevented = true; },
+				stopPropagation: () => { pointerupStopped = true; },
+			} as unknown as PointerEvent;
+			controller['onOverviewRulerPointerUp'](pointerupEvent);
+
+			assert.strictEqual(controller['markerActivated'], false);
+			assert.strictEqual(controller['suppressNextClick'], true);
+			assert.strictEqual(pointerupPrevented, true);
+			assert.strictEqual(pointerupStopped, true);
+
+			let clickPrevented = false;
+			let clickStopped = false;
+			const clickEvent = {
+				preventDefault: () => { clickPrevented = true; },
+				stopPropagation: () => { clickStopped = true; },
+			} as unknown as MouseEvent;
+			controller['onOverviewRulerClick'](clickEvent);
+
+			assert.strictEqual(clickPrevented, true);
+			assert.strictEqual(clickStopped, true);
+			assert.strictEqual(controller['suppressNextClick'], false);
+		});
+
+		test('click suppression clears on the next frame when no click follows pointerup', async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['markerActivated'] = true;
+
+			controller['onOverviewRulerPointerUp']({
+				preventDefault: () => { },
+				stopPropagation: () => { },
+			} as unknown as PointerEvent);
+
+			assert.strictEqual(controller['suppressNextClick'], true);
+
+			await flushAnimationFrames();
+
+			assert.strictEqual(controller['suppressNextClick'], false);
+		});
+
+		test('click and pointerup are not suppressed when markerActivated is false', () => {
+			const controller = createController(new FakeHost({ renderHeight: 200, scrollHeight: 200, layoutInfo: makeLayoutInfo(14) }));
+
+			let prevented = false;
+			const clickEvent = {
+				preventDefault: () => { prevented = true; },
+				stopPropagation: () => { },
+			} as unknown as MouseEvent;
+			const pointerUpEvent = {
+				preventDefault: () => { prevented = true; },
+				stopPropagation: () => { },
+			} as unknown as PointerEvent;
+
+			controller['onOverviewRulerClick'](clickEvent);
+			controller['onOverviewRulerPointerUp'](pointerUpEvent);
+
+			assert.strictEqual(prevented, false);
+		});
+	});
+
+	test('non-primary mouse button does not activate or reveal', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const calls: string[] = [];
+		const host = new class extends FakeHost {
+			constructor() {
+				super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+			}
+			override reveal() { calls.push('reveal'); }
+		}();
+		const controller = createController(host);
+
+		controller.layout();
+		const container = controller['container'];
+		container.getBoundingClientRect = () => ({
+			width: 14, height: 200, x: 0, y: 0,
+			left: 0, top: 0, right: 14, bottom: 200,
+			toJSON: () => ({}),
+		});
+
+		let prevented = false;
+		const event = {
+			clientX: 7, clientY: getMarkerMidpointY(controller, 'r1'),
+			pointerType: 'mouse',
+			button: 2,
+			preventDefault: () => { prevented = true; },
+			stopPropagation: () => { },
+		} as unknown as PointerEvent;
+
+		controller['onOverviewRulerPointerDown'](event);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(prevented, false);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('pointercancel resets gesture state so a later pointerup does not arm suppression', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller['onOverviewRulerPointerCancel']();
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+
+		let pointerupPrevented = false;
+		controller['onOverviewRulerPointerUp']({
+			preventDefault: () => { pointerupPrevented = true; },
+			stopPropagation: () => { },
+		} as unknown as PointerEvent);
+
+		assert.strictEqual(pointerupPrevented, false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
+	test('setVisible(false) mid-gesture resets markerActivated', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller.setVisible(false);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
+	test('setEnabled(false) mid-gesture resets markerActivated', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller.setEnabled(false);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
+	suite('lifecycle and memory leaks', () => {
+		test('after dispose: container is removed from DOM, maps are empty, and no parent listeners remain', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+			}();
+			const controller = disposables.add(new ChatScrollbarPromptMarkerController(
+				host,
+				makeConfigService(ChatScrollbarPromptMarkerClickBehavior.Reveal),
+			));
+
+			controller.layout();
+			assert.ok(controller['container'].parentElement);
+
+			controller.dispose();
+
+			assert.strictEqual(controller['container'].parentElement, null);
+			assert.strictEqual(controller['parentPointerDownListener'].value, undefined);
+			assert.strictEqual(controller['parentClickListener'].value, undefined);
+			assert.strictEqual(controller['parentPointerUpListener'].value, undefined);
+
+			// Dispatching events on the former parent should not call any host methods
+			calls.length = 0;
+			layoutInfo.parent.dispatchEvent(new PointerEvent('pointerdown'));
+			layoutInfo.parent.dispatchEvent(new MouseEvent('click'));
+			layoutInfo.parent.dispatchEvent(new PointerEvent('pointerup'));
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('repeated layout calls with the same parent do not register additional listeners', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 200, layoutInfo });
+			const controller = createController(host);
+
+			controller.layout();
+			const firstPointerDown = controller['parentPointerDownListener'].value;
+
+			controller.layout();
+			controller.layout();
+			const finalPointerDown = controller['parentPointerDownListener'].value;
+
+			assert.strictEqual(firstPointerDown, finalPointerDown);
+		});
+
+		test('renderMarkers called many times with the same descriptors does not leak stale nodes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			for (let i = 0; i < 20; i++) {
+				controller.refresh();
+			}
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['markerById'].size, 1);
+		});
+	});
+
+	suite('setEnabled', () => {
+		test('setEnabled(false) hides the container and clears all marker nodes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['container'].style.display, '');
+
+			controller.setEnabled(false);
+
+			assert.strictEqual(controller['container'].style.display, 'none');
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+			assert.strictEqual(controller['markerById'].size, 0);
+		});
+
+		test('setEnabled(true) after disable re-renders markers and shows the container', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller.setEnabled(false);
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+
+			controller.setEnabled(true);
+
+			assert.strictEqual(controller['container'].style.display, '');
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 1);
+			assert.strictEqual(controller['markerById'].size, 1);
+		});
+
+		test('setEnabled is a no-op when the value does not change', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markerCountBefore = controller['markerById'].size;
+
+			controller.setEnabled(true);
+
+			assert.strictEqual(controller['markerById'].size, markerCountBefore);
+		});
+
+		test('disabled controller does not render markers on layout or refresh', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller.setEnabled(false);
+
+			controller.layout();
+			controller.refresh();
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
+			assert.strictEqual(controller['markerById'].size, 0);
+		});
+
+		test('setEnabled(false) detaches the overlay container and disposes parent listeners', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			// Container is attached and parent listeners are installed
+			assert.strictEqual(controller['container'].parentElement, layoutInfo.parent);
+			assert.ok(controller['pointerDownListenerParent'] === layoutInfo.parent);
+			assert.ok(controller['parentPointerDownListener'].value);
+			assert.ok(controller['parentClickListener'].value);
+
+			controller.setEnabled(false);
+
+			// Container must be fully detached from the DOM
+			assert.strictEqual(controller['container'].parentElement, null);
+			// Parent listeners must be disposed so the feature is a true no-op
+			assert.ok(!controller['parentPointerDownListener'].value);
+			assert.ok(!controller['parentClickListener'].value);
+			assert.ok(!controller['parentPointerUpListener'].value);
+			assert.ok(!controller['parentPointerCancelListener'].value);
+			assert.strictEqual(controller['pointerDownListenerParent'], undefined);
+		});
+	});
+});

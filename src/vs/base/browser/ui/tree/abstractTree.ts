@@ -37,6 +37,7 @@ import { localize } from '../../../../nls.js';
 import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
+import { IOverviewRulerLayoutInfo } from '../scrollbar/scrollableElement.js';
 import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
@@ -2794,6 +2795,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.onDidChangeContentWidth;
 	}
 
+	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
+		return this.view.getOverviewRulerLayoutInfo();
+	}
+
 	get scrollTop(): number {
 		return this.view.scrollTop;
 	}
@@ -3108,6 +3113,23 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const stickyScrollNode = this.stickyScrollController?.getNode(this.getNode(location));
 		return this.view.getRelativeTop(index, stickyScrollNode?.position ?? this.stickyScrollController?.height);
+	}
+
+	isElementInViewport(location: TRef): boolean {
+		const index = this.model.getListIndex(location);
+
+		if (index === -1) {
+			return false;
+		}
+
+		const stickyScrollNode = this.stickyScrollController?.getNode(this.getNode(location));
+		const paddingTop = stickyScrollNode?.position ?? this.stickyScrollController?.height ?? 0;
+		const viewportTop = this.view.scrollTop + paddingTop;
+		const viewportBottom = this.view.scrollTop + this.view.renderHeight;
+		const elementTop = this.view.getElementTop(index);
+		const elementBottom = elementTop + this.view.getElementHeight(index);
+
+		return elementBottom >= viewportTop && elementTop <= viewportBottom;
 	}
 
 	/**

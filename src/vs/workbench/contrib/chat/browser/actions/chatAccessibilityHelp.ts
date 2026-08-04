@@ -109,7 +109,10 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.nextUserPrompt', 'To navigate to the next user prompt in the conversation, invoke the Next User Prompt command{0}.', '<keybinding:workbench.action.chat.nextUserPrompt>'));
 		content.push(localize('workbench.action.chat.previousUserPrompt', 'To navigate to the previous user prompt in the conversation, invoke the Previous User Prompt command{0}.', '<keybinding:workbench.action.chat.previousUserPrompt>'));
-		if (stickyPromptHeaderShown) {
+		if (type === 'panelChat' || type === 'agentView') {
+			content.push(localize('chat.scrollbarMarkers', 'When enabled, the chat scrollbar displays visual markers for user prompts. These markers are mouse-only; use the Next and Previous User Prompt commands above to navigate by keyboard.'));
+    }
+    if (stickyPromptHeaderShown) {
 			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt, or use the Go to Previous Prompt and Go to Next Prompt buttons beside it to move between prompts.'));
 		}
 		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));

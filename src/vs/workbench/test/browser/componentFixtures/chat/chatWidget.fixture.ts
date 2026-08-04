@@ -14,12 +14,12 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ElicitationState, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -43,7 +43,6 @@ export interface IFixtureFileChange {
 	readonly name: string;
 	readonly added: number;
 	readonly removed: number;
-	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
 }
 
@@ -57,11 +56,6 @@ export interface IFixtureMessage {
 	>;
 	readonly details?: string;
 	readonly responseComplete?: boolean;
-	/**
-	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
-	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
-	 * options to be rendered.
-	 */
 	readonly fileChanges?: ReadonlyArray<IFixtureFileChange>;
 }
 
@@ -69,8 +63,11 @@ export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
 	readonly width?: number;
 	readonly height?: number;
-	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
+  readonly scrollbarPromptMarkersEnabled?: boolean;
+	readonly scrollbarPromptMarkersMaximum?: number;
+	/** Chat list rendering style. Defaults to compact for existing fixtures. */
+	readonly renderStyle?: 'default' | 'compact' | 'minimal';
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
@@ -81,19 +78,7 @@ export interface IChatWidgetFixtureOptions {
 	 * When omitted, behaves like today (auto-detected from message risk data).
 	 */
 	readonly riskAssessmentEnabled?: boolean;
-	/**
-	 * Optional hook invoked after the chat input part renders, e.g. to mount
-	 * widgets above the input. Receives the rendered input part and the fixture's
-	 * instantiation service so callers can create instances against the same
-	 * service graph.
-	 */
 	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
-	/**
-	 * When set, renders the chat as an agent host session and enables the turn
-	 * changes summary (`chat.turnStatusPills`), so completed turns with
-	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
-	 * response.
-	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
@@ -109,9 +94,6 @@ interface IChatWidgetFixtureHandle {
 }
 
 function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
-	// A created file has no before-content, so the agent host provider maps its
-	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
-	// distinct original.
 	const modifiedURI = URI.file(`/repo/${change.name}`);
 	const originalURI = change.created ? modifiedURI : URI.file(`/repo/.original/${change.name}`);
 	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
@@ -142,9 +124,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskLoading));
 	const riskFeatureExplicitlyDisabled = options.riskAssessmentEnabled === false;
 	const needsRiskService = hasRiskAssessment || hasRiskLoading || riskFeatureExplicitlyDisabled;
-
-	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
-	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
 	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
 
@@ -214,12 +193,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (needsTurnPills) {
 		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, options.turnStatusPills);
 	}
+	if (typeof options.scrollbarPromptMarkersMaximum === 'number') {
+		configService.setUserConfiguration(ChatConfiguration.ScrollbarPromptMarkersMaxCount, options.scrollbarPromptMarkersMaximum);
+	}
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
-	// The turn changes summary only renders for agent host sessions, whose frontend
-	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
-	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
 	const sessionResource = needsTurnPills
 		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
 		: undefined;
@@ -375,6 +354,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
+			scrollbarPromptMarkersEnabled: options.scrollbarPromptMarkersEnabled,
+			renderStyle,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground: 'var(--vscode-editor-background)',
@@ -587,33 +568,41 @@ const MULTI_TURN: IFixtureMessage[] = [
 	},
 ];
 
-// Code blocks that follow or are nested in list items should have symmetric spacing
-// above and below. Covers the two DOM shapes markdown produces: a code block that is a
-// sibling after a list, and a code block nested inside a list item (indented fence).
-const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
+const SCROLLBAR_PROMPT_MARKERS: IFixtureMessage[] = [
 	{
-		user: 'How do I set up the project?',
+		user: 'Summarize the workspace layout.',
 		assistant: [
-			{
-				kind: 'markdown', text: [
-					'Follow these steps:',
-					'',
-					'- Clone the repository',
-					'- Install the dependencies',
-					'',
-					'```bash',
-					'npm install',
-					'```',
-					'',
-					'- Then start the build watcher:',
-					'',
-					'  ```bash',
-					'  npm run watch',
-					'  ```',
-					'',
-					'- Finally, launch the app',
-				].join('\n')
-			},
+			{ kind: 'markdown', text: 'The workspace is organized into source, build, extension, and test folders.' },
+		],
+	},
+	{
+		user: 'Find the chat widget entrypoint.',
+		assistant: [
+			{ kind: 'markdown', text: 'The chat widget entrypoint is in `src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts`.' },
+		],
+	},
+	{
+		user: 'List the marker types that appear in chat.',
+		assistant: [
+			{ kind: 'markdown', text: 'Prompt, question, file change, compaction, and error markers are supported.' },
+		],
+	},
+	{
+		user: 'Show the newest prompt near the composer.',
+		assistant: [
+			{ kind: 'markdown', text: 'The newest prompt can align near the composer when it is revealed from the scrollbar.' },
+		],
+	},
+	{
+		user: 'Track the visible prompt while I scroll.',
+		assistant: [
+			{ kind: 'markdown', text: 'The active marker can follow the prompt nearest the middle of the viewport.' },
+		],
+	},
+	{
+		user: 'Preview the hovered prompt.',
+		assistant: [
+			{ kind: 'markdown', text: 'A preview surface can summarize the prompt and show its time.' },
 		],
 	},
 ];
@@ -740,6 +729,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	ScrollbarPromptMarkers: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SCROLLBAR_PROMPT_MARKERS, height: 520, scrollbarPromptMarkersEnabled: true }) }),
+	ScrollbarPromptMarkersCapped: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SCROLLBAR_PROMPT_MARKERS, height: 520, scrollbarPromptMarkersEnabled: true, scrollbarPromptMarkersMaximum: 4 }) }),
 	ResizeObserverLoopHarness: defineComponentFixture({
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
