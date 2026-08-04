@@ -26,6 +26,10 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Do not conflate custom-agent selection with Agent Host execution mode**: `chat.modeChange` describes workbench mode/custom-agent picker selections, while `interactive`, `plan`, and `autopilot` are Agent Host execution modes and belong in `agentHost.executionModeChanged`. Preserve the SDK-native mode event as a peer rather than reshaping either axis into the other.
+
+- **Picker telemetry must use the scoped session and active chat**: Agents Window action view items can belong to a non-active visible session or peer chat. Resolve previous selection and request counts from scoped `ISessionContext.session.activeChat`, never a window-global picker model or parent session resource.
+
 - **A sash element's `left`/`top` is the hit-area edge, not the split boundary**: `SplitView.getSashPosition` returns the exact boundary after the preceding view, then `Sash.layout` subtracts half the sash size so the draggable element is centered on that boundary. Align the Sessions/Editor and bottom-Panel grid sash hit areas to `agents.layout.floatingPanelGap`; do not apply that token to independent geometry such as the Auxiliary Bar's leading padding.
 - **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
 - **Durable chat source/origin references**: Store only `turnId` in durable fork/side-chat references. Active versus historical is mutable lifecycle state that consumers must resolve against the current `activeTurn` and retained `turns` when needed; do not encode lifecycle state in the reference type.
@@ -121,9 +125,7 @@ Whenever the user flags a wrong pattern, rejects an approach, or gives design/ru
 
 - **Centralize session workspace filtering behind a semantic predicate**: refresh, add-notification, and summary-update paths should call one `_isSessionInWorkspace(entry)`-style helper. Keep key construction, working-directory parsing, pending-local lookup, and provenance checks out of each caller so the high-level list flow stays readable and all paths apply identical rules.
 
-- **Feature-specific workspace storage must be gated at the storage service boundary**: Editor multi-root provenance is enabled only for a non-Sessions window with `WorkbenchState.WORKSPACE` and more than one open folder. Lazy-load it only after that gate passes; folder/empty/Agents windows must use ordinary path filtering and never read, write, refresh, or delete the persisted state.
-
-- **Keep legacy single-folder filtering explicit when adding multi-root provenance**: zero-folder windows still include all sessions, and one-folder windows still use direct any-directory path containment. Call the provenance service only when the window has multiple folders; keep its internal scope gate as defense-in-depth.
+- **Multi-root Editor filtering belongs to durable session metadata, not a workspace memento**: sessions with `_meta.multiRoot.workspaceFile` match a multi-root Editor window by URI identity against `IWorkspace.configuration`. Metadata-less sessions use containment against any current folder; do not retain a parallel workspace-scoped membership store whose lifecycle can drift from the host-owned session metadata.
 
 - **Name semantic layout operations after the user-facing surface**: a shared operation must use the stable UI concept (`toggleSecondarySideBar()`), not the implementation term (`AuxiliaryBar`) that happens to back it in classic layouts. This keeps single-pane mappings clear and avoids leaking layout internals through the API.
 

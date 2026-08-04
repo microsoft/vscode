@@ -27,7 +27,7 @@ import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { resolveAppModulePathSync } from './appNodeModules';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -299,7 +299,9 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	if (isReasoningEffortEnabled) {
 		const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
 		if (effortLevels.length > 0) {
-			const defaultEffort = modelInfo.defaultReasoningEffort;
+			const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
+				? modelInfo.defaultReasoningEffort
+				: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
 			properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
 				type: 'string',
 				title: l10n.t('Thinking Effort'),
