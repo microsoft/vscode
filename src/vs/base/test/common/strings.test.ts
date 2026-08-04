@@ -387,6 +387,12 @@ suite('Strings', () => {
 		assert(regExpWithFlags.global);
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
+
+		const regExpUnicodeMode = strings.createRegExp('abc', true, { unicode: true });
+		assert.strictEqual(regExpUnicodeMode.flags, 'u');
+
+		const regExpVnicodeMode = strings.createRegExp('abc', true, { unicode: 'unicodeSets' });
+		assert.strictEqual(regExpVnicodeMode.flags, 'v');
 	});
 
 	test('getLeadingWhitespace', () => {
