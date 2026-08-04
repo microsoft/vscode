@@ -17,7 +17,7 @@ import { MessageAttachmentKind, type MessageAttachment } from '../../common/stat
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostFileCompletionProvider, extractAtToken } from '../../node/agentHostFileCompletionProvider.js';
-import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
+import { AgentHostWorkspaceFiles, IAgentHostWorkspaceFilesResult } from '../../node/agentHostWorkspaceFiles.js';
 
 function isUriArray(value: readonly URI[] | ReadonlyMap<string, readonly URI[] | Error>): value is readonly URI[] {
 	return Array.isArray(value);
@@ -26,22 +26,25 @@ function isUriArray(value: readonly URI[] | ReadonlyMap<string, readonly URI[] |
 class FakeWorkspaceFiles extends AgentHostWorkspaceFiles {
 	readonly calls: URI[] = [];
 
-	constructor(private readonly _results: readonly URI[] | ReadonlyMap<string, readonly URI[] | Error>) {
+	constructor(
+		private readonly _results: readonly URI[] | ReadonlyMap<string, readonly URI[] | Error>,
+		private readonly _truncatedRoots: ReadonlySet<string> = new Set(),
+	) {
 		super(new NullLogService());
 	}
-	override async getFiles(workingDirectory: URI, token: CancellationToken): Promise<readonly URI[]> {
+	override async getFiles(workingDirectory: URI, token: CancellationToken): Promise<IAgentHostWorkspaceFilesResult> {
 		this.calls.push(workingDirectory);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		if (isUriArray(this._results)) {
-			return this._results;
+			return { files: this._results, isTruncated: this._truncatedRoots.has(workingDirectory.path) };
 		}
 		const result = this._results.get(workingDirectory.path) ?? [];
 		if (result instanceof Error) {
 			throw result;
 		}
-		return result;
+		return { files: result, isTruncated: this._truncatedRoots.has(workingDirectory.path) };
 	}
 }
 
@@ -142,12 +145,13 @@ suite('AgentHostFileCompletionProvider', () => {
 			workingDirectories?: readonly URI[];
 			files?: readonly URI[];
 			results?: ReadonlyMap<string, readonly URI[] | Error>;
+			truncatedRoots?: ReadonlySet<string>;
 		}) {
 			const sessionUri = URI.from({ scheme: 'copilot', path: '/test' }).toString();
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const workingDirectories = opts.workingDirectories ?? (opts.workingDirectory ? [opts.workingDirectory] : undefined);
 			stateManager.createSession(makeSummary(sessionUri, workingDirectories?.map(workingDirectory => workingDirectory.toString())));
-			const workspaceFiles = disposables.add(new FakeWorkspaceFiles(opts.results ?? opts.files ?? []));
+			const workspaceFiles = disposables.add(new FakeWorkspaceFiles(opts.results ?? opts.files ?? [], opts.truncatedRoots ?? new Set()));
 			const provider = new AgentHostFileCompletionProvider(stateManager, workspaceFiles, new NullLogService());
 			return { sessionUri, defaultChatUri: buildDefaultChatUri(sessionUri).toString(), provider, stateManager, workspaceFiles };
 		}
@@ -318,11 +322,41 @@ suite('AgentHostFileCompletionProvider', () => {
 			});
 		});
 
+		test('enumerates nested fallback roots when their covering root is truncated', async () => {
+			const root = URI.file('/project');
+			const nested = URI.file('/project/nested');
+			const rootFiles = Array.from({ length: 50 }, (_, index) => URI.joinPath(root, `root-${index}.ts`));
+			const nestedFile = URI.joinPath(nested, 'nested.ts');
+			const { sessionUri, provider, workspaceFiles } = setup({
+				workingDirectories: [root, nested],
+				results: new Map([
+					[root.path, rootFiles],
+					[nested.path, [nestedFile]],
+				]),
+				truncatedRoots: new Set([root.path]),
+			});
+
+			const completions = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				enumerated: workspaceFiles.calls.map(call => call.path),
+				firstTwo: completions.slice(0, 2).map(item =>
+					item.attachment.type === MessageAttachmentKind.Resource ? item.attachment.uri : undefined
+				),
+			}, {
+				enumerated: [root.path, nested.path],
+				firstTwo: [rootFiles[0].toString(), nestedFile.toString()],
+			});
+		});
+
 		test('deduplicates file URIs and disambiguates matching basenames', async () => {
-			const rootA = URI.file('/project/a');
-			const rootB = URI.file('/project/b');
-			const fileA = URI.joinPath(rootA, 'src/index.ts');
-			const fileB = URI.joinPath(rootB, 'test/index.ts');
+			const rootA = URI.file('/a/src');
+			const rootB = URI.file('/b/src');
+			const fileA = URI.joinPath(rootA, 'index.ts');
+			const fileB = URI.joinPath(rootB, 'index.ts');
 			const { sessionUri, provider } = setup({
 				workingDirectories: [rootA, rootB],
 				results: new Map<string, readonly URI[] | Error>([
@@ -336,14 +370,21 @@ suite('AgentHostFileCompletionProvider', () => {
 				CancellationToken.None,
 			);
 
-			assert.deepStrictEqual(completions.map(item => ({
+			const items = completions.map(item => ({
 				insertText: item.insertText,
 				label: item.attachment.label,
 				uri: item.attachment.type === MessageAttachmentKind.Resource ? item.attachment.uri : undefined,
-			})), [
-				{ insertText: '@index.ts', label: 'a/src/index.ts', uri: fileA.toString() },
-				{ insertText: '@index.ts', label: 'b/test/index.ts', uri: fileB.toString() },
-			]);
+			}));
+			assert.deepStrictEqual({
+				items,
+				labelsAreDistinct: items[0].label !== items[1].label,
+			}, {
+				items: [
+					{ insertText: '@index.ts', label: '/a/\u2026/index.ts', uri: fileA.toString() },
+					{ insertText: '@index.ts', label: '/b/\u2026/index.ts', uri: fileB.toString() },
+				],
+				labelsAreDistinct: true,
+			});
 		});
 
 		test('globally ranks matches across roots', async () => {

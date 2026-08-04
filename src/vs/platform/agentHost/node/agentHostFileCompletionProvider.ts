@@ -6,7 +6,8 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery, scoreItemFuzzy } from '../../../base/common/fuzzyScorer.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { shorten } from '../../../base/common/labels.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -14,7 +15,7 @@ import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkin
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { getAgentHostFileCompletionRoots } from './agentHostFileCompletionUtils.js';
+import { IAgentHostFileCompletionRoots, resolveAgentHostFileCompletionRoots } from './agentHostFileCompletionUtils.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 
@@ -120,7 +121,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 		if (!workingDirectoryStrings?.length) {
 			return [];
 		}
-		const roots = getAgentHostFileCompletionRoots(workingDirectoryStrings.map(workingDirectory => URI.parse(workingDirectory)));
+		const roots = resolveAgentHostFileCompletionRoots(workingDirectoryStrings.map(workingDirectory => URI.parse(workingDirectory)));
 		if (roots.enumerationRoots.length === 0) {
 			return [];
 		}
@@ -132,17 +133,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 
 		let filesByRoot: readonly (readonly URI[])[];
 		try {
-			filesByRoot = await Promise.all(roots.enumerationRoots.map(async root => {
-				try {
-					return await this._workspaceFiles.getFiles(root, token);
-				} catch (err) {
-					if (isCancellationError(err)) {
-						throw err;
-					}
-					this._logService.warn(`[AgentHostFileCompletionProvider] Failed to enumerate ${root.toString()}: ${err}`);
-					return [];
-				}
-			}));
+			filesByRoot = await this._enumerateRootFiles(roots, token);
 		} catch (err) {
 			if (isCancellationError(err)) {
 				return [];
@@ -207,8 +198,9 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				names.add(name);
 			}
 		}
+		const shortenedParentPaths = shorten(results.map(candidate => dirname(candidate.uri).path), '/');
 
-		return results.map((candidate): CompletionItem => {
+		return results.map((candidate, index): CompletionItem => {
 			const name = basename(candidate.uri);
 			return {
 				insertText: at.triggerChar + name,
@@ -217,13 +209,58 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				attachment: {
 					type: MessageAttachmentKind.Resource,
 					uri: candidate.uri.toString(),
-					label: duplicateNames.has(name) ? `${basename(candidate.owner)}/${candidate.relativePath}` : name,
+					label: duplicateNames.has(name) ? `${shortenedParentPaths[index]}/${name}` : name,
 					displayKind: 'document',
 				},
 			};
 		});
 	}
 
+	private async _enumerateRootFiles(roots: IAgentHostFileCompletionRoots, token: CancellationToken): Promise<readonly (readonly URI[])[]> {
+		const filesByRoot: (readonly URI[])[] = [];
+		const queuedRoots = new Set(roots.enumerationRoots.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)));
+		let pendingRoots = [...roots.enumerationRoots];
+
+		while (pendingRoots.length > 0) {
+			const currentRoots = pendingRoots;
+			pendingRoots = [];
+			const enumerations = await Promise.all(currentRoots.map(async root => {
+				try {
+					const result = await this._workspaceFiles.getFiles(root, token);
+					return { root, files: result.files, needsFallback: result.isTruncated };
+				} catch (err) {
+					if (isCancellationError(err)) {
+						throw err;
+					}
+					this._logService.warn(`[AgentHostFileCompletionProvider] Failed to enumerate ${root.toString()}: ${err}`);
+					return { root, files: [], needsFallback: true };
+				}
+			}));
+
+			for (const enumeration of enumerations) {
+				filesByRoot.push(enumeration.files);
+				if (!enumeration.needsFallback) {
+					continue;
+				}
+
+				const nestedRoots = roots.logicalRoots.filter(root =>
+					!extUriBiasedIgnorePathCase.isEqual(root, enumeration.root)
+					&& extUriBiasedIgnorePathCase.isEqualOrParent(root, enumeration.root)
+					&& !queuedRoots.has(extUriBiasedIgnorePathCase.getComparisonKey(root))
+				);
+				for (const fallbackRoot of resolveAgentHostFileCompletionRoots(nestedRoots).enumerationRoots) {
+					queuedRoots.add(extUriBiasedIgnorePathCase.getComparisonKey(fallbackRoot));
+					pendingRoots.push(fallbackRoot);
+				}
+			}
+		}
+
+		return filesByRoot;
+	}
+
+	/**
+	 * Interleaves empty-query candidates by logical root before applying the result limit.
+	 */
 	private _takeFairResults(candidates: readonly IFileCompletionCandidate[]): IFileCompletionCandidate[] {
 		const buckets: IFileCompletionCandidate[][] = [];
 		for (const candidate of candidates) {

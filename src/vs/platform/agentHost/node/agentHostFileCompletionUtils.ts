@@ -7,12 +7,21 @@ import { Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
+/**
+ * Separates roots used for completion ownership from roots that require filesystem enumeration.
+ */
 export interface IAgentHostFileCompletionRoots {
+	/** All normalized effective file roots, in session order, including roots nested under another root. */
 	readonly logicalRoots: readonly URI[];
+	/** Minimal declared root set to enumerate after removing roots covered by an outer logical root. */
 	readonly enumerationRoots: readonly URI[];
 }
 
-export function getAgentHostFileCompletionRoots(workingDirectories: readonly URI[]): IAgentHostFileCompletionRoots {
+/**
+ * Resolves effective working directories into logical roots and the minimal root set that must be enumerated.
+ * Nested roots remain logical roots but share their outer root's enumeration to avoid redundant ripgrep work.
+ */
+export function resolveAgentHostFileCompletionRoots(workingDirectories: readonly URI[]): IAgentHostFileCompletionRoots {
 	const logicalRoots: URI[] = [];
 	const seen = new Set<string>();
 

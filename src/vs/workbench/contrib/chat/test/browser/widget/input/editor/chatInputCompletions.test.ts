@@ -17,7 +17,7 @@ import { createTextModel } from '../../../../../../../../editor/test/common/test
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAgentHostResourceCompletionFilterText, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
@@ -31,11 +31,34 @@ class TestChatSessionsService extends MockChatSessionsService {
 		return {
 			items: [{
 				insertText: '#roadmap.md',
+				start: { lineNumber: 1, column: 1 },
+				end: { lineNumber: 1, column: 2 },
 				attachment: {
 					kind: 'resource',
 					uri: URI.file('/workspace/roadmap.md'),
 				},
 			}],
+		};
+	}
+}
+
+class OrderedTestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [
+				{
+					insertText: '#z-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/long/workspace/src/index.ts') },
+				},
+				{
+					insertText: '#a-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/src/index.ts') },
+				},
+			],
 		};
 	}
 }
@@ -87,6 +110,7 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				filterText: '#',
 				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.File,
@@ -108,12 +132,32 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				filterText: '#',
 				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.Text,
 			}],
 			incomplete: true,
 		});
+	});
+
+	test('uses a common current-token filter score to preserve host order', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#src/index', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 11), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.suggestions.map(item => ({
+			label: item.label,
+			filterText: item.filterText,
+			sortText: item.sortText,
+		})), [
+			{ label: '#z-index.ts', filterText: '#src/index', sortText: '000000' },
+			{ label: '#a-index.ts', filterText: '#src/index', sortText: '000001' },
+		]);
 	});
 });
 
@@ -226,17 +270,6 @@ suite('attached context completion ranking', () => {
 			at: '@Screen Recording.mov @attachment:Screen Recording.mov Screen Recording.mov file',
 			hash: '#Screen Recording.mov #attachment:Screen Recording.mov Screen Recording.mov file',
 		});
-	});
-});
-
-suite('agent host resource completion filtering', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('matches inserted basenames and resource paths', () => {
-		assert.strictEqual(
-			getAgentHostResourceCompletionFilterText('@index.ts', '/workspace/src/index.ts'),
-			'@index.ts @/workspace/src/index.ts',
-		);
 	});
 });
 

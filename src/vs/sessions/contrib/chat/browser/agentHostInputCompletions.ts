@@ -25,7 +25,6 @@ import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, 
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
-import { getAgentHostResourceCompletionFilterText } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputCompletionUtils.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../../workbench/contrib/chat/browser/agentHostCompletionAction.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -380,7 +379,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 				return {
 					label: { label, description },
 					insertText: item.insertText,
-					filterText: getAgentHostResourceCompletionFilterText(item.insertText, attachment.uri.path),
+					filterText: item.insertText,
 					range: replaceRange,
 					kind,
 					command: {

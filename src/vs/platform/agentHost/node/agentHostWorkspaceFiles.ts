@@ -22,11 +22,16 @@ const CACHE_TTL_MS = 30_000;
 /** Maximum number of concurrent ripgrep enumerations across all callers. */
 const MAX_CONCURRENT_ENUMERATIONS = 4;
 
-const enumerationLimiter = new Limiter<readonly URI[]>(MAX_CONCURRENT_ENUMERATIONS);
+const enumerationLimiter = new Limiter<IAgentHostWorkspaceFilesResult>(MAX_CONCURRENT_ENUMERATIONS);
 
 interface ICacheEntry {
-	readonly promise: Promise<readonly URI[]>;
-	expiresAt: number;
+	readonly promise: Promise<IAgentHostWorkspaceFilesResult>;
+	expiresAt?: number;
+}
+
+export interface IAgentHostWorkspaceFilesResult {
+	readonly files: readonly URI[];
+	readonly isTruncated: boolean;
 }
 
 /**
@@ -75,23 +80,26 @@ export class AgentHostWorkspaceFiles extends Disposable {
 	 *
 	 * Only `file://` URIs are supported. Other schemes return an empty list.
 	 */
-	async getFiles(workingDirectory: URI, token: CancellationToken): Promise<readonly URI[]> {
+	async getFiles(workingDirectory: URI, token: CancellationToken): Promise<IAgentHostWorkspaceFilesResult> {
 		if (workingDirectory.scheme !== Schemas.file) {
-			return [];
+			return { files: [], isTruncated: false };
 		}
 
 		const key = workingDirectory.toString();
 		const now = Date.now();
 		const existing = this._cache.get(key);
-		let shared: Promise<readonly URI[]>;
-		if (existing && existing.expiresAt > now) {
+		let shared: Promise<IAgentHostWorkspaceFilesResult>;
+		if (existing && (existing.expiresAt === undefined || existing.expiresAt > now)) {
 			shared = existing.promise;
 		} else {
-			shared = enumerationLimiter.queue(() => this._isDisposed ? Promise.resolve([]) : this._enumerate(workingDirectory));
-			const entry: ICacheEntry = { promise: shared, expiresAt: now + CACHE_TTL_MS };
+			shared = enumerationLimiter.queue(() => this._isDisposed ? Promise.resolve({ files: [], isTruncated: false }) : this._enumerate(workingDirectory));
+			const entry: ICacheEntry = { promise: shared };
 			this._cache.set(key, entry);
-			// If enumeration fails, drop the cache entry so the next caller retries.
-			shared.catch(() => {
+			shared.then(() => {
+				if (this._cache.get(key) === entry) {
+					entry.expiresAt = Date.now() + CACHE_TTL_MS;
+				}
+			}, () => {
 				if (this._cache.get(key) === entry) {
 					this._cache.delete(key);
 				}
@@ -108,7 +116,7 @@ export class AgentHostWorkspaceFiles extends Disposable {
 		if (token === CancellationToken.None) {
 			return shared;
 		}
-		return new Promise<readonly URI[]>((resolve, reject) => {
+		return new Promise<IAgentHostWorkspaceFilesResult>((resolve, reject) => {
 			const cancelListener = token.onCancellationRequested(() => {
 				cancelListener.dispose();
 				reject(new CancellationError());
@@ -123,9 +131,9 @@ export class AgentHostWorkspaceFiles extends Disposable {
 		});
 	}
 
-	private async _enumerate(workingDirectory: URI): Promise<readonly URI[]> {
+	private async _enumerate(workingDirectory: URI): Promise<IAgentHostWorkspaceFilesResult> {
 		const resolvedRgDiskPath = await rgDiskPath();
-		return new Promise<readonly URI[]>((resolve, reject) => {
+		return new Promise<IAgentHostWorkspaceFilesResult>((resolve, reject) => {
 			const cwd = workingDirectory.fsPath;
 			// Mirror the workbench's `ripgrepFileSearch.ts` invocation: pass
 			// `--no-config` so a user's global `~/.ripgreprc` cannot change
@@ -147,7 +155,7 @@ export class AgentHostWorkspaceFiles extends Disposable {
 			let limitHit = false;
 			let settled = false;
 
-			const finish = (value: readonly URI[], error?: Error) => {
+			const finish = (files: readonly URI[], error?: Error) => {
 				if (settled) {
 					return;
 				}
@@ -156,7 +164,7 @@ export class AgentHostWorkspaceFiles extends Disposable {
 				if (error) {
 					reject(error);
 				} else {
-					resolve(value);
+					resolve({ files, isTruncated: limitHit });
 				}
 			};
 

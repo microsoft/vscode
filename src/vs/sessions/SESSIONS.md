@@ -199,7 +199,7 @@ The active session (`IActiveSession`) extends `ISession` with an `activeChat` ob
 
 Chat input history in the Agents Window is scoped by `ISession.sessionId`. Pressing Up/Down in a chat input only navigates prompts previously submitted in the same session, including across multiple chats in that session. Users can disable `chat.agentSessions.scopedInputHistory` to restore shared input history across sessions. When a provider replaces a temporary untitled session with a committed session after the first send, history is moved from the temporary session id to the committed session id.
 
-Agent-host chat input completions preserve the host's result order through Monaco sorting. Resource completions include the absolute resource path in their filter text so root-relative path queries remain matchable while the inserted reference stays concise.
+Agent-host chat input completions preserve the host's result order through Monaco sorting and filtering. Every result uses the current trigger token as its filter text because the host has already applied path-aware filtering and ranking.
 
 ### Workspaces and Folders
 

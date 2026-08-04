@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { findDeepestContainingWorkingDirectory } from '../../common/agentHostWorkingDirectories.js';
-import { getAgentHostFileCompletionRoots } from '../../node/agentHostFileCompletionUtils.js';
+import { resolveAgentHostFileCompletionRoots } from '../../node/agentHostFileCompletionUtils.js';
 
 suite('AgentHostFileCompletionUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -15,7 +15,7 @@ suite('AgentHostFileCompletionUtils', () => {
 	const toPaths = (resources: readonly URI[]) => resources.map(resource => resource.path);
 
 	test('normalizes and deduplicates local roots while preserving order', () => {
-		const result = getAgentHostFileCompletionRoots([
+		const result = resolveAgentHostFileCompletionRoots([
 			URI.file('/project/a/'),
 			URI.file('/project/b'),
 			URI.file('/project/a'),
@@ -32,7 +32,7 @@ suite('AgentHostFileCompletionUtils', () => {
 	});
 
 	test('enumerates only the outermost declared roots', () => {
-		const result = getAgentHostFileCompletionRoots([
+		const result = resolveAgentHostFileCompletionRoots([
 			URI.file('/project/a/sub/one'),
 			URI.file('/project/b'),
 			URI.file('/project/a'),
@@ -49,7 +49,7 @@ suite('AgentHostFileCompletionUtils', () => {
 	});
 
 	test('does not synthesize a common ancestor for sibling roots', () => {
-		const result = getAgentHostFileCompletionRoots([
+		const result = resolveAgentHostFileCompletionRoots([
 			URI.file('/project/a'),
 			URI.file('/project/b'),
 		]);
