@@ -903,6 +903,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		const gestureDisposable = Gesture.addTarget(tabContainer);
 
+		// Tab Fill (Modern UI pill background). A real element is used because the
+		// tab's ::before/::after pseudo-elements are reserved for drop-target indicators.
+		const tabFillContainer = $('.tab-fill');
+		tabContainer.appendChild(tabFillContainer);
+
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
 		tabContainer.appendChild(tabBorderTopContainer);
