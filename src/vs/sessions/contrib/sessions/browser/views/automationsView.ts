@@ -28,7 +28,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
@@ -46,7 +46,7 @@ import { Action2, MenuItemAction, registerAction2 } from '../../../../../platfor
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 
@@ -74,6 +74,7 @@ export class AutomationsCardsWidget extends Disposable {
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
+		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(this.element));
 		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
@@ -85,6 +86,7 @@ export class AutomationsCardsWidget extends Disposable {
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
+			hasItemsContext.set(items.length > 0);
 			this.cardsSection.render(items);
 		}));
 
@@ -822,7 +824,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
