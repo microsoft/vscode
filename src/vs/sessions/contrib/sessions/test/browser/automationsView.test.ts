@@ -76,6 +76,12 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 	};
 }
 
+function dispatchKeydown(element: HTMLElement, init: KeyboardEventInit & { keyCode: number }): void {
+	const event = new KeyboardEvent('keydown', { ...init, bubbles: true });
+	Object.defineProperty(event, 'keyCode', { get: () => init.keyCode });
+	element.dispatchEvent(event);
+}
+
 class FakeAutomationService extends mock<IAutomationService>() {
 	private readonly automationValue = observableValue<readonly IAutomation[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
@@ -372,6 +378,33 @@ suite('AutomationsCardsWidget', () => {
 			showCalls: 1,
 			existing: item,
 			runCalls: 1,
+		});
+	});
+
+	test('automation action buttons support arrow navigation and keyboard activation', async () => {
+		const { automationService, runner, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const buttons = widget.element.querySelectorAll<HTMLElement>('.automations-card-action-button');
+		const runButton = buttons.item(0);
+		const deleteButton = buttons.item(1);
+
+		runButton.focus();
+		dispatchKeydown(runButton, { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 });
+		const movedRight = document.activeElement === deleteButton;
+		dispatchKeydown(deleteButton, { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 });
+		const movedLeft = document.activeElement === runButton;
+		dispatchKeydown(runButton, { key: 'Enter', code: 'Enter', keyCode: 13 });
+		dispatchKeydown(runButton, { key: ' ', code: 'Space', keyCode: 32 });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			movedRight,
+			movedLeft,
+			runCalls: runner.runCalls,
+		}, {
+			movedRight: true,
+			movedLeft: true,
+			runCalls: 2,
 		});
 	});
 
