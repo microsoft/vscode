@@ -98,7 +98,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			this._register(model);
 			const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
 			this._register(vm);
-			await raceTimeout(vm.waitForDiffs(), 1000);
+			await raceTimeout(vm.waitForDiffOr1s(), 1000);
 			return vm;
 		});
 		this._resolvedSource = new ObservableLazyPromise(async () => {
@@ -190,18 +190,38 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
 			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
 
-			try {
-				[original, modified] = await Promise.all([
-					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
-				]);
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
 				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
 				if (modified) { multiDiffItemStore.add(modified); }
-			} catch (e) {
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
+				return undefined;
+			}
+
+			let errorResult: PromiseRejectedResult | undefined;
+			if (originalResult.status === 'rejected') {
+				errorResult = originalResult;
+			} else if (modifiedResult.status === 'rejected') {
+				errorResult = modifiedResult;
+			}
+			if (errorResult) {
+				multiDiffItemStore.dispose();
 				// e.g. "File seems to be binary and cannot be opened as text"
-				console.error(e);
-				onUnexpectedError(e);
+				console.error(errorResult.reason);
+				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
 
@@ -276,7 +296,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return this;
 	}
 
-	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.doSaveOrRevert('revert', group, options);
 	}
 

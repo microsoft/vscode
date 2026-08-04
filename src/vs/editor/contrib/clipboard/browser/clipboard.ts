@@ -203,7 +203,7 @@ function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboard
 		// We have encountered the Electron bug!
 		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
 		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
-		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), editor.getOptions(), undefined, browser.isFirefox);
+		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), undefined, browser.isFirefox);
 		clipboardService.writeText(dataToCopy.text);
 	}
 }
@@ -266,7 +266,7 @@ function logCopyCommand(editor: ICodeEditor) {
 	if (editContextEnabled) {
 		const nativeEditContext = NativeEditContextRegistry.get(editor.getId());
 		if (nativeEditContext) {
-			nativeEditContext.onWillCopy();
+			nativeEditContext.handleWillCopy();
 		}
 	}
 }
@@ -290,7 +290,7 @@ if (PasteAction) {
 			if (editContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					nativeEditContext.onWillPaste();
+					nativeEditContext.handleWillPaste();
 				}
 			}
 

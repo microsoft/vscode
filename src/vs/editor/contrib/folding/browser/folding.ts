@@ -24,14 +24,14 @@ import { ITextModel } from '../../../common/model.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
 import { FoldingRange, FoldingRangeKind, FoldingRangeProvider } from '../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from './foldingModel.js';
+import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from './foldingModel.js';
 import { HiddenRangeModel } from './hiddenRangeModel.js';
 import { IndentRangeProvider } from './indentRangeProvider.js';
 import * as nls from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { FoldingDecorationProvider } from './foldingDecorations.js';
-import { FoldingRegion, FoldingRegions, FoldRange, FoldSource, ILineRange } from './foldingRanges.js';
+import { FoldingRegion, FoldingRegions, FoldRange, FoldSource } from './foldingRanges.js';
 import { SyntaxRangeProvider } from './syntaxRangeProvider.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
@@ -1203,12 +1203,7 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 		if (selections) {
-			const ranges: ILineRange[] = [];
-			for (const selection of selections) {
-				const { startLineNumber, endLineNumber } = selection;
-				ranges.push(endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
-			}
-			foldingModel.removeManualRanges(ranges);
+			foldingModel.removeManualRanges(selections);
 			foldingController.triggerFoldingModelChanged();
 		}
 	}

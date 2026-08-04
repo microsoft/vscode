@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createReadStream, promises } from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
@@ -73,10 +73,29 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 
-		res.writeHead(200, responseHeaders);
-
-		// Data
-		createReadStream(filePath).pipe(res);
+		// Create the stream first and wait for it to open before sending
+		// headers so that errors (e.g. ENOENT race) can still produce a
+		// proper 404 response instead of aborting a half-sent 200.
+		const fileStream = createReadStream(filePath);
+		await new Promise<void>((resolve, reject) => {
+			fileStream.on('error', reject);
+			fileStream.on('open', () => {
+				// File opened successfully - send headers and pipe
+				res.writeHead(200, responseHeaders);
+				fileStream.pipe(res);
+				// Destroy the read stream if the response is closed prematurely
+				// (e.g. client disconnect) to avoid leaking the file descriptor.
+				res.once('close', () => fileStream.destroy());
+				fileStream.on('end', resolve);
+				// Replace the initial error handler now that headers are sent
+				fileStream.removeAllListeners('error');
+				fileStream.on('error', error => {
+					logService.error(error);
+					console.error(error.toString());
+					res.destroy();
+				});
+			});
+		});
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
@@ -206,7 +225,8 @@ export class WebClientServer {
 		const context = await this._requestService.request({
 			type: 'GET',
 			url: uri.toString(true),
-			headers
+			headers,
+			callSite: 'webClientServer.fetchAndWriteFile'
 		}, CancellationToken.None);
 
 		const status = context.res.statusCode || 500;
@@ -334,6 +354,7 @@ export class WebClientServer {
 
 		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
 			embedderIdentifier: 'server-distro',
+			voiceWsUrl: this._productService.voiceWsUrl,
 			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
 				...this._productService.extensionsGallery,
 				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
@@ -343,12 +364,6 @@ export class WebClientServer {
 				}).toString(true)
 			} : undefined
 		};
-
-		const proposedApi = this._environmentService.args['enable-proposed-api'];
-		if (proposedApi?.length) {
-			productConfiguration.extensionsEnabledWithApiProposalVersion ??= [];
-			productConfiguration.extensionsEnabledWithApiProposalVersion.push(...proposedApi);
-		}
 
 		if (!this._environmentService.isBuilt) {
 			try {
@@ -364,6 +379,7 @@ export class WebClientServer {
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			enabledExtensionProposedApi: this._environmentService.args['enable-proposed-api'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
@@ -417,7 +433,7 @@ export class WebClientServer {
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-2Q+j4hfT09+1+imS46J2YlkCtHWQt0/BE79PXjJ0ZJ8=';
+		const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
 
 		const cspDirectives = [
 			'default-src \'self\';',

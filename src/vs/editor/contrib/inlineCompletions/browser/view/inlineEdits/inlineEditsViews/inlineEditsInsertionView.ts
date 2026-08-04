@@ -7,7 +7,6 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -21,9 +20,10 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 import { GhostTextView, IGhostTextWidgetData } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor } from '../theme.js';
+import { getEditorBackgroundColor, getModifiedBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
@@ -54,27 +54,35 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 	private readonly _trimVertically = derived(this, reader => {
 		const state = this._state.read(reader);
-		const text = state?.text;
-		if (!text || text.trim() === '') {
-			return { topOffset: 0, bottomOffset: 0, linesTop: 0, linesBottom: 0 };
+		if (!state) {
+			return { topOffset: 0, contentHeight: 0, linesTop: 0, linesBottom: 0 };
 		}
 
-		// Adjust for leading/trailing newlines
+		const text = state.text;
 		const lineHeight = this._editor.getLineHeightForPosition(new Position(state.lineNumber, 1));
 		const eol = this._editor.getModel()!.getEOL();
+		const lineCount = text.split(eol).length;
+
+		// Count leading/trailing blank lines so the overlay can be trimmed to the actual inserted content.
 		let linesTop = 0;
 		let linesBottom = 0;
+		if (text.trim() !== '') {
+			let i = 0;
+			for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
+				linesTop += 1;
+			}
 
-		let i = 0;
-		for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
-			linesTop += 1;
+			for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
+				linesBottom += 1;
+			}
 		}
 
-		for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
-			linesBottom += 1;
-		}
-
-		return { topOffset: linesTop * lineHeight, bottomOffset: linesBottom * lineHeight, linesTop, linesBottom };
+		return {
+			topOffset: linesTop * lineHeight,
+			contentHeight: (lineCount - linesTop - linesBottom) * lineHeight,
+			linesTop,
+			linesBottom,
+		};
 	});
 
 	private readonly _maxPrefixTrim = derived(this, reader => {
@@ -126,7 +134,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			lineNumber: number;
 			startColumn: number;
 			text: string;
-			inDiffEditor: boolean;
+			editorType: InlineCompletionEditorType;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -240,10 +248,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			return null;
 		}
 
-		const { topOffset: topTrim, bottomOffset: bottomTrim } = this._trimVertically.read(reader);
+		const { topOffset: topTrim, contentHeight: height } = this._trimVertically.read(reader);
 
 		const scrollTop = this._editorObs.scrollTop.read(reader);
-		const height = this._ghostTextView.height.read(reader) - topTrim - bottomTrim;
+		// Derive the overlay height synchronously from the model (via _trimVertically) rather than the
+		// asynchronously measured ghost text view zone height, which is transiently just a single line while
+		// the view zone is (re)created. Because it uses the same line height and line accounting as the trims,
+		// top/height/bottom stay consistent and height is always positive: leading and trailing blank lines
+		// can never cover every inserted line.
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
@@ -272,17 +284,18 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			layoutInfo.overlay.bottom
 		)).read(reader);
 
-		const separatorWidth = this._input.map(i => i?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
-		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, 0, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
+		const separatorWidth = this._input.map(i => i?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
+		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, BORDER_WIDTH, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
 		const underlayRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
+		const editorBackground = getEditorBackgroundColor(this._input.read(undefined)?.editorType ?? InlineCompletionEditorType.TextEditor);
 		return [
 			n.div({
 				class: 'originalUnderlayInsertion',
 				style: {
 					...underlayRect.read(reader).toStyles(),
 					borderRadius: BORDER_RADIUS,
-					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${editorBackground}`,
 					boxSizing: 'border-box',
 				}
 			}),
@@ -300,7 +313,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 				class: 'originalOverlayHiderInsertion',
 				style: {
 					...overlayHider.toStyles(),
-					backgroundColor: asCssVariable(editorBackground),
+					backgroundColor: editorBackground,
 				}
 			})
 		];

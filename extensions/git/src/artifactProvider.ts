@@ -3,23 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { dispose, filterEvent, IDisposable } from './util';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, l10n, workspace, Uri, Disposable, Command } from 'vscode';
+import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktreeFolder } from './util';
 import { Repository } from './repository';
-import { Ref, RefType } from './api/git';
+import type { Ref, Worktree } from './api/git';
+import { RefType } from './api/git.constants';
 import { OperationKind } from './operation';
-
-function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
-	const segments: string[] = [];
-	if (ref.commit) {
-		segments.push(ref.commit.substring(0, shortCommitLength));
-	}
-	if (ref.commitDetails?.message) {
-		segments.push(ref.commitDetails.message.split('\n')[0]);
-	}
-
-	return segments.join(' \u2022 ');
-}
+import { Icons } from './icons';
 
 /**
  * Sorts refs like a directory tree: refs with more path segments (directories) appear first
@@ -67,6 +57,16 @@ function sortRefByName(refA: Ref, refB: Ref): number {
 	return 0;
 }
 
+function sortByWorktreeTypeAndNameAsc(a: Worktree, b: Worktree): number {
+	if (a.main && !b.main) {
+		return -1;
+	} else if (!a.main && b.main) {
+		return 1;
+	} else {
+		return a.name.localeCompare(b.name);
+	}
+}
+
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
@@ -78,10 +78,19 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		private readonly repository: Repository,
 		private readonly logger: LogOutputChannel
 	) {
+		// If this is the agents window we don't need to initialize the
+		// repository artifacts provider since the agents window does not
+		// have the Repository explorer view.
+		if (workspace.isAgentSessionsWorkspace) {
+			this._groups = [];
+			return;
+		}
+
 		this._groups = [
-			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
-			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
-			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true }
+			{ id: 'branches', name: l10n.t('Branches'), icon: Icons.branch, supportsFolders: true },
+			{ id: 'stashes', name: l10n.t('Stashes'), icon: Icons.stash, supportsFolders: false },
+			{ id: 'tags', name: l10n.t('Tags'), icon: Icons.tag, supportsFolders: true },
+			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: Icons.worktree, supportsFolders: false }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
@@ -104,6 +113,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		this._disposables.push(onDidRunWriteOperation(result => {
 			if (result.operation.kind === OperationKind.Stash) {
 				this._onDidChangeArtifacts.fire(['stashes']);
+			} else if (result.operation.kind === OperationKind.Worktree) {
+				this._onDidChangeArtifacts.fire(['worktrees']);
 			}
 		}));
 	}
@@ -124,10 +135,13 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Head && r.name === this.repository.HEAD?.name
-						? new ThemeIcon('target')
-						: new ThemeIcon('git-branch'),
+						? Icons.head
+						: Icons.branch,
 					timestamp: r.commitDetails?.commitDate?.getTime()
 				}));
 			} else if (group === 'tags') {
@@ -137,10 +151,13 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
-						? new ThemeIcon('target')
-						: new ThemeIcon('tag'),
+						? Icons.head
+						: Icons.tag,
 					timestamp: r.commitDetails?.commitDate?.getTime()
 				}));
 			} else if (group === 'stashes') {
@@ -150,12 +167,29 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					id: `stash@{${s.index}}`,
 					name: s.description,
 					description: s.branchName,
-					icon: new ThemeIcon('git-stash'),
+					icon: Icons.stash,
 					timestamp: s.commitDate?.getTime(),
 					command: {
 						title: l10n.t('View Stash'),
 						command: 'git.repositories.stashView'
 					} satisfies Command
+				}));
+			} else if (group === 'worktrees') {
+				const worktrees = await this.repository.getWorktreeDetails();
+
+				return worktrees.sort(sortByWorktreeTypeAndNameAsc).map(w => ({
+					id: w.path,
+					name: w.name,
+					description: coalesce([
+						w.detached ? l10n.t('detached') : w.ref.substring(11),
+						w.commitDetails?.hash.substring(0, shortCommitLength),
+						w.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
+					icon: w.main
+						? Icons.repository
+						: isCopilotWorktreeFolder(w.path)
+							? Icons.chatWorktree
+							: Icons.worktree
 				}));
 			}
 		} catch (err) {

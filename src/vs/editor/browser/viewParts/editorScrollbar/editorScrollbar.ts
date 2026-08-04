@@ -105,9 +105,6 @@ export class EditorScrollbar extends ViewPart {
 		this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private _setLayout(): void {
 		const options = this._context.configuration.options;

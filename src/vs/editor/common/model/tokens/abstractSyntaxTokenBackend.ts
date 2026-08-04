@@ -6,13 +6,13 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { TextModel } from '../textModel.js';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelTokensChangedEvent, IModelFontTokensChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { derivedOpts, IObservable, ISettableObservable, observableSignal, observableValueOpts } from '../../../../base/common/observable.js';
@@ -21,7 +21,7 @@ import { equalsIfDefinedC, thisEqualsC, arrayEqualsC } from '../../../../base/co
 /**
  * @internal
  */
-export class AttachedViews {
+export class AttachedViews implements IDisposable {
 	private readonly _onDidChangeVisibleRanges = new Emitter<{ view: IAttachedView; state: AttachedViewState | undefined }>();
 	public readonly onDidChangeVisibleRanges = this._onDidChangeVisibleRanges.event;
 
@@ -56,6 +56,10 @@ export class AttachedViews {
 		this._views.delete(view as AttachedViewImpl);
 		this._onDidChangeVisibleRanges.fire({ view, state: undefined });
 		this._viewsChanged.trigger(undefined);
+	}
+
+	public dispose(): void {
+		this._onDidChangeVisibleRanges.dispose();
 	}
 }
 
@@ -144,6 +148,10 @@ export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	protected readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+
+	protected readonly _onDidChangeFontTokens: Emitter<IModelFontTokensChangedEvent> = this._register(new Emitter<IModelFontTokensChangedEvent>());
+	/** @internal, should not be exposed by the text model! */
+	public readonly onDidChangeFontTokens: Event<IModelFontTokensChangedEvent> = this._onDidChangeFontTokens.event;
 
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,

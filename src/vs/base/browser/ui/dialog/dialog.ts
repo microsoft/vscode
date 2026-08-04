@@ -5,7 +5,7 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, isEditableElement, isHTMLElement, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
@@ -58,6 +58,14 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	/**
+	 * Temporary escape hatch for dialogs that embed widgets whose popups mount
+	 * at window root (outside the dialog DOM). Needed because the focus trap
+	 * would otherwise immediately reclaim focus from context views and pickers.
+	 * See https://github.com/microsoft/vscode/issues/323920 for removal plan.
+	 */
+	readonly isExternalFocusAllowed?: (relatedTarget: HTMLElement) => boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -327,8 +335,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -373,7 +386,9 @@ export class Dialog extends Disposable {
 				let eventHandled = false;
 
 				// Focus: Next / Previous
-				if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow) || evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
+				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
+				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
@@ -469,7 +484,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));
@@ -478,6 +493,11 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						// Temporary: let focus escape for body-level popups.
+						// See https://github.com/microsoft/vscode/issues/323920
+						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
+							return;
+						}
 						this.focusToReturn = e.relatedTarget as HTMLElement;
 
 						if (e.target) {
@@ -536,6 +556,10 @@ export class Dialog extends Disposable {
 			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
 
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
+
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {
 				this.inputs[0].focus();
@@ -569,6 +593,8 @@ export class Dialog extends Disposable {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				el.style.color = linkFgColor;
+				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
+				el.style.textDecoration = 'underline';
 			}
 		}
 

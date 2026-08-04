@@ -55,6 +55,8 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 			}
 			processAutoResponders.clear();
 		}
+		this._autoResponders.delete(persistentProcessId);
+		this._terminalProcesses.delete(persistentProcessId);
 	}
 
 	handleProcessInput(persistentProcessId: number, data: string) {

@@ -38,3 +38,4 @@ export const infoIcon = registerIcon('extensions-info-message', Codicon.info, lo
 
 export const trustIcon = registerIcon('extension-workspace-trust', Codicon.shield, localize('trustIcon', 'Icon shown with a workspace trust message in the extension editor.'));
 export const activationTimeIcon = registerIcon('extension-activation-time', Codicon.history, localize('activationtimeIcon', 'Icon shown with a activation time message in the extension editor.'));
+export const restartRequiredIcon = registerIcon('extension-restart-required', Codicon.refresh, localize('restartRequiredIcon', 'Icon shown when an extension requires a restart in the extensions view.'));

@@ -36,51 +36,12 @@
 
 	> .multi-diff-root-floating-menu {
 		position: absolute;
-		right: 32px;
-		bottom: 32px;
 		top: auto;
+		right: 28px;
+		bottom: 24px;
 		left: auto;
-		height: auto;
 		width: auto;
-		padding: 4px 6px;
-		color: var(--vscode-button-foreground);
-		background-color: var(--vscode-button-background);
-		border-radius: 4px;
-		border: 1px solid var(--vscode-contrastBorder);
-		display: flex;
-		align-items: center;
-		z-index: 10;
-		box-shadow: 0 3px 12px var(--vscode-widget-shadow);
-		overflow: hidden;
 	}
-
-	.multi-diff-root-floating-menu .action-item > .action-label {
-		padding: 7px 8px;
-		font-size: 15px;
-		border-radius: 2px;
-	}
-
-	.multi-diff-root-floating-menu .action-item > .action-label.codicon {
-		color: var(--vscode-button-foreground);
-	}
-
-	.multi-diff-root-floating-menu .action-item > .action-label.codicon:not(.separator) {
-		padding-top: 6px;
-		padding-bottom: 6px;
-	}
-
-	.multi-diff-root-floating-menu .action-item:first-child > .action-label {
-		padding-left: 7px;
-	}
-
-	.multi-diff-root-floating-menu .action-item:last-child > .action-label {
-		padding-right: 7px;
-	}
-
-	.multi-diff-root-floating-menu .action-item .action-label.separator {
-		background-color: var(--vscode-button-separator);
-	}
-
 
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
@@ -128,17 +89,20 @@
 
 				.file-path {
 					display: flex;
-					flex: 1;
+					flex: 1 1 auto;
 					min-width: 0;
+					overflow: hidden;
 
 					.title {
 						font-size: 14px;
 						line-height: 22px;
+						flex: 0 1 auto;
+						min-width: 0;
+						overflow: hidden;
+						text-overflow: ellipsis;
 
 						&.original {
-							flex: 1;
-							min-width: 0;
-							text-overflow: ellipsis;
+							flex: 1 1 auto;
 						}
 					}
 
@@ -162,10 +126,15 @@
 							color: v ar(--vscode-gitDecoration-addedResourceForeground);
 						}
 						*/
+
+						&:not(.added):not(.deleted):not(.renamed) {
+							display: none;
+						}
 					}
 				}
 
 				.actions {
+					flex: 0 0 auto;
 					padding: 0 8px;
 				}
 			}

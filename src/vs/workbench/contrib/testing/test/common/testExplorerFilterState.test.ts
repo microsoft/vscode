@@ -88,4 +88,31 @@ suite('TestExplorerFilterState', () => {
 		assert.deepStrictEqual([...t.includeTags], ['hello\0world"1']);
 		assert.deepStrictEqual(t.excludeTags, new Set());
 	});
+
+	test('treats unrecognized @-prefixed text as regular filter text', () => {
+		t.setText('@smoke');
+		assert.deepStrictEqual(t.globList, [{ text: '@smoke', include: true }]);
+		assert.deepStrictEqual(t.includeTags, new Set());
+		assert.deepStrictEqual(t.excludeTags, new Set());
+		assertFilteringFor(termFiltersOff);
+	});
+
+	test('treats unrecognized @-prefixed text as filter text in mixed input', () => {
+		t.setText('@smoke @doc hello');
+		assert.deepStrictEqual(t.globList, [{ text: '@smoke hello', include: true }]);
+		assert.deepStrictEqual(t.includeTags, new Set());
+		assert.deepStrictEqual(t.excludeTags, new Set());
+		assertFilteringFor({
+			...termFiltersOff,
+			[TestFilterTerm.CurrentDoc]: true,
+		});
+	});
+
+	test('negated unrecognized @-prefixed text works as exclusion filter', () => {
+		t.setText('!@smoke');
+		assert.deepStrictEqual(t.globList, [{ text: '@smoke', include: false }]);
+		assert.deepStrictEqual(t.includeTags, new Set());
+		assert.deepStrictEqual(t.excludeTags, new Set());
+		assertFilteringFor(termFiltersOff);
+	});
 });

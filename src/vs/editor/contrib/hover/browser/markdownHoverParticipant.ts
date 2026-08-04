@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from './hoverActionIds.js';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -36,8 +36,8 @@ import { HoverStartSource } from './hoverOperation.js';
 import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 const $ = dom.$;
-const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
-const decreaseHoverVerbosityIcon = registerIcon('hover-decrease-verbosity', Codicon.remove, nls.localize('decreaseHoverVerbosity', 'Icon for decreasing hover verbosity.'));
+const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.addSmall, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
+const decreaseHoverVerbosityIcon = registerIcon('hover-decrease-verbosity', Codicon.removeSmall, nls.localize('decreaseHoverVerbosity', 'Icon for decreasing hover verbosity.'));
 
 export class MarkdownHover implements IHoverPart {
 
@@ -115,17 +115,32 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: languageId
 		});
+		const showLongLineWarning = this._editor.getOption(EditorOption.hover).showLongLineWarning;
 		let stopRenderingMessage = false;
 		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
 			stopRenderingMessage = true;
-			result.push(new MarkdownHover(this, anchor.range, [{
-				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
-			}], false, index++));
+			if (showLongLineWarning) {
+				result.push(new MarkdownHover(this, anchor.range, [{
+					value: nls.localize(
+						{ key: 'stopped rendering', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] },
+						"Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`. [Don't Show Again](command:{0})",
+						HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID
+					),
+					isTrusted: true
+				}], false, index++));
+			}
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, anchor.range, [{
-				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], false, index++));
+			if (showLongLineWarning) {
+				result.push(new MarkdownHover(this, anchor.range, [{
+					value: nls.localize(
+						{ key: 'too many characters', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] },
+						"Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`. [Don't Show Again](command:{0})",
+						HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID
+					),
+					isTrusted: true
+				}], false, index++));
+			}
 		}
 
 		let isBeforeContent = false;
@@ -527,17 +542,9 @@ function renderMarkdown(
 
 export function labelForHoverVerbosityAction(keybindingService: IKeybindingService, action: HoverVerbosityAction): string {
 	switch (action) {
-		case HoverVerbosityAction.Increase: {
-			const kb = keybindingService.lookupKeybinding(INCREASE_HOVER_VERBOSITY_ACTION_ID);
-			return kb ?
-				nls.localize('increaseVerbosityWithKb', "Increase Hover Verbosity ({0})", kb.getLabel()) :
-				nls.localize('increaseVerbosity', "Increase Hover Verbosity");
-		}
-		case HoverVerbosityAction.Decrease: {
-			const kb = keybindingService.lookupKeybinding(DECREASE_HOVER_VERBOSITY_ACTION_ID);
-			return kb ?
-				nls.localize('decreaseVerbosityWithKb', "Decrease Hover Verbosity ({0})", kb.getLabel()) :
-				nls.localize('decreaseVerbosity', "Decrease Hover Verbosity");
-		}
+		case HoverVerbosityAction.Increase:
+			return keybindingService.appendKeybinding(nls.localize('increaseVerbosity', "Increase Hover Verbosity"), INCREASE_HOVER_VERBOSITY_ACTION_ID);
+		case HoverVerbosityAction.Decrease:
+			return keybindingService.appendKeybinding(nls.localize('decreaseVerbosity', "Decrease Hover Verbosity"), DECREASE_HOVER_VERBOSITY_ACTION_ID);
 	}
 }

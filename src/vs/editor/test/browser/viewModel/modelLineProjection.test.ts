@@ -346,7 +346,7 @@ suite('SplitLinesCollection', () => {
 						tokens[i].value << MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
-				return new languages.EncodedTokenizationResult(result, state);
+				return new languages.EncodedTokenizationResult(result, [], state);
 			}
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
@@ -915,8 +915,8 @@ suite('SplitLinesCollection', () => {
 			assert.deepStrictEqual(
 				data.map((d) => ({
 					inlineDecorations: d.inlineDecorations?.map((d) => ({
-						startOffset: d.startOffset,
-						endOffset: d.endOffset,
+						startOffset: d.range.startColumn - 1,
+						endOffset: d.range.endColumn - 1,
 					})),
 				})),
 				[

@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { isNative } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -15,15 +15,15 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../platform/request/common/request.js';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspace, IWorkspaceContextService, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { checkGlobFileExists } from '../../services/extensions/common/workspaceContains.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from '../../services/search/common/queryBuilder.js';
 import { IEditorService, ISaveEditorsResult } from '../../services/editor/common/editorService.js';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from '../../services/search/common/search.js';
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
-import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
 import { IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../common/editor.js';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -32,9 +32,8 @@ import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
-export class MainThreadWorkspace implements MainThreadWorkspaceShape {
+export class MainThreadWorkspace extends Disposable implements MainThreadWorkspaceShape {
 
-	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
@@ -57,6 +56,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		super();
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
@@ -67,13 +67,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
+		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
+		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(this._onDidChangeWorkspaceTrustedFolders, this));
 	}
 
-	dispose(): void {
-		this._toDispose.dispose();
+	override dispose(): void {
+		super.dispose();
 
 		for (const requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
@@ -129,7 +130,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
-		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (!this._contextService.hasWorkspaceData()) {
 			return null;
 		}
 		return {
@@ -138,7 +139,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
-			transient: workspace.transient
+			transient: workspace.transient,
 		};
 	}
 
@@ -241,8 +242,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
+	$requestResourceTrust(optionsDto: ResourceTrustRequestOptionsDto): Promise<boolean | undefined> {
+		const options = { ...optionsDto, uri: URI.revive(optionsDto.uri) } satisfies ResourceTrustRequestOptions;
+		return this._workspaceTrustRequestService.requestResourcesTrust(options);
+	}
+
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
+	}
+
+	async $isResourceTrusted(resource: UriComponents): Promise<boolean> {
+		const uri = URI.revive(resource);
+		const trustInfo = await this._workspaceTrustManagementService.getUriTrustInfo(uri);
+		return trustInfo.trusted;
 	}
 
 	private isWorkspaceTrusted(): boolean {
@@ -253,8 +265,12 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		this._proxy.$onDidGrantWorkspaceTrust();
 	}
 
+	private _onDidChangeWorkspaceTrustedFolders(): void {
+		this._proxy.$onDidChangeWorkspaceTrustedFolders();
+	}
+
 	// --- edit sessions ---
-	private registeredEditSessionProviders = new Map<number, IDisposable>();
+	private registeredEditSessionProviders = this._register(new DisposableMap<number, IDisposable>());
 
 	$registerEditSessionIdentityProvider(handle: number, scheme: string) {
 		const disposable = this._editSessionIdentityService.registerEditSessionIdentityProvider({
@@ -268,17 +284,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 
 		this.registeredEditSessionProviders.set(handle, disposable);
-		this._toDispose.add(disposable);
 	}
 
 	$unregisterEditSessionIdentityProvider(handle: number) {
-		const disposable = this.registeredEditSessionProviders.get(handle);
-		disposable?.dispose();
-		this.registeredEditSessionProviders.delete(handle);
+		this.registeredEditSessionProviders.deleteAndDispose(handle);
 	}
 
 	// --- canonical uri identities ---
-	private registeredCanonicalUriProviders = new Map<number, IDisposable>();
+	private registeredCanonicalUriProviders = this._register(new DisposableMap<number, IDisposable>());
 
 	$registerCanonicalUriProvider(handle: number, scheme: string) {
 		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
@@ -293,13 +306,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 
 		this.registeredCanonicalUriProviders.set(handle, disposable);
-		this._toDispose.add(disposable);
 	}
 
 	$unregisterCanonicalUriProvider(handle: number) {
-		const disposable = this.registeredCanonicalUriProviders.get(handle);
-		disposable?.dispose();
-		this.registeredCanonicalUriProviders.delete(handle);
+		this.registeredCanonicalUriProviders.deleteAndDispose(handle);
 	}
 
 	// --- encodings

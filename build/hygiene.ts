@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import filter from 'gulp-filter';
+import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -28,10 +28,65 @@ interface VinylFileWithLines extends VinylFile {
 }
 
 /**
+ * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
+ * Returns an error message if mismatched, or undefined if OK.
+ */
+export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
+	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+	const copilotPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions/copilot/package.json'), 'utf8'));
+	const expected = `^${rootPkg.version}`;
+	const actual = copilotPkg?.engines?.vscode;
+	if (actual !== expected) {
+		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
+}
+
+/**
+ * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
+ * `.eslint-allowed-javascript-files`. This complements the
+ * `local/code-no-new-javascript-files` ESLint rule by also covering files
+ * that are excluded via `.eslint-ignore`.
+ *
+ * Returns an error message if there are unknown JS files, or undefined if OK.
+ */
+export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
+	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
+	const allowed = new Set(
+		fs.readFileSync(allowlistPath, 'utf8')
+			.split(/\r\n|\n/)
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+	);
+
+	// `git ls-files` lists tracked files relative to repo root using forward slashes.
+	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		maxBuffer: 10 * 1024 * 1024,
+	});
+	const tracked = out.split(/\r?\n/).filter(line => !!line);
+
+	const unknown = tracked.filter(file => !allowed.has(file));
+	if (unknown.length > 0) {
+		return [
+			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',
+			'If a file genuinely must be JavaScript, add it to .eslint-allowed-javascript-files',
+			'(this requires CODEOWNERS review). Offending files:',
+			...unknown.map(f => `  ${f}`),
+		].join('\n');
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
-	console.log('Starting hygiene...');
+	const started = Date.now();
+	const requestedPaths = Array.isArray(some) ? some : undefined;
+	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
+	console.log(`Starting hygiene (${scope})...`);
 	let errorCount = 0;
 
 	const productJson = es.through(function (file: VinylFile) {
@@ -70,7 +125,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			}
 			// Please do not add symbols that resemble ASCII letters!
 			// eslint-disable-next-line no-misleading-character-class
-			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯🧪✍️⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
+			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯🧪✍️⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷—·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
 			if (m) {
 				console.error(
 					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
@@ -121,11 +176,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const formatting = es.map(function (file: any, cb) {
 		try {
 			const rawInput = file.contents!.toString('utf8');
-			const rawOutput = formatter.format(file.path, rawInput);
-
-			const original = rawInput.replace(/\r\n/gm, '\n');
-			const formatted = rawOutput.replace(/\r\n/gm, '\n');
-			if (original !== formatted) {
+			if (!formatter.verifyFormatting(file.path, rawInput)) {
 				console.error(
 					`File not formatted. Run the 'Format Document' command to fix it:`,
 					file.relative
@@ -154,30 +205,39 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
+	const checkedFiles = new Set<string>();
+	const trackCheckedFile = () => es.through(function (file: VinylFile) {
+		checkedFiles.add(file.relative);
+		this.emit('data', file);
+	});
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
+		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(Array.from(indentationFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(indentation)
 		.pipe(filter(Array.from(copyrightFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(copyrights);
 
 	const streams: NodeJS.ReadWriteStream[] = [
-		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(formatting)
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
 	];
 
 	if (runEslint) {
 		streams.push(
 			result
 				.pipe(filter(Array.from(eslintFilter)))
+				.pipe(trackCheckedFile())
 				.pipe(
 					eslint((results) => {
 						errorCount += results.warningCount;
@@ -188,14 +248,14 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	}
 
 	streams.push(
-		result.pipe(filter(Array.from(stylelintFilter))).pipe(gulpstylelint(((message: string, isError: boolean) => {
+		result.pipe(filter(Array.from(stylelintFilter))).pipe(trackCheckedFile()).pipe(gulpstylelint(((message: string, isError: boolean) => {
 			if (isError) {
 				console.error(message);
 				errorCount++;
 			} else {
 				console.warn(message);
 			}
-		})))
+		}), false, false))
 	);
 
 	let count = 0;
@@ -210,7 +270,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			},
 			function () {
 				process.stdout.write('\n');
-				if (errorCount > 0) {
+				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+				if (requestedPaths && checkedFiles.size === 0) {
+					this.emit('error', `No hygiene-eligible files matched the requested paths: ${requestedPaths.join(', ')}`);
+				} else if (errorCount > 0) {
 					this.emit(
 						'error',
 						'Hygiene failed with ' +
@@ -242,7 +305,7 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
@@ -290,7 +353,25 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
-					console.log('Reading git index versions...');
+					// Check copilot engines.vscode version if relevant files are staged
+					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
+						const copilotError = checkCopilotEnginesVersion(process.cwd());
+						if (copilotError) {
+							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
+					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
+					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
+						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
+						if (jsAllowlistError) {
+							console.error(jsAllowlistError);
+							process.exit(1);
+						}
+					}
+
+					console.log(`Reading ${some.length} git index version${some.length === 1 ? '' : 's'}...`);
 
 					createGitIndexVinyls(some)
 						.then(
@@ -307,6 +388,9 @@ if (import.meta.main) {
 							console.error(err);
 							process.exit(1);
 						});
+				} else {
+					console.error('No staged files found. Pass file paths to check unstaged files.');
+					process.exit(1);
 				}
 			}
 		);

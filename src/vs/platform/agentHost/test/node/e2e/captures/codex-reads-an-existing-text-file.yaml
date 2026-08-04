@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Read note.txt and reply with its exact contents only.
+    response:
+      content:
+        - type: text
+          text: I’ll read `note.txt` now and return its contents verbatim.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: cat note.txt
+            workdir: ${workdir}/ahp-coverage-read-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Read note.txt and reply with its exact contents only.
+        - role: assistant
+          content: I’ll read `note.txt` now and return its contents verbatim.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: cat note.txt
+                workdir: ${workdir}/ahp-coverage-read-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: f549b9
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 4
+                Output:
+                ALPHA BETA GAMMA
+    response:
+      content: ALPHA BETA GAMMA
+      stopReason: end_turn

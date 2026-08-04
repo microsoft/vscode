@@ -9,17 +9,20 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ITerminalChatService } from './terminal.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITerminalChatService, ITerminalService } from './terminal.js';
 import * as dom from '../../../../base/browser/dom.js';
 
 export class TerminalTabsChatEntry extends Disposable {
 
 	private readonly _entry: HTMLElement;
 	private readonly _label: HTMLElement;
+	private readonly _deleteButton: HTMLElement;
 
 	override dispose(): void {
 		this._entry.remove();
 		this._label.remove();
+		this._deleteButton.remove();
 		super.dispose();
 	}
 
@@ -28,6 +31,8 @@ export class TerminalTabsChatEntry extends Disposable {
 		private readonly _tabContainer: HTMLElement,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -40,10 +45,22 @@ export class TerminalTabsChatEntry extends Disposable {
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussionSparkle));
 		this._label = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
 
+		// Add delete button (right-aligned via CSS margin-left: auto)
+		this._deleteButton = dom.append(entry, $('.terminal-tabs-chat-entry-delete'));
+		this._deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trashcan));
+		this._deleteButton.tabIndex = 0;
+		this._deleteButton.setAttribute('role', 'button');
+		this._deleteButton.setAttribute('aria-label', localize('terminal.tabs.chatEntryDeleteAriaLabel', "Kill all hidden chat terminals"));
+		this._deleteButton.setAttribute('title', localize('terminal.tabs.chatEntryDeleteTooltip', "Kill all hidden chat terminals"));
+
 		const runChatTerminalsCommand = () => {
 			void this._commandService.executeCommand('workbench.action.terminal.chat.viewHiddenChatTerminals');
 		};
 		this._register(dom.addDisposableListener(this._entry, dom.EventType.CLICK, e => {
+			// Don't trigger if clicking on the delete button
+			if (e.target === this._deleteButton || this._deleteButton.contains(e.target as Node)) {
+				return;
+			}
 			e.preventDefault();
 			runChatTerminalsCommand();
 		}));
@@ -53,7 +70,45 @@ export class TerminalTabsChatEntry extends Disposable {
 				runChatTerminalsCommand();
 			}
 		}));
+
+		// Delete button click handler
+		this._register(dom.addDisposableListener(this._deleteButton, dom.EventType.CLICK, async (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			await this._deleteAllHiddenTerminals();
+		}));
+
+		// Delete button keyboard handler
+		this._register(dom.addDisposableListener(this._deleteButton, dom.EventType.KEY_DOWN, async (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				e.stopPropagation();
+				await this._deleteAllHiddenTerminals();
+			}
+		}));
+
 		this.update();
+	}
+
+	private async _deleteAllHiddenTerminals(): Promise<void> {
+		const hiddenTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
+		if (hiddenTerminals.length === 0) {
+			return;
+		}
+
+		type DeleteHiddenChatTerminalsEvent = {
+			count: number;
+		};
+		type DeleteHiddenChatTerminalsClassification = {
+			owner: 'anthonykim1';
+			comment: 'Tracks when the user deletes all hidden chat terminals from the terminal tabs entry.';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of hidden chat terminals that were deleted.' };
+		};
+		this._telemetryService.publicLog2<DeleteHiddenChatTerminalsEvent, DeleteHiddenChatTerminalsClassification>('terminal.chatDeleteHiddenTerminals', {
+			count: hiddenTerminals.length,
+		});
+
+		await Promise.all(hiddenTerminals.map(terminal => this._terminalService.safeDisposeTerminal(terminal)));
 	}
 
 	get element(): HTMLElement {

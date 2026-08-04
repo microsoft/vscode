@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { win32, posix } from '../../../../../../../base/common/path.js';
+import { extUri, normalizePath } from '../../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -47,30 +48,63 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
+
+		// Get file writes from redirections (via tree-sitter grammar)
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
-		if (capturedFileWrites.length) {
+
+		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
+
+		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+
+		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
-				fileWrites = capturedFileWrites.map(e => {
+				fileWrites = allCapturedFileWrites.map(e => {
 					if (e === nullDevice) {
 						return e;
 					}
+
+					// Surrounding quotes where it's difficult to determine whether this is absolute
+					// or relative
+					if (/^['"].*['"]$/.test(e)) {
+						// Strip surrounding quotes to get a more reasonable view of the path. Note
+						// that this may not get the real file in the case of inner quotes, but the
+						// important thing here is the resolving whether it's absolute or not.
+						e = this._stripSurroundingQuotes(e);
+					}
+
+					// Absolute
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
-						return URI.file(e);
-					} else {
-						return URI.joinPath(cwd, e);
+						// Ensure cwd's scheme and authority is retained
+						return cwd.with({ path: e });
 					}
+
+					// Relative
+					return URI.joinPath(cwd, e);
 				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = capturedFileWrites;
+				fileWrites = allCapturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
 		return fileWrites;
+	}
+
+	private _stripSurroundingQuotes(text: string): string {
+		let result = text;
+		while (
+			(result.startsWith('"') && result.endsWith('"')) ||
+			(result.startsWith('\'') && result.endsWith('\''))
+		) {
+			result = result.slice(1, -1);
+		}
+		return result;
 	}
 
 	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
@@ -111,19 +145,30 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 									break;
 								}
 							}
-							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							const fileUri = normalizePath(URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite));
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
-							if (fileUri.fsPath.match(/[$\(\){}]/)) {
+							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
+							// environment variable expansions (e.g. `%APPDATA%\foo`). Neither is
+							// recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
+							// without this guard they would be joined onto cwd and incorrectly classified
+							// as inside the workspace while expanding at runtime to a location outside it.
+							if (fileUri.fsPath.match(/[$\(\){}`~%]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
 							}
+
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
-								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
+								extUri.isEqualOrParent(fileUri, folder.uri)
 							);
 							if (!isInsideWorkspace) {
+								// Allow writes to OS temp locations when the user has opted into
+								// "Allow All Commands in this Session" via the confirmation.
+								if (options.hasSessionAutoApproval && this._isInTempDirectory(fileUri.path, options.os)) {
+									continue;
+								}
 								isAutoApproveAllowed = false;
 								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
@@ -159,5 +204,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			isAutoApproveAllowed,
 			disclaimers,
 		};
+	}
+
+	/**
+	 * Returns true if the given URI path points inside an OS temporary directory.
+	 * On posix systems this matches `/tmp/`. On Windows this matches any `temp`
+	 * or `tmp` directory segment (case-insensitive), which covers the canonical
+	 * user temp (`...\AppData\Local\Temp\`), system temp (`C:\Windows\Temp\`),
+	 * and common dev conventions like `C:\Temp\` and `C:\tmp\`.
+	 */
+	private _isInTempDirectory(uriPath: string, os: OperatingSystem | undefined): boolean {
+		if (os === OperatingSystem.Windows) {
+			// Windows paths from URI.with({path}) keep their original backslashes,
+			// so accept either separator. Require content after the segment so the
+			// directory itself is not matched.
+			return /[\\/]te?mp[\\/].+/i.test(uriPath);
+		}
+		return uriPath.startsWith('/tmp/');
 	}
 }

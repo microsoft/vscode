@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../common/core/range.js';
-import { CompletionItemKind, CompletionItemProvider } from '../../../../common/languages.js';
+import { CompletionItemKind, CompletionItemProvider, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { GhostTextContext } from './utils.js';
@@ -38,6 +38,7 @@ import { IAccessibilitySignalService } from '../../../../../platform/accessibili
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 
 suite('Suggest Widget Model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,7 +88,7 @@ suite('Suggest Widget Model', () => {
 
 	test('Ghost Text', async () => {
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, suggest: { preview: true } },
+			{ fakeClock: true, provider, suggest: { preview: true }, quickSuggestions: { other: 'on', comments: 'off', strings: 'off' } },
 			async ({ editor, editorViewModel, context, model }) => {
 				context.keyboardType('h');
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
@@ -103,6 +104,36 @@ suite('Suggest Widget Model', () => {
 
 				await timeout(1000);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
+			}
+		);
+	});
+
+	test('offWhenInlineCompletions: conflicting inline completion does not render over the suggest widget', async () => {
+		// An inline completion that does not augment the suggest item ("hello") => a conflict.
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: () => ({ items: [{ insertText: 'hi there', range: new Range(1, 1, 1, 2) }] }),
+			disposeInlineCompletions: () => { },
+		};
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{
+				fakeClock: true,
+				provider,
+				inlineProvider,
+				quickSuggestions: { other: 'offWhenInlineCompletions', comments: 'off', strings: 'off' },
+			},
+			async ({ editor, context, model }) => {
+				context.keyboardType('h');
+				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
+				suggestController.triggerSuggest();
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				// Regression guard: the focused suggest item must be exposed to the inline model
+				// even when quickSuggestions is offWhenInlineCompletions...
+				assert.strictEqual(!!model.debugGetSelectedSuggestItem().get(), true);
+				// ...so the conflicting inline completion is suppressed instead of rendered over the
+				// widget: no ghost text ever shows, so the view stays at its initial empty state.
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['']);
 			}
 		);
 	});
@@ -131,7 +162,7 @@ const provider: CompletionItemProvider = {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider; fakeClock?: boolean; serviceCollection?: never },
+	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider; inlineProvider?: InlineCompletionsProvider; fakeClock?: boolean; serviceCollection?: never },
 	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: InlineCompletionsModel; context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
@@ -170,17 +201,25 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				[IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 					override onDidChangeDefaultAccount = Event.None;
 					override getDefaultAccount = async () => null;
-					override setDefaultAccount = () => { };
+					override setDefaultAccountProvider = () => { };
 				}],
 			);
 
-			if (options.provider) {
+			if (options.provider || options.inlineProvider) {
 				const languageFeaturesService = new LanguageFeaturesService();
 				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider));
+				if (options.provider) {
+					disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider));
+				}
+				if (options.inlineProvider) {
+					disposableStore.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.inlineProvider));
+				}
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					dispose: () => { }
+				});
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
 				editor.registerAndInstantiateContribution(InlineCompletionsController.ID, InlineCompletionsController);

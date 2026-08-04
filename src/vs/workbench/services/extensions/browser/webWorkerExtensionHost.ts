@@ -22,6 +22,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -30,9 +31,10 @@ import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webW
 import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, resolveEnabledApiProposalsFallbackExperiment } from '../common/extensions.js';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -72,6 +74,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
+		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -298,12 +302,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (nlsBaseUrl && this._productService.commit && !platform.Language.isDefaultVariant()) {
 			nlsUrlWithDetails = URI.joinPath(URI.parse(nlsBaseUrl), this._productService.commit, this._productService.version, platform.Language.value());
 		}
+		const enabledApiProposalsFallback = await resolveEnabledApiProposalsFallbackExperiment(this._workbenchAssignmentService, this._productService.quality);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,
+			enabledApiProposalsFallback,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
@@ -311,11 +317,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: false,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,
@@ -337,6 +345,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
@@ -354,5 +364,5 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
 	label: 'extensionHostWorkerMain',
 	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
-	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?workerModule', import.meta.url),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?esm', import.meta.url),
 });

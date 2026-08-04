@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import type { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 
 let previouslyRecommededInSession = false;
 
@@ -27,7 +27,7 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 ];
 
 export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): string | undefined {
-	const tools = languageModelToolsService.getTools();
+	const tools = languageModelToolsService.getTools(undefined);
 	if (!tools || previouslyRecommededInSession) {
 		return;
 	}

@@ -10,32 +10,44 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
+import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalVoiceSession } from './terminalVoice.js';
 
+const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
+
 export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StartVoice,
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
-			SpeechToTextInProgress.toNegated(),
+			// Keep the toggle available for terminal dictation, but not unrelated speech-to-text sessions.
+			ContextKeyExpr.or(SpeechToTextInProgress.toNegated(), TerminalContextKeys.terminalDictationInProgress),
 			sharedWhenClause.terminalAvailable
 		),
 		f1: true,
 		icon: Codicon.mic,
 		run: async (activeInstance, c, accessor) => {
 			const contextKeyService = accessor.get(IContextKeyService);
+			// Toggle: invoking the command again while dictation is in progress
+			// stops it and keeps the transcribed text, mirroring the chat input.
+			if (TerminalContextKeys.terminalDictationInProgress.getValue(contextKeyService)) {
+				TerminalVoiceSession.getInstance(accessor.get(IInstantiationService)).stop(true);
+				return;
+			}
 			const commandService = accessor.get(ICommandService);
 			const dialogService = accessor.get(IDialogService);
 			const workbenchExtensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			if (HasSpeechProvider.getValue(contextKeyService)) {
+			const chatSpeechToTextService = accessor.get(IChatSpeechToTextService);
+			// Start dictation whenever an engine is available: the built-in
+			// on-device engine (preferred), or the speech extension's provider.
+			if (chatSpeechToTextService.isConfigured || HasSpeechProvider.getValue(contextKeyService)) {
 				const instantiationService = accessor.get(IInstantiationService);
 				TerminalVoiceSession.getInstance(instantiationService).start();
 				return;
@@ -66,12 +78,9 @@ export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StopVoice,
 		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
-		keybinding: {
-			primary: KeyCode.Escape,
-			weight: KeybindingWeight.WorkbenchContrib + 100
-		},
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).stop(true);
