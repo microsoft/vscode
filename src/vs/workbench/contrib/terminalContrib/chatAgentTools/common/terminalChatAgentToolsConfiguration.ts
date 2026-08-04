@@ -85,6 +85,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
+		restricted: true,
 		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 		type: 'boolean',
 		default: true,
@@ -102,6 +103,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		restricted: true,
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
@@ -386,6 +388,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
+		restricted: true,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
@@ -401,6 +404,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
+		restricted: true,
 		type: 'string',
 		enum: ['never', 'outsideWorkspace', 'all'],
 		enumDescriptions: [
