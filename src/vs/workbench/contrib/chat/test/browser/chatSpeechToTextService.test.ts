@@ -12,9 +12,12 @@ suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({
 			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
+			explicitWithDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE', 'ja'),
+			displayLanguage: resolveDictationLanguage('auto', 'en-US', 'de'),
+			unsupportedDisplayLanguage: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
 			automatic: resolveDictationLanguage('auto', 'uk-UA'),
 			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
 			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
@@ -26,6 +29,9 @@ suite('ChatSpeechToTextService', () => {
 			missing: resolveDictationLanguage(undefined, undefined),
 		}, {
 			explicit: 'fr-FR',
+			explicitWithDisplayLanguage: 'fr-FR',
+			displayLanguage: 'de-DE',
+			unsupportedDisplayLanguage: 'pt-BR',
 			automatic: 'uk-UA',
 			regionalAutomatic: 'pt-BR',
 			additionalSupportedAutomatic: 'he-IL',

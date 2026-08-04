@@ -11,7 +11,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
@@ -574,6 +574,20 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual({ browserLocale, fallbackLocale }, {
 			browserLocale: { sessions: [], display_locale: 'pt-BR' },
 			fallbackLocale: { sessions: [], display_locale: 'en-US' },
+		});
+	});
+
+	test('resolves automatic language from display language before browser locale', () => {
+		assert.deepStrictEqual({
+			displayLanguage: resolveAutomaticVoiceLanguage('en-US', 'de'),
+			browserLocale: resolveAutomaticVoiceLanguage('pt-BR', undefined),
+			unsupportedDisplayLanguage: resolveAutomaticVoiceLanguage('pt-BR', 'he-IL'),
+			missing: resolveAutomaticVoiceLanguage(undefined, undefined),
+		}, {
+			displayLanguage: 'de',
+			browserLocale: 'pt-BR',
+			unsupportedDisplayLanguage: 'pt-BR',
+			missing: 'en-US',
 		});
 	});
 
