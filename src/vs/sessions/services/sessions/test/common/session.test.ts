@@ -136,7 +136,7 @@ suite('sessionWorkspaceEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined)): ISessionWorkspace {
+	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined), canCreateSession?: boolean): ISessionWorkspace {
 		const root = URI.file('/repo');
 		return {
 			uri: root,
@@ -156,6 +156,7 @@ suite('sessionWorkspaceEqual', () => {
 					gitHubInfo,
 				},
 			}],
+			canCreateSession,
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
 		};
@@ -174,6 +175,16 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+
+	test('compares workspace creation capability using the supported default', () => {
+		assert.deepStrictEqual({
+			omittedMatchesTrue: sessionWorkspaceEqual(workspace(), workspace('main', constObservable(undefined), true)),
+			falseDiffersFromDefault: sessionWorkspaceEqual(workspace(), workspace('main', constObservable(undefined), false)),
+		}, {
+			omittedMatchesTrue: true,
+			falseDiffersFromDefault: false,
+		});
 	});
 });
 

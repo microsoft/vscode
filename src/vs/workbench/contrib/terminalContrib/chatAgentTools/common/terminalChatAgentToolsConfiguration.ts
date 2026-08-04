@@ -8,6 +8,7 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -216,25 +217,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Safe and common sub-commands
 
-			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-
-			// git grep
-			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-			// - See notes on `grep`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-
-			// git branch
-			// - `-d`, `-D`, `--delete`: Prevent branch deletion
-			// - `-m`, `-M`: Prevent branch renaming
-			// - `--force`: Generally dangerous
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+			...gitAutoApproveRules,
 
 			// docker - readonly sub-commands
 			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,

@@ -96,7 +96,9 @@ suite('Voice Mode onboarding', () => {
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
 		const voicesLabel = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voices-label')?.textContent;
-		const microphonePickerHidden = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-microphone-picker')?.hidden;
+		const microphonePicker = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-microphone-picker');
+		const microphonePickerHidden = microphonePicker?.hidden;
+		const microphonePickerDisplay = microphonePicker && dom.getWindow(microphonePicker).getComputedStyle(microphonePicker).display;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -110,6 +112,7 @@ suite('Voice Mode onboarding', () => {
 			{
 				shown,
 				microphonePickerHidden,
+				microphonePickerDisplay,
 				selectedOnOpen,
 				voices,
 				voicesLabel,
@@ -121,6 +124,7 @@ suite('Voice Mode onboarding', () => {
 			{
 				shown: true,
 				microphonePickerHidden: true,
+				microphonePickerDisplay: 'none',
 				selectedOnOpen: 0,
 				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
 				voicesLabel: 'Agent Voice:',
