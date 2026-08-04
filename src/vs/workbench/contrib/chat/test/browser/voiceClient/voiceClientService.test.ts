@@ -11,7 +11,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
@@ -560,20 +560,36 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
-	test('uses browser locale for auto and falls back when unavailable', async () => {
+	test('uses the display language for auto', async () => {
 		const first = createService({ 'agents.voice.language': 'auto' });
 		await first.service.connect(createTestWindow('pt-BR'));
 		first.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const browserLocale = socket().sent[0].session_context;
+		const withBrowserLocale = socket().sent[0].session_context;
 
 		const second = createService({ 'agents.voice.language': 'auto' });
 		await second.service.connect(createTestWindow(''));
 		second.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const fallbackLocale = socket().sent[0].session_context;
+		const withoutBrowserLocale = socket().sent[0].session_context;
 
-		assert.deepStrictEqual({ browserLocale, fallbackLocale }, {
-			browserLocale: { sessions: [], display_locale: 'pt-BR' },
-			fallbackLocale: { sessions: [], display_locale: 'en-US' },
+		assert.deepStrictEqual({ withBrowserLocale, withoutBrowserLocale }, {
+			withBrowserLocale: { sessions: [], display_locale: 'en' },
+			withoutBrowserLocale: { sessions: [], display_locale: 'en' },
+		});
+	});
+
+	test('resolves automatic language from display language before browser locale', () => {
+		assert.deepStrictEqual({
+			displayLanguage: resolveAutomaticVoiceLanguage('en-US', 'de'),
+			englishDisplayLanguage: resolveAutomaticVoiceLanguage('de-DE', 'en'),
+			browserLocale: resolveAutomaticVoiceLanguage('pt-BR', undefined),
+			unsupportedDisplayLanguage: resolveAutomaticVoiceLanguage('pt-BR', 'he-IL'),
+			missing: resolveAutomaticVoiceLanguage(undefined, undefined),
+		}, {
+			displayLanguage: 'de',
+			englishDisplayLanguage: 'en',
+			browserLocale: 'pt-BR',
+			unsupportedDisplayLanguage: 'pt-BR',
+			missing: 'en-US',
 		});
 	});
 
@@ -601,7 +617,7 @@ suite('VoiceClientService', () => {
 		});
 	});
 
-	test('preserves an automatic ASR-only browser locale', async () => {
+	test('prefers the display language over an ASR-only browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('ar-SA'));
@@ -609,11 +625,11 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'ar-SA',
+			display_locale: 'en',
 		});
 	});
 
-	test('falls back for an unsupported automatic browser locale', async () => {
+	test('prefers the display language over an unsupported browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('he-IL'));
@@ -621,7 +637,7 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'en-US',
+			display_locale: 'en',
 		});
 	});
 
@@ -643,7 +659,7 @@ suite('VoiceClientService', () => {
 		} : message), [
 			{
 				type: 'start_session',
-				session_context: { sessions: [], display_locale: 'en-GB' },
+				session_context: { sessions: [], display_locale: 'en' },
 				voice: 'victoria_neutral',
 			},
 			{ type: 'set_language', language: 'fr-FR' },
