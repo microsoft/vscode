@@ -4350,6 +4350,11 @@ export class CommandCenter {
 		const branchName = repository.HEAD && repository.HEAD.name || '';
 		const remotes = repository.remotes;
 
+		if (!repository.HEAD?.commit) {
+			window.showWarningMessage(l10n.t('The repository has no commits yet. Please make an initial commit before publishing.'));
+			return;
+		}
+
 		if (remotes.length === 0) {
 			const publishers = this.model.getRemoteSourcePublishers();
 
