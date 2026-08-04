@@ -30,7 +30,7 @@ import { CustomizationEnablementKind } from '../../../../../platform/agentHost/c
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { isContributionEnabled } from '../../common/enablement.js';
+import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
 import { getInstalledPluginContextMenuActions } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
@@ -380,6 +380,29 @@ const agentHostPluginEnablementDecisions: Readonly<Record<string, { readonly kin
 
 function getAgentHostPluginEnablementDecision(action: IAction): { readonly kind: CustomizationEnablementKind; readonly enabled: boolean } | undefined {
 	return agentHostPluginEnablementDecisions[action.id];
+}
+
+/**
+ * The combined enablement of a plugin across both runtimes, or `undefined` when
+ * it is not backed by an agent-host session.
+ *
+ * A plugin is effectively enabled only when neither runtime disables it, so the
+ * merged menu is driven by the combination rather than by the local state alone.
+ * Otherwise the two can diverge -- disabling at agent-host session scope never
+ * touches local enablement -- and the menu would keep offering "Disable", leaving
+ * no way to undo the agent-host decision.
+ */
+export function getCombinedPluginEnablementState(
+	localState: ContributionEnablementState,
+	pluginUri: URI,
+	pluginName: string,
+	agentHostCustomizations: readonly ICustomizationItem[],
+): ContributionEnablementState {
+	const agentHostCustomization = findAgentHostPluginCustomization(pluginUri, pluginName, agentHostCustomizations);
+	if (agentHostCustomization === undefined || agentHostCustomization.enabled !== false) {
+		return localState;
+	}
+	return isContributionDisabled(localState) ? localState : ContributionEnablementState.DisabledWorkspace;
 }
 
 function findAgentHostPluginCustomization(pluginUri: URI, pluginName: string, customizations: readonly ICustomizationItem[]): ICustomizationItem | undefined {
@@ -1298,7 +1321,11 @@ export class PluginListWidget extends Disposable {
 		const actions: IAction[] = [];
 
 		if (entry.type === 'plugin-item') {
-			const groups = getInstalledPluginContextMenuActions(entry.item.plugin, this.instantiationService);
+			const groups = getInstalledPluginContextMenuActions(
+				entry.item.plugin,
+				this.instantiationService,
+				getCombinedPluginEnablementState(entry.item.plugin.enablement.get(), entry.item.plugin.uri, entry.item.name, this.remoteItems),
+			);
 			const mergedGroups = mergeInstalledPluginEnablementActions(
 				entry.item.plugin.uri,
 				entry.item.name,

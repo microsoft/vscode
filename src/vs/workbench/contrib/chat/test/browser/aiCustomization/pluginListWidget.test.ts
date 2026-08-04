@@ -16,7 +16,8 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { mergeInstalledPluginEnablementActions } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { getCombinedPluginEnablementState, mergeInstalledPluginEnablementActions } from '../../../browser/aiCustomization/pluginListWidget.js';
 
 const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
 
@@ -237,6 +238,79 @@ suite('pluginListWidget', () => {
 					{ kind: CustomizationEnablementKind.Global, enabled: true },
 				],
 			}],
+		});
+	});
+
+	// The re-enable direction: with the host already workspace-disabled it publishes
+	// only "Enable (Workspace)", and the merged action must dispatch enabled: true.
+	test('dispatches an enable decision when the host is workspace-disabled', async () => {
+		const service = new TestAgentHostCustomizationService([plugin([
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: false },
+		])], ['file:///repo']);
+		const [remoteItem] = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
+		const localWrites: string[] = [];
+		const localAction = new Action('agentPlugin.enableForWorkspace', 'Enable (Workspace)', undefined, true, () => {
+			localWrites.push('workspace');
+			return Promise.resolve();
+		});
+		disposables.add(localAction);
+
+		const [group] = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[localAction]],
+			[remoteItem],
+		);
+		for (const action of group) {
+			if (isDisposable(action)) {
+				disposables.add(action);
+			}
+		}
+
+		await group[0].run();
+
+		assert.deepStrictEqual({
+			labels: group.map(action => action.label),
+			localWrites,
+			hostWrites: service.calls,
+		}, {
+			// Effective state is disabled, so the session action offers to enable.
+			labels: ['Enable (Workspace)', 'Enable (Session)'],
+			localWrites: ['workspace'],
+			hostWrites: [{
+				rawId: 'file:///plugin-1',
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
+				],
+			}],
+		});
+	});
+
+	// Regression: live validation reached a stuck state where the local runtime said
+	// enabled and the agent host said workspace-disabled, so the menu -- driven by
+	// local state alone -- only offered "Disable (Workspace)" and there was no way
+	// to undo the host decision.
+	test('reports the combined state so a host-disabled plugin can be re-enabled', async () => {
+		const service = new TestAgentHostCustomizationService([{
+			...plugin([{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: false }]),
+			enabled: false,
+		}], ['file:///repo']);
+		const [remoteItem] = await createProvider(service).provideChatSessionCustomizations(sessionResource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			hostDisabledLocalEnabled: getCombinedPluginEnablementState(
+				ContributionEnablementState.EnabledProfile, URI.parse('file:///plugin-1'), 'Plugin One', [remoteItem]),
+			hostDisabledLocalDisabled: getCombinedPluginEnablementState(
+				ContributionEnablementState.DisabledProfile, URI.parse('file:///plugin-1'), 'Plugin One', [remoteItem]),
+			noAgentHostMatch: getCombinedPluginEnablementState(
+				ContributionEnablementState.EnabledProfile, URI.parse('file:///other'), 'Other', [remoteItem]),
+		}, {
+			// Combined state is disabled, so the menu offers the enable actions.
+			hostDisabledLocalEnabled: ContributionEnablementState.DisabledWorkspace,
+			// Already disabled locally; the local scope is preserved.
+			hostDisabledLocalDisabled: ContributionEnablementState.DisabledProfile,
+			// Not backed by the agent host, so the local state stands unchanged.
+			noAgentHostMatch: ContributionEnablementState.EnabledProfile,
 		});
 	});
 

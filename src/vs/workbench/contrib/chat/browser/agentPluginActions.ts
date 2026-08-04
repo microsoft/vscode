@@ -111,8 +111,13 @@ export function createPolicyBlockedEnableAction(plugin: IAgentPlugin, notificati
 
 /**
  * Builds the standard context menu action groups for an installed plugin.
+ *
+ * @param effectiveState overrides the plugin's local enablement when deciding
+ * whether to offer the enable or the disable actions. Callers that merge this
+ * menu with a second runtime's enablement (the agent host) pass the combined
+ * state, so that a plugin disabled in either runtime still offers a way back.
  */
-export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService): IAction[][] {
+export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, effectiveState?: ContributionEnablementState): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
@@ -121,7 +126,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 			groups.push([createPolicyBlockedEnableAction(plugin, accessor.get(INotificationService))]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
-				plugin.enablement.get(),
+				effectiveState ?? plugin.enablement.get(),
 				plugin.uri.toString(),
 				agentPluginService.enablementModel,
 				workspaceService,
