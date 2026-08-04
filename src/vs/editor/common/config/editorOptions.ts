@@ -572,6 +572,11 @@ export interface IEditorOptions {
 	 */
 	doubleClickSelectsBlock?: boolean;
 	/**
+	 * Controls whether lines containing RTL text are rendered with RTL direction automatically.
+	 * Defaults to false.
+	 */
+	rtlAutoDetect?: boolean;
+	/**
 	 * Controls if the editor should allow to move selections via drag and drop.
 	 * Defaults to false.
 	 */
@@ -5962,6 +5967,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	rtlAutoDetect,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6881,6 +6887,12 @@ export const EditorOptions = {
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
 		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+	)),
+	rtlAutoDetect: register(new EditorBooleanOption(
+		EditorOption.rtlAutoDetect, 'rtlAutoDetect', false,
+		{
+			description: nls.localize('rtlAutoDetect', "Controls whether lines containing RTL text are rendered with RTL direction automatically.")
+		}
 	)),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
