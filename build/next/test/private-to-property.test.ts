@@ -581,6 +581,30 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(pos2.column, 22, 'plus after second edit should map correctly');
 	});
 
+	test('segments clamped to the same column keep original order', () => {
+		const code = 'abcdef';
+		const gen = new SourceMapGenerator();
+		gen.setSourceContent('test.js', code);
+		gen.addMapping({ generated: { line: 1, column: 1 }, original: { line: 1, column: 1 }, source: 'test.js' });
+		gen.addMapping({ generated: { line: 1, column: 2 }, original: { line: 1, column: 2 }, source: 'test.js' });
+		gen.addMapping({ generated: { line: 1, column: 3 }, original: { line: 1, column: 3 }, source: 'test.js' });
+		const map = JSON.parse(gen.toString());
+
+		const result = adjustSourceMap(map, code, [{ start: 1, end: 4, newText: '' }]);
+		const actual: number[] = [];
+		new SourceMapConsumer(result).eachMapping(mapping => actual.push(mapping.originalColumn));
+
+		assert.deepStrictEqual(actual, [1, 2, 3]);
+	});
+
+	test('malformed mappings throw a clear error', () => {
+		const code = 'abc';
+		const map = createIdentitySourceMap(code, 'test.js');
+		map.mappings = '!';
+
+		assert.throws(() => adjustSourceMap(map, code, [{ start: 0, end: 1, newText: '' }]), /Malformed source map mappings: invalid base64 digit at offset 0/);
+	});
+
 	test('end-to-end: convertPrivateFields + adjustSourceMap', () => {
 		const code = [
 			'class MyWidget {',
