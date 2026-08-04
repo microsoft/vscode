@@ -432,8 +432,11 @@ export class ChatEndpoint implements IChatEndpoint {
 		// ReasoningEffortOverride setting would otherwise be dropped. The override
 		// setting takes precedence over the UI selection; both are validated
 		// against the levels the model advertises.
-		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
-		if (declaredLevels) {
+		// Keep the raw value so an explicitly empty `[]` (server declares no accepted
+		// levels) is distinguished from `undefined` (no declaration) and still surfaces
+		// a dropped client/override value below.
+		const declaredLevels = this.supportsReasoningEffort;
+		if (declaredLevels !== undefined) {
 			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? options.modelCapabilities?.reasoningEffort;
 			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {

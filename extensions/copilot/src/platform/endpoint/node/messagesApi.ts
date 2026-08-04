@@ -230,10 +230,9 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		const defaultEffort = declaredLevels
 			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
 			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		const requestedEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride) ?? reasoningEffort;
 		if (defaultEffort !== undefined) {
-			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-				?? reasoningEffort
-				?? defaultEffort;
+			const candidateEffort = requestedEffort ?? defaultEffort;
 			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
 				if (!declaredLevels || declaredLevels.includes(candidateEffort)) {
 					effort = candidateEffort;
@@ -241,6 +240,8 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 					logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${endpoint.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
 				}
 			}
+		} else if (explicitlyUnsupported && typeof requestedEffort === 'string' && requestedEffort.length > 0) {
+			logService.warn(`[reasoningEffort] Dropping reasoning effort '${requestedEffort}' for model '${endpoint.model}' — server declares no supported effort levels.`);
 		}
 	}
 
