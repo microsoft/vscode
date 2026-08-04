@@ -65,6 +65,7 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
+				case 'planReview':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -81,7 +82,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'systemNotification':
 				case 'pullRequest':
 				case 'questionCarousel':
-				case 'planReview':
 				case 'undoStop':
 				case 'warning':
 				case 'info':

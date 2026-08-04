@@ -29,8 +29,9 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
@@ -116,6 +117,9 @@ class MockCopilotSession {
 	usageMetricsCalls = 0;
 	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
 	usageMetricsGate: Promise<unknown> | undefined;
+	disconnectCalls = 0;
+	disconnectGate: Promise<void> | undefined;
+	disconnectHook: (() => void) | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -208,7 +212,11 @@ class MockCopilotSession {
 	}
 	async setModel() { }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
-	async disconnect() { }
+	async disconnect() {
+		this.disconnectCalls++;
+		this.disconnectHook?.();
+		await this.disconnectGate;
+	}
 
 	readonly rpc = {
 		mode: {
@@ -370,7 +378,7 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	readonly sqmId = 'sqmId';
 	readonly devDeviceId = 'devDeviceId';
 	readonly firstSessionDate = 'firstSessionDate';
-	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined }> = [];
+	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined; measurements?: TelemetryMeasurements }> = [];
 
 	publicLog(): void { }
 	publicLog2(): void { }
@@ -379,17 +387,17 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 	sendGHTelemetryEvent(): void { }
-	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'enhanced', eventName, properties });
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-		this.events.push({ destination: 'enhanced', eventName, properties });
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'internal', eventName, properties });
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
-	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-		this.events.push({ destination: 'internal', eventName, properties });
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
 	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
@@ -616,6 +624,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
+	services.set(IAgentHostOTelService, {
+		_serviceBrand: undefined,
+		getSessionTraceContext: () => undefined,
+		releaseSessionTraceContext: () => { },
+		withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
+	} as unknown as IAgentHostOTelService);
 	const copilotApiService = new TestCopilotApiService();
 	copilotApiService.apiEndpoint = options?.copilotApiEndpoint;
 	if (options?.restrictedTelemetryContext) {
@@ -797,6 +811,32 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+	});
+
+	test('destroySession completes when shutdown arrives before the response', async () => {
+		const disconnectStarted = new DeferredPromise<void>();
+		const disconnectGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
+			},
+		});
+		const destroy = session.destroySession();
+
+		await disconnectStarted.p;
+		try {
+			mockSession.fire('session.shutdown', {
+				shutdownType: 'normal',
+				totalApiDurationMs: 0,
+			} as SessionEventPayload<'session.shutdown'>['data']);
+			await destroy;
+			session.dispose();
+
+			assert.strictEqual(mockSession.disconnectCalls, 1);
+		} finally {
+			disconnectGate.complete();
+		}
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2934,7 +2974,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 		});
 
-		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+		test('per-request sandbox: applies the configured policy under default permissions', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 			});
@@ -5950,6 +5990,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
+			assert.strictEqual(request.purpose, ChatInputRequestPurpose.AskUser);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -6092,6 +6133,8 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputRequested,
 				ActionType.ChatInputCompleted,
 			]);
+			const requested = getActions(signals)[0];
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -6141,6 +6184,8 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputRequested,
 				ActionType.ChatInputCompleted,
 			]);
+			const requested = getActions(signals)[0];
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -6179,6 +6224,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.purpose, ChatInputRequestPurpose.Elicitation);
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -6713,7 +6759,7 @@ suite('CopilotAgentSession', () => {
 
 			const unsupported = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-haiku-4.5',
+				modelId: 'claude-3-opus',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
@@ -7412,6 +7458,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
+			assert.strictEqual(request.purpose, ChatInputRequestPurpose.PlanReview);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {
@@ -8617,21 +8664,45 @@ suite('CopilotAgentSession', () => {
 				confidence: 0.91,
 				candidateModels: ['gpt-5', 'gpt-4.1'],
 				categoryScores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+				routingMethod: 'binary',
+				availableModels: ['gpt-5', 'gpt-4.1', 'gpt-5-mini'],
+				fallback: false,
+				fallbackReason: 'not-needed',
+				stickyOverride: true,
+				routerLatencyMs: 25,
+				endToEndLatencyMs: 40,
+				chosenShortfall: 0.05,
+				hasImage: true,
 			} as SessionEventPayload<'session.auto_mode_resolved'>['data']);
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'automode.routerDecisionRestricted')
-				.map(event => ({ destination: event.destination, properties: event.properties })), [{
+				.map(event => ({ destination: event.destination, properties: event.properties, measurements: event.measurements })), [{
 					destination: 'enhanced',
 					properties: {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
 						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
+						routingMethod: 'binary',
+						fallback: 'false',
+						fallbackReason: 'not-needed',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
 						candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+						availableModels: JSON.stringify(['gpt-5', 'gpt-4.1', 'gpt-5-mini']),
+						stickyOverrideStr: 'true',
+						hasImage: 'true',
 						binaryScores: JSON.stringify({ needs_reasoning: 0.9, no_reasoning: 0.1 }),
+					},
+					measurements: {
+						confidence: 0.91,
+						latencyMs: 25,
+						e2eLatencyMs: 40,
+						stickyOverride: 1,
+						chosenShortfall: 0.05,
+						scoreNeedsReasoning: 0.9,
+						scoreNoReasoning: 0.1,
 					},
 				}]);
 		});

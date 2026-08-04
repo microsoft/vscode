@@ -96,9 +96,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// resource. The provisional service is the source of truth for the
 		// `state.config.values` the user picked via chips; copying them
 		// here means the agent's `_materializeProvisional` will see them on
-		// first send. Best-effort — if no provisional exists or the rebind
-		// fails, the handler falls through to its standard
-		// `_createAndSubscribe` path with no user selections.
+		// first send. Recoverable failure falls through to the handler's standard
+		// create path; ambiguous final-URI cleanup rejects to prevent unsafe reuse.
 		if (request.untitledResource) {
 			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
 				?? this._newSessionFolderService.getDefaultFolder()

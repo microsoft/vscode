@@ -13,7 +13,7 @@
  *
  * Resource identities:
  * - chat UI resource: `agent-host-PROVIDER:/untitled-<uuid>` before first Send.
- * - backend resource: `PROVIDER:/untitled-<uuid>` for the provisional state.
+ * - backend resource: an opaque `PROVIDER:/<uuid>` for provisional state.
  * - real chat resource: `agent-host-PROVIDER:/<uuid>` after
  *   `chatServiceImpl.acceptInput` calls `createNewChatSessionItem`.
  * - real backend resource: `PROVIDER:/<uuid>` after `tryRebind`.
@@ -25,10 +25,10 @@
  * 2. On first Send, `AgentHostSessionListController.newChatSessionItem`
  *    receives both `request.untitledResource` and the newly generated real
  *    resource. It must call `tryRebind` before the handler invokes the agent.
- * 3. `tryRebind` snapshots `state.config.values` from the untitled backend
- *    provisional, creates a new provisional for the real backend resource with
- *    that config, swaps `_entries`, fires `onDidChange` for both resources,
- *    then best-effort disposes the untitled backend provisional.
+ * 3. `tryRebind` snapshots the workbench-owned config from the untitled
+ *    provisional record, creates a new provisional for the real backend
+ *    resource, swaps `_entries`, fires `onDidChange`, then best-effort disposes
+ *    the untitled backend provisional.
  * 4. `AgentHostSessionHandler._invokeAgent` calls `get(realResource)`. When a
  *    rebound provisional exists, it takes a refcounted subscription on that
  *    backend state up front so the rest of the handler observes the preserved
@@ -39,8 +39,8 @@
  * Invariants to preserve:
  * - `_entries` is keyed by chat UI resources and stores backend resources.
  * - `getOrCreate` is serialized per chat UI resource; chip instances may race.
- * - `tryRebind` is best-effort. Failure must degrade to the handler's normal
- *   create path rather than blocking Send.
+ * - Recoverable `tryRebind` failure degrades to the handler's normal create
+ *   path. It rejects only when an ambiguous final URI cannot be retired safely.
  * - Abandoned untitled chats must dispose their backend provisional state when
  *   `IChatService.onDidDisposeSession` reports the chat UI resource.
  * - Callers own provider and working-directory consistency. Derive them from
@@ -53,6 +53,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -60,17 +61,18 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
+import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -104,6 +106,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * the initial config supplied on the request.
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
+
+	/** Initial session metadata contributed by the current Editor workspace. */
+	getInitialSessionMetadata(): Record<string, unknown> | undefined;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -140,10 +145,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 
 	/**
 	 * Bridge the untitled chat UI resource to the real chat UI resource created
-	 * for first Send. Must copy `state.config.values` from the old backend
-	 * provisional into the new backend provisional before the handler invokes the
-	 * agent. No-op when no old mapping exists; idempotent when the new mapping is
-	 * already present.
+	 * for first Send. Must copy the workbench-owned config into the real backend
+	 * provisional before the handler invokes the agent. No-op when no old mapping
+	 * exists; idempotent when the new mapping is already present.
 	 */
 	tryRebind(
 		oldSessionResource: URI,
@@ -181,8 +185,16 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	): Promise<void>;
 }
 
-interface IEntry {
+interface IProvisionalGeneration {
 	readonly backendSession: URI;
+	readonly workingDirectory: URI | undefined;
+}
+
+type ProvisionalOperationResult = URI | void;
+
+interface IEntry {
+	readonly provider: string;
+	generation: IProvisionalGeneration | undefined;
 	/**
 	 * Workbench-owned snapshot of session-config values for this provisional.
 	 * Seeded from {@link _getInitialConfig} at create time and mutated
@@ -192,27 +204,34 @@ interface IEntry {
 	 */
 	config: Record<string, unknown>;
 	/**
+	 * Monotonic revision of {@link config}. Async generation creation snapshots
+	 * this value, discarding and recreating its candidate after a newer edit.
+	 */
+	configVersion: number;
+	/**
 	 * Working directory the provisional backend session was created with. A
 	 * created session's cwd is immutable, so when the user picks a different
 	 * folder the entry is recreated; this lets a folder change no-op when the
 	 * cwd is unchanged.
 	 */
-	workingDirectory?: URI;
+	workingDirectory: URI | undefined;
 	/**
 	 * Latest re-resolved config (schema + values) for this provisional, set
 	 * by {@link applyConfigChange} after each value change. Cleared when the
 	 * entry is rebound or disposed.
 	 */
 	resolvedConfig?: ResolveSessionConfigResult;
+	disposed: boolean;
 }
 
 export class AgentHostUntitledProvisionalSessionService extends Disposable implements IAgentHostUntitledProvisionalSessionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new ResourceMap<IEntry>();
-	private readonly _pending = new ResourceMap<Promise<URI | undefined>>();
+	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
 	// to the new real URI; without this tombstone the picker would call
@@ -264,14 +283,33 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
+		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
 	}
 
 	get(sessionResource: URI): URI | undefined {
-		return this._entries.get(sessionResource)?.backendSession;
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed) {
+			return undefined;
+		}
+		return this._generationMatchingDesiredState(entry)?.backendSession;
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
 		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
+	}
+
+	getInitialSessionMetadata(): Record<string, unknown> | undefined {
+		const workspace = this._workspaceContextService.getWorkspace();
+		if (this._environmentService.isSessionsWindow
+			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
+			|| workspace.folders.length < 2
+			|| !URI.isUri(workspace.configuration)) {
+			return undefined;
+		}
+		return withSessionMultiRootMetadata(undefined, {
+			workspaceFile: workspace.configuration.toString(),
+			name: workspace.name,
+		});
 	}
 
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
@@ -279,11 +317,21 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
-		const inflight = this._pending.get(sessionResource);
-		if (inflight) {
-			await inflight;
+		while (true) {
+			const pending = this._pending.get(sessionResource);
+			if (!pending) {
+				return this.get(sessionResource);
+			}
+			try {
+				await pending;
+			} catch {
+				// The operation caller owns its error; observers only re-read stable state.
+				return undefined;
+			}
+			if (this._pending.get(sessionResource) === pending) {
+				return this.get(sessionResource);
+			}
 		}
-		return this.get(sessionResource);
 	}
 
 	getOrCreate(
@@ -300,49 +348,153 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const inflight = this._pending.get(sessionResource);
 		if (inflight) {
-			return inflight;
+			return inflight.then(() => this.get(sessionResource));
 		}
 
-		const work = this._sequencer.queue(sessionResource.toString(), async () => {
-			// Re-check inside the sequencer — another caller may have raced
-			// us and populated the entry while we were queued.
+		const entry = this._ensureEntry(sessionResource, provider, workingDirectory);
+		if (!entry) {
+			return Promise.resolve(undefined);
+		}
+		return this._queue(sessionResource, async () => {
 			const settled = this.get(sessionResource);
 			if (settled) {
 				return settled;
 			}
-			// Don't eagerly spawn a provisional backend session in an
-			// untrusted target folder — that would start an agent in the
-			// folder before the user has opted in. This pre-warm is a silent
-			// optimization; trust is requested interactively on first Send
-			// (see AgentHostSessionHandler).
-			if (!await this._isTargetFolderTrusted(workingDirectory)) {
-				return undefined;
-			}
-			const backendSession = this._toBackendUri(sessionResource, provider);
-			const initialConfig = this._getInitialConfig();
-			try {
-				const created = await this._agentHostService.createSession({
-					provider,
-					session: backendSession,
-					workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
-					config: initialConfig,
-					progressToken: generateUuid(),
-				});
-				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory });
-				this._onDidChange.fire(sessionResource);
-				return created;
-			} catch (err) {
-				this._logService.warn(`[AgentHostProvisional] Failed to create provisional session for ${sessionResource.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-				return undefined;
-			}
+			return this._reconcileGeneration(sessionResource, entry);
 		});
+	}
+
+	private _ensureEntry(sessionResource: URI, provider: string, workingDirectory: URI | undefined): IEntry | undefined {
+		const existing = this._entries.get(sessionResource);
+		if (existing) {
+			return existing;
+		}
+		if (this._rebound.has(sessionResource)) {
+			return undefined;
+		}
+		const entry: IEntry = {
+			provider,
+			generation: undefined,
+			config: { ...(this._getInitialConfig() ?? {}) },
+			configVersion: 0,
+			workingDirectory,
+			disposed: false,
+		};
+		this._entries.set(sessionResource, entry);
+		return entry;
+	}
+
+	/**
+	 * Serializes lifecycle work for one logical draft and records its latest tail
+	 * so external callers can wait for a stable current generation.
+	 */
+	private _queue<T extends ProvisionalOperationResult>(sessionResource: URI, task: () => Promise<T>): Promise<T> {
+		const work = this._sequencer.queue(sessionResource.toString(), task);
 		this._pending.set(sessionResource, work);
-		work.finally(() => {
+		void work.finally(() => {
 			if (this._pending.get(sessionResource) === work) {
 				this._pending.delete(sessionResource);
 			}
-		});
+		}).catch(() => { });
 		return work;
+	}
+
+	private _generationMatchingDesiredState(entry: IEntry): IProvisionalGeneration | undefined {
+		const generation = entry.generation;
+		return generation && this._sameUri(generation.workingDirectory, entry.workingDirectory) ? generation : undefined;
+	}
+
+	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
+		return first === undefined || second === undefined ? first === second : isEqual(first, second);
+	}
+
+	private _newProvisionalUri(provider: string): URI {
+		return URI.from({ scheme: provider, path: `/${generateUuid()}` });
+	}
+
+	/**
+	 * Ensures the published generation realizes the draft's current folder and config.
+	 * It keeps the previous generation hidden until a valid candidate can replace it, discarding stale candidates along the way.
+	 */
+	private async _reconcileGeneration(sessionResource: URI, entry: IEntry): Promise<URI | undefined> {
+		while (this._entries.get(sessionResource) === entry && !entry.disposed) {
+			const currentGeneration = this._generationMatchingDesiredState(entry);
+			if (currentGeneration) {
+				return currentGeneration.backendSession;
+			}
+
+			const workingDirectory = entry.workingDirectory;
+			const configVersion = entry.configVersion;
+			const config = { ...entry.config };
+
+			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
+			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+				await this._retireGeneration(sessionResource, entry);
+				return undefined;
+			}
+
+			const candidate = this._newProvisionalUri(entry.provider);
+			let created: URI;
+			try {
+				created = await this._agentHostService.createSession({
+					provider: entry.provider,
+					session: candidate,
+					_meta: this.getInitialSessionMetadata(),
+					workingDirectories: this._computeWorkingDirectories(workingDirectory, entry.provider),
+					config,
+					progressToken: generateUuid(),
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to create provisional session for ${sessionResource.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+				await this._disposeBackend(candidate, 'failed provisional candidate');
+				await this._retireGeneration(sessionResource, entry);
+				return undefined;
+			}
+
+			if (this._entries.get(sessionResource) !== entry || entry.disposed || entry.configVersion !== configVersion || !this._sameUri(entry.workingDirectory, workingDirectory)) {
+				await this._disposeBackend(created, 'obsolete provisional candidate');
+				continue;
+			}
+
+			const previous = entry.generation;
+			entry.generation = { backendSession: created, workingDirectory };
+			this._onDidChange.fire(sessionResource);
+			if (previous) {
+				await this._disposeBackend(previous.backendSession, 'replaced provisional generation');
+			}
+			return created;
+		}
+		return undefined;
+	}
+
+	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
+		const generation = entry.generation;
+		if (!generation) {
+			return;
+		}
+		entry.generation = undefined;
+		if (this._entries.get(sessionResource) === entry) {
+			this._onDidChange.fire(sessionResource);
+		}
+		await this._disposeBackend(generation.backendSession, 'retired provisional generation');
+	}
+
+	private async _disposeBackend(backendSession: URI, reason: string): Promise<boolean> {
+		this._pendingBackendDisposals.add(backendSession);
+		try {
+			await this._agentHostService.disposeSession(backendSession);
+			this._pendingBackendDisposals.delete(backendSession);
+			return true;
+		} catch (err) {
+			this._logService.warn(`[AgentHostProvisional] Failed to dispose ${reason} ${backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			return false;
+		}
+	}
+
+	private _retryPendingBackendDisposals(): void {
+		for (const backendSession of this._pendingBackendDisposals) {
+			void this._disposeBackend(backendSession, 'pending provisional cleanup');
+		}
 	}
 
 	/**
@@ -359,171 +511,186 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
-	async tryRebind(
+	tryRebind(
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
 		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
-		// If the new resource already has a provisional (e.g. tryRebind was
-		// called twice), short-circuit.
-		const alreadyBound = this.get(newSessionResource);
-		if (alreadyBound) {
-			return alreadyBound;
-		}
+		// Graduation must run after any queued folder or config reconciliation.
+		return this._queue(oldSessionResource, async () => {
+			const alreadyBound = this.get(newSessionResource);
+			if (alreadyBound) {
+				return alreadyBound;
+			}
 
-		// Make sure any in-flight create for the old resource settles before
-		// we read its state — otherwise we may not see the user's most
-		// recent dispatch.
-		await this.waitForPending(oldSessionResource);
+			const oldEntry = this._entries.get(oldSessionResource);
+			if (!oldEntry || oldEntry.disposed) {
+				return undefined;
+			}
 
-		const oldEntry = this._entries.get(oldSessionResource);
-		if (!oldEntry) {
+			const newBackendSession = this._toBackendUri(newSessionResource, provider);
+			// Imports materialize eagerly, so carry their history and model into the rebound session.
+			const imported = this._importConversationStore.take(newSessionResource);
+
+			while (this._entries.get(oldSessionResource) === oldEntry && !oldEntry.disposed) {
+				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
+				const config = { ...oldEntry.config };
+				const configVersion = oldEntry.configVersion;
+				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				let created: URI;
+				try {
+					created = await this._agentHostService.createSession({
+						provider,
+						session: newBackendSession,
+						_meta: this.getInitialSessionMetadata(),
+						workingDirectories: this._computeWorkingDirectories(targetWorkingDirectory, provider),
+						config,
+						...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+						progressToken: generateUuid(),
+					});
+				} catch (err) {
+					this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
+					this._restoreImportedConversation(newSessionResource, imported);
+					const disposed = await this._disposeBackend(newBackendSession, 'failed rebound candidate');
+					if (!disposed) {
+						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+					}
+					return undefined;
+				}
+
+				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
+					const disposed = await this._disposeBackend(created, 'retired rebound candidate');
+					this._restoreImportedConversation(newSessionResource, imported);
+					if (!disposed) {
+						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+					}
+					return undefined;
+				}
+				if (oldEntry.configVersion !== configVersion || !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)) {
+					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
+					if (!disposed) {
+						this._restoreImportedConversation(newSessionResource, imported);
+						throw new Error(`Cannot safely retry rebound session ${newBackendSession.toString()} until its stale candidate is retired`);
+					}
+					continue;
+				}
+
+				const oldGeneration = oldEntry.generation;
+				// Publish the real mapping before retiring the untitled entry so consumers never observe a partial swap.
+				this._entries.set(newSessionResource, {
+					provider,
+					generation: { backendSession: created, workingDirectory: targetWorkingDirectory },
+					config,
+					configVersion,
+					workingDirectory: targetWorkingDirectory,
+					resolvedConfig: oldEntry.resolvedConfig,
+					disposed: false,
+				});
+				this._entries.delete(oldSessionResource);
+				oldEntry.disposed = true;
+				this._resolvedConfigs.delete(oldSessionResource);
+				this._resolvedConfigRequestSeq.delete(oldSessionResource);
+				this._rebound.add(oldSessionResource);
+				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
+				this._onDidChange.fire(newSessionResource);
+
+				if (oldGeneration) {
+					// The temporary generation is in-memory only, so disposal is best-effort.
+					await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
+				}
+				return created;
+			}
+			this._restoreImportedConversation(newSessionResource, imported);
 			return undefined;
-		}
-
-		// The workbench owns the source of truth for provisional config: it
-		// was seeded by `_getInitialConfig()` at create time and updated
-		// synchronously by `applyConfigChange` for any picker chip changes.
-		// Read straight from the entry; do NOT round-trip through the agent's
-		// `state.config.values`, which lags behind by a server echo.
-		const config = oldEntry.config;
-		const newBackendSession = this._toBackendUri(newSessionResource, provider);
-
-		// If a conversation was imported ("Continue in…") into this session, seed
-		// it as real editable history on the rebound (real) session. The stash was
-		// moved from the untitled resource to `newSessionResource` at graduation.
-		// Carry the source session's model so the imported session resumes on the
-		// same model instead of the host default (the normal per-turn model path
-		// is skipped for imports, which materialize eagerly at create time).
-		const imported = this._importConversationStore.take(newSessionResource);
-
-		let created: URI;
-		try {
-			created = await this._agentHostService.createSession({
-				provider,
-				session: newBackendSession,
-				workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
-				config,
-				...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
-				progressToken: generateUuid(),
-			});
-		} catch (err) {
-			this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
-			return undefined;
-		}
-
-		// Atomically swap entries: insert the new entry, drop the old one.
-		// Order matters — the old entry's `dispose` below must not race with
-		// the picker's `onDidChange` re-render reading the new entry.
-		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, workingDirectory, resolvedConfig: oldEntry.resolvedConfig });
-		this._entries.delete(oldSessionResource);
-		this._resolvedConfigs.delete(oldSessionResource);
-		this._resolvedConfigRequestSeq.delete(oldSessionResource);
-		this._rebound.add(oldSessionResource);
-		// Only notify for the new resource. Firing for `oldSessionResource`
-		// would race the chat widget's `onDidChangeViewModel`: the picker is
-		// still bound to the old URI and would re-enter `getOrCreate`,
-		// spinning up an orphan provisional session on the agent.
-		this._onDidChange.fire(newSessionResource);
-
-		// Dispose the temporary provisional. Best-effort; the agent treats
-		// it as an in-memory drop (no SDK/worktree to tear down).
-		this._agentHostService.disposeSession(oldEntry.backendSession).catch(err => {
-			this._logService.warn(`[AgentHostProvisional] Failed to dispose temporary provisional ${oldEntry.backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 		});
+	}
 
-		return created;
+	private _restoreImportedConversation(sessionResource: URI, imported: IAgentHostImportConversation | undefined): void {
+		if (imported) {
+			this._importConversationStore.set(sessionResource, imported);
+		}
 	}
 
 	/**
 	 * Recreate the provisional backend session for `sessionResource` at a new
 	 * working directory, preserving the user's config choices. A created
 	 * session's cwd is immutable, so the only way to honor a folder change is to
-	 * dispose and recreate. Reuses the same deterministic backend URI so the
-	 * chat-resource-to-backend mapping stays stable. Sequencer-queued so it
-	 * settles in order with config-chip changes for the same resource.
+	 * dispose and recreate. The replacement uses a fresh backend URI so existing
+	 * subscribers acquire an authoritative snapshot for the new incarnation.
 	 */
 	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
-		return this._sequencer.queue(sessionResource.toString(), async () => {
-			const entry = this._entries.get(sessionResource);
-			if (!entry) {
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed || this._sameUri(entry.workingDirectory, newWorkingDirectory)) {
+			return Promise.resolve();
+		}
+		entry.workingDirectory = newWorkingDirectory;
+		entry.configVersion++;
+		entry.resolvedConfig = undefined;
+		const work = this._queue(sessionResource, async () => {
+			if (this._entries.get(sessionResource) !== entry || entry.disposed) {
 				return;
 			}
-			if (entry.workingDirectory?.toString() === newWorkingDirectory.toString()) {
+			const backend = await this._reconcileGeneration(sessionResource, entry);
+			if (!backend) {
 				return;
 			}
-			// Read the stripped backend provider scheme (e.g. `copilot`), not
-			// the full `agent-host-*` chat-resource scheme.
-			const provider = entry.backendSession.scheme;
-			const config = { ...entry.config };
-			try {
-				await this._agentHostService.disposeSession(entry.backendSession);
-			} catch (err) {
-				this._logService.warn(`[AgentHostProvisional] Failed to dispose provisional before cwd change ${entry.backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-			}
-			let created: URI;
-			try {
-				created = await this._agentHostService.createSession({
-					provider,
-					session: entry.backendSession,
-					workingDirectories: this._computeWorkingDirectories(newWorkingDirectory, provider),
-					config,
-					progressToken: generateUuid(),
-				});
-			} catch (err) {
-				this._logService.warn(`[AgentHostProvisional] Failed to recreate provisional at new cwd: ${err instanceof Error ? err.message : String(err)}`);
-				// The old provisional is gone; drop the entry so the next
-				// getOrCreate rebuilds it from scratch.
-				this._entries.delete(sessionResource);
-				this._onDidChange.fire(sessionResource);
-				return;
-			}
-			this._entries.set(sessionResource, { backendSession: created, config, workingDirectory: newWorkingDirectory, resolvedConfig: entry.resolvedConfig });
 			// Re-resolve config against the new cwd so chip schemas refresh.
+			const configVersion = entry.configVersion;
+			const workingDirectory = entry.workingDirectory;
 			try {
 				const resolved = await this._agentHostService.resolveSessionConfig({
-					provider,
-					workingDirectory: newWorkingDirectory,
-					config: { ...config },
+					provider: entry.provider,
+					workingDirectory,
+					config: { ...entry.config },
 				});
-				const current = this._entries.get(sessionResource);
-				if (current && current.backendSession.toString() === created.toString()) {
-					current.config = { ...current.config, ...resolved.values };
-					current.resolvedConfig = resolved;
+				if (this._entries.get(sessionResource) === entry && !entry.disposed && entry.configVersion === configVersion && this._sameUri(entry.workingDirectory, workingDirectory)) {
+					entry.config = { ...entry.config, ...resolved.values };
+					entry.resolvedConfig = resolved;
 				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] schema re-resolve after cwd change failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
 			this._onDidChange.fire(sessionResource);
 		});
+		// Register pending work before notifying because listeners can synchronously wait or reacquire.
+		this._onDidChange.fire(sessionResource);
+		return work;
 	}
 
-	async disposeSession(sessionResource: URI): Promise<void> {
-		await this.waitForPending(sessionResource);
+	disposeSession(sessionResource: URI): Promise<void> {
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
 		if (!entry) {
-			return;
+			return Promise.resolve();
 		}
+		entry.disposed = true;
 		this._entries.delete(sessionResource);
 		this._onDidChange.fire(sessionResource);
-		try {
-			await this._agentHostService.disposeSession(entry.backendSession);
-		} catch (err) {
-			this._logService.warn(`[AgentHostProvisional] Failed to dispose provisional ${entry.backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-		}
+		return this._queue(sessionResource, async () => {
+			if (entry.generation) {
+				await this._disposeBackend(entry.generation.backendSession, 'provisional generation');
+				entry.generation = undefined;
+			}
+		});
 	}
 
 	override dispose(): void {
 		// Fire-and-forget cleanup for any provisionals still tracked. Avoid
 		// awaiting in `dispose()` to keep workbench teardown synchronous.
 		for (const [, entry] of this._entries) {
-			this._agentHostService.disposeSession(entry.backendSession).catch(() => { /* swallow on shutdown */ });
+			entry.disposed = true;
+			if (entry.generation) {
+				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
+			}
+		}
+		for (const backendSession of this._pendingBackendDisposals) {
+			this._agentHostService.disposeSession(backendSession).catch(() => { /* swallow on shutdown */ });
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
 		this._rebound.clear();
@@ -579,68 +746,56 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		workingDirectory: URI | undefined,
 		partial: Record<string, unknown>,
 	): Promise<URI | undefined> {
-		// SYNCHRONOUS pre-await mutation: a `tryRebind` racing during
-		// `getOrCreate` only awaits `_pending` (not this service's
-		// `_sequencer`), so the rebound entry must observe the latest
-		// `entry.config` even if the user clicks Send the very next tick.
-		const preExisting = this._entries.get(sessionResource);
-		if (preExisting) {
-			Object.assign(preExisting.config, partial);
-			// Keep overlay values in sync with the cache so the picker (which
-			// prefers `overlay.values`) doesn't render a stale value during the
-			// re-resolve round-trip. Schema is left as-is; the queued resolve
-			// replaces both atomically below.
-			if (preExisting.resolvedConfig) {
-				preExisting.resolvedConfig = {
-					...preExisting.resolvedConfig,
-					values: { ...preExisting.resolvedConfig.values, ...partial },
-				};
-			}
-		}
-		const backend = await this.getOrCreate(sessionResource, provider, workingDirectory);
-		if (!backend) {
+		const entry = this._ensureEntry(sessionResource, provider, workingDirectory);
+		if (!entry) {
 			return undefined;
 		}
-		if (!preExisting) {
-			// Fresh entry just created by getOrCreate; apply partial on top.
-			// No `resolvedConfig` exists yet on a newly-created entry, so
-			// there's nothing to merge into.
-			const entry = this._entries.get(sessionResource);
-			if (entry) {
-				Object.assign(entry.config, partial);
-			}
+		// Fresh entries already contain defaults; apply the user's partial on top.
+		// Mutate before queueing so a racing tryRebind sees the latest config.
+		Object.assign(entry.config, partial);
+		entry.configVersion++;
+		// Keep overlay values current while schema re-resolution is pending.
+		if (entry.resolvedConfig) {
+			entry.resolvedConfig = {
+				...entry.resolvedConfig,
+				values: { ...entry.resolvedConfig.values, ...partial },
+			};
 		}
-		this._agentHostService.dispatch(backend.toString(), {
-			type: ActionType.SessionConfigChanged,
-			config: partial,
-		});
 
-		// Sequence ONLY the re-resolve so racing chip clicks settle in order
-		// (e.g. worktree → folder issued before the first resolve returns).
-		return this._sequencer.queue(sessionResource.toString(), async () => {
-			const current = this._entries.get(sessionResource);
-			if (!current) {
-				return backend;
+		// Serialize dispatch and re-resolution so racing chip changes settle in order.
+		return this._queue(sessionResource, async () => {
+			if (this._entries.get(sessionResource) !== entry || entry.disposed) {
+				return undefined;
 			}
+			const backend = await this._reconcileGeneration(sessionResource, entry);
+			if (!backend || this._entries.get(sessionResource) !== entry || entry.disposed) {
+				return undefined;
+			}
+			this._agentHostService.dispatch(backend.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: partial,
+			});
+			const configVersion = entry.configVersion;
+			const resolvedWorkingDirectory = entry.workingDirectory;
 			try {
 				const resolved = await this._agentHostService.resolveSessionConfig({
 					provider,
-					workingDirectory,
-					config: { ...current.config },
+					workingDirectory: resolvedWorkingDirectory,
+					config: { ...entry.config },
 				});
 				const stillCurrent = this._entries.get(sessionResource);
-				if (stillCurrent === current) {
+				if (stillCurrent === entry && !entry.disposed && entry.configVersion === configVersion && this._sameUri(entry.workingDirectory, resolvedWorkingDirectory)) {
 					const resolvedValues = { ...resolved.values };
 					// Merge resolved values into entry.config so a later `tryRebind`
 					// materializes the backend session with the validated configuration
 					// the UI is displaying. Merge (not replace) so any keys the schema
 					// doesn't know about survive.
-					const mergedConfig = { ...stillCurrent.config, ...resolvedValues };
-					const configChanged = !equals(stillCurrent.config, mergedConfig);
-					const resolvedChanged = !equals(stillCurrent.resolvedConfig, resolved);
+					const mergedConfig = { ...entry.config, ...resolvedValues };
+					const configChanged = !equals(entry.config, mergedConfig);
+					const resolvedChanged = !equals(entry.resolvedConfig, resolved);
 					if (configChanged || resolvedChanged) {
-						stillCurrent.config = mergedConfig;
-						stillCurrent.resolvedConfig = resolved;
+						entry.config = mergedConfig;
+						entry.resolvedConfig = resolved;
 						this._onDidChange.fire(sessionResource);
 					}
 				}

@@ -31,7 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
-import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -168,13 +168,11 @@ class AutomationCardsSection extends Disposable {
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
 		card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, formatSchedule(automation)));
+		this.disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $('button.automations-card-main', {
 			type: 'button',
 			'aria-label': localize('editAutomationNamed', "Edit automation {0}", automation.name),
-		}));
-		this.disposables.add(DOM.addDisposableListener(main, DOM.EventType.CLICK, () => {
-			void this.openEditDialog(automation);
 		}));
 
 		// Name row with disabled badge
@@ -216,6 +214,16 @@ class AutomationCardsSection extends Disposable {
 		this.disposables.add(deleteBtn.onDidClick(() => {
 			void this.confirmDelete(automation);
 		}));
+
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this.disposables.add(DOM.addDisposableListener(card, eventType, event => {
+				const target = (event as GestureEvent).initialTarget ?? event.target;
+				if (target instanceof Node && DOM.isAncestor(target, actions)) {
+					return;
+				}
+				void this.openEditDialog(automation);
+			}));
+		}
 	}
 
 	private createIconButton(container: HTMLElement, icon: ThemeIcon, tooltip: string, disabled: boolean): Button {

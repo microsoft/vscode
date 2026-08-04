@@ -312,7 +312,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
 		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default approvals"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Default permissions"),
 			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
@@ -338,7 +338,7 @@ export const platformSessionSchema = createSchema({
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
 			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
-			localize('agentHost.sessionConfig.mode.autopilotDescription', "Autonomously iterates from start to finish"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Works autonomously within permissions"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
@@ -740,8 +740,8 @@ export const platformRootSchema = createSchema({
 	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
-		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
-		default: false,
+		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true` (default), models with a free long context window only show the long context option in the picker. When `false`, the smaller default context option stays selectable."),
+		default: true,
 	}),
 	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
