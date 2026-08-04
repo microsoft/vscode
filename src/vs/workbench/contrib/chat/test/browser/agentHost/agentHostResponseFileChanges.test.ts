@@ -138,14 +138,15 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		], [1, 1]);
 	});
 
-	test('maps turn file edits into entry diffs with session workspace classification', () => {
+	test('classifies project files as workspace files without working directories', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
 		conn.setState(backendSession.toString(), {
-			workingDirectories: [URI.file('/repo').toString()],
+			project: { uri: URI.file('/repo').toString(), displayName: 'repo' },
+			workingDirectories: [],
 			chats: [],
 		} as unknown as SessionState);
 		conn.setState(defaultChatUri.toString(), {

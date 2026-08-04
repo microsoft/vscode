@@ -166,9 +166,17 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 		return derived(reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			const workspaceRoots = sessionState && !(sessionState instanceof Error)
-				? (sessionState.workingDirectories ?? []).map(root => URI.parse(root))
-				: [];
+			const workspaceRoots: URI[] = [];
+			if (sessionState && !(sessionState instanceof Error)) {
+				const roots = new Map<string, URI>();
+				for (const root of [sessionState.project?.uri, ...(sessionState.workingDirectories ?? [])]) {
+					if (root) {
+						const uri = URI.parse(root);
+						roots.set(uri.toString(), uri);
+					}
+				}
+				workspaceRoots.push(...roots.values());
+			}
 			for (const obs of chatStateObs.read(reader)) {
 				const chatState = obs.read(reader);
 				if (!chatState || chatState instanceof Error) {
