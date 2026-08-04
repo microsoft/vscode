@@ -1291,12 +1291,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: var(--vscode-spacing-size40);
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
+.action-item.chat-submit-button {
 	position: relative;
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
+.action-item.menu-entry.chat-submit-button > .action-label.codicon[class*='codicon-'] {
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
@@ -1309,37 +1309,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
+.action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-plus::before {
+.action-item.chat-submit-button > .action-label.codicon-plus::before {
 	transform: translateX(0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
 	the button surface with a small offset. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled):has(> .action-label:focus-visible) {
+.action-item.chat-submit-button:not(.disabled):has(> .action-label:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label:focus,
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label:focus-visible {
+.action-item.chat-submit-button > .action-label:focus,
+.action-item.chat-submit-button > .action-label:focus-visible {
 	outline: none;
 }
 
 /* Idle: solid primary button background. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
+.action-item.chat-submit-button:not(.disabled) > .action-label {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
 	transition: background-color 120ms ease;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:hover,
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:focus-visible {
+.action-item.chat-submit-button:not(.disabled) > .action-label:hover,
+.action-item.chat-submit-button:not(.disabled) > .action-label:focus-visible {
 	background: var(--vscode-button-hoverBackground);
 }
 
