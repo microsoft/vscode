@@ -2603,7 +2603,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 
-		await stopDictationForEditor(this.inputEditor);
+		if (!options?.preserveInput) {
+			// preserveInput submissions (e.g. /compact or programmatic maintenance
+			// requests) leave the input draft untouched, so they must not stop an
+			// unrelated dictation and flush its final transcript into that draft.
+			await stopDictationForEditor(this.inputEditor);
+		}
 
 		if (this.viewModel) {
 			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);

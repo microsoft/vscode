@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -25,11 +26,12 @@ suite('DictationSession', () => {
 	 * the test drive interim updates through the returned emitter. `setTranscript`
 	 * updates what a subsequent `stopAndTranscribe` resolves with.
 	 */
-	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void } {
+	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void; blockStop(): () => void } {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
 		let state = ChatSpeechToTextState.Idle;
 		let finalTranscript = transcript;
+		let stopBarrier: Promise<void> | undefined;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
 			onDidUpdateTranscript: onDidUpdateTranscript.event,
@@ -51,6 +53,8 @@ suite('DictationSession', () => {
 				onDidChangeState.fire(state);
 			},
 			async stopAndTranscribe() {
+				// Lets a test hold the finalization open to exercise concurrent stops.
+				await stopBarrier;
 				state = ChatSpeechToTextState.Idle;
 				onDidChangeState.fire(state);
 				return finalTranscript;
@@ -58,7 +62,16 @@ suite('DictationSession', () => {
 			cancel() { },
 			logDictationAccuracy() { },
 		};
-		return { service, onDidUpdateTranscript, setTranscript: text => { finalTranscript = text; } };
+		return {
+			service,
+			onDidUpdateTranscript,
+			setTranscript: text => { finalTranscript = text; },
+			blockStop: () => {
+				const deferred = new DeferredPromise<void>();
+				stopBarrier = deferred.p;
+				return () => deferred.complete();
+			},
+		};
 	}
 
 	/** Ranges rendered as still being processed, as `[startLine,startColumn -> endLine,endColumn]`. */
@@ -113,6 +126,38 @@ suite('DictationSession', () => {
 		}, {
 			afterOtherEditor: true,
 			afterDictationEditor: false,
+			value: 'hello world',
+		});
+	});
+
+	test('a second submit during finalization waits for the final transcript', async () => {
+		const { service, onDidUpdateTranscript, blockStop } = createService('hello world', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'hello world', finalizedText: '' });
+
+		// The first submit begins finalizing but blocks inside stopAndTranscribe.
+		const release = blockStop();
+		const firstStop = stopDictationForEditor(editor);
+		// A second submit for the same editor arrives mid-finalization; it must
+		// await the in-flight finalization rather than returning early.
+		let secondResolved = false;
+		const secondStop = stopDictationForEditor(editor).then(() => { secondResolved = true; });
+		await timeout(0);
+		const secondResolvedWhileBlocked = secondResolved;
+
+		release();
+		await Promise.all([firstStop, secondStop]);
+
+		assert.deepStrictEqual({
+			secondResolvedWhileBlocked,
+			secondResolvedAfterFinal: secondResolved,
+			value: editor.getValue(),
+		}, {
+			secondResolvedWhileBlocked: false,
+			secondResolvedAfterFinal: true,
 			value: 'hello world',
 		});
 	});
