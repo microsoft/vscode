@@ -202,7 +202,7 @@ suite('AgentHostStateManager', () => {
 		rootState.config.values['codex.personality'] = 'friendly';
 		rootState._meta = withAgentCustomizationSettings(rootState, [{
 			provider: 'codex',
-			title: 'Codex Settings',
+			title: 'Codex',
 			description: 'Codex settings',
 			settings: [{ key: 'codex.personality', group: 'Personalization' }],
 		}]);

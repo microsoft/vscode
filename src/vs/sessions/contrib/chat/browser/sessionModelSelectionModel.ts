@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel } from '../../../../workbench/contrib/chat/common/chatSelectedModel.js';
+import { CODEX_CHATGPT_DEFAULT_PROVIDER_STORAGE_KEY, CODEX_CHAT_SESSION_TYPE, isChatGPTDefaultForCodex } from '../../../../workbench/services/agentHost/common/codexAccount.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelSelectionMemory, IModelSelectionSessionContext, IPendingModelSelection, ModelSelectionReason, transitionModelSelection } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -31,7 +32,7 @@ const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
 	showAutoModel: true,
 };
 
-type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models';
+type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models' | 'storage';
 
 interface IRememberedModelSelection {
 	readonly identifier: string;
@@ -143,7 +144,12 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 			}
 		}));
 		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._refresh('providers')));
-		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => this._sharedDiagnostics.logStorageChange(event, this._state.get().currentModel?.identifier)));
+		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
+			this._sharedDiagnostics.logStorageChange(event, this._state.get().currentModel?.identifier);
+			if (event.key === CODEX_CHATGPT_DEFAULT_PROVIDER_STORAGE_KEY) {
+				this._refresh('storage');
+			}
+		}));
 	}
 
 	selectModel(modelIdentifier: string): boolean {
@@ -245,7 +251,15 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 		const snapshot = desiredModelIdentifier !== sessionModelId && session && provider
 			? provider.getModelsSnapshot(session.sessionId, desiredModelIdentifier)
 			: initialSnapshot;
-		const fallbackModel = snapshot.models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) ?? snapshot.models[0];
+		const preferredCodexProvider = snapshot.modelTarget === CODEX_CHAT_SESSION_TYPE
+			? (isChatGPTDefaultForCodex(this._storageService) ? 'chatgptSubscription' : 'copilot')
+			: undefined;
+		const preferredCodexModel = preferredCodexProvider === 'chatgptSubscription'
+			? snapshot.models.find(model => model.metadata.modelGroup?.source === 'chatgptSubscription')
+			: preferredCodexProvider === 'copilot'
+				? snapshot.models.find(model => model.metadata.modelGroup?.id === 'copilot')
+				: undefined;
+		const fallbackModel = preferredCodexModel ?? snapshot.models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) ?? snapshot.models[0];
 		const result = transitionModelSelection({
 			session: sessionContext,
 			models: {

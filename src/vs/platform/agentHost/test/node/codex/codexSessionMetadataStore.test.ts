@@ -32,6 +32,24 @@ suite('CodexSessionMetadataStore', () => {
 		});
 	});
 
+	test('keeps provider-qualified model selections independent per session', async () => {
+		const copilotStore = new CodexSessionMetadataStore(createSessionDataService(new TestSessionDatabase()), new NullLogService());
+		const chatGPTStore = new CodexSessionMetadataStore(createSessionDataService(new TestSessionDatabase()), new NullLogService());
+		const copilotSession = URI.parse('codex:/copilot-session');
+		const chatGPTSession = URI.parse('codex:/chatgpt-session');
+
+		await copilotStore.write(copilotSession, { modelId: '@provider=vscode-proxy:gpt-5' });
+		await chatGPTStore.write(chatGPTSession, { modelId: '@provider=openai:gpt-5' });
+
+		assert.deepStrictEqual({
+			copilot: (await copilotStore.read(copilotSession)).modelId,
+			chatGPT: (await chatGPTStore.read(chatGPTSession)).modelId,
+		}, {
+			copilot: '@provider=vscode-proxy:gpt-5',
+			chatGPT: '@provider=openai:gpt-5',
+		});
+	});
+
 	test('ignores malformed working directory metadata', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.cwd', '{"cwd":');
