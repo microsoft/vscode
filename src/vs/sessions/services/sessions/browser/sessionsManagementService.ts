@@ -263,6 +263,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return [...this._sessionTypes];
 	}
 
+	getAllProviderSessionTypes(): IProviderSessionType[] {
+		const result: IProviderSessionType[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			for (const sessionType of provider.sessionTypes) {
+				result.push({ providerId: provider.id, sessionType });
+			}
+		}
+		return result;
+	}
+
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
 		const result: IProviderSessionType[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {

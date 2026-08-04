@@ -14,7 +14,7 @@ suite('CodexAccountState', () => {
 			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true }),
 			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true }),
 			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true }),
-			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', credentialSource: 'awsManaged' }, requiresOpenaiAuth: false }),
+			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false }),
 		], [
 			{ usageSource: 'openai', status: 'signedOut' },
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' },

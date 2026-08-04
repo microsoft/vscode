@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -94,7 +96,9 @@ suite('Voice Mode onboarding', () => {
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
 		const voicesLabel = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voices-label')?.textContent;
-		const microphonePickerHidden = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-microphone-picker')?.hidden;
+		const microphonePicker = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-microphone-picker');
+		const microphonePickerHidden = microphonePicker?.hidden;
+		const microphonePickerDisplay = microphonePicker && dom.getWindow(microphonePicker).getComputedStyle(microphonePicker).display;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -108,6 +112,7 @@ suite('Voice Mode onboarding', () => {
 			{
 				shown,
 				microphonePickerHidden,
+				microphonePickerDisplay,
 				selectedOnOpen,
 				voices,
 				voicesLabel,
@@ -119,6 +124,7 @@ suite('Voice Mode onboarding', () => {
 			{
 				shown: true,
 				microphonePickerHidden: true,
+				microphonePickerDisplay: 'none',
 				selectedOnOpen: 0,
 				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
 				voicesLabel: 'Agent Voice:',
@@ -233,6 +239,47 @@ suite('Voice Mode onboarding', () => {
 		}
 
 		assert.deepStrictEqual(actual, cases);
+	});
+
+	test('swaps the chips when the spoken language changes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return false; }
+			override isMotionReduced(): boolean { return false; }
+		});
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('agents.voice.language', 'en');
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const host = createHost(disposables);
+		const audio = document.createElement('audio');
+		audio.play = () => Promise.resolve();
+		disposables.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => undefined,
+			source: 'manual',
+			audioFactory: () => audio,
+		}));
+
+		const countVoices = () => host.container.querySelectorAll('.voice-mode-onboarding-voice').length;
+		const englishOptions = countVoices();
+
+		configurationService.setUserConfiguration('agents.voice.language', 'zh');
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set(['agents.voice.language']),
+			change: { keys: ['agents.voice.language'], overrides: [] },
+			affectsConfiguration: candidate => candidate === 'agents.voice.language',
+		});
+		const chineseOptions = countVoices();
+		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
+		const chineseSample = audio.src.split(/[?#]/)[0].split('/').pop() ?? '';
+
+		assert.deepStrictEqual(
+			{ englishOptions, chineseOptions, chineseSample },
+			{ englishOptions: 4, chineseOptions: 1, chineseSample: 'zh_wuzhi_neutral.mp3' });
 	});
 
 	test('can be shown again manually', () => {
