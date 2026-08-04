@@ -271,16 +271,15 @@
 /*
  * Floating cards use a 4px leading margin (`--vscode-spacing-size40`) and no trailing
  * margin (`--vscode-spacing-sizeNone`), so adjacent cards are separated by a 4px gap.
- * A grid sash is centered on the grid boundary
- * but, at the default 4px size, is narrower than the gap and — because the two card
- * margins differ — leaves uneven dead space, so its hover highlight activates at a
- * different distance from each card edge. Grow only grid sashes to at least the gap
- * width (never below the configured `--vscode-sash-size`) and re-centre them on the
- * gap's midpoint. Because the midpoint offset is half the margin difference — a
- * constant, independent of the sash size — and the growth is symmetric, the hit
- * region reaches both card edges and the highlight (`:before`, itself centred in the
- * sash) stays centred in the gap for any configured sash size. Part-internal sashes
- * and the hidden-panel reveal sash retain their own geometry.
+ * A grid sash is centered on the grid boundary, but because the two card margins
+ * differ, that boundary is offset from the gap's midpoint by half the margin
+ * difference. At the default 4px size the sash already matches the gap width and only
+ * needs recentering. Grow grid sashes configured below the gap width to 4px, preserve
+ * larger configured sizes, and compensate for that symmetric growth while shifting
+ * the sash onto the gap midpoint. This keeps the hit region reaching both card edges
+ * and the highlight (`:before`, itself centered in the sash) centered in the gap for
+ * any configured sash size. Part-internal sashes and the hidden-panel reveal sash
+ * retain their own geometry.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash) {
 	/* Thickness: at least the gap, but never smaller than the configured sash size. */
@@ -324,9 +323,10 @@
 
 /*
  * When the status bar is hidden the cards sit against the window bottom edge and take
- * the doubled outer gutter (`--vscode-spacing-size40` * 2) instead of the zero inter-card
- * gap. Match that larger bottom inset. Excluded when a bottom panel is present, since
- * then the side/aux bars abut the panel card and keep the normal zero trailing margin.
+ * the doubled outer gutter (`--vscode-spacing-size40` * 2) instead of the zero trailing
+ * margin used at an inter-card edge. Match that larger bottom inset. Excluded when a
+ * bottom panel is present, since then the side/aux bars abut the panel card and keep
+ * the normal zero trailing margin.
  */
 .monaco-workbench.floating-panels.nostatusbar:is(:not(.panel-position-bottom), .nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	bottom: calc(var(--vscode-spacing-size40) * 2);
