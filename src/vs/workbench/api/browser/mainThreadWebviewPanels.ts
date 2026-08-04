@@ -89,6 +89,15 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
+	public override dispose(): void {
+		for (const webview of this._webviewInputs) {
+			if (typeof webview.group === 'number' && webview.webview.options.autoCloseWhenDispose) {
+				this._editorService.closeEditor({ editor: webview, groupId: webview.group });
+			}
+		}
+		super.dispose();
+	}
+
 	constructor(
 		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
@@ -356,5 +365,6 @@ function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions
 	return {
 		enableFindWidget: panelOptions.enableFindWidget,
 		retainContextWhenHidden: panelOptions.retainContextWhenHidden,
+		autoCloseWhenDispose: panelOptions.autoCloseWhenDispose,
 	};
 }
