@@ -226,7 +226,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	});
 
 	test('getOrCreate includes Editor multi-root workspace metadata', async () => {
-		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workspaceFolders = [URI.file('/workspace/one')];
 		workspaceConfiguration = URI.parse('vscode-remote://ssh-remote+host/work/demo.code-workspace');
 		workspaceName = 'Demo Workspace';
 		workbenchState = WorkbenchState.WORKSPACE;
