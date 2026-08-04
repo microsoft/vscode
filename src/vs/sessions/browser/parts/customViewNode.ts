@@ -54,6 +54,7 @@ export class CustomViewNode extends Disposable {
 		this.element.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 		this.element.style.setProperty('--session-view-foreground', asCssVariable(activeSessionViewForeground));
 		this.element.setAttribute('role', 'region');
+		this.element.setAttribute('data-view-id', descriptor.id);
 
 		this._headerEl = $('.custom-view-header');
 		this.element.appendChild(this._headerEl);
