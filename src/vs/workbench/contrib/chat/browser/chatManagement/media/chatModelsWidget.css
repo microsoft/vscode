@@ -124,6 +124,16 @@
 	margin-right: 4px;
 }
 
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-provider-icon {
+	flex-shrink: 0;
+	font-size: 16px;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-vendor-row .model-provider {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
 .models-widget .models-table-container .monaco-table-td .model-name-container .model-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
