@@ -24,7 +24,7 @@ export default new class implements eslint.Rule.RuleModule {
 			staticImport: 'Static imports of \'{{module}}\' are not allowed here because they are loaded synchronously on startup. Use a dynamic `await import(...)` or `import type` instead.'
 		},
 		docs: {
-			description: 'Disallow static imports of node_modules packages to prevent synchronous loading on startup. Allows Node.js built-ins, electron, relative imports, and whitelisted file paths.'
+			description: 'Disallow static imports of node_modules packages to prevent synchronous loading on startup. Allows Node.js built-ins, electron, relative imports, and allowed file paths.'
 		},
 		schema: {
 			type: 'array',
