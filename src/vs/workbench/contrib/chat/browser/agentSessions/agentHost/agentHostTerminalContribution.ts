@@ -5,11 +5,14 @@
 
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
@@ -52,6 +55,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -79,20 +84,32 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 					}));
 				},
 			},
+			{
+				// Mirror the connected GitHub Enterprise host to the agent host so its
+				// GitHub resources / CAPI calls target the enterprise instance. Sourced
+				// from the account service — the authoritative "am I signed in to GHE"
+				// state — rather than reading the setting directly. Push `''` (not
+				// `undefined`) for github.com: the push pipeline skips `undefined`,
+				// which would strand a stale host on the agent host.
+				key: AgentHostConfigKey.GithubEnterpriseUri,
+				computeValue: () => {
+					const provider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+					// `resolveGitHubUrl('')` yields the GitHub Enterprise base (e.g.
+					// `https://acme.ghe.com/`) when signed in via a GHE provider.
+					return provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('').replace(/\/+$/, '') : '';
+				},
+				registerTriggers: (store, push) => {
+					store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => push()));
+				},
+			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
-
-		this._updateEnabled();
+		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}
 
-	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+	private _updateEnabled(enabled: boolean): void {
+		if (enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				// The forwarder registers its own agent-host-start listener to re-push

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { localize } from '../../../../nls.js';
 
@@ -16,7 +16,7 @@ export interface ICopilotSystemNotification {
 
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
 	const data = event.data;
-	const kind = data.kind;
+	const kind: SystemNotification = data.kind;
 	const content = cleanSystemNotificationContent(data.content);
 	if (!content) {
 		return undefined;
@@ -26,13 +26,10 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		case 'shell_completed':
 		case 'shell_detached_completed': {
 			const description = kind.description;
-			const shellId = kind.shellId;
 			return {
 				messageText: description
 					? localize('agentHost.copilot.systemNotification.shellDescriptionCompleted', "`{0}` completed", description)
-					: shellId
-						? localize('agentHost.copilot.systemNotification.shellIdCompleted', "Shell `{0}` completed", shellId)
-						: localize('agentHost.copilot.systemNotification.shellCompleted', "Shell completed"),
+					: localize('agentHost.copilot.systemNotification.shellCompleted', "Shell completed"),
 				startsTurn: true,
 			};
 		}
@@ -57,6 +54,13 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			return {
 				messageText: localize('agentHost.copilot.systemNotification.instructionDiscovered', "Instruction discovered: {0}", kind.description ?? kind.sourcePath),
 				startsTurn: false,
+			};
+		case 'unclassified':
+			// External-host notifications that do not match a runtime-owned kind.
+			// Use the cleaned content and wake the agent when idle.
+			return {
+				messageText: content,
+				startsTurn: true,
 			};
 		default:
 			softAssertNever(kind);

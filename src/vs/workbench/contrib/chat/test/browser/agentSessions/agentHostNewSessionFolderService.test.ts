@@ -10,8 +10,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
+import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { AgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { AgentHostNewSessionFolderService, computeWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 suite('AgentHostNewSessionFolderService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -115,6 +116,69 @@ suite('AgentHostNewSessionFolderService', () => {
 		assert.deepStrictEqual({ whileWorkspaceLacksFolder, afterFolderAdded }, {
 			whileWorkspaceLacksFolder: undefined,
 			afterFolderAdded: folderC.toString(),
+		});
+	});
+});
+
+suite('computeWorkingDirectories', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const folderA = URI.file('/repoA');
+	const folderB = URI.file('/repoB');
+	const folderC = URI.file('/repoC');
+
+	const toStrings = (dirs: readonly URI[] | undefined) => dirs?.map(d => d.toString());
+
+	function rootStateWith(provider: string, multipleWorkingDirectories: boolean): RootState {
+		const agent = {
+			provider,
+			displayName: provider,
+			description: '',
+			models: [],
+			capabilities: multipleWorkingDirectories ? { multipleWorkingDirectories: { immutablePrimary: true } } : {},
+		} as AgentInfo;
+		return { agents: [agent] } as unknown as RootState;
+	}
+
+	const advertised = rootStateWith('copilot', true);
+
+	test('derives the ordered set from the chosen primary (capability advertised)', () => {
+		assert.deepStrictEqual({
+			noPrimary: toStrings(computeWorkingDirectories(undefined, [folderA, folderB, folderC], advertised, 'copilot')),
+			singleFolder: toStrings(computeWorkingDirectories(folderA, [folderA], advertised, 'copilot')),
+			primaryFirst: toStrings(computeWorkingDirectories(folderA, [folderA, folderB, folderC], advertised, 'copilot')),
+			primaryMiddle: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], advertised, 'copilot')),
+			primaryOutsideWorkspace: toStrings(computeWorkingDirectories(folderC, [folderA, folderB], advertised, 'copilot')),
+			noWorkspaceFolders: toStrings(computeWorkingDirectories(folderA, [], advertised, 'copilot')),
+		}, {
+			noPrimary: undefined,
+			singleFolder: [folderA.toString()],
+			primaryFirst: [folderA.toString(), folderB.toString(), folderC.toString()],
+			primaryMiddle: [folderB.toString(), folderA.toString(), folderC.toString()],
+			primaryOutsideWorkspace: [folderC.toString()],
+			noWorkspaceFolders: [folderA.toString()],
+		});
+	});
+
+	test('restricts to the primary unless the provider advertises the capability', () => {
+		const notAdvertised = rootStateWith('other', false);
+		assert.deepStrictEqual({
+			// Provider present and does NOT advertise → restrict to primary.
+			restricted: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], notAdvertised, 'other')),
+			// Provider present and advertises → full ordered set.
+			advertised: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], advertised, 'copilot')),
+			// Provider absent from the root state → unsupported → primary only.
+			providerAbsent: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], advertised, 'missing')),
+			// Root state unavailable → unsupported → primary only.
+			rootStateUndefined: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], undefined, 'copilot')),
+			// Root state errored → unsupported → primary only.
+			rootStateError: toStrings(computeWorkingDirectories(folderB, [folderA, folderB, folderC], new Error('boom'), 'copilot')),
+		}, {
+			restricted: [folderB.toString()],
+			advertised: [folderB.toString(), folderA.toString(), folderC.toString()],
+			providerAbsent: [folderB.toString()],
+			rootStateUndefined: [folderB.toString()],
+			rootStateError: [folderB.toString()],
 		});
 	});
 });

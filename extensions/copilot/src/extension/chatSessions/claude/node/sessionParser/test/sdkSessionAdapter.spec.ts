@@ -103,6 +103,16 @@ describe('sdkSessionInfoToSessionInfo', () => {
 		expect(result.label).toBe('My Custom Title');
 	});
 
+	it('truncates a long customTitle', () => {
+		const longTitle = 'This is an extremely long custom title that exceeds the fifty character display limit by a wide margin';
+		const info = createSdkSessionInfo({ customTitle: longTitle });
+
+		const result = sdkSessionInfoToSessionInfo(info);
+
+		expect(result.label.length).toBeLessThanOrEqual(51);
+		expect(result.label).toContain('…');
+	});
+
 	it('strips <system-reminder> tags from summary', () => {
 		const info = createSdkSessionInfo({
 			summary: '<system-reminder>some internal stuff</system-reminder>Fix the login bug',

@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -50,7 +51,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, sessionUri.toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, resolveChatUri(sessionUri, this._chatChannelUri).toString(), dbRef),
 		);
 	}
 
@@ -58,7 +59,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
-	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
+	async handle(message: SDKMessage, turnId: string | undefined, turnDuration?: number): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message);
 		} else if (message.type === 'user' && turnId !== undefined) {
@@ -76,6 +77,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._logService,
 				this._subagents,
 				this._clientToolOwner,
+				turnDuration,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

@@ -16,6 +16,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -31,9 +32,18 @@ import '../../browser/editor.contribution.js';
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override get mainPart(): IEditorGroupsService['mainPart'] {
+				return { activeGroup: { count } as IEditorGroup } as IEditorGroupsService['mainPart'];
+			}
+		});
+	}
+
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
+		stubEditorGroupCount(instantiationService, 7);
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -48,8 +58,9 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
 			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
-			pinned: options?.pinned
-		})), [{ isEmptyFileEditor: true, pinned: true }]);
+			pinned: options?.pinned,
+			index: options?.index
+		})), [{ isEmptyFileEditor: true, pinned: true, index: 7 }]);
 	});
 
 	test('new search tab action opens a new search editor', async () => {
@@ -70,24 +81,26 @@ suite('Sessions - Editor Contribution', () => {
 	test('new changes tab action opens the changes editor for the active session', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const resource = URI.parse('session:1');
+		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({ resource } as IActiveSession);
 		});
-		const openedResources: URI[] = [];
+		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-			override async openChangesEditor(sessionResource: URI): Promise<undefined> {
-				openedResources.push(sessionResource);
+			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
+				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
 			}
 		});
 
 		await new NewChangesTabAction().run(instantiationService);
 
-		assert.deepStrictEqual(openedResources, [resource]);
+		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
 	});
 
 	test('new changes tab action is a no-op when there is no active session', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
 		});

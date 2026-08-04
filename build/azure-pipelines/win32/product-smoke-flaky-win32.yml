@@ -37,6 +37,7 @@ jobs:
           VSCODE_ARCH: x64
           VSCODE_CIBUILD: true
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
 
       - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
         env:
@@ -59,8 +60,19 @@ jobs:
       # Run the Electron smoke test once per iteration. continueOnError lets every
       # iteration run even if some fail, and gives each run its own timeline record
       # so the SmokeFlaky function can tally passes vs. failures.
+      #
+      # The smoke runner wipes .build\logs\smoke-tests-electron on startup, so a
+      # failing iteration's diagnostics would be destroyed by the next one and the
+      # published artifact would only ever hold the last iteration. Set the failed
+      # run aside under a name the runner does not touch.
       - ${{ each i in parameters.iterations }}:
-        - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        - powershell: |
+            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+            $status = $LASTEXITCODE
+            if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
+              Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
+            }
+            exit $status
           displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
           continueOnError: true
           timeoutInMinutes: 20

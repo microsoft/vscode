@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, Options } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -16,6 +17,7 @@ import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
 import { toSdkModelId } from './claudeModelId.js';
+import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 
@@ -28,10 +30,19 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 export interface IBuildOptionsInput {
 	readonly sessionId: string;
 	readonly workingDirectory: URI;
+	/**
+	 * Additional directories (index 1..N of the session's ordered set) the agent
+	 * is granted tool access to beyond the primary {@link workingDirectory}
+	 * (index 0 → `Options.cwd`). Projected onto `Options.additionalDirectories`
+	 * as absolute paths. Omitted from the returned options entirely when empty so
+	 * a single-root session keeps the SDK default (no additional directories).
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly model: ModelSelection | undefined;
 	readonly abortController: AbortController;
 	readonly permissionMode: ClaudePermissionMode;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
+	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
 	/**
 	 * One-shot SDK assistant-message uuid to resume *up to and including*
@@ -69,6 +80,8 @@ export interface IBuildOptionsInput {
 	 * Omit when no custom agent is selected (SDK default behavior).
 	 */
 	readonly agent?: string;
+	readonly telemetry?: IAgentHostNativeOTelConfig;
+	readonly traceContext?: IAgentHostTraceContext;
 }
 
 /**
@@ -91,12 +104,14 @@ export async function buildOptions(
 	input: IBuildOptionsInput,
 	transport: ClaudeTransport,
 	logStderr: (data: string) => void,
-	logElicitation: (msg: string) => void,
 ): Promise<Options> {
 	const isProxy = transport.kind === 'proxy';
 	const subprocessEnv = buildSubprocessEnv(isProxy);
+	const telemetryEnv = buildClaudeTelemetryEnv(input.telemetry, input.traceContext);
+	Object.assign(subprocessEnv, telemetryEnv);
 	const resolvedRgDiskPath = await rgDiskPath();
 	const settingsEnv: Record<string, string> = {
+		...telemetryEnv,
 		// Proxied (Copilot-routed) mode points the SDK at the local proxy on a
 		// per-session bearer. Native (BYO-Anthropic) mode omits both so the SDK
 		// uses its own credential resolution from the subprocess env
@@ -110,20 +125,26 @@ export async function buildOptions(
 			: {}),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 		USE_BUILTIN_RIPGREP: '0',
+		// Attribute the CLI's tool subprocesses (`gh`, …) to VS Code.
+		// `settings.env` is what the CLI layers onto the commands it runs, so it
+		// needs the marker in addition to the spawn env below. Note the CLI
+		// re-stamps `AI_AGENT` as `claude-code_<version>_agent` for its own Bash
+		// tool, so commands from that tool are not attributed to VS Code.
+		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
 
 	return {
 		cwd: input.workingDirectory.fsPath,
+		...(input.additionalDirectories && input.additionalDirectories.length > 0
+			? { additionalDirectories: input.additionalDirectories.map(d => d.fsPath) }
+			: {}),
 		executable: process.execPath as 'node',
 		env: subprocessEnv,
 		abortController: input.abortController,
 		allowDangerouslySkipPermissions: true,
 		canUseTool: input.canUseTool,
-		onElicitation: async req => {
-			logElicitation(req.message ?? '');
-			return { action: 'cancel' };
-		},
+		onElicitation: input.onElicitation,
 		disallowedTools: ['WebSearch'],
 		includePartialMessages: true,
 		forwardSubagentText: true,
@@ -218,19 +239,91 @@ export function buildModelEnumerationOptions(): Options {
  *
  * In both modes the agent host's own `NODE_OPTIONS`, `ELECTRON_*`, and
  * `VSCODE_*` variables are stripped (they break the Electron-node subprocess),
- * and `ELECTRON_RUN_AS_NODE=1` is set. Mirror of CopilotAgent's strip pattern
- * at copilotAgent.ts:434-450.
+ * `ELECTRON_RUN_AS_NODE=1` is set, and `AI_AGENT` is pinned so the sparse
+ * proxied env still announces the originating VS Code surface. Mirror of the
+ * strip pattern in `CopilotAgent._ensureClient()`.
  *
  * Exported for unit testing as a pure function over `process.env`.
  */
+export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | undefined, traceContext?: IAgentHostTraceContext): Record<string, string> {
+	if (!config) {
+		return {};
+	}
+	const env: Record<string, string> = {
+		CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+		OTEL_SERVICE_NAME: 'claude-code',
+		OTEL_RESOURCE_ATTRIBUTES: serializeResourceAttributes(config.resourceAttributes),
+		CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: config.traces ? '1' : '0',
+		OTEL_TRACES_EXPORTER: config.traces ? 'otlp' : 'none',
+		OTEL_LOGS_EXPORTER: config.external ? 'otlp' : 'none',
+		OTEL_METRICS_EXPORTER: config.external ? 'otlp' : 'none',
+		OTEL_LOG_USER_PROMPTS: config.captureContent ? '1' : '0',
+		OTEL_LOG_ASSISTANT_RESPONSES: config.captureContent ? '1' : '0',
+		OTEL_LOG_TOOL_DETAILS: config.captureContent ? '1' : '0',
+		OTEL_LOG_TOOL_CONTENT: config.captureContent ? '1' : '0',
+	};
+	if (config.traces) {
+		env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = config.traces.endpoint;
+		env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL = config.traces.protocol;
+	}
+	if (config.external) {
+		env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol);
+		env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL = config.external.protocol;
+		env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol);
+		env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL = config.external.protocol;
+		if (config.external.headers && Object.keys(config.external.headers).length > 0) {
+			env.OTEL_EXPORTER_OTLP_HEADERS = Object.entries(config.external.headers).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join(',');
+		}
+	}
+	if (traceContext) {
+		env.TRACEPARENT = traceContext.traceparent;
+		if (traceContext.tracestate) {
+			env.TRACESTATE = traceContext.tracestate;
+		}
+	}
+	return env;
+}
+
+function serializeResourceAttributes(attributes: Readonly<Record<string, string>>): string {
+	return Object.entries(attributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
+}
+
+function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics', protocol: 'http/json' | 'http/protobuf' | 'grpc'): string {
+	if (protocol === 'grpc') {
+		return endpoint;
+	}
+	try {
+		const url = new URL(endpoint);
+		if (url.pathname === '' || url.pathname === '/') {
+			url.pathname = `/v1/${signal}`;
+		} else if (url.pathname.endsWith('/v1/traces')) {
+			url.pathname = `${url.pathname.slice(0, -'/v1/traces'.length)}/v1/${signal}`;
+		}
+		return url.toString().replace(/\/$/, '');
+	} catch {
+		return endpoint;
+	}
+}
+
 export function buildSubprocessEnv(proxied: boolean = true): Record<string, string | undefined> {
 	// Proxy mode: a sparse env (creds arrive via settings.env), and the user's
 	// personal ANTHROPIC_API_KEY must not leak to the Copilot proxy.
 	// Native mode: inherit the real env so the user's own credentials + PATH
 	// reach the subprocess (replace semantics wipe anything not present here).
 	const env: Record<string, string | undefined> = proxied
-		? { ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined, ANTHROPIC_API_KEY: undefined }
+		? {
+			ELECTRON_RUN_AS_NODE: '1',
+			NODE_OPTIONS: undefined,
+			ANTHROPIC_API_KEY: undefined,
+			HOME: process.env['HOME'],
+			USERPROFILE: process.env['USERPROFILE'],
+			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
+			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
+		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
+	// Replace semantics mean the sparse (proxied) env would otherwise drop the
+	// agent host's own marker, so set it in both modes. See `AiAgentEnvVar`.
+	env[AiAgentEnvVar] = AiAgentEnvValue;
 	for (const key of Object.keys(process.env)) {
 		if (key === 'ELECTRON_RUN_AS_NODE') { continue; }
 		if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {

@@ -915,13 +915,15 @@ export function fuzzyContains(target: string, query: string): boolean {
 		return false; // impossible for query to be contained in target
 	}
 
-	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
+	const queryLower = query.toLowerCase();
+	// toLowerCase() can change a string's length (e.g. \u0130 -> i\u0307), so iterate over the lowered query.
+	const queryLen = queryLower.length;
 
 	let index = 0;
 	let lastIndexOf = -1;
 	while (index < queryLen) {
-		const indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		const indexOf = targetLower.indexOf(queryLower[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}

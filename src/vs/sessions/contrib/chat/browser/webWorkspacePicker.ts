@@ -15,14 +15,13 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IWorkspacePickerItem, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 
 /**
@@ -46,14 +45,14 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
 export class WebWorkspacePicker extends WorkspacePicker {
 
 	constructor(
+		options: IWorkspacePickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -64,14 +63,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
+			options,
 			actionWidgetService,
-			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
+			recentWorkspacesService,
 			remoteAgentHostService,
 			configurationService,
 			commandService,
-			workspacesService,
 			menuService,
 			contextKeyService,
 			instantiationService,

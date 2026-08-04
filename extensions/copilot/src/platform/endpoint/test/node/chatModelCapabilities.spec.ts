@@ -46,6 +46,9 @@ describe('Kimi edit tool capabilities', () => {
 		const models = {
 			'kimi-k2.6': fakeModel('kimi-k2.6'),
 			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'kimi-k3': fakeModel('kimi-k3'),
+			'moonshot/kimi-k2.7-code': fakeModel('moonshot/kimi-k2.7-code'),
+			'moonshot/kimi-k2.6': fakeModel('moonshot/kimi-k2.6'),
 			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
 		};
 		const actual = Object.fromEntries(Object.entries(models).map(([name, model]) => [name, {
@@ -67,6 +70,30 @@ describe('Kimi edit tool capabilities', () => {
 				canUseApplyPatchExclusively: false,
 			},
 			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k3': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.6': {
 				isKimiFamily: true,
 				supportsReplaceString: true,
 				supportsMultiReplaceString: true,
@@ -117,10 +144,13 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects Haiku and legacy Claude families', () => {
-	// Haiku is current-gen but has no tool search support — denied explicitly.
-		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
-		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
+	test('supports Haiku 4.5, the only shipping Haiku', () => {
+		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4-5-20251001')).toBe(true);
+	});
+
+	test('rejects legacy Claude families', () => {
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});

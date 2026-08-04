@@ -10,6 +10,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -55,19 +56,7 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-/**
- * Returns the available context size options for a model, or undefined if the
- * model does not support configurable context sizes.
- *
- * Driven entirely by CAPI billing metadata:
- * - When CAPI returns a `long_context` tier with higher prices, offers
- *   `default.context_max` as the default and `modelMaxPromptTokens` as an
- *   opt-in larger option so the user knowingly opts into higher billing.
- * - When there is no `long_context` tier, or prices match the default tier
- *   (i.e. `longContext` is absent on the pricing object), no selector is
- *   shown — the model silently uses the full context window.
- */
-function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
+function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
 
 	// Only offer a selector when CAPI provides a default context max,
@@ -86,9 +75,8 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 
 	const hasLongContextSurcharge = !!pricing.longContext;
 
-	// When both tiers cost the same, show only the full context window as a
-	// non-switchable indicator — the user always gets the larger window.
-	if (!hasLongContextSurcharge) {
+	// When both tiers cost the same and the user prefers long context, show only the full window as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
+	if (preferLongContext && !hasLongContextSurcharge) {
 		return [
 			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
 		];
@@ -105,7 +93,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 }
 
 // Auto model delegates to different backends, so don't expose config pickers
-function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
 		return {};
 	}
@@ -119,7 +107,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 	}
 
 	// Context size config
-	const contextSizeOptions = getContextSizeOptions(endpoint);
+	const contextSizeOptions = getContextSizeOptions(endpoint, preferLongContext);
 	if (contextSizeOptions) {
 		const defaultOption = contextSizeOptions.find(o => o.isDefault);
 		properties.contextSize = {
@@ -226,6 +214,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		@IVSCodeExtensionContext private readonly _vsCodeExtensionContext: IVSCodeExtensionContext,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -303,6 +292,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
+		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -376,12 +366,19 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					[ApiChatLocation.Editor]: endpoint instanceof AutoChatEndpoint, // inline chat gets 'Auto' by default
 				},
 				isUserSelectable: endpoint.showInModelPicker,
-				warningText: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.warningText,
+				warningText: endpoint instanceof AutoChatEndpoint ? undefined : (() => {
+					const texts: Record<string, string> = { ...endpoint.warningText };
+					if (endpoint.degradationReason) {
+						texts['degradation'] = endpoint.degradationReason;
+					}
+					return Object.keys(texts).length > 0 ? texts : undefined;
+				})(),
+				promo: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.promo,
 				capabilities: {
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint),
+				...buildConfigurationSchema(endpoint, preferLongContext),
 			};
 
 			models.push(model);
@@ -842,8 +839,15 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		let thinkingActive = false;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
-				// Show thinking progress for unencrypted thinking deltas
-				if (!isEncryptedThinkingDelta(delta.thinking)) {
+				if (isEncryptedThinkingDelta(delta.thinking)) {
+					if (options.includeEncryptedThinking) {
+						progress.report(new vscode.LanguageModelThinkingPart(
+							delta.thinking.text ?? '',
+							delta.thinking.id,
+							{ encrypted_content: delta.thinking.encrypted },
+						));
+					}
+				} else {
 					const text = delta.thinking.text ?? '';
 					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));
 					thinkingActive = true;

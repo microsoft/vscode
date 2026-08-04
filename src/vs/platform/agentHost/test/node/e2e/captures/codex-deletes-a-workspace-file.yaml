@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Delete delete-me.txt.
+    response:
+      content:
+        - type: text
+          text: I’ll remove `delete-me.txt` from the workspace now and confirm the result.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+            workdir: ${workdir}/ahp-coverage-delete-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Delete delete-me.txt.
+        - role: assistant
+          content: I’ll remove `delete-me.txt` from the workspace now and confirm the result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+                workdir: ${workdir}/ahp-coverage-delete-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 56713c
+                Wall time: 2.9351 seconds
+                Process exited with code 0
+                Original token count: 2
+                Output:
+                deleted
+    response:
+      content: Deleted `delete-me.txt`.
+      stopReason: end_turn

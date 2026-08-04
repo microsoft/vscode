@@ -7,9 +7,10 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, type AgentCustomization, type ToolCallState } from '../../common/state/sessionState.js';
-import type { SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -65,9 +66,11 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(result, {});
 		});
 
-		test('preserves a present toolArguments value, drops undefined', () => {
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: { a: 1 } })), { toolArguments: { a: 1 } });
-			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: undefined })), {});
+		test('reads valid tool-search candidates and drops malformed corpora', () => {
+			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: [{ name: 1, description: 'bad' }] })), {});
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: 'bad' })), {});
 		});
 
 		test('toToolCallMeta round-trips and returns undefined when empty', () => {
@@ -91,8 +94,8 @@ suite('Agent host _meta readers', () => {
 	suite('readCompletionAttachmentMeta', () => {
 		test('classifies a command bag', () => {
 			assert.deepStrictEqual(
-				readCompletionAttachmentMeta(attachment({ command: 'rename', description: 'Rename this chat' })),
-				{ kind: 'command', command: 'rename', description: 'Rename this chat' }
+				readCompletionAttachmentMeta(attachment({ command: 'rename', description: 'Rename this chat', argumentHint: 'New name' })),
+				{ kind: 'command', command: 'rename', description: 'Rename this chat', argumentHint: 'New name' }
 			);
 		});
 
@@ -114,9 +117,114 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmd, { command: 'rename' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
 
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', argumentHint: 'New name' });
+
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+		});
+
+		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 'New name' }), 'New name');
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 5 }), undefined);
+			assert.strictEqual(getCommandArgumentHint({ command: 'rename' }), undefined);
+			assert.strictEqual(getCommandArgumentHint(undefined), undefined);
+		});
+
+		test('classifies a command bag carrying an action and round-trips it', () => {
+			const wire = toCommandCompletionAttachmentMeta({
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(wire, {
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(wire)), {
+				kind: 'command',
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+		});
+
+		test('getCompletionAction reads the action, dropping wrong-typed sub-fields and empty bags', () => {
+			assert.deepStrictEqual(getCompletionAction({ action: { applyConfig: { autoApprove: 'autoApprove', bad: 5 } } }), { applyConfig: { autoApprove: 'autoApprove' } });
+			assert.strictEqual(getCompletionAction({ action: { applyConfig: {} } }), undefined);
+			assert.strictEqual(getCompletionAction({ command: 'yolo' }), undefined);
+			assert.strictEqual(getCompletionAction(undefined), undefined);
+		});
+	});
+
+	suite('agent model BYOK identifier meta', () => {
+		/** Wraps a `_meta` bag in a minimal {@link SessionModelInfo}. */
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a model identifier through _meta', () => {
+			const meta = createAgentModelByokMeta('openrouter/OpenRouter 2/aion-labs/aion-3.0');
+			assert.deepStrictEqual(meta, { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' });
+			assert.strictEqual(readAgentModelByokIdentifier(model(meta)), 'openrouter/OpenRouter 2/aion-labs/aion-3.0');
+		});
+
+		test('omits the bag entirely when there is no identifier', () => {
+			assert.strictEqual(createAgentModelByokMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model({})), undefined);
+		});
+
+		test('ignores a wrong-typed identifier value', () => {
+			assert.strictEqual(readAgentModelByokIdentifier(model({ byokModelIdentifier: 42 })), undefined);
+		});
+	});
+
+	suite('usage info turn token totals', () => {
+		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
+		function usage(meta: Record<string, unknown> | undefined): UsageInfo {
+			return { _meta: meta };
+		}
+
+		test('reads well-formed per-model totals', () => {
+			const totals = [
+				{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 800, outputTokens: 340 },
+				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			];
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+		});
+
+		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
+			const meta = readUsageInfoMeta(usage({
+				turnTokenTotals: [
+					null,
+					'nope',
+					{ inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: '', inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 'bad', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: -1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 1.5, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 },
+				],
+			}));
+			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
+		});
+
+		test('totals alone do not make a usage report count as reported consumption', () => {
+			// Totals always accompany per-call tokens or credits, and treating them as
+			// consumption on their own would make the restore path skip merging the
+			// richer persisted usage over a token-less stub.
+			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
 		});
 	});
 });
