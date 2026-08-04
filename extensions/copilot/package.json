@@ -5151,7 +5151,8 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.chat.autoMode.v2.enabled%",
             "tags": [
-              "advanced"
+              "advanced",
+              "onExp"
             ]
           },
           "github.copilot.chat.agent.modelDetails.enabled": {

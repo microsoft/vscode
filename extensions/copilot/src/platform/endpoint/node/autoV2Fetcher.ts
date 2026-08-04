@@ -11,35 +11,17 @@ import { Response } from '../../networking/common/fetcherService';
 import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
+import type { IModelAPIResponse } from '../common/endpointProvider';
 
 /**
  * The model object embedded in a `POST /auto` response. Shares the shape of an
  * entry from `GET /models`, but volatile fields (warning banners, policy state,
  * promo pricing, picker UI flags) are intentionally left unset by the server.
+ *
+ * Typed as a partial `IModelAPIResponse` so that any field the server does send
+ * is carried through verbatim: only `id` is guaranteed.
  */
-export interface AutoV2SelectedModel {
-	id: string;
-	name?: string;
-	version?: string;
-	vendor?: string;
-	capabilities?: {
-		family?: string;
-		tokenizer?: string;
-		limits?: {
-			max_prompt_tokens?: number;
-			max_context_window_tokens?: number;
-			max_output_tokens?: number;
-		};
-		supports?: {
-			vision?: boolean;
-			tool_calls?: boolean;
-			streaming?: boolean;
-			structured_outputs?: boolean;
-		};
-	};
-	supported_endpoints?: string[];
-	billing?: { is_premium?: boolean; multiplier?: number };
-}
+export type AutoV2SelectedModel = Partial<IModelAPIResponse> & { id: string };
 
 export interface AutoV2Response {
 	session_token: string;
@@ -99,6 +81,12 @@ export class AutoV2Fetcher {
 			multiTurn?: AutoV2MultiTurnState;
 			conversationId?: string;
 			vscodeRequestId?: string;
+			/**
+			 * Set when the call exists only to read `discounted_costs` for the
+			 * model picker. Keeps the placeholder prompt out of routing
+			 * telemetry and the request log.
+			 */
+			isDiscountProbe?: boolean;
 		} = {},
 	): Promise<AutoV2Response> {
 		const startTime = Date.now();
@@ -129,22 +117,25 @@ export class AutoV2Fetcher {
 		}
 
 		if (!response.ok) {
-			const errorText = await response.text().catch(() => '');
-			let errorCode: string | undefined;
-			try {
-				const parsed = JSON.parse(errorText);
-				if (typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string') {
-					errorCode = parsed.error;
-				}
-			} catch { /* not JSON */ }
+			// Error bodies are not guaranteed to be JSON (e.g. gateway HTML),
+			// so a parse failure just means we have no error code to report.
+			const parsed = await response.json().catch(() => undefined);
+			const errorCode = typeof parsed === 'object' && parsed !== null && typeof parsed.error === 'string'
+				? parsed.error
+				: undefined;
 			throw new AutoV2Error(`Auto request failed with status ${response.status}: ${response.statusText}`, response.status, errorCode);
 		}
 
-		const result: AutoV2Response = JSON.parse(await response.text());
+		const result = await response.json() as AutoV2Response;
+		const e2eLatencyMs = Date.now() - startTime;
+		if (options.isDiscountProbe) {
+			// Only `discounted_costs` is consumed; the selection is discarded.
+			this._logService.trace(`[AutoV2Fetcher] Discount probe resolved in ${e2eLatencyMs}ms`);
+			return result;
+		}
 		if (!result.selected_model?.id) {
 			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
 		}
-		const e2eLatencyMs = Date.now() - startTime;
 		this._logService.trace(`[AutoV2Fetcher] Selected model: ${result.selected_model.id} (e2e_latency_ms: ${e2eLatencyMs}, expires_at: ${result.expires_at})`);
 
 		this._requestLogger.addEntry({

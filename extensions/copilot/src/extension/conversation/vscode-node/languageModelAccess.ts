@@ -92,6 +92,39 @@ function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boole
 	];
 }
 
+/**
+ * Builds the routing context auto mode needs from a `vscode.lm` request.
+ *
+ * The `vscode.lm` API has no `ChatRequest`, but the single-call Auto endpoint
+ * only needs the prompt text to classify the task, plus a stable id to key its
+ * per-conversation cache. Returns `undefined` when no user text is available,
+ * in which case auto mode falls back to prompt-free model selection.
+ */
+function buildAutoRoutingContext(
+	messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[],
+	options: vscode.ProvideLanguageModelChatResponseOptions,
+): { prompt: string; sessionId: string } | undefined {
+	// The last user message is the turn being answered.
+	const lastUserMessage = [...messages].reverse().find(m => m.role === vscode.LanguageModelChatMessageRole.User);
+	if (!lastUserMessage) {
+		return undefined;
+	}
+	const content = lastUserMessage.content;
+	const prompt = (typeof content === 'string'
+		? content
+		: content
+			.map(part => part instanceof vscode.LanguageModelTextPart ? part.value : '')
+			.join('')
+	).trim();
+	if (!prompt) {
+		return undefined;
+	}
+	// Extensions are not conversations, so key the cache by the initiating
+	// extension. That keeps a chatty extension from re-routing on every call
+	// while still isolating it from other callers.
+	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}` };
+}
+
 // Auto model delegates to different backends, so don't expose config pickers
 function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
@@ -279,7 +312,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			return this._currentModels;
 		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
-		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
+		const autoEndpoint = await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints);
 		chatEndpoints.push(autoEndpoint);
 		let defaultChatEndpoint: IChatEndpoint;
 		const defaultExpModel = this._expService.getTreatmentVariable<string>('chat.defaultLanguageModel')?.replace('copilot/', '');
@@ -490,13 +523,19 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 	}
 
-	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
+	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation, autoRoutingContext?: { prompt: string; sessionId: string }) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
+			// The `vscode.lm` API has no ChatRequest, so synthesize the minimal
+			// shape auto mode reads. Without a prompt the single-call Auto
+			// endpoint cannot classify and we fall back to the legacy flow.
+			const chatRequest = autoRoutingContext
+				? { prompt: autoRoutingContext.prompt, sessionId: autoRoutingContext.sessionId, location: ChatLocation.Panel } as vscode.ChatRequest
+				: undefined;
+			return await this._automodeService.resolveAutoModeEndpoint(chatRequest, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
 		if (aliasEndpoint) {
@@ -512,7 +551,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		let endpoint = await this._getEndpointForModel(model);
+		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
 		}
@@ -534,7 +573,16 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		text: string | vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2,
 		token: vscode.CancellationToken
 	): Promise<number> {
-		const endpoint = await this._getEndpointForModel(model);
+		// Counting tokens only needs a tokenizer, so avoid routing a model for
+		// the Auto entry: that would mint a session token (and, on the legacy
+		// flow, an extra round-trip) for a purely local computation.
+		let endpoint: IChatEndpoint | undefined;
+		if (model.id === AutoChatEndpoint.pseudoModelId) {
+			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			endpoint = allEndpoints.length ? await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints) : undefined;
+		} else {
+			endpoint = await this._getEndpointForModel(model);
+		}
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
 		}

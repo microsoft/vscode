@@ -7,12 +7,13 @@ import { RequestType } from '@vscode/copilot-api';
 import type { ChatRequest } from 'vscode';
 import { FetchedValue } from '../../../shared-fetch-utils/common/fetchedValue';
 import { createServiceIdentifier } from '../../../util/common/services';
-import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
+import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { createCapiClientFetchedValue } from '../../networking/common/capiClientFetchedValue';
@@ -22,8 +23,10 @@ import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
+import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
-import { AutoV2Error, AutoV2Fetcher } from './autoV2Fetcher';
+import { AutoV2Error, AutoV2Fetcher, type AutoV2SelectedModel } from './autoV2Fetcher';
+import { CopilotChatEndpoint } from './copilotChatEndpoint';
 import { RouterDecisionError, RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
 
 interface AutoModeAPIResponse {
@@ -124,10 +127,41 @@ export interface AutoModeRoutingDecision {
 
 export const IAutomodeService = createServiceIdentifier<IAutomodeService>('IAutomodeService');
 
+/**
+ * Discount metadata for the "Auto" model picker entry, as fractions
+ * (e.g. `0.1` for 10% off).
+ */
+export interface AutoModePickerMetadata {
+	discountRange: { low: number; high: number };
+}
+
 export interface IAutomodeService {
 	readonly _serviceBrand: undefined;
 
 	resolveAutoModeEndpoint(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
+
+	/**
+	 * Resolves the endpoint used to render the "Auto" entry in the model picker.
+	 *
+	 * The picker has no prompt to route, so under the single-call Auto endpoint
+	 * this avoids any network call: it wraps a locally-chosen endpoint purely to
+	 * carry the display metadata (family, limits, discounts). Under the legacy
+	 * flow it goes through {@link resolveAutoModeEndpoint} exactly as before, so
+	 * disabling the setting fully restores the previous behavior.
+	 */
+	resolveAutoModePickerEndpoint(knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
+
+	/**
+	 * Returns the metadata needed to render the "Auto" entry in the model
+	 * picker. The picker has no prompt to route, so this deliberately avoids
+	 * resolving a model or minting a session token.
+	 *
+	 * Under the single-call Auto endpoint this serves the discounts observed on
+	 * the most recent `POST /auto` response, and returns `undefined` before the
+	 * first one lands. Under the legacy flow it falls back to the session call,
+	 * which returns discounts without needing a prompt.
+	 */
+	getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined>;
 
 	/**
 	 * Returns the routing decision from the last call to {@link resolveAutoModeEndpoint},
@@ -158,6 +192,27 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * gate). Once set, we stay on the legacy flow for the rest of the session.
 	 */
 	private _autoV2Unavailable = false;
+	/**
+	 * Discounts from the most recent `POST /auto` response. Lets the model
+	 * picker show the Auto discount without minting a session token of its own.
+	 */
+	private _lastAutoV2Discounts: Record<string, number> | undefined;
+	/**
+	 * `globalState` key holding the discounts from the last `POST /auto`
+	 * response. `/auto` needs a prompt, so on a cold start the picker has no
+	 * discounts to show until the first request lands; persisting them keeps
+	 * the label stable across restarts.
+	 */
+	private static readonly AUTO_V2_DISCOUNTS_STORAGE_KEY = 'copilot.autoMode.v2.lastDiscountedCosts';
+	/**
+	 * Placeholder prompt used to read Auto discounts before the user has sent a
+	 * real message. See {@link _probeAutoV2Discounts}.
+	 */
+	private static readonly DISCOUNT_PROBE_PROMPT = 'MODEL_PICKER_DISCOUNT_RESOLUTION - REPLACE ME';
+	/** In-flight discount probe, so concurrent picker refreshes share one call. */
+	private _autoV2DiscountProbe: Promise<void> | undefined;
+	/** Session used only to read discounts for the picker on the legacy flow. */
+	private readonly _pickerTokenBank = this._register(new MutableDisposable<AutoModeTokenBank>());
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -169,14 +224,18 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 	) {
 		super();
+		this._lastAutoV2Discounts = this._extensionContext.globalState.get<Record<string, number>>(AutomodeService.AUTO_V2_DISCOUNTS_STORAGE_KEY);
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			for (const entry of this._autoModelCache.values()) {
 				entry.tokenBank.dispose();
 			}
 			this._autoModelCache.clear();
 			this._autoV2Cache.clear();
+			this._setLastAutoV2Discounts(undefined);
+			this._pickerTokenBank.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
@@ -202,6 +261,84 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const decision = this._lastRoutingDecision;
 		this._lastRoutingDecision = undefined;
 		return decision;
+	}
+
+	private _setLastAutoV2Discounts(discounts: Record<string, number> | undefined): void {
+		if (JSON.stringify(this._lastAutoV2Discounts) === JSON.stringify(discounts)) {
+			return;
+		}
+		this._lastAutoV2Discounts = discounts;
+		// Persisted so the picker can show the Auto discount immediately on the
+		// next window, instead of waiting for the first `/auto` response.
+		this._extensionContext.globalState.update(AutomodeService.AUTO_V2_DISCOUNTS_STORAGE_KEY, discounts)
+			.then(undefined, (e: Error) => this._logService.warn(`[AutomodeService] Failed to persist auto discounts: ${e.message}`));
+	}
+
+	/**
+	 * Fetches Auto discounts by calling `POST /auto` with a placeholder prompt.
+	 *
+	 * TEMPORARY: `/auto` has no prompt-free variant, so the model picker cannot
+	 * learn the discount before the user sends a first message. The selected
+	 * model is discarded — only `discounted_costs` is used. Remove this once
+	 * CAPI exposes a way to read discounts without classifying a prompt.
+	 *
+	 * Runs at most once per session; the result is persisted so later windows
+	 * use the cached value instead of probing again.
+	 */
+	private async _probeAutoV2Discounts(): Promise<void> {
+		if (!this._autoV2DiscountProbe) {
+			this._autoV2DiscountProbe = (async () => {
+				try {
+					const result = await this._autoV2Fetcher.getAutoDecision(AutomodeService.DISCOUNT_PROBE_PROMPT, { isDiscountProbe: true });
+					this._setLastAutoV2Discounts(result.discounted_costs);
+				} catch (e) {
+					this._logService.warn(`[AutomodeService] Failed to probe auto discounts: ${(e as Error).message}`);
+				}
+			})();
+		}
+		return this._autoV2DiscountProbe;
+	}
+
+	async resolveAutoModePickerEndpoint(knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		if (!knownEndpoints.length) {
+			throw new Error('No auto mode endpoints provided.');
+		}
+		if (!this._isAutoV2Enabled()) {
+			return this.resolveAutoModeEndpoint(undefined, knownEndpoints);
+		}
+		// `/auto` needs a prompt, so there is nothing to route yet. Wrap a
+		// representative endpoint for its display metadata only; the session
+		// token is minted when the request is actually made. The picker hides
+		// per-model pricing for Auto, so the wrapped model is not user-visible.
+		const metadata = await this.getAutoPickerMetadata();
+		const discountRange = metadata?.discountRange ?? { low: 0, high: 0 };
+		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
+		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, discountRange);
+	}
+
+	async getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined> {
+		if (this._isAutoV2Enabled()) {
+			// `/auto` requires a prompt, which the picker does not have. Prefer
+			// the discounts observed on a real request; only when none have been
+			// seen yet (first ever run) probe with a placeholder prompt.
+			if (!this._lastAutoV2Discounts) {
+				await this._probeAutoV2Discounts();
+			}
+			return this._lastAutoV2Discounts
+				? { discountRange: this._calculateDiscountRange(this._lastAutoV2Discounts) }
+				: undefined;
+		}
+		// The legacy session endpoint returns discounts without a prompt.
+		try {
+			if (!this._pickerTokenBank.value) {
+				this._pickerTokenBank.value = new AutoModeTokenBank('auto-picker-metadata', ChatLocation.Panel, this._capiClientService, this._authService, this._logService, this._expService, this._envService);
+			}
+			const token = await this._pickerTokenBank.value.getToken();
+			return { discountRange: this._calculateDiscountRange(token.discounted_costs) };
+		} catch (e) {
+			this._logService.warn(`[AutomodeService] Failed to resolve auto picker metadata: ${(e as Error).message}`);
+			return undefined;
+		}
 	}
 
 	/**
@@ -366,7 +503,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	private _isAutoV2Enabled(): boolean {
-		return !this._autoV2Unavailable && this._configurationService.getConfig(ConfigKey.Advanced.AutoModeV2Enabled);
+		return !this._autoV2Unavailable && this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AutoModeV2Enabled, this._expService);
 	}
 
 	/**
@@ -406,12 +543,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				conversationId,
 				vscodeRequestId: chatRequest?.id,
 			});
+			this._setLastAutoV2Discounts(result.discounted_costs);
 
-			const selectedModel = knownEndpoints.find(e => e.model === result.selected_model.id);
+			// Prefer the local `/models` metadata: it is the complete record and
+			// carries fields `/auto` intentionally leaves unset (token pricing,
+			// promos, SKU restrictions, thinking budgets, warning text).
+			// When the model is missing locally the two responses have drifted —
+			// build the endpoint from the embedded metadata instead of giving up,
+			// so a model that is new to `/models` still works.
+			let selectedModel = knownEndpoints.find(e => e.model === result.selected_model.id);
 			if (!selectedModel) {
-				this._logService.warn(`[AutomodeService] Auto v2 selected '${result.selected_model.id}' which is not in knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]; falling back to the legacy flow.`);
-				this._sendAutoV2FallbackTelemetry('noMatchingEndpoint');
-				return undefined;
+				selectedModel = this._createEndpointFromAutoV2Metadata(result.selected_model);
+				if (!selectedModel) {
+					this._logService.warn(`[AutomodeService] Auto v2 selected '${result.selected_model.id}' which is not in knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}] and its metadata was not usable; falling back to the legacy flow.`);
+					this._sendAutoV2FallbackTelemetry('noMatchingEndpoint');
+					return undefined;
+				}
+				this._logService.info(`[AutomodeService] Auto v2 selected '${result.selected_model.id}' which is not in knownEndpoints; using the metadata embedded in the /auto response.`);
+				this._sendAutoV2FallbackTelemetry('embeddedMetadata');
 			}
 
 			// The server pre-filters to vision-capable models when `has_image` is
@@ -455,6 +604,44 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}
 	}
 
+	/**
+	 * Builds a chat endpoint from the metadata embedded in a `POST /auto`
+	 * response. Used only when the selected model is absent from the local
+	 * `/models` view, which happens when the two responses drift (e.g. a model
+	 * ships to Auto before the cached `/models` list refreshes).
+	 *
+	 * Returns `undefined` when the payload lacks the fields required to talk to
+	 * the model at all, since a partially-built endpoint would fail at request
+	 * time in ways that are hard to diagnose.
+	 */
+	private _createEndpointFromAutoV2Metadata(model: AutoV2SelectedModel): IChatEndpoint | undefined {
+		const capabilities = model.capabilities;
+		// `/auto` only ever selects chat models and its payload omits the
+		// `type` discriminator that `/models` sets, so treat an absent type as
+		// chat. A payload missing the fields needed to build a request is
+		// unusable here.
+		if (!capabilities || (capabilities.type !== undefined && capabilities.type !== 'chat') || !capabilities.family || !capabilities.tokenizer) {
+			return undefined;
+		}
+		const chatCapabilities: IChatModelCapabilities = {
+			...(capabilities as IChatModelCapabilities),
+			type: 'chat',
+			supports: (capabilities as IChatModelCapabilities).supports ?? { streaming: true },
+		};
+		const modelInformation: IChatModelInformation = {
+			...model,
+			id: model.id,
+			name: model.name ?? model.id,
+			version: model.version ?? 'unknown',
+			vendor: model.vendor ?? 'copilot',
+			is_chat_default: false,
+			is_chat_fallback: false,
+			model_picker_enabled: model.model_picker_enabled ?? true,
+			capabilities: chatCapabilities,
+		};
+		return this._instantiationService.createInstance(CopilotChatEndpoint, modelInformation);
+	}
+
 	private _isAutoV2SessionExpired(entry: AutoV2CacheEntry): boolean {
 		// Renew a few minutes early so a long request cannot outlive its token.
 		return entry.expiresAt * 1000 - Date.now() < 5 * 60 * 1000;
@@ -475,7 +662,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			"automode.autoV2Fallback" : {
 				"owner": "lramos15",
 				"comment": "Reports when the single-call Auto endpoint (POST /auto) cannot be used and auto mode falls back to the legacy session + intent flow",
-				"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Why the single-call endpoint could not be used, e.g. autoV2Timeout, autoV2Error, noMatchingEndpoint, noVisionSupport, or a server status/error code" }
+				"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Why the single-call endpoint could not be used as-is, e.g. autoV2Timeout, autoV2Error, noMatchingEndpoint, noVisionSupport, embeddedMetadata (the selected model was built from the /auto payload because it was missing locally), or a server status/error code" }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.autoV2Fallback', { reason });
