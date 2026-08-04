@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext } from '../../../../browser/accountTitleBarState.js';
@@ -148,6 +149,17 @@ suite('Sessions - Account Title Bar State', () => {
 		assert.strictEqual(
 			getAccountProfileImageUrl('github', 'mona lisa'),
 			'https://github.com/mona%20lisa.png?size=64'
+		);
+	});
+
+	test('prefers the account icon supplied by the authentication provider', () => {
+		assert.strictEqual(
+			getAccountProfileImageUrl('github', 'mona lisa', URI.parse('https://avatars.githubusercontent.com/u/1?v=4')),
+			'https://avatars.githubusercontent.com/u/1?v=4'
+		);
+		assert.strictEqual(
+			getAccountProfileImageUrl('github-enterprise', 'octocat', URI.parse('https://example.com/avatar.png')),
+			'https://example.com/avatar.png'
 		);
 	});
 

@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../base/common/codicons.js';
 import { ThemeIcon } from '../../base/common/themables.js';
+import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
@@ -14,6 +15,11 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
+	/**
+	 * The icon (avatar) supplied by the authentication provider for this
+	 * account, if any.
+	 */
+	readonly accountIcon?: URI;
 }
 
 /**
@@ -32,6 +38,7 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
+			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.accountName),
 		};
 	}
 
@@ -42,6 +49,7 @@ export async function resolveAccountInfo(
 				accountName: sessions[0].account.label,
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
+				accountIcon: sessions[0].account.icon,
 			};
 		}
 	} catch {
@@ -49,6 +57,20 @@ export async function resolveAccountInfo(
 	}
 
 	return undefined;
+}
+
+/**
+ * Looks up the icon (avatar) that the authentication provider supplied for the
+ * given account, if any.
+ */
+async function getSessionAccountIcon(authenticationService: IAuthenticationService, providerId: string, accountName: string): Promise<URI | undefined> {
+	try {
+		const sessions = await authenticationService.getSessions(providerId);
+		return sessions.find(session => session.account.label === accountName)?.account.icon;
+	} catch {
+		// Provider not available yet
+		return undefined;
+	}
 }
 
 export type AccountTitleBarStateSource = 'account' | 'copilot';
@@ -77,7 +99,14 @@ export interface IAccountTitleBarState {
 	readonly revealLabelOnHover?: boolean;
 }
 
-export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined): string | undefined {
+export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {
+	// Prefer the icon supplied by the authentication provider (see the
+	// `authSessionAccountIcon` API proposal) and fall back to the public
+	// GitHub avatar URL for GitHub accounts.
+	if (accountIcon) {
+		return accountIcon.toString(true);
+	}
+
 	if (accountProviderId !== 'github' || !accountName?.trim()) {
 		return undefined;
 	}
