@@ -13,6 +13,7 @@ import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
 import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
@@ -606,24 +607,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
 
 	// PowerShell
-	'Get-ChildItem': true,
-	'Get-Content': true,
-	'Get-Date': true,
-	'Get-Random': true,
-	'Get-Location': true,
-	'Set-Location': true,
-	'Write-Host': true,
-	'Write-Output': true,
-	'Out-String': true,
-	'Split-Path': true,
-	'Join-Path': true,
-	'Start-Sleep': true,
-	'Where-Object': true,
-	'/^Select-[a-z0-9]/i': true,
-	'/^Measure-[a-z0-9]/i': true,
-	'/^Compare-[a-z0-9]/i': true,
-	'/^Format-[a-z0-9]/i': true,
-	'/^Sort-[a-z0-9]/i': true,
+	...powershellAutoApproveRules,
 
 	// Package manager read-only commands
 	'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
@@ -659,7 +643,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 	'/^sed\\b.*;W/': false,
-	sort: true,
+	'/^sort(?=\\s|$)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,

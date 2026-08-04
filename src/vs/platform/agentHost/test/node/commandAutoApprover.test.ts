@@ -209,18 +209,37 @@ suite('CommandAutoApprover', () => {
 
 		// PowerShell
 		test('approves allowed PowerShell commands', () => {
-			assert.strictEqual(approver.shouldAutoApprove('Get-ChildItem'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Get-Content file.txt'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Write-Host "hello"'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Select-Object Name'), 'approved');
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem', pwsh),
+				approver.shouldAutoApprove('Get-Content file.txt', pwsh),
+				approver.shouldAutoApprove('Write-Host "hello"', pwsh),
+				approver.shouldAutoApprove('Select-Object Name', pwsh),
+				approver.shouldAutoApprove('Measure-Object Length', pwsh),
+				approver.shouldAutoApprove('Compare-Object $a $b', pwsh),
+				approver.shouldAutoApprove('Format-Table', pwsh),
+				approver.shouldAutoApprove('Sort-Object Name', pwsh),
+			], ['approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved']);
 		});
 
 		test('PowerShell case-insensitive rules work', () => {
-			// Rules with /i flag (like Select-*, Measure-*, etc.) are case-insensitive
-			assert.strictEqual(approver.shouldAutoApprove('select-object Name'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('SELECT-OBJECT Name'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Measure-Command'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('measure-command'), 'approved');
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('select-object Name', pwsh),
+				approver.shouldAutoApprove('SELECT-OBJECT Name', pwsh),
+				approver.shouldAutoApprove('measure-object Length', pwsh),
+			], ['approved', 'approved', 'approved']);
+		});
+
+		test('does not auto-approve arbitrary PowerShell cmdlets by verb', () => {
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Select-Custom', pwsh),
+				approver.shouldAutoApprove('Measure-Command', pwsh),
+				approver.shouldAutoApprove('Compare-Custom', pwsh),
+				approver.shouldAutoApprove('Format-Hex', pwsh),
+				approver.shouldAutoApprove('Sort-Custom', pwsh),
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch']);
 		});
 
 		test('denies denied PowerShell commands', () => {
@@ -437,8 +456,9 @@ suite('CommandAutoApprover', () => {
 		test('requires confirmation for incomplete PowerShell parses', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Write-Output before; "unterminated', pwsh),
+				approver.shouldAutoApprove('Write-Output before; `Write-Output after', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem -Recurse', pwsh),
-			], ['noMatch', 'approved']);
+			], ['noMatch', 'noMatch', 'approved']);
 		});
 
 		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
@@ -485,13 +505,15 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem; [System.IO.File]::Delete("x")', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { [System.IO.File]::Delete($_.FullName) }', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem; $obj.Delete()', pwsh),
+				approver.shouldAutoApprove('[Math]::Max(1, 2) | Out-String', pwsh),
+				approver.shouldAutoApprove(`Out-String -InputObject ([scriptblock]::Create('Write-Output ok').Invoke())`, pwsh),
 				// Deliberate over-block: an invocation in an argument is usually
 				// harmless, but the rules cannot tell `[math]::Round` from
 				// `[System.IO.File]::Delete`, so both require confirmation.
 				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', pwsh),
 				// Property access executes no method, so it stays approved.
 				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
-			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
 		});
 
 		test('exact allow rules require a safely analyzable command line', () => {
