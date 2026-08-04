@@ -12,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeHidden } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -102,7 +102,9 @@ enum LayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
-	TITLEBAR_HIDDEN = 'notitlebar',
+	// Set when no grid row sits above the middle section (both the title bar and the
+	// banner are hidden), so the floating cards abut the top window edge.
+	TOP_WINDOW_EDGE = 'top-window-edge',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
@@ -528,8 +530,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
-			this.updateTitleBarHiddenClass();
-
 			// Move layout call to any time the menubar
 			// is toggled to update consumers of offset
 			// see issue #115267
@@ -581,8 +581,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Indicate active window border
 			this.updateWindowBorder(true);
 		}
-
-		this.updateTitleBarHiddenClass();
 	}
 
 	private onActiveWindowChanged(): void {
@@ -1706,6 +1704,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
+		// The floating cards abut the top window edge only while neither of the two grid rows
+		// above the middle section is showing, so track both rather than the title bar alone.
+		this._register(this.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.TITLEBAR_PART || partId === Parts.BANNER_PART) {
+				this.updateTopWindowEdgeClass();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(() => {
 
 			// Side Bar Size
@@ -1886,7 +1892,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setBannerHidden(hidden: boolean): void {
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
-		this.updateTitleBarHiddenClass();
 	}
 
 	private setEditorHidden(hidden: boolean): void {
@@ -1921,7 +1926,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			isFloatingTopEdgeHidden(this, mainWindow) ? LayoutClasses.TITLEBAR_HIDDEN : undefined,
+			isFloatingTopEdgeExposed(this, mainWindow) ? LayoutClasses.TOP_WINDOW_EDGE : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
@@ -2365,7 +2370,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
-		this.updateTitleBarHiddenClass();
 	}
 
 	updateCustomTitleBarVisibility(): void {
@@ -2374,11 +2378,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
-		this.updateTitleBarHiddenClass();
 	}
 
-	private updateTitleBarHiddenClass(): void {
-		this.mainContainer.classList.toggle(LayoutClasses.TITLEBAR_HIDDEN, isFloatingTopEdgeHidden(this, mainWindow));
+	private updateTopWindowEdgeClass(): void {
+		this.mainContainer.classList.toggle(LayoutClasses.TOP_WINDOW_EDGE, isFloatingTopEdgeExposed(this, mainWindow));
 	}
 
 	toggleMenuBar(): void {
@@ -2543,7 +2546,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
-		this.updateTitleBarHiddenClass();
 	}
 
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {

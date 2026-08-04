@@ -67,11 +67,11 @@
 	margin-top: 0;
 }
 
-/* When the title bar is hidden (.notitlebar, e.g. native fullscreen on macOS) the top
- * becomes a window edge; double the top margin to match the outer gutter on other
- * window edges. Mirrors the .nostatusbar pattern for the bottom edge. */
-.monaco-workbench.floating-panels.notitlebar .part.sidebar,
-.monaco-workbench.floating-panels.notitlebar .part.auxiliarybar {
+/* With no title bar and no banner above them (`.top-window-edge`, e.g. native fullscreen
+ * on macOS) the cards abut the window edge; double the top margin to match the outer
+ * gutter on the other window edges. Mirrors the .nostatusbar pattern for the bottom. */
+.monaco-workbench.floating-panels.top-window-edge .part.sidebar,
+.monaco-workbench.floating-panels.top-window-edge .part.auxiliarybar {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
@@ -98,9 +98,9 @@
 	margin-top: 0;
 }
 
-.monaco-workbench.floating-panels.notitlebar .part.panel.top,
-.monaco-workbench.floating-panels.notitlebar .part.panel.left,
-.monaco-workbench.floating-panels.notitlebar .part.panel.right {
+.monaco-workbench.floating-panels.top-window-edge .part.panel.top,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.left,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.right {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
@@ -110,7 +110,7 @@
 	margin-top: 0;
 }
 
-.monaco-workbench.floating-panels.notitlebar.nomaineditorarea .part.panel.bottom {
+.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea .part.panel.bottom {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
@@ -133,7 +133,7 @@
 	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels.notitlebar > .monaco-grid-view .part.editor {
+.monaco-workbench.floating-panels.top-window-edge > .monaco-grid-view .part.editor {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
@@ -184,7 +184,7 @@
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels.notitlebar .part.activitybar {
+.monaco-workbench.floating-panels.top-window-edge .part.activitybar {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
@@ -347,9 +347,9 @@
 	top: var(--vscode-spacing-size40);
 }
 
-/* When the title bar is hidden the cards take a doubled top gutter.
+/* At the top window edge the cards take a doubled top gutter.
  * Inset the sash highlight to match so it doesn't overshoot above the cards. */
-.monaco-workbench.floating-panels.notitlebar .monaco-sash.vertical:not(.part .monaco-sash)::before {
+.monaco-workbench.floating-panels.top-window-edge .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	top: calc(var(--vscode-spacing-size40) * 2);
 }
 
