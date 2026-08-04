@@ -85,8 +85,7 @@ suite('VisibleSessions', () => {
 
 	test('forwards workspace metadata through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
-		const multiRootWorkspace = observableValue('multiRootWorkspace', { workspaceFile: URI.file('/work/demo.code-workspace'), name: 'Demo' });
-		const session = { ...stubSession('A'), hasGitRepository, multiRootWorkspace };
+		const session = { ...stubSession('A'), hasGitRepository };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -95,13 +94,9 @@ suite('VisibleSessions', () => {
 		assert.deepStrictEqual({
 			visible: visible?.hasGitRepository === hasGitRepository,
 			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
-			visibleMultiRoot: visible?.multiRootWorkspace === multiRootWorkspace,
-			resourceOverrideMultiRoot: resourceOverride.multiRootWorkspace === multiRootWorkspace,
 		}, {
 			visible: true,
 			resourceOverride: true,
-			visibleMultiRoot: true,
-			resourceOverrideMultiRoot: true,
 		});
 	});
 

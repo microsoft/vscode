@@ -19,7 +19,6 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { basename, extUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -87,7 +86,6 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 const $ = DOM.$;
 
@@ -1865,7 +1863,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -2346,7 +2343,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)));
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
@@ -2884,7 +2881,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private sessionWorkspaceSectionId(session: ISession): string {
-		return getSessionWorkspaceSectionDescriptor(session, resource => this.uriIdentityService.extUri.getComparisonKey(resource)).id;
+		return getSessionWorkspaceSectionDescriptor(session).id;
 	}
 
 	private setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void {
@@ -3453,7 +3450,6 @@ export function groupSessionsForList(
 	isSessionPinned: (session: ISession) => boolean,
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
-	getWorkspaceComparisonKey: (resource: URI) => string = resource => extUri.getComparisonKey(resource),
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -3487,7 +3483,7 @@ export function groupSessionsForList(
 	}
 
 	sections.push(...(grouping === SessionsGrouping.Workspace
-		? groupByWorkspace(regular, getWorkspaceComparisonKey)
+		? groupByWorkspace(regular)
 		: groupByDate(regular, sorting, getSortKey)));
 
 	if (archived.length > 0) {
@@ -3504,34 +3500,26 @@ export interface ISessionWorkspaceSectionDescriptor {
 }
 
 /** Returns the stable workspace-section identity and presentation for a session. */
-export function getSessionWorkspaceSectionDescriptor(session: ISession, getWorkspaceComparisonKey: (resource: URI) => string = resource => extUri.getComparisonKey(resource)): ISessionWorkspaceSectionDescriptor {
-	const multiRootWorkspace = session.multiRootWorkspace?.get();
-	if (multiRootWorkspace) {
-		const name = multiRootWorkspace.name?.trim();
-		const fileName = basename(multiRootWorkspace.workspaceFile);
-		const workspaceName = name || fileName.replace(/\.code-workspace$/i, '');
-		const workspaceLabel = localize('multiRootWorkspaceSectionLabel', "Workspace");
-		return {
-			id: `workspace:multiRoot:${getWorkspaceComparisonKey(multiRootWorkspace.workspaceFile)}`,
-			label: `${workspaceName} (${workspaceLabel})`,
-			canCreateSession: false,
-		};
-	}
-	const label = session.workspace.get()?.label || localize('unknown', "Unknown");
+export function getSessionWorkspaceSectionDescriptor(session: ISession): ISessionWorkspaceSectionDescriptor {
+	const workspace = session.workspace.get();
+	const label = workspace?.label || localize('unknown', "Unknown");
 	return {
 		id: `workspace:${label}`,
 		label,
-		canCreateSession: true,
+		canCreateSession: workspace?.canCreateSession !== false,
 	};
 }
 
-export function groupByWorkspace(sessions: ISession[], getWorkspaceComparisonKey?: (resource: URI) => string): ISessionSection[] {
+export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISessionSection>();
 	for (const session of sessions) {
-		const descriptor = getSessionWorkspaceSectionDescriptor(session, getWorkspaceComparisonKey);
+		const descriptor = getSessionWorkspaceSectionDescriptor(session);
 		let group = groups.get(descriptor.id);
 		if (!group) {
 			group = { ...descriptor, sessions: [] };
+			groups.set(descriptor.id, group);
+		} else if (!descriptor.canCreateSession && group.canCreateSession !== false) {
+			group = { ...group, canCreateSession: false };
 			groups.set(descriptor.id, group);
 		}
 		group.sessions.push(session);

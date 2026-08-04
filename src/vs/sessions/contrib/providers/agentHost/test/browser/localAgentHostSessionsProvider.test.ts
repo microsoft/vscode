@@ -351,7 +351,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -360,7 +360,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
 		project: opts?.project,
-		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
+		workingDirectories: opts?.workingDirectories ?? (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
 		_meta,
 	};
 }
@@ -1077,7 +1077,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('session metadata changes publish multi-root workspace provenance', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('session metadata changes update the operational workspace for a one-folder multi-root session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('multi-root-meta', {
 			summary: 'Multi-root Session',
 			project: { uri: URI.parse('file:///Users/me/project'), displayName: 'project' },
@@ -1096,20 +1096,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
 		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
 
+		const workspace = session.workspace.get()!;
 		assert.deepStrictEqual({
-			multiRootWorkspace: session.multiRootWorkspace?.get() ? {
-				workspaceFile: session.multiRootWorkspace.get()!.workspaceFile.toString(),
-				name: session.multiRootWorkspace.get()!.name,
-			} : undefined,
-			operationalWorkspaceLabel: session.workspace.get()?.label,
+			label: workspace.label,
+			canCreateSession: workspace.canCreateSession,
+			uri: workspace.uri.toString(),
+			folders: workspace.folders.map(folder => folder.root.toString()),
 			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
 		}, {
-			multiRootWorkspace: {
-				workspaceFile: multiRoot.workspaceFile,
-				name: multiRoot.name,
-			},
-			operationalWorkspaceLabel: 'project',
+			label: 'Project Workspace (Workspace)',
+			canCreateSession: false,
+			uri: 'file:///Users/me/project',
+			folders: ['file:///Users/me/project'],
 			changedEvents: [[true]],
+		});
+	}));
+
+	test('multi-root workspace metadata falls back to the file name and preserves all working directories', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('multi-root-folders', {
+			workingDirectories: [URI.file('/work/primary'), URI.file('/work/secondary')],
+			multiRoot: {
+				workspaceFile: 'file:///work/Fallback.CODE-WORKSPACE',
+				name: '   ',
+			},
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const workspace = provider.getSessions()[0].workspace.get()!;
+		assert.deepStrictEqual({
+			label: workspace.label,
+			canCreateSession: workspace.canCreateSession,
+			uri: workspace.uri.toString(),
+			folders: workspace.folders.map(folder => ({
+				root: folder.root.toString(),
+				workingDirectory: folder.workingDirectory.toString(),
+			})),
+		}, {
+			label: 'Fallback (Workspace)',
+			canCreateSession: false,
+			uri: 'file:///work/primary',
+			folders: [{
+				root: 'file:///work/primary',
+				workingDirectory: 'file:///work/primary',
+			}, {
+				root: 'file:///work/secondary',
+				workingDirectory: 'file:///work/secondary',
+			}],
 		});
 	}));
 
@@ -1455,7 +1489,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
-			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
+			createSession('multi-root-cached', { summary: 'Multi Root', workingDirectory: URI.parse('vscode-remote://ssh-remote+host/work/demo'), multiRoot }),
 		]);
 		const nextHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => nextHost.dispose()));
@@ -1474,9 +1508,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			repersisted: repersisted[0].multiRoot,
 			hydratedTitle: session.title.get(),
+			workspaceLabel: session.workspace.get()?.label,
+			canCreateSession: session.workspace.get()?.canCreateSession,
 		}, {
 			repersisted: multiRoot,
 			hydratedTitle: 'Updated after hydration',
+			workspaceLabel: 'Demo Workspace (Workspace)',
+			canCreateSession: false,
 		});
 	}));
 

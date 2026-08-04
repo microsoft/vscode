@@ -6,18 +6,17 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { canCreateSessionForSection, computeReorderSortChanges, getSessionWorkspaceSectionDescriptor, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { canCreateSessionForSection, computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
-	multiRoot?: { workspaceFile: URI; name?: string };
+	canCreateSession?: boolean;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
@@ -33,10 +32,10 @@ function createSession(id: string, opts: {
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
+			canCreateSession: opts.canCreateSession,
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
-		multiRootWorkspace: observableValue(`multiRootWorkspace-${id}`, opts.multiRoot),
 		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
@@ -134,13 +133,10 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
 		});
 
-		test('multi-root workspaces group by workspace file instead of display name', () => {
-			const firstWorkspace = URI.file('/work/first.code-workspace');
-			const secondWorkspace = URI.file('/work/second.code-workspace');
+		test('workspaces with the same final label merge into one section', () => {
 			const groups = groupByWorkspace([
-				createSession('1', { workspaceLabel: 'repo-a', multiRoot: { workspaceFile: firstWorkspace, name: 'Shared Name' } }),
-				createSession('2', { workspaceLabel: 'repo-b', multiRoot: { workspaceFile: firstWorkspace, name: 'Renamed Workspace' } }),
-				createSession('3', { workspaceLabel: 'repo-c', multiRoot: { workspaceFile: secondWorkspace, name: 'Shared Name' } }),
+				createSession('1', { workspaceLabel: 'Shared Name (Workspace)', canCreateSession: false }),
+				createSession('2', { workspaceLabel: 'Shared Name (Workspace)', canCreateSession: false }),
 			]);
 
 			assert.deepStrictEqual(groups.map(group => ({
@@ -149,67 +145,36 @@ suite('Sessions - SessionsList Helpers', () => {
 				sessions: group.sessions.map(session => session.sessionId),
 				canCreateSession: group.canCreateSession,
 			})), [{
-				id: `workspace:multiRoot:${extUri.getComparisonKey(firstWorkspace)}`,
+				id: 'workspace:Shared Name (Workspace)',
 				label: 'Shared Name (Workspace)',
 				sessions: ['1', '2'],
-				canCreateSession: false,
-			}, {
-				id: `workspace:multiRoot:${extUri.getComparisonKey(secondWorkspace)}`,
-				label: 'Shared Name (Workspace)',
-				sessions: ['3'],
 				canCreateSession: false,
 			}]);
 		});
 
-		test('multi-root workspace label falls back to the workspace file name', () => {
-			const upperCaseSuffix = createSession('upper', {
-				workspaceLabel: 'repo',
-				multiRoot: { workspaceFile: URI.file('/work/Fallback.CODE-WORKSPACE'), name: '   ' },
-			});
-
-			assert.deepStrictEqual(getSessionWorkspaceSectionDescriptor(upperCaseSuffix), {
-				id: `workspace:multiRoot:${extUri.getComparisonKey(URI.file('/work/Fallback.CODE-WORKSPACE'))}`,
-				label: 'Fallback (Workspace)',
-				canCreateSession: false,
-			});
-		});
-
-		test('multi-root workspace sections cannot create sessions', () => {
+		test('workspace creation capability defaults to supported', () => {
 			const regular = groupByWorkspace([createSession('regular', { workspaceLabel: 'Repo' })])[0];
-			const multiRoot = groupByWorkspace([createSession('multi', {
-				workspaceLabel: 'Repo',
-				multiRoot: { workspaceFile: URI.file('/work/demo.code-workspace'), name: 'Demo' },
-			})])[0];
+			const nonCreatable = groupByWorkspace([createSession('multi', { workspaceLabel: 'Demo (Workspace)', canCreateSession: false })])[0];
 
 			assert.deepStrictEqual({
 				regular: canCreateSessionForSection(regular),
-				multiRoot: canCreateSessionForSection(multiRoot),
+				nonCreatable: canCreateSessionForSection(nonCreatable),
 			}, {
 				regular: true,
-				multiRoot: false,
+				nonCreatable: false,
 			});
 		});
 
-		test('multi-root workspace identity follows the registered filesystem casing rules', () => {
-			const sessions = [
-				createSession('1', {
-					workspaceLabel: 'repo-a',
-					multiRoot: { workspaceFile: URI.parse('vscode-remote://ssh-remote+host/Work/Demo.code-workspace'), name: 'Demo' },
-				}),
-				createSession('2', {
-					workspaceLabel: 'repo-b',
-					multiRoot: { workspaceFile: URI.parse('vscode-remote://ssh-remote+host/work/demo.code-workspace'), name: 'Demo' },
-				}),
-			];
-			const caseSensitive = groupByWorkspace(sessions, resource => resource.toString());
-			const caseInsensitive = groupByWorkspace(sessions, resource => resource.toString().toLowerCase());
+		test('merged workspace creation capability is conservative regardless of order', () => {
+			const creatable = createSession('creatable', { workspaceLabel: 'Shared' });
+			const nonCreatable = createSession('non-creatable', { workspaceLabel: 'Shared', canCreateSession: false });
 
 			assert.deepStrictEqual({
-				caseSensitive: caseSensitive.map(group => group.sessions.map(session => session.sessionId)),
-				caseInsensitive: caseInsensitive.map(group => group.sessions.map(session => session.sessionId)),
+				creatableFirst: groupByWorkspace([creatable, nonCreatable])[0].canCreateSession,
+				nonCreatableFirst: groupByWorkspace([nonCreatable, creatable])[0].canCreateSession,
 			}, {
-				caseSensitive: [['1'], ['2']],
-				caseInsensitive: [['1', '2']],
+				creatableFirst: false,
+				nonCreatableFirst: false,
 			});
 		});
 	});

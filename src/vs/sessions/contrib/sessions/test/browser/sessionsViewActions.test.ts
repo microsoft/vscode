@@ -28,10 +28,10 @@ suite('Sessions - Sessions View Actions', () => {
 
 		assert.deepStrictEqual({
 			regularWorkspace: action.when.evaluate(createContext(true)),
-			multiRootWorkspace: action.when.evaluate(createContext(false)),
+			nonCreatableWorkspace: action.when.evaluate(createContext(false)),
 		}, {
 			regularWorkspace: true,
-			multiRootWorkspace: false,
+			nonCreatableWorkspace: false,
 		});
 	});
 });

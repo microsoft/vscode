@@ -179,18 +179,14 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Folders in this session workspace. */
 	readonly folders: ISessionFolder[];
+	/** Whether a new session can be created for this workspace. Absent means supported. */
+	readonly canCreateSession?: boolean;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
 	 * Whether this workspace is a virtual
 	 */
 	readonly isVirtualWorkspace: boolean;
-}
-
-/** Originating multi-root workspace associated with a session. */
-export interface ISessionMultiRootWorkspace {
-	readonly workspaceFile: URI;
-	readonly name?: string;
 }
 
 /**
@@ -576,8 +572,6 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
-	/** Originating multi-root workspace, when recorded by the provider. */
-	readonly multiRootWorkspace?: IObservable<ISessionMultiRootWorkspace | undefined>;
 	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
 	readonly hasGitRepository?: IObservable<boolean>;
 	/**
@@ -855,6 +849,7 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.label !== b.label
 		|| a.description !== b.description
 		|| a.group !== b.group
+		|| (a.canCreateSession ?? true) !== (b.canCreateSession ?? true)
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
