@@ -16,6 +16,7 @@ import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, po
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../platform/chat/common/chatSettings.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -99,6 +100,7 @@ enum LayoutClasses {
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
+	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
@@ -109,10 +111,7 @@ enum LayoutClasses {
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
 	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`. The contribution runs in the
-	// `Restored` phase — after the first layout — so without this early
-	// application the first layout would size parts against the default (35px)
-	// title and leave them mismatched until the next relayout.
+	// height) via `.closest('.style-override')`.
 	STYLE_OVERRIDE = 'style-override'
 }
 
@@ -452,7 +451,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Modern UI Update (floating panels presentation)
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.updateFloatingPanels();
-				this.layout(); // re-layout so parts pick up the new floating margins
 			}
 
 			// Auxiliary Sidebar
@@ -1873,6 +1871,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
@@ -1910,6 +1909,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
@@ -2322,11 +2322,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleSecondarySideBar(): void {
-		const visible = !this.isVisible(Parts.AUXILIARYBAR_PART);
+		const visible = !this.isSecondarySideBarVisible();
 		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
 		alert(visible
 			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
 			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
 	}
 
 	hasMainWindowBorder(): boolean {
@@ -3015,7 +3019,7 @@ class LayoutStateModel extends Disposable {
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
 				configuration.value !== 'hidden' &&
-				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+				!this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)
 			) {
 				return false;
 			}

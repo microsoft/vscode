@@ -105,6 +105,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
+						category: pricing.category,
 						promo: pricing.promo,
 						targetChatSessionType: this._sessionType,
 						// Group agent-host models in the picker by their upstream provider
@@ -156,7 +157,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * Derives the picker group id for a model — the vendor its models are bucketed
-	 * under. BYOK models are surfaced by the agent host under the `vendor/id` selection
+	 * under. BYOK models are surfaced by the agent host under the `vendor/[group/]id` selection
 	 * id (see `resolveByokSessionConfig`), so their upstream vendor is the id prefix;
 	 * native harness models have no prefix and group under their `provider` (the harness,
 	 * e.g. `copilotcli`). The picker resolves the display name from the vendor registry —

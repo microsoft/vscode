@@ -6,10 +6,13 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -31,7 +34,9 @@ import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
@@ -43,7 +48,10 @@ Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncAct
 
 async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
-	if (!agentHostEnablementService.enabled) {
+	const agentHostService = accessor.get(IAgentHostService);
+	const configurationService = accessor.get(IConfigurationService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	if (!agentHostEnablementService.enabled.get()) {
 		return false;
 	}
 
@@ -52,9 +60,6 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 		return false;
 	}
 
-	const agentHostService = accessor.get(IAgentHostService);
-	const configurationService = accessor.get(IConfigurationService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 	while (true) {
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
@@ -103,6 +108,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
+	private _initialized = false;
+	private _didStartInitialAuthentication = false;
+	private _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -112,22 +120,32 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
+		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!agentHostEnablementService.enabled) {
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this._initialize();
+			}
+		}));
+	}
+
+	private _initialize(): void {
+		if (this._initialized) {
 			return;
 		}
-
-		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
+		this._initialized = true;
+		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
+		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -228,7 +246,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
-			requiresCopilotSignIn: true,
+			// Derived live from the agent's currently-advertised protected resources
+			// (via the protected-resources service): an agent that marks the GitHub
+			// Copilot resource `required: false` (Claude in native mode, Codex on
+			// OpenAI) is usable without signing in. Falls back to "required" until the
+			// agent host resolves. The paired `onDidChangeRequiresCopilotSignIn` lets
+			// the sessions service re-evaluate this when the set changes.
+			requiresCopilotSignIn: () => {
+				const resources = this._protectedResourcesService.getProtectedResources(agent.provider);
+				return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+			},
+			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
 			agentHostProviderId: agent.provider,
 			supportsDelegation: true,
 			capabilities: {
@@ -246,6 +274,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
 			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
+		itemProvider.setDraftCustomAgents(this._activeClientService.getCustomAgents(sessionType));
+		itemProvider.setDraftCustomizations(this._activeClientService.getCustomizations(sessionType));
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
@@ -266,8 +296,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
-			connectionAuthority: 'local',
+			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
+			promptCacheNotification: this._promptCacheNotification,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -305,6 +336,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
 	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		const isInitialAuthentication = agents.length > 0 && !this._didStartInitialAuthentication;
+		if (isInitialAuthentication) {
+			this._didStartInitialAuthentication = true;
+			mark('code/agentHost/willAuthenticate');
+		}
 		this._agentHostService.setAuthenticationPending(true);
 		try {
 			const testToken = this._getScenarioAutomationToken();
@@ -321,6 +357,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
 		} finally {
 			this._agentHostService.setAuthenticationPending(false);
+			if (isInitialAuthentication) {
+				mark('code/agentHost/didAuthenticate');
+			}
 		}
 	}
 

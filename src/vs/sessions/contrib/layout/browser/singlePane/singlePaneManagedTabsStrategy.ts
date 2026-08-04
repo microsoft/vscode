@@ -38,11 +38,13 @@ const FILES_TAB_OPTIONS: IEditorOptions = { pinned: true, inactive: true, preser
 
 /**
  * What the active session wants from its managed docked tabs.
- *  - `changesSessionResource`: set only for a **created** workspace session (the Changes multi-diff tab). `undefined` otherwise.
+ *  - `changesSessionResource`: set for any workspace session (the Changes multi-diff tab). `undefined` otherwise.
+ *  - `wantsChangesTab`: `true` for any workspace, non-quick-chat session.
  *  - `wantsFilesTab`: `true` for any workspace, non-quick-chat session (the empty Files placeholder tab).
  */
 interface IManagedTabsTarget {
 	readonly changesSessionResource: URI | undefined;
+	readonly wantsChangesTab: boolean;
 	readonly wantsFilesTab: boolean;
 }
 
@@ -53,8 +55,10 @@ interface IManagedTabsTarget {
 interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
-	/** Ensure **all** docked inputs (Changes if created + Files) even in a non-empty group — a details-only side-pane reveal, where the docked details panel shows them. */
+	/** Ensure **all** docked inputs (Changes + Files) even in a non-empty group — a details-only side-pane reveal, where the docked details panel shows them. */
 	readonly ensureAllInputs?: boolean;
+	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
+	readonly ensureChanges?: boolean;
 	/** Ensure the Changes tab, opened **active**, even in a non-empty group — new-session submit (so the detail panel maps to Changes rather than the still-present Files placeholder). */
 	readonly ensureChangesActive?: boolean;
 }
@@ -64,6 +68,7 @@ function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTr
 	return {
 		openDefaultsIfEmpty: a.openDefaultsIfEmpty || b.openDefaultsIfEmpty,
 		ensureAllInputs: a.ensureAllInputs || b.ensureAllInputs,
+		ensureChanges: a.ensureChanges || b.ensureChanges,
 		ensureChangesActive: a.ensureChangesActive || b.ensureChangesActive,
 	};
 }
@@ -76,8 +81,8 @@ interface IPendingReconcile {
 }
 
 /**
- * Owns the two managed docked tabs — the pinned Changes multi-diff tab (created
- * sessions) and the empty Files placeholder tab (any workspace session). See
+ * Owns the two managed docked tabs — the pinned Changes multi-diff tab and the
+ * empty Files placeholder tab for workspace sessions. See
  * `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
  */
 export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
@@ -118,12 +123,20 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		// created) additionally opens the Changes tab active even though the group
 		// already holds the Files placeholder.
 		let previousIsCreated: boolean | undefined;
+		let previousSessionKey: string | undefined;
+		let previousWantsChangesTab = false;
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
 			const isCreated = session ? session.isCreated.read(reader) : false;
+			const sessionKey = session?.resource.toString();
+			const target = this._readTarget(reader);
 			const isSubmit = previousIsCreated === false && isCreated;
+			const ensureChanges = !isCreated && target.wantsChangesTab
+				&& (sessionKey !== previousSessionKey || !previousWantsChangesTab);
 			previousIsCreated = session ? isCreated : undefined;
-			this._queueReconcile(this._readTarget(reader), { openDefaultsIfEmpty: true, ensureChangesActive: isSubmit });
+			previousSessionKey = sessionKey;
+			previousWantsChangesTab = target.wantsChangesTab;
+			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, ensureChangesActive: isSubmit });
 		}));
 
 		// [Trigger B] The user opened the side pane. A details-only reveal (aux
@@ -150,13 +163,12 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			this._queueReconcile(this._readTarget(undefined), {});
 		}));
 
-		// [Trigger D] A session-switch layout restore fully settled. Reconcile off
-		// the settled state: a new session's empty working set has finished closing
-		// the previous session's docked tabs, so the group is reliably empty and the
-		// defaults (Files, plus Changes if created) are opened into it. Reading the
-		// group during the async restore (Trigger C) instead would race the closes.
+		// [Trigger D] Reconcile after the session-switch working set has fully settled.
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			this._queueReconcile(this._readTarget(undefined), { openDefaultsIfEmpty: true });
+			const session = this._sessionsService.activeSession.get();
+			const target = this._readTarget(undefined);
+			const ensureChanges = target.wantsChangesTab && session?.isCreated.get() === false;
+			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
 		}));
 
 		// [Tidy strip] Opening a real workspace file makes the empty Files
@@ -188,9 +200,9 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		const isQuickChat = session?.isQuickChat ? read(session.isQuickChat) : false;
 		const hasWorkspace = !!session && !!read(session.workspace);
 		if (!session || isQuickChat || !hasWorkspace) {
-			return { changesSessionResource: undefined, wantsFilesTab: false };
+			return { changesSessionResource: undefined, wantsChangesTab: false, wantsFilesTab: false };
 		}
-		return { changesSessionResource: read(session.isCreated) ? session.resource : undefined, wantsFilesTab: true };
+		return { changesSessionResource: session.resource, wantsChangesTab: true, wantsFilesTab: true };
 	}
 
 	private _queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
@@ -242,8 +254,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		// (which would close the side pane).
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			// [1] Close stale/foreign Changes editors (another session's, or any
-			// while the active session is uncreated). Compute the empty-group ensure
+			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure
 			// only after this, so a group left empty by the cleanup counts as empty.
 			await this._closeForeignChangesEditors(group, changesResource);
 			if (generation !== this._generation) {
@@ -254,19 +265,31 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
+			const activeChangesResource = this._editorService.activeEditor && this._coordinator.getChangesEditorResource(this._editorService.activeEditor);
+			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
 
-			const openChanges = !!changesResource && !changesPresent && (openIntoEmpty || trigger.ensureAllInputs || trigger.ensureChangesActive);
+			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || trigger.ensureAllInputs || trigger.ensureChanges)));
 			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || trigger.ensureAllInputs);
+			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
+			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 
-			// [3] Open Changes first (active on submit so the detail panel maps to it).
-			if (openChanges && changesResource) {
-				if (!await this._openChangesTab(target.changesSessionResource!, changesResource, group, generation, !!trigger.ensureChangesActive)) {
+			// [3] Keep Files active by default for a new-session view.
+			if (openFilesFirst) {
+				await this._openFilesTab(group);
+				if (generation !== this._generation) {
 					return;
 				}
 			}
 
-			// [4] Open the Files placeholder.
-			if (openFiles) {
+			// [4] Open Changes (active on submit so the detail panel maps to it).
+			if (openChanges && changesResource) {
+				if (!await this._openChangesTab(target.changesSessionResource!, changesResource, group, generation, activateChanges)) {
+					return;
+				}
+			}
+
+			// [5] Open the Files placeholder after Changes for created sessions.
+			if (openFiles && !openFilesFirst) {
 				await this._openFilesTab(group);
 				if (generation !== this._generation) {
 					return;
@@ -368,7 +391,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		const group = this._editorGroupsService.mainPart.activeGroup;
 		const changesPresent = group.editors.some(editor => this._coordinator.getChangesEditorResource(editor) !== undefined);
 		const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
-		this._changesTabMissingContext.set(!!target.changesSessionResource && !changesPresent);
+		this._changesTabMissingContext.set(target.wantsChangesTab && !changesPresent);
 		this._filesTabMissingContext.set(target.wantsFilesTab && !filesPresent);
 	}
 }

@@ -18,11 +18,13 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 interface IObserverHarness {
@@ -44,7 +46,9 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
 		[IDiffComputeService, createZeroDiffComputeService()],
+		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
+		[IEditArcReporterService, new NullEditArcReporterService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const observer = disposables.add(instantiationService.createInstance(

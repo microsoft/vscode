@@ -101,7 +101,123 @@
 }
 
 .style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
-	padding: 0 6px;
+	padding: 0 8px;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row {
+	background-color: transparent;
+
+	> .monaco-tl-row {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-item-row {
+	padding-bottom: var(--vscode-spacing-size40, 4px);
+
+	.agent-session-item {
+		padding-block: var(--vscode-spacing-size60, 6px);
+
+		.agent-session-title-row {
+			padding-bottom: var(--vscode-spacing-size20, 2px);
+		}
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-section-row {
+	padding-bottom: var(--vscode-spacing-size40, 4px);
+
+	.agent-session-section {
+		line-height: 26px;
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:not(.drop-target).focused {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-inactiveFocusBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:not(.drop-target).selected {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-inactiveSelectionBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row.agent-session-list-row:not(.drop-target):hover:not(.selected):not(.focused) {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-hoverBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row:not(.drop-target).focused {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-focusBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row:not(.drop-target).selected {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row:not(.drop-target).focused.selected {
+	background-color: transparent;
+	outline: none;
+
+	> .monaco-tl-row {
+		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:is(.focused, .selected),
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:hover {
+	outline: none;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row {
+	outline: 1px dotted var(--vscode-list-inactiveFocusOutline);
+	outline-offset: -1px;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.focused.selected > .monaco-tl-row {
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-list-inactiveFocusOutline));
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row,
+.context-menu-visible .style-override.monaco-workbench .agent-sessions-viewer .monaco-list.last-focused .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row {
+	outline: 1px solid var(--vscode-list-focusOutline);
+	outline-offset: -1px;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.selected:not(.focused) > .monaco-tl-row {
+	outline: 1px dotted var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:hover:not(.focused):not(.selected) > .monaco-tl-row {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row.focused.selected > .monaco-tl-row {
+	outline-color: var(--vscode-list-focusAndSelectionOutline, var(--vscode-contrastActiveBorder, var(--vscode-list-focusOutline)));
 }
 
 .style-override.monaco-workbench .chat-viewpane {
@@ -147,6 +263,10 @@
 
 .style-override.monaco-workbench .quick-input-titlebar {
 	padding: 2px 0 0;
+}
+
+.style-override.monaco-workbench .quick-input-widget-overlay .quick-input-titlebar {
+	padding-top: 0;
 }
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar {

@@ -30,6 +30,33 @@ export interface ISessionType {
 	 * to {@link id} when omitted.
 	 */
 	readonly chatSessionType?: string;
+	/**
+	 * Whether this session type can run right now, and if it needs GitHub to do
+	 * so. Providers resolve this from what their agent advertises; it is not a
+	 * fixed trait (Claude and Codex both move between values as their own
+	 * credentials come and go).
+	 */
+	readonly authRequirement: SessionTypeAuthRequirement;
+}
+
+/**
+ * What a session type needs before it can serve a request. The three values are
+ * mutually exclusive: {@link Unusable} is deliberately distinct from
+ * {@link GitHub}, because a type that cannot run at all must not be presented as
+ * a reason to demand GitHub sign-in (see `src/vs/sessions/CONTEXT.md`).
+ */
+export const enum SessionTypeAuthRequirement {
+	/** Runs on the user's own credentials — usable while signed out of GitHub. */
+	None = 'none',
+	/** Needs a GitHub Copilot account. Also the assumption until an agent resolves. */
+	GitHub = 'github',
+	/**
+	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
+	 * Claude pinned to native mode by an explicit `claudeUseCopilotProxy: false`
+	 * with no local Claude credentials. Surfaces as "no models", not a sign-in
+	 * prompt.
+	 */
+	Unusable = 'unusable',
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -161,6 +188,30 @@ export interface ISessionWorkspace {
 }
 
 /**
+ * How a session's workspace should be presented: a virtual (cloud) workspace,
+ * the repository checkout itself, or an isolated git worktree.
+ */
+export const enum SessionWorkspaceKind {
+	Virtual = 'virtual',
+	Folder = 'folder',
+	Worktree = 'worktree',
+}
+
+/**
+ * Classifies a session's workspace for presentation (icon, hover). A session whose
+ * worktree is still pending is already reported as {@link SessionWorkspaceKind.Worktree}.
+ */
+export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined, worktreePending = false): SessionWorkspaceKind {
+	if (workspace?.isVirtualWorkspace) {
+		return SessionWorkspaceKind.Virtual;
+	}
+	if (!worktreePending && workspace && workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined) {
+		return SessionWorkspaceKind.Folder;
+	}
+	return SessionWorkspaceKind.Worktree;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -181,6 +232,23 @@ export interface IGitHubInfo {
 		/** Object ID of the head ref (PR branch) commit. */
 		readonly headRefOid?: string;
 	};
+	/**
+	 * GitHub issues referenced by this session, in the order they were first
+	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
+	 */
+	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub issue referenced by a session. */
+export interface IGitHubIssueRef {
+	/** GitHub repository owner of the issue. */
+	readonly owner: string;
+	/** GitHub repository name of the issue. */
+	readonly repo: string;
+	/** Issue number. */
+	readonly number: number;
+	/** URI of the issue. */
+	readonly uri: URI;
 }
 
 export interface ISessionChangesSummary {
@@ -370,6 +438,12 @@ export const enum ChatOriginKind {
 	Tool = 'tool',
 	User = 'user',
 	Fork = 'fork',
+	SideChat = 'sideChat',
+}
+
+export interface ISideChatSelection {
+	readonly text: string;
+	readonly responsePartId?: string;
 }
 
 export interface IChatOrigin {
@@ -380,6 +454,7 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	readonly selection?: ISideChatSelection;
 }
 
 /**
@@ -497,6 +572,11 @@ export interface ISession {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
 	readonly hasGitRepository?: IObservable<boolean>;
+	/**
+	 * Whether the session's isolated git worktree does not exist yet, so {@link workspace}
+	 * still describes the checkout it was started from. Absent means `false`.
+	 */
+	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 
@@ -547,6 +627,18 @@ export interface ISession {
 	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
+/** Returns whether any chat or session-level fallback reports file changes. */
+export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
+	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
+		return true;
+	}
+	const changesSummary = session.changesSummary?.read(reader);
+	if (changesSummary !== undefined) {
+		return changesSummary.files > 0;
+	}
+	return session.changes.read(reader).length > 0;
+}
+
 /**
  * Build the canonical {@link ISession.sessionId} from a provider id and
  * session resource URI.
@@ -576,6 +668,13 @@ export interface ISessionCapabilities {
 	 * it. Defaults to falsy (no fork) when omitted.
 	 */
 	readonly supportsFork?: boolean;
+	/**
+	 * Whether this session supports creating a side chat from a turn (via
+	 * `/btw`). Side chats inherit the source chat's model/agent and are shown
+	 * as ordinary peer chats in the session's standard chat tabs. Defaults to
+	 * falsy (no side chat) when omitted.
+	 */
+	readonly supportsSideChat?: boolean;
 	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates

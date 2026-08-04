@@ -322,8 +322,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	protected override getTooltip(): string {
 		const { branch } = this._diffStatsObs.get();
 		return branch
-			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
-			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+			? localize('agentSessions.viewChanges.tooltip.branch', "View All Changes ({0})", branch)
+			: localize('agentSessions.viewChanges.tooltip', "View All Changes");
 	}
 
 	protected override getAriaLabel(): string {
@@ -331,7 +331,7 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 		const filesLabel = files === 1
 			? localize('agentSessions.changes.file', "{0} file", files)
 			: localize('agentSessions.changes.files', "{0} files", files);
-		// e.g. "View Changes (main): 3 files, +10, -4"
+		// e.g. "View All Changes (main): 3 files, +10, -4"
 		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }

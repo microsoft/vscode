@@ -725,6 +725,17 @@ export class CodeApplication extends Disposable {
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
 
+		// Agent Host
+		// Always instantiate the starter + manager. They are cheap (the
+		// constructors only register an IPC listener and emitters) and the agent
+		// host utility process is spawned lazily on the first window connection
+		// request. The renderer is the gate: it only requests a connection when
+		// `chat.agentHost.enabled` resolves to `true` and AI features are enabled
+		// there (honoring experiment overrides + policy + web), which the main
+		// process cannot fully observe.
+		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
 			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
@@ -1232,17 +1243,6 @@ export class CodeApplication extends Disposable {
 		);
 		services.set(ILocalPtyService, ptyHostService);
 
-		// Agent Host
-		// Always instantiate the starter + manager. They are cheap (the
-		// constructors only register an IPC listener and emitters) and the agent
-		// host utility process is spawned lazily on the first window connection
-		// request. The renderer is the gate: it only requests a connection when
-		// `chat.agentHost.enabled` resolves to `true` there (honoring experiment
-		// overrides + policy + web), which the main process cannot observe since
-		// experiment overrides are never persisted to `settings.json`.
-		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
-
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1385,7 +1385,10 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+			unbufferedEvents: ['onDidBlurMainWindow']
+		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 

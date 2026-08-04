@@ -211,8 +211,9 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 
 		addDocAndEdit('a');
 
-		// First tick — _sendNow throws, but reschedule() must still fire.
-		await expect(vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS)).rejects.toThrow('boom');
+		// First tick — the telemetry send throws, but the error is swallowed as best-effort
+		// telemetry and reschedule() still fires, so the loop keeps running.
+		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS);
 		expect(calls).toBe(1);
 		expect(throwingTelemetry.enhancedEvents).toHaveLength(0);
 

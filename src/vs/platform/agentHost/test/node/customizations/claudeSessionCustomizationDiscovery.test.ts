@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PluginFormat, toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type HookCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
@@ -16,7 +17,6 @@ import { customizationId, type PluginCustomization } from '../../../common/state
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
-import { toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
 import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
@@ -33,6 +33,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			id,
 			root,
 			parsed: {
+				format: PluginFormat.Claude,
 				hooks: [],
 				mcpServers: [],
 				instructions: [],
@@ -52,6 +53,57 @@ suite('claudeSessionCustomizationDiscovery', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('mapDiscoveredCustomizations', () => {
+		test('maps agents and skills into separate ordered workspace-root containers', () => {
+			const workspaceB = URI.from({ scheme: Schemas.inMemory, path: '/workspace/packages/b' });
+			const rootAgent = URI.joinPath(workspace, '.claude', 'agents', 'root.md');
+			const nestedAgent = URI.joinPath(workspaceB, '.claude', 'agents', 'nested.md');
+			const result = mapDiscoveredCustomizations([
+				toParsedAgent({ uri: rootAgent, name: 'root' }),
+				toParsedAgent({ uri: nestedAgent, name: 'nested' }),
+			], [], [], [], [workspace, workspaceB], userHome);
+
+			assert.deepStrictEqual(
+				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
+				[
+					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), children: ['root'] },
+					{ uri: URI.joinPath(workspaceB, '.claude', 'agents').toString(), children: ['nested'] },
+				],
+			);
+		});
+
+		test('keeps user customizations in the user bucket when an additional root contains userHome', () => {
+			const broadRoot = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+			const userSkill = URI.joinPath(userHome, '.claude', 'skills', 'user-skill', 'SKILL.md');
+			const result = mapDiscoveredCustomizations([
+				toParsedSkill({ uri: userSkill, name: 'user-skill' }),
+			], [], [], [], [workspace, broadRoot], userHome);
+
+			assert.deepStrictEqual(
+				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
+				[
+					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), children: ['user-skill'] },
+				],
+			);
+		});
+
+		test('preserves single-root workspace attribution when the workspace contains userHome', () => {
+			const broadRoot = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+			const userSkill = URI.joinPath(userHome, '.claude', 'skills', 'user-skill', 'SKILL.md');
+			const result = mapDiscoveredCustomizations([
+				toParsedSkill({ uri: userSkill, name: 'user-skill' }),
+			], [], [], [], broadRoot, userHome);
+
+			assert.deepStrictEqual(
+				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
+				[
+					{ uri: URI.joinPath(broadRoot, '.claude', 'skills').toString(), children: ['user-skill'] },
+				],
+			);
+		});
+
 		test('maps discovered entries into per-scope Directory containers with real child URIs + top-level MCP', () => {
 			const wsAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/agents/wa.md' });
 			const wsSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/skills/ws/SKILL.md' });
@@ -208,6 +260,41 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			assert.deepStrictEqual((builtin?.children ?? []).map(c => c.name), ['init', 'loop']);
 		});
 
+		test('SDK-reported in-process host bridges are not surfaced as SDK-only entries', () => {
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [],
+				commands: [],
+				// `client` / `host` are the agent host's in-process client-tool and
+				// server-tool bridges, injected into `Options.mcpServers`; only
+				// `real` is user-configured.
+				mcpServers: [{ name: 'client', status: 'connected' }, { name: 'host', status: 'connected' }, { name: 'real', status: 'connected' }],
+				plugins: [],
+			};
+
+			const result = buildDiscoveredCustomizations([], [diskMcp], [], [], workspace, userHome, sdk);
+			const mcps = result.filter(c => c.type === CustomizationType.McpServer) as McpServerCustomization[];
+
+			assert.deepStrictEqual(mcps.map(m => m.name), ['real']);
+		});
+
+		test('a disk-defined MCP server is kept even when its name collides with a host bridge', () => {
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [],
+				commands: [],
+				mcpServers: [{ name: 'host', status: 'connected' }],
+				plugins: [],
+			};
+
+			const result = buildDiscoveredCustomizations([], [diskMcp], [], [], workspace, userHome, sdk);
+			const mcps = result.filter(c => c.type === CustomizationType.McpServer) as McpServerCustomization[];
+
+			// The user configured this one, so it stays visible (and editable via
+			// its real URI) rather than being hidden by the injected-name check.
+			assert.deepStrictEqual(mcps.map(m => ({ name: m.name, uri: m.uri })), [{ name: 'host', uri: 'inmemory:/settings.json' }]);
+		});
+
 		test('rules survive the post-materialize SDK filter (no SDK counterpart)', () => {
 			const ruleUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/CLAUDE.md' });
 			const discovered: IParsedRule[] = [{
@@ -354,6 +441,25 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				seed('/home/.claude/agents/a.md', 'a'),
 				seed('/workspace/.claude/skills/s/SKILL.md', 's'),
 				seed('/workspace/.mcp.json', '{}'),
+			]);
+			await settle();
+			assert.strictEqual(fires, 1);
+		});
+
+		test('watches agents, skills, and plugin settings under additional roots', async () => {
+			const workspaceB = URI.from({ scheme: Schemas.inMemory, path: '/workspace-b' });
+			const watcher = disposables.add(new ClaudeCustomizationWatcher([workspace, workspaceB], userHome, fileService, new NullLogService(), debounceMs));
+			let fires = 0;
+			disposables.add(watcher.onDidChange(() => { fires++; }));
+
+			await seed('/workspace-b/unrelated.txt', 'x');
+			await settle();
+			assert.strictEqual(fires, 0);
+
+			await Promise.all([
+				seed('/workspace-b/.claude/agents/a.md', 'a'),
+				seed('/workspace-b/.claude/skills/s/SKILL.md', 's'),
+				seed('/workspace-b/.claude/settings.json', '{}'),
 			]);
 			await settle();
 			assert.strictEqual(fires, 1);
