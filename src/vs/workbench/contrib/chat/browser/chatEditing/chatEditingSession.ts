@@ -1004,7 +1004,19 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			} else {
 				entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, NotExistBehavior.Abort, snapshotEntry.telemetryInfo);
 				if (entry) {
-					const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
+					let restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
+					if (restoreToDisk) {
+						// Guard against overwriting changes made to the file after the
+						// snapshot was persisted (e.g. the user edited and saved the file
+						// in a prior VS Code session or an external tool wrote to it).
+						// If the on-disk content no longer matches the snapshot baseline
+						// we skip restoring the agent edits into the buffer so we never
+						// silently dirty the buffer with stale content.
+						restoreToDisk = await this._isSnapshotCurrentOnDisk(snapshotEntry);
+						if (!restoreToDisk) {
+							this._logService.info(`chatEditingSession: skipping in-buffer restore for ${snapshotEntry.resource.toString()} - on-disk content has changed since snapshot was persisted`);
+						}
+					}
 					await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 				}
 			}
@@ -1227,6 +1239,32 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			} else {
 				return await doCreate(ChatEditKind.Created);
 			}
+		}
+	}
+
+	/**
+	 * Returns `true` when the on-disk content of the file still matches the
+	 * pre-edit baseline recorded in the snapshot ({@link ISnapshotEntry.original}),
+	 * meaning no external change has occurred since the snapshot was persisted
+	 * and it is therefore safe to restore the agent's in-progress edits into the buffer.
+	 *
+	 * Returns `false` when the file's on-disk content has diverged from the snapshot
+	 * baseline (edited by the user, another tool, or saved from a prior VS Code session).
+	 * The restore is skipped to prevent silently overwriting newer content and marking
+	 * the buffer dirty.
+	 *
+	 * UTF-8 BOM and CRLF line endings are normalised before comparison so encoding
+	 * artefacts that VS Code handles transparently are never treated as external changes.
+	 */
+	private async _isSnapshotCurrentOnDisk(snapshotEntry: ISnapshotEntry): Promise<boolean> {
+		try {
+			const { value } = await this._fileService.readFile(snapshotEntry.resource);
+			const normalise = (s: string): string => s.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+			return normalise(value.toString()) === normalise(snapshotEntry.original);
+		} catch {
+			// File is gone or unreadable; let the entry handle the missing-file
+			// case rather than suppressing the restore unconditionally.
+			return true;
 		}
 	}
 
