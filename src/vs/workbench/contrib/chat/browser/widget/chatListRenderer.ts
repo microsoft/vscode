@@ -2421,6 +2421,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
+		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
+		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+			this.removeCompletedResponseDisclosure(templateData);
+			if (finalResponsePart instanceof ChatMarkdownContentPart) {
+				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
+					this.updateCompletedResponseDisclosure(element, content, templateData, false);
+				}));
+			}
+			return;
+		}
 
 		const collapseEndIndex = getCompletedResponseCollapseEndIndex(content, finalResponseStartIndex);
 		if (collapseEndIndex === 0) {
@@ -2513,12 +2523,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private removeCompletedResponseDisclosure(templateData: IChatListItemTemplate): void {
+		templateData.completedResponseDisclosureDisposables.clear();
 		const details = templateData.completedResponseDisclosure;
 		if (!details) {
 			return;
 		}
 
-		templateData.completedResponseDisclosureDisposables.clear();
 		while (details.childNodes.length > 1) {
 			details.before(details.childNodes[1]);
 		}
