@@ -1492,7 +1492,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _createModelConfigSchema(m: ModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
-		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, m.id);
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}

@@ -308,7 +308,6 @@ interface ITestCopilotModelInfo {
 	readonly modelPickerCategory?: CopilotModelInfo['modelPickerCategory'];
 	readonly modelPickerPriceCategory?: CopilotModelInfo['modelPickerPriceCategory'];
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
-	readonly defaultReasoningEffort?: CopilotModelInfo['defaultReasoningEffort'];
 }
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
@@ -338,7 +337,6 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		...(model.modelPickerCategory ? { modelPickerCategory: model.modelPickerCategory } : {}),
 		...(model.modelPickerPriceCategory ? { modelPickerPriceCategory: model.modelPickerPriceCategory } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
-		...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
 	};
 }
 
@@ -2132,7 +2130,6 @@ suite('CopilotAgent', () => {
 				name: 'o3',
 				capabilities: { limits: { max_context_window_tokens: 128000 } },
 				supportedReasoningEfforts: ['low', 'medium', 'high'],
-				defaultReasoningEffort: 'medium',
 			}]),
 		});
 		try {
