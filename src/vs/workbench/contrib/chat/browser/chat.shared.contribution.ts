@@ -296,8 +296,7 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' }
+			tags: ['experimental']
 		},
 		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
