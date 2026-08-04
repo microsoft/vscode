@@ -862,10 +862,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			return;
 		} else if (progress.kind === 'markdownContent') {
 
-			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
-			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
+			// Nested subagent parts render inside their parent card and must not split parent markdown.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
@@ -3278,6 +3277,10 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 	return equals(md1.isTrusted, md2.isTrusted) &&
 		md1.supportHtml === md2.supportHtml &&
 		md1.supportThemeIcons === md2.supportThemeIcons;
+}
+
+function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
 }
 
 export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString | string): IMarkdownString {
