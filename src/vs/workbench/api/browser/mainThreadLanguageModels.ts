@@ -16,9 +16,9 @@ import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
+import { isResizableImageMimeType, resizeImage, resizeImageWithMetadata } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseDataPart, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -134,13 +134,43 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 						});
 						this._pendingCancelCTS.set(requestId, cts);
 
-						await Promise.all(
-							messages.flatMap(msg => msg.content)
-								.filter(part => part.type === 'image_url')
-								.map(async part => {
-									part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
-								})
-						);
+						const imageCount = messages.flatMap(msg => msg.content).reduce((count, part) => {
+							if (part.type === 'image_url') {
+								return count + 1;
+							}
+							if (part.type === 'tool_result') {
+								return count + part.value.filter(value => value.type === 'data' && value.mimeType.toLowerCase().startsWith('image/')).length;
+							}
+							return count;
+						}, 0);
+						const maxImageDimension = imageCount > 1 ? 2000 : undefined;
+						await Promise.all(messages.flatMap(msg => msg.content).flatMap(part => {
+							if (part.type === 'image_url') {
+								return [(async () => {
+									if (maxImageDimension === undefined) {
+										part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
+										return;
+									}
+									const resized = await resizeImageWithMetadata(part.value.data.buffer, part.value.mimeType, maxImageDimension);
+									part.value.data = VSBuffer.wrap(resized.data);
+									if (resized.mimeType === 'image/png') {
+										part.value.mimeType = ChatImageMimeType.PNG;
+									} else if (resized.mimeType === 'image/jpeg') {
+										part.value.mimeType = ChatImageMimeType.JPEG;
+									}
+								})()];
+							}
+							if (part.type === 'tool_result' && maxImageDimension !== undefined) {
+								return part.value
+									.filter((value): value is IChatResponseDataPart => value.type === 'data' && isResizableImageMimeType(value.mimeType))
+									.map(async value => {
+										const resized = await resizeImageWithMetadata(value.data.buffer, value.mimeType, maxImageDimension);
+										value.data = VSBuffer.wrap(resized.data);
+										value.mimeType = resized.mimeType ?? value.mimeType;
+									});
+							}
+							return [];
+						}));
 						if (token.isCancellationRequested) {
 							this._pendingProgress.delete(requestId);
 							this._pendingCancelCTS.deleteAndDispose(requestId);

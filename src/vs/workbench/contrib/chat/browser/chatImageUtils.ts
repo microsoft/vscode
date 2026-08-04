@@ -9,8 +9,15 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { getImageDimensionsForMaxDimension } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+
+const resizableImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp']);
+
+export function isResizableImageMimeType(mimeType: string): boolean {
+	return resizableImageMimeTypes.has(mimeType.toLowerCase());
+}
 
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
@@ -19,7 +26,11 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
  * @returns A promise that resolves to the UInt8Array string of the resized image.
  */
 
-export async function resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array> {
+export async function resizeImage(data: Uint8Array | string, mimeType?: string, maxDimension?: number): Promise<Uint8Array> {
+	return (await resizeImageWithMetadata(data, mimeType, maxDimension)).data;
+}
+
+export async function resizeImageWithMetadata(data: Uint8Array | string, mimeType?: string, maxDimension?: number): Promise<{ data: Uint8Array; mimeType: string | undefined }> {
 	const isGif = mimeType === 'image/gif';
 
 	if (typeof data === 'string') {
@@ -35,9 +46,10 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 		img.onload = () => {
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
+			const fitsMaxDimension = maxDimension === undefined || Math.max(width, height) <= maxDimension;
 
-			if ((width <= 768 || height <= 768) && !isGif) {
-				resolve(data);
+			if ((width <= 768 || height <= 768) && !isGif && fitsMaxDimension) {
+				resolve({ data, mimeType });
 				return;
 			}
 
@@ -51,6 +63,10 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 			const scaleFactor = 768 / Math.min(width, height);
 			width = Math.round(width * scaleFactor);
 			height = Math.round(height * scaleFactor);
+
+			if (maxDimension !== undefined) {
+				({ width, height } = getImageDimensionsForMaxDimension(width, height, maxDimension));
+			}
 
 			const canvas = document.createElement('canvas');
 			canvas.width = width;
@@ -66,7 +82,7 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 					if (blob) {
 						const reader = new FileReader();
 						reader.onload = () => {
-							resolve(new Uint8Array(reader.result as ArrayBuffer));
+							resolve({ data: new Uint8Array(reader.result as ArrayBuffer), mimeType: outputMimeType });
 						};
 						reader.onerror = (error) => reject(error);
 						reader.readAsArrayBuffer(blob);

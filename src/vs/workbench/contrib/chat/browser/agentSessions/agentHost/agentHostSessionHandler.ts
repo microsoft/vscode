@@ -86,6 +86,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
+import { isResizableImageMimeType, resizeImageWithMetadata } from '../../chatImageUtils.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -3158,7 +3159,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
-		const handleSettled = (result: IToolResult | undefined, err: unknown) => {
+		const handleSettled = async (result: IToolResult | undefined, err: unknown) => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -3173,6 +3174,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 
 				result = { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
+			}
+
+			result = await resizeAgentHostToolResultImages(result ?? { content: [] });
+			if (cts.token.isCancellationRequested) {
+				return;
 			}
 
 			const protocolToolCall = part$.get().toolCall;
@@ -3302,8 +3308,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const noOpCountTokens = async () => 0;
 			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
 			this._toolsService.invokeTool(inv, noOpCountTokens, cts.token).then(
-				result => handleSettled(result, undefined),
-				err => handleSettled(undefined, err),
+				result => void handleSettled(result, undefined),
+				err => void handleSettled(undefined, err),
 			);
 		}));
 	}
@@ -5569,4 +5575,28 @@ export function toolResultToProtocol(result: IToolResult, toolName: string): {
 			? { message: typeof result.toolResultError === 'string' ? result.toolResultError : `${toolName} encountered an error` }
 			: undefined,
 	};
+}
+
+export async function resizeAgentHostToolResultImages(
+	result: IToolResult,
+	imageResizer: typeof resizeImageWithMetadata = resizeImageWithMetadata,
+): Promise<IToolResult> {
+	const content = await Promise.all(result.content.map(async part => {
+		if (part.kind !== 'data' || !isResizableImageMimeType(part.value.mimeType)) {
+			return part;
+		}
+		try {
+			const resized = await imageResizer(part.value.data.buffer, part.value.mimeType, 2000);
+			return {
+				...part,
+				value: {
+					mimeType: resized.mimeType ?? part.value.mimeType,
+					data: VSBuffer.wrap(resized.data),
+				}
+			};
+		} catch {
+			return part;
+		}
+	}));
+	return { ...result, content };
 }

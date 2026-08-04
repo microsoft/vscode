@@ -17,3 +17,11 @@ export interface IImageResizeService {
 	 */
 	resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array>;
 }
+
+export function getImageDimensionsForMaxDimension(width: number, height: number, maxDimension: number): { width: number; height: number } {
+	const scaleFactor = Math.min(1, maxDimension / Math.max(width, height));
+	return {
+		width: Math.max(1, Math.round(width * scaleFactor)),
+		height: Math.max(1, Math.round(height * scaleFactor))
+	};
+}

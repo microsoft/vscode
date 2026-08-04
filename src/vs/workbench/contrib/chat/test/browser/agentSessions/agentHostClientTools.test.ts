@@ -34,7 +34,7 @@ import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTy
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { AgentHostSessionHandler, resizeAgentHostToolResultImages, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -282,6 +282,43 @@ suite('AgentHostClientTools', () => {
 			const proto = toolResultToProtocol(result, 'myTool');
 			assert.strictEqual(proto.success, false);
 			assert.strictEqual(proto.error?.message, 'myTool encountered an error');
+		});
+	});
+
+	suite('resizeAgentHostToolResultImages', () => {
+
+		test('caps image results and preserves non-image data', async () => {
+			const imageData = VSBuffer.fromString('large image');
+			const documentData = VSBuffer.fromString('document');
+			const result = await resizeAgentHostToolResultImages({
+				content: [
+					{ kind: 'data', value: { mimeType: 'image/webp', data: imageData } },
+					{ kind: 'data', value: { mimeType: 'image/tiff', data: imageData } },
+					{ kind: 'data', value: { mimeType: 'application/pdf', data: documentData } },
+				]
+			}, async (data, mimeType, maxDimension) => {
+				if (typeof data === 'string') {
+					throw new Error('Expected binary image data');
+				}
+				assert.deepStrictEqual({ data: VSBuffer.wrap(data), mimeType, maxDimension }, { data: imageData, mimeType: 'image/webp', maxDimension: 2000 });
+				return { data: new TextEncoder().encode('resized'), mimeType: 'image/png' };
+			});
+
+			assert.deepStrictEqual(result.content, [
+				{ kind: 'data', value: { mimeType: 'image/png', data: VSBuffer.fromString('resized') } },
+				{ kind: 'data', value: { mimeType: 'image/tiff', data: imageData } },
+				{ kind: 'data', value: { mimeType: 'application/pdf', data: documentData } },
+			]);
+		});
+
+		test('preserves an image when resizing fails', async () => {
+			const image = { kind: 'data' as const, value: { mimeType: 'image/png', data: VSBuffer.fromString('invalid') } };
+			const text = { kind: 'text' as const, value: 'Tool succeeded' };
+			const result = await resizeAgentHostToolResultImages({ content: [text, image] }, async () => {
+				throw new Error('decode failed');
+			});
+
+			assert.deepStrictEqual(result.content, [text, image]);
 		});
 	});
 
