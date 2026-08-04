@@ -717,6 +717,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		provider.setServerToolHost?.(this._serverToolHost);
+		void this._authService.replay(provider);
 		// Deterministic subagent membership ordering: apply a spawned subagent's
 		// catalog membership (via the spawn-channel handlers) BEFORE
 		// AgentSideEffects — registered next — handles the same signal and starts
@@ -1179,6 +1180,23 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
+		// Provisional sessions deliberately suppress their `sessionAdded`
+		// notification until materialization, so it is safe — and important — to
+		// create their in-memory state before asking the provider for its initial
+		// customization snapshot. Providers may publish incremental plugin load
+		// updates while resolving that snapshot; without a state entry those
+		// actions are rejected as targeting an unknown session and custom agents
+		// can disappear from the picker permanently.
+		const provisionalState = created.provisional && !config?.fork && !config?.importConversation
+			? (() => {
+				const summary = this._buildInitialSummary(provider, session, config, created, '');
+				const state = this._stateManager.createSession(summary, { emitNotification: false });
+				state.config = sessionConfig;
+				state.activeClients = config?.activeClient ? [config.activeClient] : [];
+				return state;
+			})()
+			: undefined;
+
 		// Resolve config and seed the initial customization set in parallel so
 		// both are available before we register the session in the state
 		// manager. Seeding `state.customizations` directly (instead of
@@ -1274,9 +1292,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// clients can subscribe and stream config / model changes that
 			// the agent will pick up at materialization time.
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
-			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
-			state.config = sessionConfig;
-			state.activeClients = config?.activeClient ? [config.activeClient] : [];
+			const state = provisionalState ?? this._stateManager.createSession(summary, { emitNotification: true });
+			if (!provisionalState) {
+				state.config = sessionConfig;
+				state.activeClients = config?.activeClient ? [config.activeClient] : [];
+			}
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
 			}
