@@ -151,6 +151,7 @@ suite('Agent Edit Attribution Service', () => {
 				outcome: {
 					outcome: 'committed',
 					agentModifiedCount: 0,
+					lastSequence: 1,
 				},
 			},
 		});
@@ -165,18 +166,23 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(claudeResource, VSBuffer.fromString('ab'));
 
 		const events: Record<string, string | number | undefined>[] = [];
+		const githubEvents: { eventName: string; harness: string | undefined }[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ITelemetryService, {
+		const telemetryService: Partial<IAgentHostTelemetryService> = {
 			telemetryLevel: TelemetryLevel.USAGE,
 			publicLog2(eventName, data) {
 				if (eventName === 'editTelemetry.editSources.details') {
 					events.push(data as Record<string, string | number | undefined>);
 				}
 			},
-		});
+			sendGHTelemetryEvent(eventName, properties) {
+				githubEvents.push({ eventName, harness: properties?.harness });
+			},
+		};
+		instantiationService.stub(ITelemetryService, telemetryService);
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 		const copilotSessionUri = 'copilotcli:/session-1';
 		const copilotDefaultChatUri = buildDefaultChatUri(copilotSessionUri);
@@ -207,6 +213,7 @@ suite('Agent Edit Attribution Service', () => {
 		assert.deepStrictEqual({
 			afterDefaultChatFlush,
 			afterPeerChatFlush,
+			githubEvents,
 			events: events.map(event => ({
 				sourceKey: event.sourceKey,
 				sourceKeyCleaned: event.sourceKeyCleaned,
@@ -217,6 +224,12 @@ suite('Agent Edit Attribution Service', () => {
 		}, {
 			afterDefaultChatFlush: 1,
 			afterPeerChatFlush: 2,
+			githubEvents: [
+				{ eventName: 'vscode.editTelemetry.editSources.details', harness: 'copilotcli' },
+				{ eventName: 'vscode.editTelemetry.editSources.stats', harness: undefined },
+				{ eventName: 'vscode.editTelemetry.editSources.details', harness: 'copilotcli' },
+				{ eventName: 'vscode.editTelemetry.editSources.stats', harness: undefined },
+			],
 			events: [
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
@@ -265,7 +278,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
 
 		await service.recordEdit({
-			sessionUri: 'copilot:/session-1',
+			sessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -275,7 +288,7 @@ suite('Agent Edit Attribution Service', () => {
 			modelId: 'model',
 			toolName: 'edit',
 		});
-		await service.flushSession('copilot:/session-1');
+		await service.flushSession('copilotcli:/session-1');
 
 		assert.deepStrictEqual(events.map(event => ({
 			eventName: event.eventName,
@@ -311,6 +324,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('tracks external drift before a later tool edit and mirrors standalone stats to GitHub', async () => {
+		const sessionUri = 'copilotcli:/session-1';
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		const resource = URI.file('/workspace/file.ts');
@@ -344,7 +358,7 @@ suite('Agent Edit Attribution Service', () => {
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, () => now));
 
 		await service.recordEdit({
-			sessionUri: 'copilot:/session-1',
+			sessionUri,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -355,7 +369,7 @@ suite('Agent Edit Attribution Service', () => {
 			toolName: 'edit',
 		});
 		await service.recordEdit({
-			sessionUri: 'copilot:/session-1',
+			sessionUri,
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -366,7 +380,7 @@ suite('Agent Edit Attribution Service', () => {
 			toolName: 'edit',
 		});
 		now = 250;
-		await service.flushSession('copilot:/session-1');
+		await service.flushSession(sessionUri);
 
 		assert.deepStrictEqual({
 			local: localStats && {
@@ -1155,6 +1169,137 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('flushes before oversized coverage sequences grow without bound', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/large.ts');
+		const beforeText = 'x'.repeat(6 * 1024 * 1024);
+		const afterText = `${beforeText}y`;
+		await fileService.writeFile(resource, VSBuffer.fromString(afterText));
+
+		const stats: Record<string, string | number | undefined>[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					stats.push(data as Record<string, string | number | undefined>);
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		for (let edit = 0; edit < 128; edit++) {
+			await service.recordEdit({
+				sessionUri: 'copilot:/session-1',
+				turnId: `turn-${edit}`,
+				toolCallId: `tool-${edit}`,
+				filePath: resource.fsPath,
+				beforeText,
+				afterText,
+				changes: [{ startOffset: beforeText.length, endOffsetExclusive: beforeText.length, newText: 'y' }],
+				modelId: 'model',
+				toolName: 'edit',
+			});
+		}
+
+		assert.deepStrictEqual(stats.map(event => ({
+			agentHostAttributionCoverage: event.agentHostAttributionCoverage,
+			agentHostUntrackedEditCount: event.agentHostUntrackedEditCount,
+			agentHostUntrackedInsertedCount: event.agentHostUntrackedInsertedCount,
+		})), [{
+			agentHostAttributionCoverage: 'partial',
+			agentHostUntrackedEditCount: 128,
+			agentHostUntrackedInsertedCount: 128,
+		}]);
+	});
+
+	test('paginates standalone coverage acknowledgements without advancing their cutoff', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/large.ts');
+		const beforeText = 'x'.repeat(6 * 1024 * 1024);
+		const afterText = `${beforeText}y`;
+		await fileService.writeFile(resource, VSBuffer.fromString(afterText));
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, { telemetryLevel: TelemetryLevel.USAGE, publicLog2() { } });
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		for (let edit = 1; edit <= 129; edit++) {
+			await service.recordEdit({
+				sessionUri: 'copilot:/session-1',
+				turnId: `turn-${edit}`,
+				toolCallId: `tool-${edit}`,
+				filePath: resource.fsPath,
+				beforeText,
+				afterText,
+				changes: [{ startOffset: beforeText.length, endOffsetExclusive: beforeText.length, newText: 'y' }],
+				modelId: 'model',
+				toolName: 'edit',
+			});
+			await service.flushSession('copilot:/session-1');
+		}
+		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-live',
+			turnId: 'turn-live',
+			toolCallId: 'tool-live',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		const first = await service.prepareFlush({
+			resource,
+			trigger: 'closed',
+			statsUuid: 'stats-1',
+			isDirty: false,
+			flushToken: 'flush-1',
+			languageId: 'typescript',
+		});
+		await service.commitFlush({ flushToken: 'flush-1', totalModifiedCount: 0 });
+		const second = await service.prepareFlush({
+			resource,
+			trigger: 'closed',
+			statsUuid: 'stats-2',
+			isDirty: false,
+			flushToken: 'flush-2',
+			languageId: 'typescript',
+		});
+
+		assert.deepStrictEqual({
+			first: first && {
+				lastSequence: first.lastSequence,
+				coverageGapThroughSequence: first.coverageGapThroughSequence,
+				acknowledgementCount: first.standaloneCoverageGapAcknowledgements?.length,
+			},
+			second: second && {
+				lastSequence: second.lastSequence,
+				coverageGapThroughSequence: second.coverageGapThroughSequence,
+				acknowledgementCount: second.standaloneCoverageGapAcknowledgements?.length,
+			},
+		}, {
+			first: {
+				lastSequence: 130,
+				coverageGapThroughSequence: 128,
+				acknowledgementCount: 128,
+			},
+			second: {
+				lastSequence: 129,
+				coverageGapThroughSequence: 129,
+				acknowledgementCount: 1,
+			},
+		});
+	});
+
 	test('returns a marker when the interval safety limit flushes the resource', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
@@ -1352,6 +1497,59 @@ suite('Agent Edit Attribution Service', () => {
 				{ conversationId: 'session-b', modifiedCount: 1, deltaModifiedCount: 1 },
 				{ conversationId: 'session-a', modifiedCount: 1, deltaModifiedCount: 1 },
 			],
+		});
+	});
+
+	test('bounds same-file reconciliation by one aggregate deadline', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('abcde'));
+
+		let now = 0;
+		const timeoutValues: number[] = [];
+		let eventCount = 0;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			async computeDiffCounts(original, modified, timeoutMs) {
+				timeoutValues.push(timeoutMs ?? 0);
+				now += 5_000;
+				return computeDiffCounts(original, modified, timeoutMs ?? 5_000);
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2() {
+				eventCount++;
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, () => now));
+		for (const [sessionUri, beforeText, afterText] of [
+			['copilot:/session-a', 'a', 'ab'],
+			['copilot:/session-b', 'ab', 'abc'],
+			['copilot:/session-c', 'abc', 'abcd'],
+			['copilot:/session-d', 'abcd', 'abcde'],
+		] as const) {
+			await service.recordEdit({
+				sessionUri,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				filePath: resource.fsPath,
+				beforeText,
+				afterText,
+				changes: [{ startOffset: beforeText.length, endOffsetExclusive: beforeText.length, newText: afterText.slice(beforeText.length) }],
+				modelId: 'model',
+				toolName: 'edit',
+			});
+		}
+
+		await service.flushSession('copilot:/session-a');
+
+		assert.deepStrictEqual({ timeoutValues, eventCount }, {
+			timeoutValues: [8_000, 3_000],
+			eventCount: 0,
 		});
 	});
 
@@ -1759,9 +1957,9 @@ suite('Agent Edit Attribution Service', () => {
 
 		assert.deepStrictEqual({ outcomes, eventCount }, {
 			outcomes: [
-				{ outcome: 'committed', agentModifiedCount: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
 			],
 			eventCount: 1,
 		});

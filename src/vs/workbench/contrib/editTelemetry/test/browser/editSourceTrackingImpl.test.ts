@@ -534,6 +534,7 @@ suite('Edit Source Tracking Windows', () => {
 	}));
 
 	test('does not fall back when Agent Host attribution is deferred', () => runWithFakedTimers({}, async () => {
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -544,6 +545,10 @@ suite('Edit Source Tracking Windows', () => {
 			}),
 			prepareFlush: async () => {
 				throw new AgentHostEditAttributionDeferredError(new Error('Prepare cancelled'));
+			},
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
 			},
 		};
 		const context = setup(undefined, markerService);
@@ -557,15 +562,18 @@ suite('Edit Source Tracking Windows', () => {
 		assert.deepStrictEqual({
 			detailCount: context.details.length,
 			statsCount: context.stats.length,
+			coverageGapTakeCount,
 		}, {
 			detailCount: 0,
 			statsCount: 0,
+			coverageGapTakeCount: 0,
 		});
 
 		context.disposables.dispose();
 	}));
 
 	test('does not emit external fallback when the Agent Host commit outcome is unknown', () => runWithFakedTimers({}, async () => {
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -581,6 +589,10 @@ suite('Edit Source Tracking Windows', () => {
 					throw new AgentHostEditAttributionUnknownOutcomeError(new Error('Transport unavailable'));
 				},
 			}),
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
+			},
 		};
 		const context = setup(undefined, markerService);
 		await timeout(10);
@@ -592,6 +604,7 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual({
 			detailCount: context.details.length,
+			coverageGapTakeCount,
 			stats: context.stats.map(event => ({
 				otherAIModifiedCount: event.otherAIModifiedCount,
 				agentHostModifiedCount: event.agentHostModifiedCount,
@@ -600,6 +613,7 @@ suite('Edit Source Tracking Windows', () => {
 			})),
 		}, {
 			detailCount: 0,
+			coverageGapTakeCount: 0,
 			stats: [{
 				otherAIModifiedCount: 0,
 				agentHostModifiedCount: 3,

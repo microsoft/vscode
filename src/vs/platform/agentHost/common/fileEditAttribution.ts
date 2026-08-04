@@ -93,6 +93,7 @@ export interface IPreparedEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
 	readonly lastSequence?: number;
+	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 }
 
@@ -117,6 +118,8 @@ export type EditAttributionFlushOutcome = 'committed' | 'cancelled' | 'missing';
 export interface IEditAttributionFlushResult {
 	readonly outcome: EditAttributionFlushOutcome;
 	readonly agentModifiedCount: number;
+	readonly lastSequence?: number;
+	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 }
 

@@ -53,6 +53,7 @@ export function sendEditSourcesDetailsTelemetry(telemetryService: ITelemetryServ
 }
 
 export interface IEditSourcesStatsTelemetryData {
+	attributionSchemaVersion: 2;
 	mode: EditTelemetryMode;
 	languageId?: string;
 	statsUuid: string;
@@ -80,6 +81,7 @@ type EditSourcesStatsTelemetryClassification = {
 	owner: 'hediet';
 	comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
 
+	attributionSchemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Version 2 identifies rows where Agent Host edits are a mutually exclusive category and standalone Agent Host rows may be included.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 10minFocusWindow, or 20minFocusWindow' };
 	languageId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };

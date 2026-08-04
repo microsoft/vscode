@@ -5,7 +5,7 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { IntervalTimer, SequencerByKey } from '../../../../base/common/async.js';
+import { IntervalTimer, raceTimeout, SequencerByKey } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -24,6 +24,8 @@ import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
 const MAX_TRACKED_RESOURCES = 100;
 const MAX_INTERVALS_PER_RESOURCE = 10_000;
+const MAX_COVERAGE_GAP_SEQUENCES = 128;
+const MAX_COVERAGE_GAP_ACKNOWLEDGEMENTS_PER_FLUSH = 128;
 const MAX_SETTLED_FLUSHES = 1_000;
 const MAX_STANDALONE_ACKNOWLEDGEMENTS = 1_000;
 const MAX_NON_REPOSITORY_DIRECTORIES = 1_000;
@@ -33,6 +35,7 @@ const STANDALONE_ACKNOWLEDGEMENT_TTL = 10 * 60 * 60 * 1000;
 const NON_REPOSITORY_DIRECTORY_TTL = 10 * 60 * 1000;
 const GIT_STATE_POLL_INTERVAL = 30_000;
 const GIT_STATE_TIMEOUT = 10_000;
+const RECONCILIATION_TIMEOUT = 8_000;
 const execFileAsync = promisify(execFile);
 
 interface IAttributedInterval {
@@ -100,6 +103,8 @@ interface IPreparedFlush {
 	readonly actualTime: number;
 	readonly trackingScope: 'agentHostStandalone' | undefined;
 	readonly coverageGap: IAttributionCoverageGap | undefined;
+	readonly coverageGapCutoffCeiling: number | undefined;
+	readonly githubTelemetryEnabled: boolean;
 	readonly lastSequence: number;
 	readonly resources: readonly ITrackedResource[];
 	readonly standaloneAcknowledgements: readonly (readonly [string, IStandaloneAcknowledgement])[];
@@ -239,6 +244,10 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		};
 		resource.coverageGapSequences.push(marker.sequence);
 		resource.lastSequence = marker.sequence;
+		if (resource.coverageGapSequences.length >= MAX_COVERAGE_GAP_SEQUENCES) {
+			await this._flushStandalone(resource, 'closed', generation, true);
+			return this._isCurrentGeneration(generation) ? marker : undefined;
+		}
 		return marker;
 	}
 
@@ -291,8 +300,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._excludeOtherSessionAgentIntervals(resource);
 		}
 
-		const providerSessionUri = isAhpChatChannel(edit.sessionUri) ? parseRequiredSessionUriFromChatUri(edit.sessionUri) : edit.sessionUri;
-		const provider = AgentSession.provider(providerSessionUri) ?? 'unknown';
+		const provider = getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
 		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		let source = resource.sources.get(sourceKey);
@@ -354,6 +362,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				flushToken: existing.token,
 				agentModifiedCount: existing.agentModifiedCount,
 				lastSequence: existing.lastSequence,
+				...getCoverageGapCutoffData(existing),
 				...getStandaloneAcknowledgementData(existing),
 			};
 		}
@@ -372,12 +381,22 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	private async _prepareFlush(params: IPrepareEditAttributionFlushParams, generation: number): Promise<IPreparedEditAttributionFlush | undefined> {
-		return this._fileSequencer.queue(this._filePathKey(params.resource.fsPath), () => this._prepareFlushLocked(params, generation));
+		const reconciliationDeadline = this._now() + RECONCILIATION_TIMEOUT;
+		const result = await raceTimeout(
+			this._fileSequencer.queue(this._filePathKey(params.resource.fsPath), async () => ({
+				prepared: await this._prepareFlushLocked(params, generation, reconciliationDeadline),
+			})),
+			RECONCILIATION_TIMEOUT
+		);
+		if (result === undefined && this._isCurrentGeneration(generation)) {
+			throw new Error('Agent Host edit attribution prepare timed out');
+		}
+		return result?.prepared;
 	}
 
-	private async _prepareFlushLocked(params: IPrepareEditAttributionFlushParams, generation: number): Promise<IPreparedEditAttributionFlush | undefined> {
+	private async _prepareFlushLocked(params: IPrepareEditAttributionFlushParams, generation: number, reconciliationDeadline: number): Promise<IPreparedEditAttributionFlush | undefined> {
 		const fileKey = this._filePathKey(params.resource.fsPath);
-		const standaloneAcknowledgements = this._takeStandaloneAcknowledgements(fileKey);
+		const standaloneAcknowledgements = this._takeStandaloneAcknowledgements(fileKey, MAX_COVERAGE_GAP_ACKNOWLEDGEMENTS_PER_FLUSH);
 		const resources = Array.from(this._resources.values()).filter(resource => extUriBiasedIgnorePathCase.isEqual(URI.file(resource.filePath), params.resource));
 		if (resources.length === 0 && standaloneAcknowledgements.length === 0) {
 			return undefined;
@@ -385,7 +404,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const preparedResources: IPreparedFlush[] = [];
 		try {
 			for (const resource of resources) {
-				const prepared = await this._prepareResourceNow(resource, params.trigger, params.statsUuid, generation);
+				const prepared = await this._prepareResourceNow(resource, params.trigger, params.statsUuid, generation, undefined, reconciliationDeadline);
 				if (!this._isCurrentGeneration(generation)) {
 					return undefined;
 				}
@@ -400,7 +419,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._restoreStandaloneAcknowledgements(standaloneAcknowledgements);
 			throw error;
 		}
-		standaloneAcknowledgements.push(...this._takeStandaloneAcknowledgements(fileKey));
+		const remainingAcknowledgementCapacity = MAX_COVERAGE_GAP_ACKNOWLEDGEMENTS_PER_FLUSH - countCoverageGapAcknowledgements(standaloneAcknowledgements);
+		standaloneAcknowledgements.push(...this._takeStandaloneAcknowledgements(fileKey, remainingAcknowledgementCapacity));
+		const coverageGapCutoffCeiling = this._getCoverageGapCutoffCeiling(fileKey);
 		if (preparedResources.length === 0 && standaloneAcknowledgements.length === 0) {
 			return undefined;
 		}
@@ -412,6 +433,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			params.flushToken,
 			params.languageId,
 			standaloneAcknowledgements,
+			coverageGapCutoffCeiling,
 			this._now(),
 		);
 		if (!this._isCurrentGeneration(generation)) {
@@ -427,6 +449,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			flushToken: prepared.token,
 			agentModifiedCount: prepared.agentModifiedCount,
 			lastSequence: prepared.lastSequence,
+			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
 		};
 	}
@@ -457,6 +480,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const result = {
 			outcome: 'committed',
 			agentModifiedCount: prepared.agentModifiedCount,
+			lastSequence: prepared.lastSequence,
+			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
 		} as const;
 		this._recordSettledFlush(params.flushToken, result);
@@ -511,6 +536,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			const result = {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				lastSequence: prepared.lastSequence,
+				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
 			} as const;
 			this._recordSettledFlush(params.flushToken, result);
@@ -662,7 +689,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private async _prepareResourceNow(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string, generation: number, trackingScope?: 'agentHostStandalone'): Promise<IPreparedFlush | undefined> {
+	private async _prepareResourceNow(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string, generation: number, trackingScope?: 'agentHostStandalone', reconciliationDeadline = this._now() + RECONCILIATION_TIMEOUT): Promise<IPreparedFlush | undefined> {
 		if (!this._isCurrentGeneration(generation) || this._resources.get(resource.key) !== resource) {
 			return undefined;
 		}
@@ -671,18 +698,31 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		this._trackedTextLength -= resource.currentContent?.length ?? 0;
 		try {
 			if (resource.currentContent !== undefined) {
-				const currentContent = await this._readCurrentContent(resource.filePath);
+				const currentContent = await raceTimeout(
+					this._readCurrentContent(resource.filePath),
+					getRemainingReconciliationTime(reconciliationDeadline, this._now())
+				);
+				if (currentContent === undefined) {
+					throw new Error('Agent Host edit attribution file read timed out');
+				}
 				if (!this._isCurrentGeneration(generation)) {
 					return undefined;
 				}
 				if (currentContent !== resource.currentContent) {
-					const diff = await this._diffComputeService.computeDiffCounts(resource.currentContent, currentContent);
+					const remainingTime = getRemainingReconciliationTime(reconciliationDeadline, this._now());
+					const diff = await raceTimeout(
+						this._diffComputeService.computeDiffCounts(resource.currentContent, currentContent, remainingTime),
+						remainingTime
+					);
+					if (!diff) {
+						throw new Error('Agent Host edit attribution diff timed out');
+					}
 					if (!this._isCurrentGeneration(generation)) {
 						return undefined;
 					}
 					this._applyChanges(resource, diff.changes, 'external', currentContent, false);
 				}
-				if (!await this._reconcileOtherSessionResources(resource, generation)) {
+				if (!await this._reconcileOtherSessionResources(resource, generation, reconciliationDeadline)) {
 					return undefined;
 				}
 			}
@@ -711,6 +751,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				actualTime: this._now() - resource.startedAt,
 				trackingScope,
 				coverageGap: resource.coverageGap,
+				coverageGapCutoffCeiling: undefined,
+				githubTelemetryEnabled: getSessionProvider(resource.sessionUri) === 'copilotcli',
 				lastSequence: resource.lastSequence,
 				resources: [resource],
 				standaloneAcknowledgements: [],
@@ -752,28 +794,31 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			} as const;
 			sendEditSourcesDetailsTelemetry(this._telemetryService, data);
 			const agentHostTelemetryService = this._telemetryService as Partial<IAgentHostTelemetryService>;
-			agentHostTelemetryService.sendGHTelemetryEvent?.('vscode.editTelemetry.editSources.details', {
-				mode: data.mode,
-				sourceKey: data.sourceKey,
-				sourceKeyCleaned: data.sourceKeyCleaned,
-				extensionId: '',
-				extensionVersion: '',
-				modelId: data.modelId ?? '',
-				trigger: data.trigger,
-				languageId: data.languageId ?? '',
-				statsUuid: data.statsUuid,
-				conversationId: data.conversationId,
-				requestId: data.requestId,
-				origin: data.origin,
-				harness: data.harness,
-			}, {
-				modifiedCount: data.modifiedCount,
-				deltaModifiedCount: data.deltaModifiedCount,
-				totalModifiedCount: data.totalModifiedCount,
-			});
+			if (source.harness === 'copilotcli') {
+				agentHostTelemetryService.sendGHTelemetryEvent?.('vscode.editTelemetry.editSources.details', {
+					mode: data.mode,
+					sourceKey: data.sourceKey,
+					sourceKeyCleaned: data.sourceKeyCleaned,
+					extensionId: '',
+					extensionVersion: '',
+					modelId: data.modelId ?? '',
+					trigger: data.trigger,
+					languageId: data.languageId ?? '',
+					statsUuid: data.statsUuid,
+					conversationId: data.conversationId,
+					requestId: data.requestId,
+					origin: data.origin,
+					harness: data.harness,
+				}, {
+					modifiedCount: data.modifiedCount,
+					deltaModifiedCount: data.deltaModifiedCount,
+					totalModifiedCount: data.totalModifiedCount,
+				});
+			}
 		}
 		if (prepared.trackingScope === 'agentHostStandalone') {
 			const data = {
+				attributionSchemaVersion: 2,
 				mode: 'longterm',
 				statsUuid: prepared.statsUuid,
 				nesModifiedCount: 0,
@@ -795,27 +840,30 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			} as const;
 			sendEditSourcesStatsTelemetry(this._telemetryService, data);
 			const agentHostTelemetryService = this._telemetryService as Partial<IAgentHostTelemetryService>;
-			agentHostTelemetryService.sendGHTelemetryEvent?.('vscode.editTelemetry.editSources.stats', {
-				mode: data.mode,
-				statsUuid: data.statsUuid,
-				trigger: data.trigger,
-				trackingScope: data.trackingScope,
-				agentHostAttributionCoverage: data.agentHostAttributionCoverage,
-			}, {
-				nesModifiedCount: data.nesModifiedCount,
-				inlineCompletionsCopilotModifiedCount: data.inlineCompletionsCopilotModifiedCount,
-				inlineCompletionsNESModifiedCount: data.inlineCompletionsNESModifiedCount,
-				otherAIModifiedCount: data.otherAIModifiedCount,
-				agentHostModifiedCount: data.agentHostModifiedCount,
-				unknownModifiedCount: data.unknownModifiedCount,
-				userModifiedCount: data.userModifiedCount,
-				ideModifiedCount: data.ideModifiedCount,
-				totalModifiedCharacters: data.totalModifiedCharacters,
-				externalModifiedCount: data.externalModifiedCount,
-				actualTime: data.actualTime,
-				agentHostUntrackedEditCount: data.agentHostUntrackedEditCount,
-				agentHostUntrackedInsertedCount: data.agentHostUntrackedInsertedCount,
-			});
+			if (prepared.githubTelemetryEnabled) {
+				agentHostTelemetryService.sendGHTelemetryEvent?.('vscode.editTelemetry.editSources.stats', {
+					attributionSchemaVersion: String(data.attributionSchemaVersion),
+					mode: data.mode,
+					statsUuid: data.statsUuid,
+					trigger: data.trigger,
+					trackingScope: data.trackingScope,
+					agentHostAttributionCoverage: data.agentHostAttributionCoverage,
+				}, {
+					nesModifiedCount: data.nesModifiedCount,
+					inlineCompletionsCopilotModifiedCount: data.inlineCompletionsCopilotModifiedCount,
+					inlineCompletionsNESModifiedCount: data.inlineCompletionsNESModifiedCount,
+					otherAIModifiedCount: data.otherAIModifiedCount,
+					agentHostModifiedCount: data.agentHostModifiedCount,
+					unknownModifiedCount: data.unknownModifiedCount,
+					userModifiedCount: data.userModifiedCount,
+					ideModifiedCount: data.ideModifiedCount,
+					totalModifiedCharacters: data.totalModifiedCharacters,
+					externalModifiedCount: data.externalModifiedCount,
+					actualTime: data.actualTime,
+					agentHostUntrackedEditCount: data.agentHostUntrackedEditCount,
+					agentHostUntrackedInsertedCount: data.agentHostUntrackedInsertedCount,
+				});
+			}
 		}
 	}
 
@@ -846,7 +894,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private async _reconcileOtherSessionResources(resource: ITrackedResource, generation: number): Promise<boolean> {
+	private async _reconcileOtherSessionResources(resource: ITrackedResource, generation: number, deadline: number): Promise<boolean> {
 		if (resource.currentContent === undefined) {
 			return true;
 		}
@@ -861,7 +909,14 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				continue;
 			}
 			if (candidateContent !== currentContent) {
-				const diff = await this._diffComputeService.computeDiffCounts(candidateContent, currentContent);
+				const remainingTime = getRemainingReconciliationTime(deadline, this._now());
+				const diff = await raceTimeout(
+					this._diffComputeService.computeDiffCounts(candidateContent, currentContent, remainingTime),
+					remainingTime
+				);
+				if (!diff) {
+					throw new Error('Agent Host edit attribution diff timed out');
+				}
 				if (!this._isCurrentGeneration(generation)) {
 					return false;
 				}
@@ -959,12 +1014,29 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}]]);
 	}
 
-	private _takeStandaloneAcknowledgements(fileKey: string): (readonly [string, IStandaloneAcknowledgement])[] {
+	private _takeStandaloneAcknowledgements(fileKey: string, coverageGapLimit: number): (readonly [string, IStandaloneAcknowledgement])[] {
 		const result: (readonly [string, IStandaloneAcknowledgement])[] = [];
+		let remainingCoverageGapCapacity = coverageGapLimit;
 		for (const [key, acknowledgement] of this._standaloneAcknowledgements) {
-			if (acknowledgement.fileKey === fileKey) {
-				this._standaloneAcknowledgements.delete(key);
-				result.push([key, acknowledgement]);
+			if (acknowledgement.fileKey !== fileKey) {
+				continue;
+			}
+			const coverageGapAcknowledgements = acknowledgement.coverageGapAcknowledgements.slice(0, remainingCoverageGapCapacity);
+			if (acknowledgement.coverageGapAcknowledgements.length > 0 && coverageGapAcknowledgements.length === 0) {
+				continue;
+			}
+			this._standaloneAcknowledgements.delete(key);
+			result.push([key, {
+				...acknowledgement,
+				coverageGapAcknowledgements,
+			}]);
+			remainingCoverageGapCapacity -= coverageGapAcknowledgements.length;
+			const pendingCoverageGapAcknowledgements = acknowledgement.coverageGapAcknowledgements.slice(coverageGapAcknowledgements.length);
+			if (pendingCoverageGapAcknowledgements.length > 0) {
+				this._standaloneAcknowledgements.set(key, {
+					...acknowledgement,
+					coverageGapAcknowledgements: pendingCoverageGapAcknowledgements,
+				});
 			}
 		}
 		return result;
@@ -979,6 +1051,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			for (const acknowledgement of value.coverageGapAcknowledgements) {
 				coverageGapAcknowledgements.set(acknowledgement.id, acknowledgement);
 			}
+
 			this._standaloneAcknowledgements.delete(key);
 			this._standaloneAcknowledgements.set(key, {
 				timestamp: Math.max(existing?.timestamp ?? 0, value.timestamp),
@@ -994,6 +1067,15 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			}
 			this._standaloneAcknowledgements.delete(oldestKey);
 		}
+	}
+
+	private _getCoverageGapCutoffCeiling(fileKey: string): number | undefined {
+		const firstPendingSequence = Array.from(this._standaloneAcknowledgements.values())
+			.filter(acknowledgement => acknowledgement.fileKey === fileKey)
+			.flatMap(acknowledgement => acknowledgement.coverageGapAcknowledgements)
+			.flatMap(acknowledgement => acknowledgement.sequences)
+			.reduce<number | undefined>((minimum, sequence) => minimum === undefined ? sequence : Math.min(minimum, sequence), undefined);
+		return firstPendingSequence === undefined ? undefined : firstPendingSequence - 1;
 	}
 
 	private _filePathKey(filePath: string): string {
@@ -1037,6 +1119,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._recordSettledFlush(flushToken, {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				lastSequence: prepared.lastSequence,
+				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
 			});
 		} else {
@@ -1065,6 +1149,7 @@ function combinePreparedFlushes(
 	flushToken: string,
 	languageId: string,
 	standaloneAcknowledgements: readonly (readonly [string, IStandaloneAcknowledgement])[],
+	coverageGapCutoffCeiling: number | undefined,
 	timestamp: number,
 ): IPreparedFlush {
 	const retainedBySource = new Map<string, number>();
@@ -1104,6 +1189,8 @@ function combinePreparedFlushes(
 			editCount: untrackedEditCount,
 			insertedCount: untrackedInsertedCount,
 		} : undefined,
+		coverageGapCutoffCeiling,
+		githubTelemetryEnabled: flushes.every(flush => flush.githubTelemetryEnabled),
 		lastSequence: Math.max(
 			0,
 			...flushes.map(flush => flush.lastSequence),
@@ -1124,6 +1211,42 @@ function getStandaloneAcknowledgementData(prepared: IPreparedFlush): { readonly 
 	}
 	const standaloneCoverageGapAcknowledgements = Array.from(acknowledgements.values());
 	return standaloneCoverageGapAcknowledgements.length === 0 ? {} : { standaloneCoverageGapAcknowledgements };
+}
+
+function getCoverageGapThroughSequence(prepared: IPreparedFlush): number | undefined {
+	const sequences = [
+		...prepared.resources.map(resource => resource.lastSequence),
+		...prepared.standaloneAcknowledgements.flatMap(([, acknowledgement]) =>
+			acknowledgement.coverageGapAcknowledgements.flatMap(coverageGapAcknowledgement => coverageGapAcknowledgement.sequences)
+		),
+	];
+	if (sequences.length === 0) {
+		return undefined;
+	}
+	const cutoff = Math.max(...sequences);
+	return prepared.coverageGapCutoffCeiling === undefined ? cutoff : Math.min(cutoff, prepared.coverageGapCutoffCeiling);
+}
+
+function getCoverageGapCutoffData(prepared: IPreparedFlush): { readonly coverageGapThroughSequence?: number } {
+	const coverageGapThroughSequence = getCoverageGapThroughSequence(prepared);
+	return coverageGapThroughSequence === undefined ? {} : { coverageGapThroughSequence };
+}
+
+function countCoverageGapAcknowledgements(acknowledgements: readonly (readonly [string, IStandaloneAcknowledgement])[]): number {
+	return acknowledgements.reduce((count, [, acknowledgement]) => count + acknowledgement.coverageGapAcknowledgements.length, 0);
+}
+
+function getSessionProvider(sessionUri: string): string {
+	const providerSessionUri = isAhpChatChannel(sessionUri) ? parseRequiredSessionUriFromChatUri(sessionUri) : sessionUri;
+	return AgentSession.provider(providerSessionUri) ?? 'unknown';
+}
+
+function getRemainingReconciliationTime(deadline: number, now: number): number {
+	const remaining = deadline - now;
+	if (remaining <= 0) {
+		throw new Error('Agent Host edit attribution reconciliation timed out');
+	}
+	return remaining;
 }
 
 function validateChanges(before: string, after: string, changes: readonly IOffsetEdit[]): boolean {

@@ -244,8 +244,8 @@ class TrackedDocumentInfo extends Disposable {
 			internalKeys = t.getAllKeys(true);
 			data = this.getTelemetryData(ranges);
 		}
-		const coverageGap = mode === 'longterm' && !isDirty && !preparedAgentFlush?.deferCoverageGap
-			? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri)
+		const coverageGap = mode === 'longterm' && !isDirty && !deferSuppressedExternal && !preparedAgentFlush?.deferCoverageGap
+			? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri, preparedAgentFlush?.coverageGapThroughSequence ?? preparedAgentFlush?.lastSequence)
 			: undefined;
 		const agentModifiedCount = preparedAgentFlush?.agentModifiedCount ?? 0;
 		if (internalKeys.length === 0 && agentModifiedCount === 0 && !coverageGap) {
@@ -310,6 +310,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const isTrackedByGit = await data.isTrackedByGit;
 		sendEditSourcesStatsTelemetry(this._telemetryService, {
+			attributionSchemaVersion: 2,
 			mode,
 			languageId: this._doc.document.languageId.get(),
 			statsUuid: statsUuid,
