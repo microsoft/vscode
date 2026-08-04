@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
 /**
@@ -702,6 +702,53 @@ suite('WorktreeIsolation', () => {
 			unchangedWhenNoMeta: 0,
 			firstPartKind: ResponsePartKind.Markdown,
 			firstPartHasBranch: true,
+		});
+	});
+
+	test('worktree failure notification bounds and escapes diagnostics', () => {
+		const diagnostic = `git-lfs \`filter\`\n${'x'.repeat(250)}`;
+		const notification = buildWorktreeFailureNotification(diagnostic);
+
+		assert.deepStrictEqual({
+			normalizedLength: normalizeWorktreeFailureDiagnostic(diagnostic)?.length,
+			kind: notification.kind,
+			content: notification.content,
+			meta: notification._meta,
+		}, {
+			normalizedLength: 200,
+			kind: ResponsePartKind.SystemNotification,
+			content: `Couldn't create the isolated worktree. This session is continuing in the original folder.\n\n\`\`git-lfs \`filter\` ${'x'.repeat(180)}...\`\``,
+			meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+		});
+	});
+
+	test('applyRestoreAnnouncement restores a worktree failure only for its originating session', async () => {
+		const isolation = createIsolation(disposables);
+		const turn: Turn = {
+			id: 't1',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		await isolation.persistCreationFailure(sessionUri, sessionId, 'git worktree exited with code 128');
+
+		const matching = await isolation.applyRestoreAnnouncement(sessionUri, [turn]);
+		const copied = await isolation.applyRestoreAnnouncement(URI.parse('agent-session://test/copied'), [turn]);
+		const empty = await isolation.applyRestoreAnnouncement(sessionUri, []);
+
+		assert.deepStrictEqual({
+			matching: matching[0].responseParts[0],
+			copiedPartCount: copied[0].responseParts.length,
+			emptyTurnCount: empty.length,
+		}, {
+			matching: {
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128`',
+				_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+			},
+			copiedPartCount: 0,
+			emptyTurnCount: 0,
 		});
 	});
 

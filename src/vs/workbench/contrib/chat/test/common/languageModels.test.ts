@@ -266,6 +266,13 @@ suite('LanguageModels', function () {
 				vendor: 'gemini',
 			},
 		};
+		const meaningfulParenthesesModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Amazon: Nova Micro 1.0 (Preview)',
+			},
+		};
 		const createService = (groupName?: string): ILanguageModelsService => ({
 			getVendors: () => [
 				{ vendor: 'openrouter', displayName: 'OpenRouter' },
@@ -284,13 +291,15 @@ suite('LanguageModels', function () {
 			grouped: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter 2')),
 			duplicateGroup: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter')),
 			gemini: getLanguageModelDisplayNameWithProvider(geminiModel, createService()),
+			meaningfulParentheses: getLanguageModelDisplayNameWithProvider(meaningfulParenthesesModel, createService()),
 			native: getLanguageModelDisplayNameWithProvider(nativeModel, createService('OpenRouter 2')),
 		}, {
-			direct: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
-			bridged: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
-			grouped: 'OpenRouter/OpenRouter 2/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
-			duplicateGroup: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
-			gemini: 'Gemini/Gemini 3.1 Pro Preview (models/gemini-3.1-pro-preview)',
+			direct: 'OpenRouter/Amazon: Nova Micro 1.0',
+			bridged: 'OpenRouter/Amazon: Nova Micro 1.0',
+			grouped: 'OpenRouter/OpenRouter 2/Amazon: Nova Micro 1.0',
+			duplicateGroup: 'OpenRouter/Amazon: Nova Micro 1.0',
+			gemini: 'Gemini/Gemini 3.1 Pro Preview',
+			meaningfulParentheses: 'OpenRouter/Amazon: Nova Micro 1.0 (Preview)',
 			native: 'Claude Sonnet 4.6',
 		});
 	});
