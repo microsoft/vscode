@@ -1497,6 +1497,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		this._sideEffects.clearQueuedMessageSenders(chat.toString());
+		this._sideEffects.cancelSubagentSessions(chat.toString());
+		this._sideEffects.clearToolCallTelemetry(chat.toString());
 		this._stateManager.removeChat(sessionKey, chat.toString());
 		// Drop the chat from the orchestrator-owned catalog so it isn't
 		// re-materialized on the next restore.
@@ -2043,6 +2045,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
+		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
+			this._sideEffects.clearToolCallTelemetry(chat.resource);
+		}
+		this._sideEffects.clearToolCallTelemetry(session.toString());
 		// Resolve the working directories up front and pass them explicitly:
 		// the checkpoint and review services need them to locate the
 		// repositories holding this session's refs, and reading them from

@@ -132,6 +132,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result });
 	}
 
+	function completeTurn(turnId: string): void {
+		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+	}
+
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
 		return telemetry.events
 			.filter(e => e.eventName === 'languageModelToolInvoked')
@@ -226,6 +230,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		});
 		toolComplete('turn-1', 'tc-1', { success: true, pastTenseMessage: 'ran' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -250,6 +255,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
 		toolComplete('turn-1', 'tc-mcp', { success: false, pastTenseMessage: 'denied', error: { message: 'denied', code: 'denied' } });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -281,6 +287,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		});
 		toolComplete('turn-1', 'tc-client', { success: true, pastTenseMessage: 'ran tests' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -337,6 +344,19 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.deepStrictEqual(toolEvents()[0].data.model, { trusted: true, value: 'gpt-5.5' });
 	});
 
+	test('waits for a resolved usage model received after tool completion', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'claude-sonnet', name: 'Claude Sonnet', supportsVision: false }]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-model', 'read_file');
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+		assert.strictEqual(toolEvents().length, 0);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'claude-sonnet' } });
+
+		assert.deepStrictEqual(toolEvents()[0].data.model, { trusted: true, value: 'claude-sonnet' });
+	});
+
 	test('includes result content in the serialized result size', () => {
 		setupSession();
 		startTurn('turn-1');
@@ -347,6 +367,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			pastTenseMessage: 'read files',
 			content: [{ type: ToolResultContentType.Text, text: 'alpha\nbeta' }],
 		});
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents()[0].data.resultSizeInCharacters, 97);
 	});
@@ -386,6 +407,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		await timeout(0);
 		toolComplete('turn-1', 'tc-mcp-ready', { success: true, pastTenseMessage: 'looked up metadata' });
 		toolComplete('turn-1', 'tc-late-client', { success: true, pastTenseMessage: 'ran tests' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents().map(event => event.data.toolSourceKind), ['mcp', 'agentHost']);
 	});
@@ -415,6 +437,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			sideEffects.handleAction(defaultChatUri, confirmed);
 			await timeout(25);
 			toolComplete('turn-1', 'tc-confirm-timing', { success: true, pastTenseMessage: 'wrote file' });
+			completeTurn('turn-1');
 		});
 
 		const event = telemetry.events.find(event => event.eventName === 'languageModelToolInvoked');
@@ -434,6 +457,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 		toolStart('turn-1', 'tc-err', 'bash');
 		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'boom' } });
+		completeTurn('turn-1');
 
 		assert.strictEqual(toolEvents()[0].data.result, 'error');
 	});
@@ -445,6 +469,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		toolStart('turn-1', 'tc-dup', 'bash');
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
+		completeTurn('turn-1');
 
 		assert.strictEqual(toolEvents().length, 1);
 	});

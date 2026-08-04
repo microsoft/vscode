@@ -1133,6 +1133,8 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
+			this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'success');
+			this._toolCallTracker.clearSession(subagent.chatUri);
 		}
 	}
 
@@ -1145,6 +1147,7 @@ export class AgentSideEffects extends Disposable {
 				this._cancelledTurnIds.delete(chatUri);
 			}
 		}
+
 		const parentChatURIs = new Set<ProtocolURI>();
 		for (const subagent of this._subagentChats.values()) {
 			if (subagent.sessionUri === parentSession) {
@@ -1157,6 +1160,10 @@ export class AgentSideEffects extends Disposable {
 			this._subagentChats.deleteAll(parentChatURI);
 			this._pendingSubagentSignals.deleteAll(parentChatURI);
 		}
+	}
+
+	clearToolCallTelemetry(channel: ProtocolURI): void {
+		this._toolCallTracker.clearSession(channel);
 	}
 
 	clearInputRequestsForSession(session: ProtocolURI): void {
