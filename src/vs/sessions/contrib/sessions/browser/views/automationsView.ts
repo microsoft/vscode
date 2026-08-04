@@ -742,7 +742,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 /**
  * Registers the Automations custom view with the custom view service.
  */
-class AutomationsCustomViewContribution extends Disposable {
+export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
 
