@@ -200,6 +200,7 @@ suite('Edit Source Tracking Windows', () => {
 			stats: context.stats.map(event => ({
 				statsUuid: event.statsUuid,
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 			commits,
@@ -211,7 +212,8 @@ suite('Edit Source Tracking Windows', () => {
 			}],
 			stats: [{
 				statsUuid: 'stats-2',
-				otherAIModifiedCount: 8,
+				otherAIModifiedCount: 5,
+				agentHostModifiedCount: 3,
 				totalModifiedCharacters: 8,
 			}],
 			commits: [8],
@@ -266,13 +268,15 @@ suite('Edit Source Tracking Windows', () => {
 			committedTotals,
 			stats: context.stats.map(event => ({
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				externalModifiedCount: event.externalModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 		}, {
 			committedTotals: [3],
 			stats: [{
-				otherAIModifiedCount: 3,
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 3,
 				externalModifiedCount: 0,
 				totalModifiedCharacters: 3,
 			}],
@@ -583,13 +587,15 @@ suite('Edit Source Tracking Windows', () => {
 			detailCount: context.details.length,
 			stats: context.stats.map(event => ({
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				externalModifiedCount: event.externalModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 		}, {
 			detailCount: 0,
 			stats: [{
-				otherAIModifiedCount: 3,
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 3,
 				externalModifiedCount: 0,
 				totalModifiedCharacters: 3,
 			}],
@@ -653,6 +659,7 @@ function setup(
 	const stats: Array<{
 		statsUuid: string;
 		otherAIModifiedCount: number;
+		agentHostModifiedCount: number;
 		externalModifiedCount: number;
 		totalModifiedCharacters: number;
 		agentHostAttributionCoverage?: 'complete' | 'partial';

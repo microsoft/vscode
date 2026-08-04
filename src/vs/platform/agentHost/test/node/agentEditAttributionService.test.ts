@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -19,6 +20,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest } from '../../common/fileEditAttribution.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentEditAttributionService } from '../../node/shared/agentEditAttributionService.js';
+import { IAgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { computeDiffCounts } from '../../node/diffWorkerMain.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 
@@ -84,6 +86,7 @@ suite('Agent Edit Attribution Service', () => {
 			} : marker,
 			events: events.map(event => ({
 				eventName: event.eventName,
+				statsUuidMatches: event.data.statsUuid === events[0]?.data.statsUuid,
 				sourceKey: event.data.sourceKey,
 				sourceKeyCleaned: event.data.sourceKeyCleaned,
 				conversationId: event.data.conversationId,
@@ -92,6 +95,11 @@ suite('Agent Edit Attribution Service', () => {
 				totalModifiedCount: event.data.totalModifiedCount,
 				origin: event.data.origin,
 				harness: event.data.harness,
+				trackingScope: event.data.trackingScope,
+				otherAIModifiedCount: event.data.otherAIModifiedCount,
+				agentHostModifiedCount: event.data.agentHostModifiedCount,
+				externalModifiedCount: event.data.externalModifiedCount,
+				totalModifiedCharacters: event.data.totalModifiedCharacters,
 			})),
 			acknowledged: acknowledged && {
 				agentModifiedCount: acknowledged.agentModifiedCount,
@@ -107,6 +115,7 @@ suite('Agent Edit Attribution Service', () => {
 			},
 			events: [{
 				eventName: 'editTelemetry.editSources.details',
+				statsUuidMatches: true,
 				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
 				sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 				conversationId: 'session-1',
@@ -115,12 +124,33 @@ suite('Agent Edit Attribution Service', () => {
 				totalModifiedCount: 2,
 				origin: 'agentHost',
 				harness: 'copilotcli',
+				trackingScope: undefined,
+				otherAIModifiedCount: undefined,
+				agentHostModifiedCount: undefined,
+				externalModifiedCount: undefined,
+				totalModifiedCharacters: undefined,
+			}, {
+				eventName: 'editTelemetry.editSources.stats',
+				statsUuidMatches: true,
+				sourceKey: undefined,
+				sourceKeyCleaned: undefined,
+				conversationId: undefined,
+				modifiedCount: undefined,
+				deltaModifiedCount: undefined,
+				totalModifiedCount: undefined,
+				origin: undefined,
+				harness: undefined,
+				trackingScope: 'agentHostStandalone',
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 2,
+				externalModifiedCount: 0,
+				totalModifiedCharacters: 2,
 			}],
 			acknowledged: {
-				agentModifiedCount: 2,
+				agentModifiedCount: 0,
 				outcome: {
 					outcome: 'committed',
-					agentModifiedCount: 2,
+					agentModifiedCount: 0,
 				},
 			},
 		});
@@ -141,8 +171,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				events.push(data as Record<string, string | number | undefined>);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					events.push(data as Record<string, string | number | undefined>);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -217,7 +249,7 @@ suite('Agent Edit Attribution Service', () => {
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('axb'));
 
-		const events: Record<string, string | number | undefined>[] = [];
+		const events: { eventName: string; data: Record<string, string | number | undefined> }[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, {
@@ -226,8 +258,8 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				events.push(data as Record<string, string | number | undefined>);
+			publicLog2(eventName, data) {
+				events.push({ eventName, data: data as Record<string, string | number | undefined> });
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
@@ -246,14 +278,190 @@ suite('Agent Edit Attribution Service', () => {
 		await service.flushSession('copilot:/session-1');
 
 		assert.deepStrictEqual(events.map(event => ({
-			modifiedCount: event.modifiedCount,
-			deltaModifiedCount: event.deltaModifiedCount,
-			totalModifiedCount: event.totalModifiedCount,
+			eventName: event.eventName,
+			statsUuidMatches: event.data.statsUuid === events[0]?.data.statsUuid,
+			modifiedCount: event.data.modifiedCount,
+			deltaModifiedCount: event.data.deltaModifiedCount,
+			totalModifiedCount: event.data.totalModifiedCount,
+			otherAIModifiedCount: event.data.otherAIModifiedCount,
+			agentHostModifiedCount: event.data.agentHostModifiedCount,
+			externalModifiedCount: event.data.externalModifiedCount,
+			totalModifiedCharacters: event.data.totalModifiedCharacters,
 		})), [{
+			eventName: 'editTelemetry.editSources.details',
+			statsUuidMatches: true,
 			modifiedCount: 1,
 			deltaModifiedCount: 1,
-			totalModifiedCount: 1,
+			totalModifiedCount: 2,
+			otherAIModifiedCount: undefined,
+			agentHostModifiedCount: undefined,
+			externalModifiedCount: undefined,
+			totalModifiedCharacters: undefined,
+		}, {
+			eventName: 'editTelemetry.editSources.stats',
+			statsUuidMatches: true,
+			modifiedCount: undefined,
+			deltaModifiedCount: undefined,
+			totalModifiedCount: undefined,
+			otherAIModifiedCount: 0,
+			agentHostModifiedCount: 1,
+			externalModifiedCount: 1,
+			totalModifiedCharacters: 2,
 		}]);
+	});
+
+	test('tracks external drift before a later tool edit and mirrors standalone stats to GitHub', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('axbc'));
+
+		let localStats: Record<string, string | number | undefined> | undefined;
+		let githubProperties: Record<string, string | undefined> | undefined;
+		let githubMeasurements: Record<string, number | undefined> | undefined;
+		const telemetryService: Partial<IAgentHostTelemetryService> = {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats' && data) {
+					localStats = data as Record<string, string | number | undefined>;
+				}
+			},
+			sendGHTelemetryEvent(eventName, properties, measurements) {
+				if (eventName === 'vscode.editTelemetry.editSources.stats') {
+					githubProperties = properties;
+					githubMeasurements = measurements;
+				}
+			},
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, telemetryService);
+		let now = 100;
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, () => now));
+
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'axb',
+			afterText: 'axbc',
+			changes: [{ startOffset: 3, endOffsetExclusive: 3, newText: 'c' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		now = 250;
+		await service.flushSession('copilot:/session-1');
+
+		assert.deepStrictEqual({
+			local: localStats && {
+				statsUuid: localStats.statsUuid,
+				trackingScope: localStats.trackingScope,
+				otherAIModifiedCount: localStats.otherAIModifiedCount,
+				agentHostModifiedCount: localStats.agentHostModifiedCount,
+				externalModifiedCount: localStats.externalModifiedCount,
+				totalModifiedCharacters: localStats.totalModifiedCharacters,
+				actualTime: localStats.actualTime,
+				languageId: localStats.languageId,
+				isTrackedByGit: localStats.isTrackedByGit,
+				focusTime: localStats.focusTime,
+			},
+			github: {
+				statsUuid: githubProperties?.statsUuid,
+				trackingScope: githubProperties?.trackingScope,
+				otherAIModifiedCount: githubMeasurements?.otherAIModifiedCount,
+				agentHostModifiedCount: githubMeasurements?.agentHostModifiedCount,
+				externalModifiedCount: githubMeasurements?.externalModifiedCount,
+				totalModifiedCharacters: githubMeasurements?.totalModifiedCharacters,
+				actualTime: githubMeasurements?.actualTime,
+			},
+		}, {
+			local: {
+				statsUuid: localStats?.statsUuid,
+				trackingScope: 'agentHostStandalone',
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 2,
+				externalModifiedCount: 1,
+				totalModifiedCharacters: 3,
+				actualTime: 150,
+				languageId: undefined,
+				isTrackedByGit: undefined,
+				focusTime: undefined,
+			},
+			github: {
+				statsUuid: localStats?.statsUuid,
+				trackingScope: 'agentHostStandalone',
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 2,
+				externalModifiedCount: 1,
+				totalModifiedCharacters: 3,
+				actualTime: 150,
+			},
+		});
+	});
+
+	test('attributes an external overwrite without retaining overwritten Agent characters', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('xyz'));
+
+		let stats: Record<string, number> | undefined;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					stats = data as Record<string, number>;
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		await service.flushSession('copilot:/session-1');
+
+		assert.deepStrictEqual(stats && {
+			otherAIModifiedCount: stats.otherAIModifiedCount,
+			agentHostModifiedCount: stats.agentHostModifiedCount,
+			externalModifiedCount: stats.externalModifiedCount,
+			totalModifiedCharacters: stats.totalModifiedCharacters,
+		}, {
+			otherAIModifiedCount: 0,
+			agentHostModifiedCount: 0,
+			externalModifiedCount: 3,
+			totalModifiedCharacters: 3,
+		});
 	});
 
 	test('tracks creates and removes retained attribution after deletion', async () => {
@@ -269,8 +477,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				events.push(data as Record<string, string | number | undefined>);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					events.push(data as Record<string, string | number | undefined>);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
@@ -316,6 +526,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
 		const triggers: string[] = [];
+		const statsTriggers: string[] = [];
 		let head = 'head-1';
 		let branch = 'main';
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -324,8 +535,12 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				triggers.push((data as { trigger: string }).trigger);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					triggers.push((data as { trigger: string }).trigger);
+				} else if (eventName === 'editTelemetry.editSources.stats') {
+					statsTriggers.push((data as { trigger: string }).trigger);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
@@ -362,7 +577,90 @@ suite('Agent Edit Attribution Service', () => {
 		branch = 'feature';
 		await service.checkGitState();
 
-		assert.deepStrictEqual(triggers, ['hashChange', 'branchChange']);
+		assert.deepStrictEqual({
+			details: triggers,
+			stats: statsTriggers,
+		}, {
+			details: ['hashChange', 'branchChange'],
+			stats: ['hashChange', 'branchChange'],
+		});
+	});
+
+	test('emits standalone stats after ten hours', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 2_000 }, async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
+
+		const triggers: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					triggers.push((data as { trigger: string }).trigger);
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		await timeout(10 * 60 * 60 * 1000);
+		await timeout(0);
+
+		assert.deepStrictEqual(triggers, ['10hours']);
+		service.dispose();
+	}));
+
+	test('emits standalone stats when the service is disposed', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
+
+		const triggers: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					triggers.push((data as { trigger: string }).trigger);
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		service.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual(triggers, ['closed']);
 	});
 
 	test('continues a Git-triggered flush after one resource fails', async () => {
@@ -391,8 +689,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
@@ -454,8 +754,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
@@ -531,8 +833,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				retainedCounts.push((data as { modifiedCount: number }).modifiedCount);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					retainedCounts.push((data as { modifiedCount: number }).modifiedCount);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
@@ -613,8 +917,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -658,8 +964,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => {
@@ -697,13 +1005,18 @@ suite('Agent Edit Attribution Service', () => {
 		const afterText = `${beforeText}b`;
 		await fileService.writeFile(resource, VSBuffer.fromString(afterText));
 
+		const statsEvents: Record<string, string | number | undefined>[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() { },
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					statsEvents.push(data as Record<string, string | number | undefined>);
+				}
+			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
 
@@ -720,14 +1033,36 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.flushSession('copilot:/session-1');
 
-		assert.deepStrictEqual(marker && {
-			status: marker.status,
-			reason: marker.status === 'skipped' ? marker.reason : undefined,
-			insertedCount: marker.status === 'skipped' ? marker.insertedCount : undefined,
+		assert.deepStrictEqual({
+			marker: marker && {
+				status: marker.status,
+				reason: marker.status === 'skipped' ? marker.reason : undefined,
+				insertedCount: marker.status === 'skipped' ? marker.insertedCount : undefined,
+			},
+			stats: statsEvents.map(event => ({
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
+				externalModifiedCount: event.externalModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+				agentHostAttributionCoverage: event.agentHostAttributionCoverage,
+				agentHostUntrackedEditCount: event.agentHostUntrackedEditCount,
+				agentHostUntrackedInsertedCount: event.agentHostUntrackedInsertedCount,
+			})),
 		}, {
-			status: 'skipped',
-			reason: 'fileTooLarge',
-			insertedCount: 1,
+			marker: {
+				status: 'skipped',
+				reason: 'fileTooLarge',
+				insertedCount: 1,
+			},
+			stats: [{
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 0,
+				externalModifiedCount: 0,
+				totalModifiedCharacters: 0,
+				agentHostAttributionCoverage: 'partial',
+				agentHostUntrackedEditCount: 1,
+				agentHostUntrackedInsertedCount: 1,
+			}],
 		});
 	});
 
@@ -745,14 +1080,19 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString(afterText));
 
 		let eventCount = 0;
+		let statsCount = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				} else if (eventName === 'editTelemetry.editSources.stats') {
+					statsCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -772,9 +1112,11 @@ suite('Agent Edit Attribution Service', () => {
 		assert.deepStrictEqual({
 			status: marker?.status,
 			eventCount,
+			statsCount,
 		}, {
 			status: undefined,
 			eventCount: 1,
+			statsCount: 1,
 		});
 	});
 
@@ -836,6 +1178,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 
 		const events: Record<string, string | number | undefined>[] = [];
+		const statsEvents: Record<string, string | number | undefined>[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, {
@@ -844,8 +1187,12 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				events.push(data as Record<string, string | number | undefined>);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					events.push(data as Record<string, string | number | undefined>);
+				} else if (eventName === 'editTelemetry.editSources.stats') {
+					statsEvents.push(data as Record<string, string | number | undefined>);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -875,9 +1222,28 @@ suite('Agent Edit Attribution Service', () => {
 		await service.flushSession('copilot:/session-a');
 		const afterFirstFlush = events.map(event => event.conversationId);
 		await service.flushSession('copilot:/session-b');
+		const acknowledged = await service.prepareFlush({
+			resource,
+			trigger: 'closed',
+			statsUuid: 'stats-1',
+			isDirty: false,
+			flushToken: 'flush-1',
+			languageId: 'typescript',
+		});
+		await service.commitFlush({ flushToken: acknowledged!.flushToken, totalModifiedCount: 0 });
 
 		assert.deepStrictEqual({
 			afterFirstFlush,
+			acknowledged: acknowledged && {
+				agentModifiedCount: acknowledged.agentModifiedCount,
+				lastSequence: acknowledged.lastSequence,
+			},
+			stats: statsEvents.map(event => ({
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
+				externalModifiedCount: event.externalModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+			})),
 			allEvents: events.map(event => ({
 				conversationId: event.conversationId,
 				modifiedCount: event.modifiedCount,
@@ -885,6 +1251,14 @@ suite('Agent Edit Attribution Service', () => {
 			})),
 		}, {
 			afterFirstFlush: ['session-a'],
+			acknowledged: {
+				agentModifiedCount: 0,
+				lastSequence: 2,
+			},
+			stats: [
+				{ otherAIModifiedCount: 0, agentHostModifiedCount: 1, externalModifiedCount: 0, totalModifiedCharacters: 1 },
+				{ otherAIModifiedCount: 0, agentHostModifiedCount: 1, externalModifiedCount: 0, totalModifiedCharacters: 1 },
+			],
 			allEvents: [
 				{ conversationId: 'session-a', modifiedCount: 1, deltaModifiedCount: 1 },
 				{ conversationId: 'session-b', modifiedCount: 1, deltaModifiedCount: 1 },
@@ -905,8 +1279,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2(_eventName, data) {
-				events.push(data as Record<string, string | number | undefined>);
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					events.push(data as Record<string, string | number | undefined>);
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -966,8 +1342,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -1003,7 +1381,7 @@ suite('Agent Edit Attribution Service', () => {
 			eventCount,
 		}, {
 			prepared: {
-				agentModifiedCount: 1,
+				agentModifiedCount: 0,
 				lastSequence: 1,
 			},
 			eventCount: 1,
@@ -1073,8 +1451,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -1130,8 +1510,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -1174,7 +1556,7 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
-	test('reserves standalone ownership for one prepared flush', async () => {
+	test('reserves a standalone acknowledgement for one prepared flush', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		const resource = URI.file('/workspace/file.ts');
@@ -1234,9 +1616,9 @@ suite('Agent Edit Attribution Service', () => {
 			duplicate,
 			restored: restored?.agentModifiedCount,
 		}, {
-			first: 1,
+			first: 0,
 			duplicate: undefined,
-			restored: 1,
+			restored: 0,
 		});
 	});
 
@@ -1253,8 +1635,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
@@ -1307,8 +1691,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		let now = 0;
@@ -1357,8 +1743,10 @@ suite('Agent Edit Attribution Service', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, {
 			telemetryLevel: TelemetryLevel.USAGE,
-			publicLog2() {
-				eventCount++;
+			publicLog2(eventName) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					eventCount++;
+				}
 			},
 		});
 		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));

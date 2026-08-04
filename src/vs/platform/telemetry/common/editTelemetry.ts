@@ -51,3 +51,59 @@ type EditSourcesDetailsTelemetryClassification = {
 export function sendEditSourcesDetailsTelemetry(telemetryService: ITelemetryService, data: IEditSourcesDetailsTelemetryData): void {
 	telemetryService.publicLog2<IEditSourcesDetailsTelemetryData, EditSourcesDetailsTelemetryClassification>('editTelemetry.editSources.details', data);
 }
+
+export interface IEditSourcesStatsTelemetryData {
+	mode: EditTelemetryMode;
+	languageId?: string;
+	statsUuid: string;
+	nesModifiedCount: number;
+	inlineCompletionsCopilotModifiedCount: number;
+	inlineCompletionsNESModifiedCount: number;
+	otherAIModifiedCount: number;
+	agentHostModifiedCount: number;
+	unknownModifiedCount: number;
+	userModifiedCount: number;
+	ideModifiedCount: number;
+	totalModifiedCharacters: number;
+	externalModifiedCount: number;
+	isTrackedByGit?: number;
+	focusTime?: number;
+	actualTime?: number;
+	trigger: EditTelemetryTrigger;
+	trackingScope?: 'agentHostStandalone';
+	agentHostAttributionCoverage?: 'complete' | 'partial';
+	agentHostUntrackedEditCount?: number;
+	agentHostUntrackedInsertedCount?: number;
+}
+
+type EditSourcesStatsTelemetryClassification = {
+	owner: 'hediet';
+	comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
+
+	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 10minFocusWindow, or 20minFocusWindow' };
+	languageId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
+
+	nesModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of nes modified characters'; isMeasurement: true };
+	inlineCompletionsCopilotModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of inline completions copilot modified characters'; isMeasurement: true };
+	inlineCompletionsNESModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of inline completions nes modified characters'; isMeasurement: true };
+	otherAIModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of other AI modified characters, excluding Agent Host edits'; isMeasurement: true };
+	agentHostModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of retained characters attributed to Agent Host edits.'; isMeasurement: true };
+	unknownModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of unknown modified characters'; isMeasurement: true };
+	userModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of user modified characters'; isMeasurement: true };
+	ideModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of IDE modified characters'; isMeasurement: true };
+	totalModifiedCharacters: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total modified characters'; isMeasurement: true };
+	externalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Fraction of external modified characters'; isMeasurement: true };
+	isTrackedByGit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates if the document is tracked by git.' };
+	focusTime?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The focus time in ms during the session.'; isMeasurement: true };
+	actualTime?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The actual time in ms during the session.'; isMeasurement: true };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
+	trackingScope?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies stats emitted for files tracked only by the Agent Host.' };
+	agentHostAttributionCoverage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether long-term Agent Host edit attribution was complete or skipped at least one oversized edit.' };
+	agentHostUntrackedEditCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of oversized Agent Host edits excluded from detailed attribution in this long-term window.'; isMeasurement: true };
+	agentHostUntrackedInsertedCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Characters inserted by oversized Agent Host edits excluded from retained-character attribution in this long-term window.'; isMeasurement: true };
+};
+
+export function sendEditSourcesStatsTelemetry(telemetryService: ITelemetryService, data: IEditSourcesStatsTelemetryData): void {
+	telemetryService.publicLog2<IEditSourcesStatsTelemetryData, EditSourcesStatsTelemetryClassification>('editTelemetry.editSources.stats', data);
+}
