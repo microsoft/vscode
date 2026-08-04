@@ -29,6 +29,7 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
+import { shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('ChatListRenderer', () => {
@@ -210,6 +211,18 @@ suite('ChatListRenderer', () => {
 				], [
 					false,
 					true,
+				]);
+			});
+
+			test('renders the created-session result only after the response completes', () => {
+				assert.deepStrictEqual([
+					shouldRenderSessionCreatedResult('sessionCreated', false),
+					shouldRenderSessionCreatedResult('sessionCreated', true),
+					shouldRenderSessionCreatedResult('terminal', true),
+				], [
+					false,
+					true,
+					false,
 				]);
 			});
 		});
