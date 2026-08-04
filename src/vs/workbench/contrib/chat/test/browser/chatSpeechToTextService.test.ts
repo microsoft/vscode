@@ -12,10 +12,10 @@ suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+	test('resolves the dictation language from Voice Mode configuration and VS Code display language', () => {
 		assert.deepStrictEqual({
-			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
-			automatic: resolveDictationLanguage('auto', 'uk-UA'),
+			explicitOverridesDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE'),
+			automaticUsesDisplayLanguage: resolveDictationLanguage('auto', 'de-DE'),
 			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
 			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
 			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
@@ -25,8 +25,8 @@ suite('ChatSpeechToTextService', () => {
 			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
 			missing: resolveDictationLanguage(undefined, undefined),
 		}, {
-			explicit: 'fr-FR',
-			automatic: 'uk-UA',
+			explicitOverridesDisplayLanguage: 'fr-FR',
+			automaticUsesDisplayLanguage: 'de-DE',
 			regionalAutomatic: 'pt-BR',
 			additionalSupportedAutomatic: 'he-IL',
 			unsupportedRegion: 'en-US',

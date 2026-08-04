@@ -9,6 +9,7 @@ import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { Language } from '../../../../../base/common/platform.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -925,7 +926,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const model = this._getModelId();
 		const language = resolveDictationLanguage(
 			this._configurationService.getValue('agents.voice.language'),
-			window.navigator.language,
+			Language.value(),
 		);
 		await local.start({ cacheDir, model, language });
 

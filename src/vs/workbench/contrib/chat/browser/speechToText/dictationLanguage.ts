@@ -52,12 +52,12 @@ const NEMOTRON_DEFAULT_LOCALE_BY_LANGUAGE: Readonly<Record<string, string>> = {
 
 /**
  * Resolve the on-device dictation language using the same setting semantics as
- * Voice Mode. Automatic follows the browser locale when Nemotron supports it,
- * then falls back to the model's language detection.
+ * Voice Mode. Automatic follows the VS Code display language when Nemotron
+ * supports it, then falls back to the model's language detection.
  */
-export function resolveDictationLanguage(configuredLanguage: unknown, browserLanguage: string | undefined): string {
+export function resolveDictationLanguage(configuredLanguage: unknown, displayLanguage: string | undefined): string {
 	const configured = typeof configuredLanguage === 'string' ? configuredLanguage.trim() : '';
-	const candidate = configured && configured.toLowerCase() !== 'auto' ? configured : browserLanguage;
+	const candidate = configured && configured.toLowerCase() !== 'auto' ? configured : displayLanguage;
 	if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
 		return 'auto';
 	}
