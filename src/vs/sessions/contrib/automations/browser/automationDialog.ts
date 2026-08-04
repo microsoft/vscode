@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -820,12 +821,71 @@ export function renderForm(
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 
+	let dialogAutomationSession: ISession | undefined;
+	let dialogAutomationSessionTarget: { readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string } | undefined;
+	let automationSessionSyncGeneration = 0;
+	let automationSessionSyncScheduled = false;
+	const syncAutomationSession = async () => {
+		const generation = ++automationSessionSyncGeneration;
+		const folderUri = isolationModel.folderUriObs.get();
+		const pick = sessionTypePicker.selectedPick;
+		if (!folderUri || !pick || isolationModel.isQuickChatObs.get()) {
+			sessionsManagementService.discardAutomationSession(dialogAutomationSession);
+			dialogAutomationSession = undefined;
+			dialogAutomationSessionTarget = undefined;
+			return;
+		}
+		if (dialogAutomationSession
+			&& dialogAutomationSessionTarget
+			&& sessionsManagementService.automationSession.get()?.sessionId === dialogAutomationSession.sessionId
+			&& isEqual(dialogAutomationSessionTarget.folderUri, folderUri)
+			&& dialogAutomationSessionTarget.providerId === pick.providerId
+			&& dialogAutomationSessionTarget.sessionTypeId === pick.sessionTypeId) {
+			return;
+		}
+		if (!await canSelectAutomationWorkspace(folderUri, pick.providerId, sessionsManagementService, workspaceTrustRequestService)) {
+			return;
+		}
+		if (disposables.isDisposed || generation !== automationSessionSyncGeneration) {
+			return;
+		}
+		try {
+			dialogAutomationSession = sessionsManagementService.createAutomationSession(folderUri, {
+				providerId: pick.providerId,
+				sessionTypeId: pick.sessionTypeId,
+			});
+			dialogAutomationSessionTarget = { folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
+		} catch (error) {
+			logService.error('[AutomationDialog] Failed to synchronize the automation session draft.', error);
+		}
+	};
+	const scheduleAutomationSessionSync = () => {
+		if (automationSessionSyncScheduled) {
+			return;
+		}
+		automationSessionSyncScheduled = true;
+		queueMicrotask(() => {
+			automationSessionSyncScheduled = false;
+			if (!disposables.isDisposed) {
+				void syncAutomationSession();
+			}
+		});
+	};
+	disposables.add({
+		dispose: () => {
+			automationSessionSyncGeneration++;
+			sessionsManagementService.discardAutomationSession(dialogAutomationSession);
+		},
+	});
+	disposables.add(sessionTypePicker.onDidChangeSelectedPick(scheduleAutomationSessionSync));
+
 	if (state.folderUri) {
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });
 	}
 
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
 		if (isolationModel.setWorkspace(uri)) {
+			scheduleAutomationSessionSync();
 			revalidate();
 		}
 	}));
@@ -836,6 +896,7 @@ export function renderForm(
 
 	disposables.add(autorun(reader => {
 		isolationModel.isQuickChatObs.read(reader);
+		scheduleAutomationSessionSync();
 		revalidate();
 	}));
 
@@ -945,39 +1006,6 @@ export function renderForm(
 	}));
 	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
 	newChatInput.render(newChatInputHost, promptHost);
-
-	let dialogAutomationSession: ISession | undefined;
-	const initializeAutomationSession = async () => {
-		const folderUri = isolationModel.folderUriObs.get();
-		const pick = sessionTypePicker.selectedPick;
-		if (!folderUri || !pick || isolationModel.isQuickChatObs.get()) {
-			return;
-		}
-		if (!await canSelectAutomationWorkspace(folderUri, pick.providerId, sessionsManagementService, workspaceTrustRequestService)) {
-			return;
-		}
-		const currentFolderUri = isolationModel.folderUriObs.get();
-		const currentPick = sessionTypePicker.selectedPick;
-		if (disposables.isDisposed
-			|| currentFolderUri?.toString() !== folderUri.toString()
-			|| currentPick?.providerId !== pick.providerId
-			|| currentPick.sessionTypeId !== pick.sessionTypeId
-			|| isolationModel.isQuickChatObs.get()) {
-			return;
-		}
-		try {
-			dialogAutomationSession = sessionsManagementService.createAutomationSession(folderUri, {
-				providerId: pick.providerId,
-				sessionTypeId: pick.sessionTypeId,
-			});
-		} catch (error) {
-			logService.error('[AutomationDialog] Failed to initialize the automation session draft.', error);
-		}
-	};
-	void initializeAutomationSession();
-	disposables.add({
-		dispose: () => sessionsManagementService.discardAutomationSession(dialogAutomationSession),
-	});
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
