@@ -70,6 +70,22 @@
 	border-bottom-right-radius: 0;
 }
 
+.style-override .part.statusbar > .left-items > .statusbar-item.has-background-color + .statusbar-item.has-background-color {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.style-override .part.statusbar > .right-items > .statusbar-item.has-background-color + .statusbar-item.has-background-color {
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.style-override .part.statusbar > .left-items > .statusbar-item.has-background-color.compact-right + .statusbar-item.has-background-color.compact-left {
+	margin-left: 0;
+}
+
+.style-override .part.statusbar > .right-items > .statusbar-item.has-background-color.compact-left + .statusbar-item.has-background-color.compact-right {
+	margin-right: 0;
+}
+
 /*
  * Compact combo controls — a left/right pair that merges into one pill — give
  * the whole combo a single hover tint (painted inline on every sub-item's label
