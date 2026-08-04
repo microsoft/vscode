@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, realpathSync } from 'fs';
+import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
-
-const PROVIDER_RELEASE_SETTLE_MS = 2_500;
 
 export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity') {
@@ -36,18 +33,20 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}, 30_000);
 	}
 
-	test('session metadata history and provider context survive release and reconnect', async function () {
+	function isSameFileSystemEntry(first: string, second: string): boolean {
+		const firstStat = fs.statSync(first);
+		const secondStat = fs.statSync(second);
+		return firstStat.dev === secondStat.dev && firstStat.ino === secondStat.ino;
+	}
+
+	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = mkdtempSync(`${tmpdir()}/ahp-persistence-`);
+		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1);
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-memory', 'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".', 10);
 
-		const chatUri = buildDefaultChatUri(sessionUri);
-		context.client.notify('unsubscribe', { channel: chatUri });
-		context.client.notify('unsubscribe', { channel: sessionUri });
-		await timeout(PROVIDER_RELEASE_SETTLE_MS);
 		await restartAndInitialize(`persistence-reconnect-${config.provider}`, workspace);
 
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
@@ -59,15 +58,16 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			'Reply with only the exact code word I asked you to remember.',
 			20,
 		);
+		const reopenedWorkingDirectory = reopened.workingDirectories?.[0] ? URI.parse(reopened.workingDirectories[0]).fsPath : undefined;
 
 		assert.deepStrictEqual({
 			title: reopened.title,
-			workingDirectory: reopened.workingDirectories?.[0] ? realpathSync(URI.parse(reopened.workingDirectories[0]).fsPath) : undefined,
+			workingDirectoryMatches: reopenedWorkingDirectory ? isSameFileSystemEntry(reopenedWorkingDirectory, workspace) : false,
 			messages: reopened.turns.map(turn => turn.message.text),
 			followupRemembersCodeWord: /VIOLET_REHYDRATE/i.test(followup.responseText),
 		}, {
 			title: 'Persisted Session',
-			workingDirectory: realpathSync(workspace),
+			workingDirectoryMatches: true,
 			messages: [
 				'/rename Persisted Session',
 				'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".',
@@ -76,9 +76,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		});
 	});
 
-	(config.supportsMultipleChats ? test : test.skip)('peer chat catalog and transcript survive release and reconnect', async function () {
+	(config.supportsMultipleChats ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
+		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `peer-persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-peer-persistence-seed', 'Reply exactly "READY".', 1);
@@ -103,10 +103,6 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
-		context.client.notify('unsubscribe', { channel: peerUri });
-		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
-		context.client.notify('unsubscribe', { channel: sessionUri });
-		await timeout(PROVIDER_RELEASE_SETTLE_MS);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });

@@ -9,8 +9,6 @@ exchanges:
           content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
     response:
       content:
-        - type: text
-          text: Applying the requested comment now, then I’ll return the exact confirmation text.
         - type: tool_use
           id: toolcall_0
           name: addComment
@@ -29,8 +27,6 @@ exchanges:
       messages:
         - role: user
           content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
-        - role: assistant
-          content: Applying the requested comment now, then I’ll return the exact confirmation text.
         - role: assistant
           content:
             - type: tool_use

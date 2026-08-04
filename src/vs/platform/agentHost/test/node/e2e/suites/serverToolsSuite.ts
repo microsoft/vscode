@@ -254,9 +254,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 
 	serverToolTest('server tool: sessions advertise the complete host-owned tool catalog', async function () {
 		const session = await createSession('catalog');
+		const toolsChanged = context.client.waitForNotification(n =>
+			isActionNotification(n, 'session/serverToolsChanged')
+			&& getActionEnvelope(n).channel === session.sessionUri,
+			30_000,
+		);
 		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-catalog', 'Reply exactly "ready".', reserveClientSequenceBlock());
-		const state = await sessionState(session.sessionUri);
-		assert.deepStrictEqual(state.serverTools?.map(tool => tool.name), [...feedbackToolNames, ...sessionToolNames]);
+		const tools = (getActionEnvelope(await toolsChanged).action as { readonly tools: readonly { readonly name: string }[] }).tools;
+		assert.deepStrictEqual(tools.map(tool => tool.name), [...feedbackToolNames, ...sessionToolNames]);
 	});
 
 	serverToolTest('server tool: listComments executes in-process with an empty annotation channel', async function () {
@@ -270,7 +275,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.deepStrictEqual(JSON.parse(tool.resultText), { comments: [] });
 	});
 
-	serverToolTest('server tool: addComment persists a one-based file range on the annotations channel', async function () {
+	serverToolTest('server tool: addComment converts a one-based input range to the zero-based annotations range', async function () {
 		const session = await createSession('comment-add');
 		await driveServerTool(
 			session,
@@ -712,10 +717,6 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			`Call delete_session exactly once with session "${target.sessionUri}", then reply exactly "deleted".`,
 			SessionServerToolName.DeleteSession,
 		);
-		const trackedIndex = createdSessions.indexOf(target.sessionUri);
-		if (trackedIndex >= 0) {
-			createdSessions.splice(trackedIndex, 1);
-		}
 		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.deepStrictEqual({
 			sawPendingConfirmation: turn.sawPendingConfirmation,
@@ -724,6 +725,10 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: true,
 			stillListed: false,
 		});
+		const trackedIndex = createdSessions.indexOf(target.sessionUri);
+		if (trackedIndex >= 0) {
+			createdSessions.splice(trackedIndex, 1);
+		}
 	}, supportsReplayableSessionReferences);
 
 	serverToolTest('server tool: send_message refuses to target the invoking chat', async function () {
