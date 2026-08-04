@@ -24,7 +24,7 @@
 const path = require('path');
 const fs = require('fs');
 const {
-	ROOT, DATA_DIR, METRIC_DEFS, loadConfig,
+	ROOT, DATA_DIR, METRIC_DEFS, REGRESSION_METRIC_NAMES, loadConfig,
 	resolveBuild, isVersionString, buildEnv, buildArgs, prepareRunDir,
 	robustStats, welchTTest, summarize, markDuration, launchVSCode,
 	getNextExtHostInspectPort, connectToExtHostInspector, getRepoRoot,
@@ -772,47 +772,7 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 		// -- Heap snapshots (opt-in, parallelized) ---------------------------
 		let snapshotPath = '';
 		if (takeHeapSnapshots) {
-			const snapshotPromises = [];
-
-			// Renderer snapshot
-			snapshotPromises.push((async () => {
-				const p = path.join(runDiagDir, 'heap.heapsnapshot');
-				await cdp.send('HeapProfiler.enable');
-				const chunks = /** @type {string[]} */ ([]);
-				cdp.on('HeapProfiler.addHeapSnapshotChunk', (/** @type {any} */ params) => {
-					chunks.push(params.chunk);
-				});
-				await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
-				fs.writeFileSync(p, chunks.join(''));
-				return p;
-			})());
-
-			// Extension host snapshot (parallel with renderer)
-			if (extHostInspector && extHostHeapBefore) {
-				snapshotPromises.push((async () => {
-					const p = path.join(runDiagDir, 'exthost-heap.heapsnapshot');
-					const chunks = /** @type {string[]} */ ([]);
-					extHostInspector.on('HeapProfiler.addHeapSnapshotChunk', (/** @type {any} */ params) => {
-						chunks.push(params.chunk);
-					});
-					await extHostInspector.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
-					fs.writeFileSync(p, chunks.join(''));
-					return p;
-				})());
-			}
-
-			const snapshotResults = await Promise.all(snapshotPromises);
-			snapshotPath = snapshotResults[0];
-			if (snapshotResults.length > 1) {
-				extHostSnapshotPath = snapshotResults[1];
-			}
-
-			if (verbose) {
-				console.log(`  [debug] Renderer snapshot saved to ${snapshotPath}`);
-				if (extHostSnapshotPath) {
-					console.log(`  [ext-host] Snapshot saved to ${extHostSnapshotPath}`);
-				}
-			}
+			({ snapshotPath, extHostSnapshotPath } = await captureHeapSnapshots(cdp, extHostInspector, runDiagDir, verbose));
 		}
 
 		// Close ext host inspector now that snapshots (if any) are done
@@ -1004,6 +964,47 @@ function getBuildRunInfo(electronPath, verbose) {
 }
 
 /**
+ * @param {{ send: (method: string, params?: any) => Promise<any>, on: (event: string, listener: (params: any) => void) => void }} cdp
+ * @param {{ send: (method: string, params?: any) => Promise<any>, on: (event: string, listener: (params: any) => void) => void } | null} extHostInspector
+ * @param {string} runDiagDir
+ * @param {boolean} verbose
+ */
+async function captureHeapSnapshots(cdp, extHostInspector, runDiagDir, verbose) {
+	const rendererSnapshotPath = path.join(runDiagDir, 'heap.heapsnapshot');
+	const rendererSnapshot = (async () => {
+		await cdp.send('HeapProfiler.enable');
+		const chunks = /** @type {string[]} */ ([]);
+		cdp.on('HeapProfiler.addHeapSnapshotChunk', (/** @type {any} */ params) => {
+			chunks.push(params.chunk);
+		});
+		await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
+		fs.writeFileSync(rendererSnapshotPath, chunks.join(''));
+		return rendererSnapshotPath;
+	})();
+
+	const extHostSnapshot = extHostInspector ? (async () => {
+		const extHostSnapshotPath = path.join(runDiagDir, 'exthost-heap.heapsnapshot');
+		await extHostInspector.send('HeapProfiler.enable');
+		const chunks = /** @type {string[]} */ ([]);
+		extHostInspector.on('HeapProfiler.addHeapSnapshotChunk', (/** @type {any} */ params) => {
+			chunks.push(params.chunk);
+		});
+		await extHostInspector.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
+		fs.writeFileSync(extHostSnapshotPath, chunks.join(''));
+		return extHostSnapshotPath;
+	})() : Promise.resolve('');
+
+	const [snapshotPath, extHostSnapshotPath] = await Promise.all([rendererSnapshot, extHostSnapshot]);
+	if (verbose) {
+		console.log(`  [debug] Renderer snapshot saved to ${snapshotPath}`);
+		if (extHostSnapshotPath) {
+			console.log(`  [ext-host] Snapshot saved to ${extHostSnapshotPath}`);
+		}
+	}
+	return { snapshotPath, extHostSnapshotPath };
+}
+
+/**
  * @param {string} electronPath
  * @param {{ url: string }} mockServer
  * @param {boolean} verbose
@@ -1015,6 +1016,7 @@ function getBuildRunInfo(electronPath, verbose) {
  * @returns {Promise<RunMetrics>}
  */
 async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts) {
+	const takeHeapSnapshots = runOpts?.heapSnapshots ?? false;
 	const corpus = process.env.AGENTS_PERF_SMALL_CORPUS === '1'
 		? createAgentsWindowPerfCorpus({ sessionCount: 4, primaryTurnCount: 20, secondaryTurnCount: 3, peerChatCount: 1, subagentToolCount: 16 })
 		: createAgentsWindowPerfCorpus();
@@ -1031,15 +1033,17 @@ async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose,
 	fs.mkdirSync(runDiagDir, { recursive: true });
 	const tracePath = path.join(runDiagDir, 'trace.json');
 	const profilePath = path.join(runDiagDir, 'profile.cpuprofile');
-	const snapshotPath = '';
+	let snapshotPath = '';
 	const extHostProfilePath = '';
-	const extHostSnapshotPath = '';
+	let extHostSnapshotPath = '';
+	const extHostInspectPort = takeHeapSnapshots ? getNextExtHostInspectPort() : undefined;
 	const vscode = await launchVSCode(
 		electronPath,
 		buildArgs(userDataDir, extDir, logsDir, {
 			isDevBuild,
 			traceFile: tracePath,
 			appRoot,
+			extHostInspectPort,
 			gcObjectStats: runOpts?.gcObjectStats,
 			agentsWindow: true,
 		}),
@@ -1059,6 +1063,8 @@ async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose,
 	const startMark = `code/agentsPerf/${markId}/start`;
 	const endMark = `code/agentsPerf/${markId}/end`;
 	let partialMetrics;
+	/** @type {{ send: (method: string, params?: any) => Promise<any>, on: (event: string, listener: (params: any) => void) => void, close: () => void } | null} */
+	let extHostInspector = null;
 
 	try {
 		await window.waitForSelector('.agent-sessions-workbench', { timeout: 60_000 });
@@ -1150,6 +1156,14 @@ async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose,
 		if (pageErrors.length > 0) {
 			fs.writeFileSync(path.join(runDiagDir, 'page-errors.json'), JSON.stringify([...new Set(pageErrors)], null, 2));
 		}
+		if (extHostInspectPort !== undefined) {
+			try {
+				extHostInspector = await connectToExtHostInspector(extHostInspectPort, { verbose, timeoutMs: 15_000 });
+			} catch (error) {
+				console.warn(`  [ext-host] Could not capture heap snapshot: ${error}`);
+			}
+			({ snapshotPath, extHostSnapshotPath } = await captureHeapSnapshots(cdp, extHostInspector, runDiagDir, verbose));
+		}
 
 		const getMetric = (result, name) => result.metrics?.find(metric => metric.name === name)?.value ?? 0;
 		const durationDeltaMs = (name) => Math.round((getMetric(metricsAfter, name) - getMetric(metricsBefore, name)) * 100_000) / 100;
@@ -1202,6 +1216,7 @@ async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose,
 		throw error;
 	} finally {
 		window.off('pageerror', pageErrorListener);
+		extHostInspector?.close();
 		activeVSCode = null;
 		await vscode.close();
 	}
@@ -1231,6 +1246,7 @@ const CONCURRENT_REQUIRED_METRICS = [
  * @returns {Promise<RunMetrics>}
  */
 async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts) {
+	const takeHeapSnapshots = runOpts?.heapSnapshots ?? false;
 	const corpus = createAgentsWindowConcurrentPerfCorpus();
 	const agentsSettings = {
 		'sessions.chat.localAgent.enabled': true,
@@ -1246,12 +1262,14 @@ async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, v
 	fs.mkdirSync(runDiagDir, { recursive: true });
 	const tracePath = path.join(runDiagDir, 'trace.json');
 	const profilePath = path.join(runDiagDir, 'profile.cpuprofile');
+	const extHostInspectPort = takeHeapSnapshots ? getNextExtHostInspectPort() : undefined;
 	const vscode = await launchVSCode(
 		electronPath,
 		buildArgs(userDataDir, extDir, logsDir, {
 			isDevBuild,
 			traceFile: tracePath,
 			appRoot,
+			extHostInspectPort,
 			gcObjectStats: runOpts?.gcObjectStats,
 			agentsWindow: true,
 		}),
@@ -1264,6 +1282,8 @@ async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, v
 	const pageErrorListener = error => pageErrors.push(normalizePageErrorMessage(error));
 	window.on('pageerror', pageErrorListener);
 	let partialMetrics;
+	/** @type {{ send: (method: string, params?: any) => Promise<any>, on: (event: string, listener: (params: any) => void) => void, close: () => void } | null} */
+	let extHostInspector = null;
 
 	try {
 		await window.waitForSelector('.agent-sessions-workbench', { timeout: 60_000 });
@@ -1341,6 +1361,16 @@ async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, v
 		if (errorMessages.length > 0) {
 			fs.writeFileSync(path.join(runDiagDir, 'page-errors.json'), JSON.stringify(errorMessages, null, 2));
 		}
+		let snapshotPath = '';
+		let extHostSnapshotPath = '';
+		if (extHostInspectPort !== undefined) {
+			try {
+				extHostInspector = await connectToExtHostInspector(extHostInspectPort, { verbose, timeoutMs: 15_000 });
+			} catch (error) {
+				console.warn(`  [ext-host] Could not capture heap snapshot: ${error}`);
+			}
+			({ snapshotPath, extHostSnapshotPath } = await captureHeapSnapshots(cdp, extHostInspector, runDiagDir, verbose));
+		}
 
 		partialMetrics = {
 			...emptyInteractionMetrics(),
@@ -1369,15 +1399,16 @@ async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, v
 			heapDelta: Math.round((heapAfter.usedSize - heapBefore.usedSize) / 1024 / 1024),
 			profilePath,
 			tracePath,
-			snapshotPath: '',
+			snapshotPath,
 			extHostProfilePath: '',
-			extHostSnapshotPath: '',
+			extHostSnapshotPath,
 		};
 	} catch (error) {
 		await window.screenshot({ path: path.join(runDiagDir, 'concurrent-error.png') }).catch(() => undefined);
 		throw error;
 	} finally {
 		window.off('pageerror', pageErrorListener);
+		extHostInspector?.close();
 		activeVSCode = null;
 		await vscode.close();
 	}
@@ -1714,8 +1745,6 @@ function generateCISummary(jsonReport, baseline, opts) {
 		['extHostHeapDelta', 'extHost', 'MB'],
 		['extHostHeapDeltaPostGC', 'extHost', 'MB'],
 	];
-	const regressionMetricNames = new Set(['timeToFirstToken', 'timeToComplete', 'scrollReturnDurationMs', 'rendererTaskDurationMs', 'layoutDurationMs', 'longTaskCount']);
-
 	const lines = [];
 	const scenarios = Object.keys(jsonReport.scenarios);
 	const scenariosWithoutBaseline = scenarios.filter(scenario => !baseline?.scenarios?.[scenario]);
@@ -1739,7 +1768,7 @@ function generateCISummary(jsonReport, baseline, opts) {
 				if (!cur || !bas || bas.median === null || bas.median === undefined) { continue; }
 
 				const change = bas.median !== 0 ? (cur.median - bas.median) / bas.median : 0;
-				const isRegressionMetric = regressionMetricNames.has(metric);
+				const isRegressionMetric = REGRESSION_METRIC_NAMES.has(metric);
 
 				const curRaw = (current.rawRuns || []).map((/** @type {any} */ r) => r[metric]).filter((/** @type {any} */ v) => v >= 0);
 				const basRaw = (base.rawRuns || []).map((/** @type {any} */ r) => r[metric]).filter((/** @type {any} */ v) => v >= 0);
@@ -1778,13 +1807,18 @@ function generateCISummary(jsonReport, baseline, opts) {
 	// -- Header with verdict up front ----------------------------------------
 	const hasRegressions = totalRegressions > 0;
 	const verdictIcon = hasRegressions ? '\u274C' : scenariosWithoutBaseline.length > 0 ? '\u26A0\uFE0F' : '\u2705';
-	const verdictText = hasRegressions
-		? `${totalRegressions} regression(s) detected`
-		: scenariosWithoutBaseline.length > 0
-			? `${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`
-		: totalImprovements > 0
-			? `No regressions \u2014 ${totalImprovements} improvement(s)`
-			: 'No significant changes';
+	const verdictParts = [];
+	if (hasRegressions) {
+		verdictParts.push(`${totalRegressions} regression(s) detected`);
+	} else if (totalImprovements > 0) {
+		verdictParts.push(`No regressions \u2014 ${totalImprovements} improvement(s)`);
+	} else if (scenariosWithoutBaseline.length < scenarios.length) {
+		verdictParts.push('No significant changes');
+	}
+	if (scenariosWithoutBaseline.length > 0) {
+		verdictParts.push(`${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`);
+	}
+	const verdictText = verdictParts.join('; ');
 
 	lines.push(`# ${verdictIcon} Chat Performance: ${verdictText}`);
 	lines.push('');
@@ -1853,12 +1887,12 @@ function generateCISummary(jsonReport, baseline, opts) {
 			return '\u2705 OK';
 		};
 
-		const keyVerdicts = [ttft, complete, layouts, styles, loaf].filter(Boolean);
+		const gatedVerdicts = verdicts.filter(verdict => REGRESSION_METRIC_NAMES.has(verdict.metric));
 		const rowVerdict = !baseline?.scenarios?.[scenario]
 			? '\u26A0\uFE0F No baseline'
-			: keyVerdicts.length === 0
+			: gatedVerdicts.length === 0
 				? '\u2139\uFE0F Informational'
-				: fmtVerdict(/** @type {any[]} */(keyVerdicts));
+				: fmtVerdict(gatedVerdicts);
 
 		lines.push(`| ${scenario} | ${getScenarioDescription(scenario)} | ${fmtCell(ttft)} | ${fmtCell(complete)} | ${fmtCell(layouts)} | ${fmtCell(styles)} | ${fmtCell(loaf)} | ${rowVerdict} |`);
 	}
@@ -1985,14 +2019,14 @@ function installSignalHandlers() {
  * Remove large diagnostic files (heap snapshots, CPU profiles, traces) from
  * a run's metrics to free disk space.  Keeps the JSON results data intact.
  * @param {RunMetrics} metrics
+ * @param {{ preserveHeapSnapshots?: boolean }} [options]
  */
-function cleanupRunDiagnostics(metrics) {
+function cleanupRunDiagnostics(metrics, options) {
 	const filesToDelete = [
 		metrics.profilePath,
 		metrics.tracePath,
-		metrics.snapshotPath,
 		metrics.extHostProfilePath,
-		metrics.extHostSnapshotPath,
+		...(options?.preserveHeapSnapshots ? [] : [metrics.snapshotPath, metrics.extHostSnapshotPath]),
 	];
 	for (const filePath of filesToDelete) {
 		if (filePath && fs.existsSync(filePath)) {
@@ -2010,14 +2044,15 @@ function cleanupRunDiagnostics(metrics) {
  * Keeps diagnostics for regressed scenarios so they can be investigated.
  * @param {Record<string, RunMetrics[]>} allResults - test results by scenario
  * @param {Set<string>} regressedScenarios - scenarios that regressed
+ * @param {{ preserveHeapSnapshots?: boolean }} [options]
  */
-function cleanupNonRegressedDiagnostics(allResults, regressedScenarios) {
+function cleanupNonRegressedDiagnostics(allResults, regressedScenarios, options) {
 	for (const [scenario, runs] of Object.entries(allResults)) {
 		if (regressedScenarios.has(scenario)) {
 			continue;
 		}
 		for (const metrics of runs) {
-			cleanupRunDiagnostics(metrics);
+			cleanupRunDiagnostics(metrics, options);
 		}
 	}
 }
@@ -2486,7 +2521,7 @@ async function main() {
 
 	// Clean up diagnostics for scenarios that did not regress
 	if (opts.cleanupDiagnostics) {
-		cleanupNonRegressedDiagnostics(allResults, regressedScenarios);
+		cleanupNonRegressedDiagnostics(allResults, regressedScenarios, { preserveHeapSnapshots: opts.heapSnapshots });
 	}
 
 	if (anyFailed) { process.exit(1); }
@@ -2517,15 +2552,7 @@ async function printComparison(jsonReport, opts) {
 		console.log('');
 
 		// Metrics that trigger regression failure when they exceed the threshold
-		const regressionMetrics = [
-			// [metric, group, unit]
-			['timeToFirstToken', 'timing', 'ms'],
-			['timeToComplete', 'timing', 'ms'],
-			['scrollReturnDurationMs', 'interaction', 'ms'],
-			['rendererTaskDurationMs', 'interaction', 'ms'],
-			['layoutDurationMs', 'rendering', 'ms'],
-			['longTaskCount', 'rendering', ''],
-		];
+		const regressionMetrics = METRIC_DEFS.filter(([metric]) => REGRESSION_METRIC_NAMES.has(metric));
 		// Informational metrics — shown in comparison but don't trigger failure.
 		// layoutCount / recalcStyleCount are informational on purpose: they are
 		// inflated by CSS animations (compositor-driven, cheap) and don't reflect

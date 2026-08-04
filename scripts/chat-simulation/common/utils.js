@@ -925,10 +925,20 @@ const METRIC_DEFS = [
 	['extHostHeapDeltaPostGC', 'extHost', 'MB'],
 ];
 
+const REGRESSION_METRIC_NAMES = new Set([
+	'timeToFirstToken',
+	'timeToComplete',
+	'scrollReturnDurationMs',
+	'rendererTaskDurationMs',
+	'layoutDurationMs',
+	'longTaskCount',
+]);
+
 module.exports = {
 	ROOT,
 	DATA_DIR,
 	METRIC_DEFS,
+	REGRESSION_METRIC_NAMES,
 	loadConfig,
 	getElectronPath,
 	getRepoRoot,

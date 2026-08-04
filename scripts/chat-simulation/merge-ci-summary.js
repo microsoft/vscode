@@ -23,7 +23,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { welchTTest, loadConfig } = require('./common/utils');
+const { REGRESSION_METRIC_NAMES, welchTTest, loadConfig } = require('./common/utils');
 
 // -- CLI args ----------------------------------------------------------------
 
@@ -344,11 +344,6 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 	// animations, compositor-driven, cheap) and do NOT gate — real layout cost is
 	// gated via layoutDurationMs below / timeToComplete. longAnimationFrameCount
 	// is likewise informational only (noisy, compositor-driven). See SKILL.md.
-	const regressionMetricNames = new Set([
-		'timeToFirstToken', 'timeToComplete', 'scrollReturnDurationMs', 'rendererTaskDurationMs', 'layoutDurationMs',
-		'longTaskCount',
-	]);
-
 	const lines = [];
 	const scenarios = Object.keys(jsonReport.scenarios);
 	const scenariosWithoutBaseline = scenarios.filter(scenario => !baseline?.scenarios?.[scenario]);
@@ -372,7 +367,7 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 				if (!cur || !bas || bas.median === null || bas.median === undefined) { continue; }
 
 				const change = bas.median !== 0 ? (cur.median - bas.median) / bas.median : 0;
-				const isRegressionMetric = regressionMetricNames.has(metric);
+				const isRegressionMetric = REGRESSION_METRIC_NAMES.has(metric);
 
 				const curRaw = (current.rawRuns || []).map((/** @type {any} */ r) => r[metric]).filter((/** @type {any} */ v) => v >= 0);
 				const basRaw = (base.rawRuns || []).map((/** @type {any} */ r) => r[metric]).filter((/** @type {any} */ v) => v >= 0);
@@ -420,10 +415,11 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 		verdictParts.push(`${totalRegressions} regression(s) detected`);
 	} else if (totalImprovements > 0) {
 		verdictParts.push(`No regressions \u2014 ${totalImprovements} improvement(s)`);
-	} else if (scenariosWithoutBaseline.length > 0) {
-		verdictParts.push(`${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`);
-	} else {
+	} else if (scenariosWithoutBaseline.length < scenarios.length) {
 		verdictParts.push('No significant changes');
+	}
+	if (scenariosWithoutBaseline.length > 0) {
+		verdictParts.push(`${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`);
 	}
 	if (hasLeakFailure) {
 		verdictParts.push('memory leak detected');
@@ -480,12 +476,12 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 			return `${v.change > 0 ? '+' : ''}${(v.change * 100).toFixed(0)}%`;
 		};
 
-		const keyVerdicts = [ttft, complete, layouts, styles, loaf].filter(Boolean);
-		const hasRegression = keyVerdicts.some(v => v?.verdict === 'REGRESSION');
-		const hasImproved = keyVerdicts.some(v => v?.verdict === 'improved');
+		const gatedVerdicts = verdicts.filter(verdict => REGRESSION_METRIC_NAMES.has(verdict.metric));
+		const hasRegression = gatedVerdicts.some(verdict => verdict.verdict === 'REGRESSION');
+		const hasImproved = gatedVerdicts.some(verdict => verdict.verdict === 'improved');
 		const rowVerdict = !baseline?.scenarios?.[scenario]
 			? '\u26A0\uFE0F no baseline'
-			: keyVerdicts.length === 0
+			: gatedVerdicts.length === 0
 				? '\u2139\uFE0F informational'
 				: hasRegression ? '\u274C' : hasImproved ? '\u2B06\uFE0F' : '\u2705';
 
