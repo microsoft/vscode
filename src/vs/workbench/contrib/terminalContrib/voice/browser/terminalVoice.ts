@@ -218,8 +218,8 @@ export class TerminalVoiceSession extends Disposable {
 		// surface clears its own state and UI when it observes the engine go Idle.
 		// This runs before we attach our own listeners below, so it cannot tear
 		// down this new terminal session.
-		if (service.state !== ChatSpeechToTextState.Idle) {
-			service.cancel();
+		if (service.isBusy) {
+			await service.cancel();
 		}
 		// If the engine somehow stayed busy, bail rather than subscribing to it.
 		if (service.state !== ChatSpeechToTextState.Idle) {
@@ -334,7 +334,7 @@ export class TerminalVoiceSession extends Disposable {
 		// Abort the on-device engine on teardown. On the accept path the engine
 		// has already finished via stopAndTranscribe(), so this is a no-op there.
 		if (this._usingBuiltin) {
-			this._chatSpeechToTextService.cancel();
+			void this._chatSpeechToTextService.cancel();
 		}
 		this._disposables.clear();
 		this._input = '';

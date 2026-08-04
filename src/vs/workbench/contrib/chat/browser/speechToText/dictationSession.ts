@@ -317,8 +317,8 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// terminal — cancel it so this surface can take over. The previous surface
 	// clears its own state and UI when it observes the engine go Idle, keeping
 	// whatever transcript it had already inserted.
-	if (_active || service.state !== ChatSpeechToTextState.Idle) {
-		service.cancel();
+	if (_active || service.isBusy) {
+		await service.cancel();
 	}
 	// If the engine did not return to Idle (an unexpected busy state), do not
 	// attach this surface's listeners to it.
@@ -467,7 +467,7 @@ export function cancelDictation(): void {
 	// the input exactly as it was before dictation started.
 	active.inserter.revert();
 	active.disposables.dispose();
-	active.service.cancel();
+	void active.service.cancel();
 }
 
 /**

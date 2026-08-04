@@ -155,14 +155,11 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 		}
 		const controller = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
+		const commandService = accessor.get(ICommandService);
 
 		// Enforce mutual exclusion: if built-in dictation is recording, cancel it
 		// before starting voice capture so the two never record simultaneously.
 		const speechToText = accessor.get(IChatSpeechToTextService);
-		if (speechToText.state !== ChatSpeechToTextState.Idle) {
-			speechToText.cancel();
-		}
-
 		// Capture the key-hold FIRST (synchronously) — it must be requested before any await.
 		const holdMode = keybindingService.enableKeybindingHoldMode(ChatVoiceInputModeToggleListenAction.ID);
 
@@ -174,7 +171,10 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
+			if (speechToText.isBusy) {
+				await speechToText.cancel();
+			}
+			await retargetVoiceToCurrentSession(commandService, controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);

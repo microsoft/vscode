@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -25,9 +26,10 @@ suite('DictationSession', () => {
 	 * the test drive interim updates through the returned emitter. `setTranscript`
 	 * updates what a subsequent `stopAndTranscribe` resolves with.
 	 */
-	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void } {
+	function createService(transcript: string, showTranscriptWhileDictating: boolean, cancelBarrier?: Promise<void>): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void; starts: ChatDictationSurface[] } {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
+		const starts: ChatDictationSurface[] = [];
 		let state = ChatSpeechToTextState.Idle;
 		let currentSurface: ChatDictationSurface = 'chat';
 		let finalTranscript = transcript;
@@ -39,6 +41,7 @@ suite('DictationSession', () => {
 			onDidChangeDownloadingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
+			get isBusy() { return state !== ChatSpeechToTextState.Idle; },
 			get currentSurface() { return currentSurface; },
 			get showTranscriptWhileDictating() { return showTranscriptWhileDictating; },
 			get analyserNode() { return undefined; },
@@ -50,6 +53,7 @@ suite('DictationSession', () => {
 			async switchMicrophone() { return undefined; },
 			async start(_window, surface = 'chat') {
 				currentSurface = surface;
+				starts.push(surface);
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
 			},
@@ -58,13 +62,14 @@ suite('DictationSession', () => {
 				onDidChangeState.fire(state);
 				return finalTranscript;
 			},
-			cancel() {
+			async cancel() {
 				state = ChatSpeechToTextState.Idle;
 				onDidChangeState.fire(state);
+				await cancelBarrier;
 			},
 			logDictationAccuracy() { },
 		};
-		return { service, onDidUpdateTranscript, setTranscript: text => { finalTranscript = text; } };
+		return { service, onDidUpdateTranscript, setTranscript: text => { finalTranscript = text; }, starts };
 	}
 
 	/** Ranges rendered as still being processed, as `[startLine,startColumn -> endLine,endColumn]`. */
@@ -198,5 +203,24 @@ suite('DictationSession', () => {
 			[whileDictating, isDictationActiveOnSurface(service, 'editor')],
 			[[false, true, false], false],
 		);
+	});
+
+	test('waits for cancellation to settle before starting a replacement', async () => {
+		const cancelBarrier = new DeferredPromise<void>();
+		const { service, starts } = createService('', true, cancelBarrier.p);
+		const firstModel = store.add(createTextModel(''));
+		const firstEditor = store.add(createTestCodeEditor(firstModel));
+		const secondModel = store.add(createTextModel(''));
+		const secondEditor = store.add(createTestCodeEditor(secondModel));
+
+		await startDictation(service, firstEditor, mainWindow, new NullLogService(), 'chat');
+		const replacement = startDictation(service, secondEditor, mainWindow, new NullLogService(), 'terminal');
+		assert.deepStrictEqual(starts, ['chat']);
+
+		cancelBarrier.complete();
+		await replacement;
+		await stopDictation();
+
+		assert.deepStrictEqual(starts, ['chat', 'terminal']);
 	});
 });
