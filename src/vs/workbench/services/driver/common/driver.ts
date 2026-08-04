@@ -45,5 +45,6 @@ export interface IWindowDriver {
 	getLocalizedStrings(): Promise<ILocalizedStrings>;
 	getLogs(): Promise<ILogFile[]>;
 	whenWorkbenchRestored(): Promise<void>;
+	executeCommand(commandId: string): Promise<void>;
 }
 //*END

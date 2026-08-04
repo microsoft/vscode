@@ -232,6 +232,51 @@ function getMetricThreshold(opts, metric) {
 /** @param {number} v */
 function round2(v) { return Math.round(v * 100) / 100; }
 
+function appendRawRunTable(lines, scenario, runs) {
+	const columns = scenario === 'agents-restored-history'
+		? [
+			['Interaction (ms)', 'interactionDurationMs'],
+			['Scroll Return (ms)', 'scrollReturnDurationMs'],
+			['Renderer CPU (ms)', 'rendererTaskDurationMs'],
+			['Style (ms)', 'recalcStyleDurationMs'],
+			['Layout (ms)', 'layoutDurationMs'],
+			['Long Tasks', 'longTaskCount'],
+		]
+		: scenario === 'agents-concurrent-sessions'
+			? [
+				['Burst Wall (ms)', 'concurrentBurstDurationMs'],
+				['Burst CPU (ms)', 'burstThreadTimeMs'],
+				['Burst Style (ms)', 'burstRecalcStyleDurationMs'],
+				['Burst Layout (ms)', 'burstLayoutDurationMs'],
+				['Tail CPU (ms)', 'tailThreadTimeMs'],
+				['Tail Style (ms)', 'tailRecalcStyleDurationMs'],
+				['Tail Layout (ms)', 'tailLayoutDurationMs'],
+				['RO Errors', 'resizeObserverLoopCount'],
+				['Page Errors', 'pageErrorCount'],
+				['Toolbars', 'responsiveToolbarCount'],
+			]
+			: [
+				['TTFT (ms)', 'timeToFirstToken'],
+				['Complete (ms)', 'timeToComplete'],
+				['Layouts', 'layoutCount'],
+				['Style Recalcs', 'recalcStyleCount'],
+				['LoAF Count', 'longAnimationFrameCount'],
+				['LoAF (ms)', 'longAnimationFrameTotalMs'],
+				['Frames', 'frameCount'],
+				['Heap Delta (MB)', 'heapDelta'],
+			];
+	lines.push(`| Run | ${columns.map(([label]) => label).join(' | ')} |`);
+	lines.push(`|----:|${columns.map(() => '----:').join('|')}|`);
+	for (let index = 0; index < runs.length; index++) {
+		const run = runs[index];
+		const values = columns.map(([, metric]) => {
+			const value = run[metric];
+			return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(round2(value)) : '-';
+		});
+		lines.push(`| ${index + 1} | ${values.join(' | ')} |`);
+	}
+}
+
 /**
  * Generate a unified Markdown summary for all scenarios.
  *
@@ -252,8 +297,35 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 	const allMetrics = [
 		['timeToFirstToken', 'timing', 'ms'],
 		['timeToComplete', 'timing', 'ms'],
+		['interactionDurationMs', 'interaction', 'ms'],
+		['scrollReturnDurationMs', 'interaction', 'ms'],
+		['rendererTaskDurationMs', 'interaction', 'ms'],
+		['rendererScriptDurationMs', 'interaction', 'ms'],
+		['longTaskTotalMs', 'interaction', 'ms'],
+		['longTaskMaxMs', 'interaction', 'ms'],
+		['concurrentBurstDurationMs', 'concurrent', 'ms'],
+		['burstThreadTimeMs', 'concurrent', 'ms'],
+		['burstTaskDurationMs', 'concurrent', 'ms'],
+		['burstScriptDurationMs', 'concurrent', 'ms'],
+		['burstRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['burstLayoutDurationMs', 'concurrent', 'ms'],
+		['burstRecalcStyleCount', 'concurrent', ''],
+		['burstLayoutCount', 'concurrent', ''],
+		['settleThreadTimeMs', 'concurrent', 'ms'],
+		['settleRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['settleLayoutDurationMs', 'concurrent', 'ms'],
+		['tailThreadTimeMs', 'concurrent', 'ms'],
+		['tailRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['tailLayoutDurationMs', 'concurrent', 'ms'],
+		['tailRecalcStyleCount', 'concurrent', ''],
+		['tailLayoutCount', 'concurrent', ''],
+		['tailLongTaskCount', 'concurrent', ''],
+		['resizeObserverLoopCount', 'concurrent', ''],
+		['pageErrorCount', 'concurrent', ''],
+		['responsiveToolbarCount', 'concurrent', ''],
 		['layoutCount', 'rendering', ''],
 		['layoutDurationMs', 'rendering', 'ms'],
+		['recalcStyleDurationMs', 'rendering', 'ms'],
 		['recalcStyleCount', 'rendering', ''],
 		['forcedReflowCount', 'rendering', ''],
 		['longTaskCount', 'rendering', ''],
@@ -273,12 +345,13 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 	// gated via layoutDurationMs below / timeToComplete. longAnimationFrameCount
 	// is likewise informational only (noisy, compositor-driven). See SKILL.md.
 	const regressionMetricNames = new Set([
-		'timeToFirstToken', 'timeToComplete', 'layoutDurationMs',
-		'forcedReflowCount', 'longTaskCount',
+		'timeToFirstToken', 'timeToComplete', 'scrollReturnDurationMs', 'rendererTaskDurationMs', 'layoutDurationMs',
+		'longTaskCount',
 	]);
 
 	const lines = [];
 	const scenarios = Object.keys(jsonReport.scenarios);
+	const scenariosWithoutBaseline = scenarios.filter(scenario => !baseline?.scenarios?.[scenario]);
 
 	// -- Collect verdicts ------------------------------------------------
 	/** @type {Map<string, { metric: string, verdict: string, change: number, pValue: string, basStr: string, curStr: string }[]>} */
@@ -339,7 +412,7 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 	const hasRegressions = totalRegressions > 0;
 	const hasLeakFailure = !!opts.hasLeakFailure;
 	const hasFailed = hasRegressions || hasLeakFailure;
-	const verdictIcon = hasFailed ? '\u274C' : '\u2705';
+	const verdictIcon = hasFailed ? '\u274C' : scenariosWithoutBaseline.length > 0 ? '\u26A0\uFE0F' : '\u2705';
 	const verdictParts = [];
 	if (hasRegressions && totalImprovements > 0) {
 		verdictParts.push(`${totalRegressions} regression(s), ${totalImprovements} improvement(s)`);
@@ -347,6 +420,8 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 		verdictParts.push(`${totalRegressions} regression(s) detected`);
 	} else if (totalImprovements > 0) {
 		verdictParts.push(`No regressions \u2014 ${totalImprovements} improvement(s)`);
+	} else if (scenariosWithoutBaseline.length > 0) {
+		verdictParts.push(`${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`);
 	} else {
 		verdictParts.push('No significant changes');
 	}
@@ -408,7 +483,11 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 		const keyVerdicts = [ttft, complete, layouts, styles, loaf].filter(Boolean);
 		const hasRegression = keyVerdicts.some(v => v?.verdict === 'REGRESSION');
 		const hasImproved = keyVerdicts.some(v => v?.verdict === 'improved');
-		const rowVerdict = hasRegression ? '\u274C' : hasImproved ? '\u2B06\uFE0F' : '\u2705';
+		const rowVerdict = !baseline?.scenarios?.[scenario]
+			? '\u26A0\uFE0F no baseline'
+			: keyVerdicts.length === 0
+				? '\u2139\uFE0F informational'
+				: hasRegression ? '\u274C' : hasImproved ? '\u2B06\uFE0F' : '\u2705';
 
 		lines.push(`| ${scenario} | ${fmtCell(ttft)} | ${fmtCell(complete)} | ${fmtCell(layouts)} | ${fmtCell(styles)} | ${fmtCell(loaf)} | ${rowVerdict} |`);
 	}
@@ -489,13 +568,7 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 		const current = jsonReport.scenarios[scenario];
 		lines.push(`### ${scenario}`);
 		lines.push('');
-		lines.push('| Run | TTFT (ms) | Complete (ms) | Layouts | Style Recalcs | LoAF Count | LoAF (ms) | Frames | Heap Delta (MB) |');
-		lines.push('|----:|----------:|--------------:|--------:|--------------:|-----------:|----------:|-------:|----------------:|');
-		const runs = current.rawRuns || [];
-		for (let i = 0; i < runs.length; i++) {
-			const r = runs[i];
-			lines.push(`| ${i + 1} | ${round2(r.timeToFirstToken)} | ${r.timeToComplete} | ${r.layoutCount} | ${r.recalcStyleCount} | ${r.longAnimationFrameCount ?? '-'} | ${round2(r.longAnimationFrameTotalMs ?? 0) || '-'} | ${r.frameCount ?? '-'} | ${r.heapDelta} |`);
-		}
+		appendRawRunTable(lines, scenario, current.rawRuns || []);
 		lines.push('');
 	}
 	if (baseline) {
@@ -504,13 +577,7 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 			if (!base) { continue; }
 			lines.push(`### ${scenario} (baseline)`);
 			lines.push('');
-			lines.push('| Run | TTFT (ms) | Complete (ms) | Layouts | Style Recalcs | LoAF Count | LoAF (ms) | Frames | Heap Delta (MB) |');
-			lines.push('|----:|----------:|--------------:|--------:|--------------:|-----------:|----------:|-------:|----------------:|');
-			const runs = base.rawRuns || [];
-			for (let i = 0; i < runs.length; i++) {
-				const r = runs[i];
-				lines.push(`| ${i + 1} | ${round2(r.timeToFirstToken)} | ${r.timeToComplete} | ${r.layoutCount} | ${r.recalcStyleCount} | ${r.longAnimationFrameCount ?? '-'} | ${round2(r.longAnimationFrameTotalMs ?? 0) || '-'} | ${r.frameCount ?? '-'} | ${r.heapDelta} |`);
-			}
+			appendRawRunTable(lines, scenario, base.rawRuns || []);
 			lines.push('');
 		}
 	}

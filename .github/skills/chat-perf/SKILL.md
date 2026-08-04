@@ -60,8 +60,8 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--production-build` | — | Build a local bundled package via `gulp vscode` for comparison against a release baseline. |
 | `--no-cache` | — | Ignore cached baseline data, always run fresh. |
 | `--force` | — | Skip build mode mismatch confirmation prompt. |
-| `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache`, `--heap-snapshots`, `--cleanup-diagnostics`). |
-| `--heap-snapshots` | — | Take heap snapshots after each run (slow; auto-enabled in `--ci` mode). |
+| `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache` and `--cleanup-diagnostics`). |
+| `--heap-snapshots` | — | Take heap snapshots after each run. This is intentionally opt-in because snapshots are slow and distort routine benchmark cost. |
 | `--gc-object-stats` | — | **GC deep-dives only.** Enables V8 `gc_stats` tracing (per-type heap object dump on every GC). ⚠️ Corrupts all timing metrics — a major GC landing mid-request adds ~550ms — so never use it for benchmarking. Off by default; prefer heap snapshots for memory analysis. |
 | `--cleanup-diagnostics` | — | Delete heap snapshots, CPU profiles, and traces to save disk. During runs, only the latest run's files are kept; after comparison, files for non-regressed scenarios are deleted. Auto-enabled in `--ci` mode. |
 | `--setting <k=v>` | — | Set a VS Code setting override for all builds (repeatable). |
@@ -170,11 +170,14 @@ Confidence levels reported: `high` (p < 0.01), `medium` (p < 0.05), `low` (p < 0
 
 ### Scenarios
 
-Scenarios are defined in `scripts/chat-simulation/common/perf-scenarios.js` and registered via `registerPerfScenarios()`. There are three categories:
+Scenarios are defined in `scripts/chat-simulation/common/perf-scenarios.js` and registered via `registerPerfScenarios()`. There are four categories:
 
 - **Content-only** — plain streaming responses (e.g. `text-only`, `large-codeblock`, `rapid-stream`)
 - **Tool-call** — multi-turn scenarios with tool invocations (e.g. `tool-read-file`, `tool-edit-file`)
 - **Multi-turn user** — multi-turn conversations with user follow-ups, thinking blocks (e.g. `thinking-response`, `multi-turn-user`, `long-conversation`)
+- **Agents-window interaction** — deterministic restored and live multi-session workloads:
+  - `agents-restored-history`: large restored transcript, active subagent tool history, session switching, transcript recycling, and sessions-list scrolling.
+  - `agents-concurrent-sessions`: three visible running sessions with concurrent subagent/tool progress, followed by settle and quiescent-tail measurements for responsive-toolbar and ResizeObserver regressions.
 
 Run `npm run perf:chat -- --help` to see the full list of registered scenario IDs.
 
@@ -235,7 +238,7 @@ Launches one VS Code session, sends N messages sequentially, forces GC between e
 
 ## CI runs & pinpointing regressions
 
-The perf + leak checks run in CI via the **`.github/workflows/chat-perf.yml`** workflow (a scheduled daily `workflow_dispatch`, plus manual dispatch). Each run benchmarks the current `main` as the **test** build against a fixed release **baseline** (from `config.jsonc`, e.g. `1.122.0`). Because the baseline is fixed, the **test** median for a metric across successive daily runs traces `main`'s trajectory over time — that's what lets you bisect *when* something regressed or went flaky.
+The perf + leak checks run in CI via the **`.github/workflows/chat-perf.yml`** workflow. The checked-in workflow exposes `workflow_dispatch`; VS Code's external engineering automation dispatches it daily, and it can also be dispatched manually. Each run benchmarks the current `main` as the **test** build against a fixed release **baseline** (from `config.jsonc`, e.g. `1.127.0`). Because the baseline is fixed, the **test** median for a metric across successive daily runs traces `main`'s trajectory over time — that's what lets you bisect *when* something regressed or went flaky.
 
 ### Finding and reading historic runs
 
@@ -259,9 +262,9 @@ gh workflow run chat-perf.yml -R microsoft/vscode --ref main \
 | Artifact | Contents | Retention |
 |---|---|---|
 | `chat-perf-summary` | Unified `ci-summary.md`: verdicts, per-metric medians ±stddev, **per-run raw tables** | 30 days |
-| `perf-results-<group>` | Everything below **plus traces, CPU profiles, heap snapshots** (large) | 30 days |
+| `perf-results-<group>` | Everything below plus retained traces/CPU profiles for regressed scenarios; heap snapshots only when explicitly requested | 30 days |
 | `leak-results` | Leak log + `chat-simulation-leak-results.json` | 30 days |
-| `perf-summary-<group>` | `results.json` (full per-run metrics incl. `rawRuns`) + `baseline-*.json` | **1 day** |
+| `perf-summary-<group>` | `results.json` (full per-run metrics incl. `rawRuns`) + `baseline-*.json` | 30 days |
 
 ```bash
 # List a run's artifacts + whether they've expired
@@ -279,7 +282,7 @@ gh run download <run-id> -R microsoft/vscode -n chat-perf-summary
 3. **Deep-dive the cause.** Download `perf-results-<group>` (has the `trace.json` per run) for a slow run and inspect what dominates the slow window. Trick that found the `gc_stats` artifact: sum main-thread `RunTask` durations between two `code/chat/*` marks (e.g. `willCollectInstructions` → `didCollectInstructions`) — if the window is ~0% busy, it's an async wait or a GC pause, not real work; then look at the largest `X`-phase events in that window (`MajorGC`, `Layout`, etc.).
 4. **Reproduce a suspect commit locally** to bisect precisely: `npm run perf:chat -- --build <sha> --baseline-build <ver> --runs 7` (or two commits directly via `--build <shaA> --baseline-build <shaB>`).
 
-> Tip: `perf-summary-*` (the machine-readable `results.json` with `rawRuns`) is deleted after **1 day**, so for older runs rely on `chat-perf-summary` (raw tables, 30 days) or extract `results.json` from `perf-results-*` (also 30 days).
+> Tip: `perf-summary-*` contains the machine-readable `results.json` with `rawRuns`; use `chat-perf-summary` for a compact human-readable overview.
 
 ## Architecture
 

@@ -31,6 +31,11 @@ on:
         required: false
         type: boolean
         default: false
+      heap_snapshots:
+        description: "Capture renderer and extension-host heap snapshots for diagnostic runs"
+        required: false
+        type: boolean
+        default: false
       test_settings:
         description: 'JSON object of VS Code settings for the test build (e.g. {"chat.experimental.smoothStreaming.enabled": true})'
         required: false
@@ -55,6 +60,7 @@ env:
   PERF_RUNS: ${{ inputs.runs || '' }}
   PERF_THRESHOLD: ${{ inputs.threshold || '' }}
   SCENARIOS_INPUT: ${{ inputs.scenarios || '' }}
+  HEAP_SNAPSHOTS_INPUT: ${{ inputs.heap_snapshots || false }}
   TEST_SETTINGS_INPUT: ${{ inputs.test_settings || '' }}
   BASELINE_SETTINGS_INPUT: ${{ inputs.baseline_settings || '' }}
   # Skip binary downloads during `npm ci` (they hang intermittently on hosted
@@ -144,6 +150,9 @@ jobs:
             fi
             echo "npm ci attempt $i failed or timed out, retrying..."
           done
+
+      - name: Test chat performance corpus
+        run: node --test scripts/chat-simulation/common/agents-window-perf-corpus.test.ts
 
       - name: Transpile source
         run: npm run transpile-client
@@ -320,6 +329,9 @@ jobs:
           if [[ -n "$PERF_THRESHOLD" ]]; then
             PERF_ARGS+=("--threshold" "$PERF_THRESHOLD")
           fi
+          if [[ "$HEAP_SNAPSHOTS_INPUT" == "true" ]]; then
+            PERF_ARGS+=("--heap-snapshots")
+          fi
           PERF_ARGS+=("--production-build")
 
           # Convert JSON settings objects to --test-setting / --baseline-setting flags
@@ -376,7 +388,7 @@ jobs:
             .chat-simulation-data/**/results.json
             .chat-simulation-data/**/baseline-*.json
             .chat-simulation-data/ci-summary.md
-          retention-days: 1
+          retention-days: 30
 
       - name: Check for regressions
         if: always() && steps.perf.outputs.exit_code != '' &&

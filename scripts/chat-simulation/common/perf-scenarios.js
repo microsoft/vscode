@@ -14,6 +14,7 @@
 
 const path = require('path');
 const { ScenarioBuilder, registerScenario } = require('./mock-llm-server.ts');
+const { AGENTS_WINDOW_CONCURRENT_SCENARIO_ID, AGENTS_WINDOW_PERF_SCENARIO_ID } = require('./agents-window-perf-corpus.ts');
 
 const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures');
 
@@ -764,6 +765,19 @@ const MULTI_TURN_SCENARIOS = {
 	},
 };
 
+// -- Restored-history interaction scenarios ----------------------------------
+
+const INTERACTION_SCENARIOS = {
+	[AGENTS_WINDOW_PERF_SCENARIO_ID]: {
+		description: 'Agents window restored history: switch sessions and scroll transcript/list',
+		kind: 'agents-window-history',
+	},
+	[AGENTS_WINDOW_CONCURRENT_SCENARIO_ID]: {
+		description: 'Agents window: three visible running sessions with concurrent progress and idle-tail measurement',
+		kind: 'agents-window-concurrent',
+	},
+};
+
 // -- Registration helper ------------------------------------------------------
 
 /**
@@ -778,7 +792,17 @@ function getScenarioDescription(id) {
 	if (tool) { return tool.description; }
 	const multi = MULTI_TURN_SCENARIOS[id];
 	if (multi) { return multi.description; }
+	const interaction = INTERACTION_SCENARIOS[id];
+	if (interaction) { return interaction.description; }
 	return '';
+}
+
+/**
+ * @param {string} id
+ * @returns {'streaming' | 'agents-window-history' | 'agents-window-concurrent'}
+ */
+function getPerfScenarioKind(id) {
+	return INTERACTION_SCENARIOS[id]?.kind ?? 'streaming';
 }
 
 /**
@@ -795,6 +819,9 @@ function registerPerfScenarios() {
 	for (const [id, def] of Object.entries(MULTI_TURN_SCENARIOS)) {
 		registerScenario(id, def.scenario);
 	}
+	for (const id of Object.keys(INTERACTION_SCENARIOS)) {
+		registerScenario(id, new ScenarioBuilder().emit('Agents window restored history interaction').build());
+	}
 }
 
-module.exports = { registerPerfScenarios, getScenarioDescription, CONTENT_SCENARIOS, TOOL_CALL_SCENARIOS, MULTI_TURN_SCENARIOS };
+module.exports = { registerPerfScenarios, getScenarioDescription, getPerfScenarioKind, CONTENT_SCENARIOS, TOOL_CALL_SCENARIOS, MULTI_TURN_SCENARIOS, INTERACTION_SCENARIOS };

@@ -17,8 +17,9 @@
 		"metricThresholds": {
 			"timeToFirstToken": "100ms",
 			"timeToComplete": 0.2,
+			"scrollReturnDurationMs": 0.2,
+			"rendererTaskDurationMs": 0.2,
 			"layoutDurationMs": 0.2,
-			"forcedReflowCount": 0.2,
 			"longTaskCount": 0.2
 		}
 	},

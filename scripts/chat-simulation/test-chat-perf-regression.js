@@ -30,11 +30,24 @@ const {
 	getNextExtHostInspectPort, connectToExtHostInspector, getRepoRoot,
 } = require('./common/utils');
 const { getUserTurns, getScenarioIds } = require('./common/mock-llm-server.ts');
-const { registerPerfScenarios, getScenarioDescription } = require('./common/perf-scenarios');
+const { registerPerfScenarios, getScenarioDescription, getPerfScenarioKind } = require('./common/perf-scenarios');
+const {
+	AGENTS_PERF_CONCURRENT_DONE_MARKER,
+	AGENTS_PERF_CONCURRENT_FINAL_MARKER,
+	RUN_AGENTS_PERF_CONCURRENT_BURST_COMMAND_ID,
+	SHOW_AGENTS_PERF_CONCURRENT_SESSIONS_COMMAND_ID,
+	STOP_AGENTS_PERF_CONCURRENT_SESSIONS_COMMAND_ID,
+	createAgentsWindowConcurrentPerfCorpus,
+	createAgentsWindowPerfCorpus,
+	INJECT_AGENTS_PERF_LIVE_SUBAGENT_COMMAND_ID,
+	SCROLL_START_AGENTS_PERF_CHAT_COMMAND_ID,
+	SCROLL_END_AGENTS_PERF_CHAT_COMMAND_ID,
+} = require('./common/agents-window-perf-corpus.ts');
 
 // -- Config (edit config.jsonc to change defaults) ---------------------------
 
 const CONFIG = loadConfig('perfRegression');
+const HISTORY_REQUIRED_METRICS = ['TaskDuration', 'ScriptDuration', 'LayoutDuration', 'LayoutCount', 'RecalcStyleDuration', 'RecalcStyleCount'];
 
 // -- CLI args ----------------------------------------------------------------
 
@@ -102,7 +115,7 @@ function parseArgs() {
 			case '--force': opts.force = true; break;
 			case '--heap-snapshots': opts.heapSnapshots = true; break;
 			case '--gc-object-stats': opts.gcObjectStats = true; break;
-			case '--ci': opts.ci = true; opts.noCache = true; opts.heapSnapshots = true; opts.cleanupDiagnostics = true; break;
+			case '--ci': opts.ci = true; opts.noCache = true; opts.cleanupDiagnostics = true; break;
 			case '--cleanup-diagnostics': opts.cleanupDiagnostics = true; break;
 			case '--help': case '-h':
 				console.log([
@@ -129,9 +142,9 @@ function parseArgs() {
 					'                       e.g. --setting chat.experimental.incrementalRendering.enabled=true',
 					'  --no-cache          Ignore cached baseline data, always run fresh',
 					'  --force             Skip build mode mismatch confirmation',
-					'  --heap-snapshots    Take heap snapshots (slow; auto-enabled in --ci mode)',
+					'  --heap-snapshots    Take heap snapshots (slow; opt-in for diagnostic runs)',
 					'  --gc-object-stats   Enable V8 gc_stats tracing for GC deep-dives only. WARNING: corrupts timings (adds ~550ms to any request hit by a major GC) — never use for benchmarking',
-					'  --ci                CI mode: write Markdown summary to ci-summary.md (implies --no-cache, --heap-snapshots, --cleanup-diagnostics)',
+					'  --ci                CI mode: write Markdown summary to ci-summary.md (implies --no-cache and --cleanup-diagnostics)',
 					'  --cleanup-diagnostics  Remove heap snapshots, CPU profiles, and traces after each run to save disk space',
 					'  --verbose           Print per-run details',
 					'',
@@ -321,6 +334,32 @@ function exceedsThreshold(threshold, change, absoluteDelta) {
  *   timeToRenderComplete: number,
  *   instructionCollectionTime: number,
  *   agentInvokeTime: number,
+ *   interactionDurationMs: number,
+ *   scrollReturnDurationMs: number,
+ *   rendererTaskDurationMs: number,
+ *   rendererScriptDurationMs: number,
+ *   longTaskTotalMs: number,
+ *   longTaskMaxMs: number,
+ *   concurrentBurstDurationMs?: number,
+ *   burstThreadTimeMs?: number,
+ *   burstTaskDurationMs?: number,
+ *   burstScriptDurationMs?: number,
+ *   burstRecalcStyleDurationMs?: number,
+ *   burstLayoutDurationMs?: number,
+ *   burstRecalcStyleCount?: number,
+ *   burstLayoutCount?: number,
+ *   settleThreadTimeMs?: number,
+ *   settleRecalcStyleDurationMs?: number,
+ *   settleLayoutDurationMs?: number,
+ *   tailThreadTimeMs?: number,
+ *   tailRecalcStyleDurationMs?: number,
+ *   tailLayoutDurationMs?: number,
+ *   tailRecalcStyleCount?: number,
+ *   tailLayoutCount?: number,
+ *   tailLongTaskCount?: number,
+ *   resizeObserverLoopCount?: number,
+ *   pageErrorCount?: number,
+ *   responsiveToolbarCount?: number,
  *   heapUsedBefore: number,
  *   heapUsedAfter: number,
  *   heapDelta: number,
@@ -330,6 +369,7 @@ function exceedsThreshold(threshold, change, absoluteDelta) {
  *   gcDurationMs: number,
  *   layoutCount: number,
  *   layoutDurationMs: number,
+ *   recalcStyleDurationMs?: number,
  *   recalcStyleCount: number,
  *   forcedReflowCount: number,
  *   longTaskCount: number,
@@ -368,33 +408,16 @@ function exceedsThreshold(threshold, change, absoluteDelta) {
  * @returns {Promise<RunMetrics>}
  */
 async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts) {
-	const takeHeapSnapshots = runOpts?.heapSnapshots ?? false;
-	const { userDataDir, extDir, logsDir } = prepareRunDir(runIndex, mockServer, settingsOverrides);
-	const isDevBuild = !electronPath.includes('.vscode-test') && !electronPath.includes('VSCode-');
-	// Extract a clean build label from the path.
-	// Dev:          .build/electron/Code - OSS.app/.../Code - OSS  → "dev"
-	// Stable:       .vscode-test/vscode-darwin-arm64-1.115.0/Visual Studio Code.app/.../Electron → "1.115.0"
-	// Production:   ../VSCode-darwin-arm64/Code - OSS.app/.../Code - OSS → "production"
-	let buildLabel = 'dev';
-	if (!isDevBuild) {
-		const vscodeTestMatch = electronPath.match(/vscode-test\/vscode-[^/]*?-(\d+\.\d+\.\d+)/);
-		if (vscodeTestMatch) {
-			buildLabel = vscodeTestMatch[1];
-		} else if (electronPath.includes('VSCode-')) {
-			buildLabel = 'production';
-		} else {
-			buildLabel = path.basename(electronPath);
-		}
+	if (getPerfScenarioKind(scenario) === 'agents-window-history') {
+		return runAgentsWindowInteractionOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts);
+	}
+	if (getPerfScenarioKind(scenario) === 'agents-window-concurrent') {
+		return runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts);
 	}
 
-	// For dev builds from a different repo, derive the repo root from the
-	// electron path so that the build loads its own out/ source code.
-	const appRoot = isDevBuild ? (getRepoRoot(electronPath) || ROOT) : ROOT;
-	if (isDevBuild && appRoot !== ROOT) {
-		if (verbose) {
-			console.log(`  [debug] Using appRoot from electron path: ${appRoot}`);
-		}
-	}
+	const takeHeapSnapshots = runOpts?.heapSnapshots ?? false;
+	const { userDataDir, extDir, logsDir } = prepareRunDir(runIndex, mockServer, settingsOverrides);
+	const { isDevBuild, buildLabel, appRoot } = getBuildRunInfo(electronPath, verbose);
 
 	// Create a per-run diagnostics directory: <runDir>/<role>-<build>/<scenario>-<i>/
 	const runDiagDir = path.join(runDir, `${role}-${buildLabel}`, runIndex.replace(/^baseline-/, ''));
@@ -416,7 +439,7 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 	let extHostInspector = null;
 	/** @type {{ usedSize: number, totalSize: number } | null} */
 	let extHostHeapBefore = null;
-	/** @type {Omit<RunMetrics, 'majorGCs' | 'minorGCs' | 'gcDurationMs' | 'longTaskCount' | 'longAnimationFrameCount' | 'longAnimationFrameTotalMs' | 'timeToUIUpdated' | 'timeToFirstToken' | 'timeToComplete' | 'timeToRenderComplete' | 'layoutDurationMs' | 'instructionCollectionTime' | 'agentInvokeTime' | 'hasInternalMarks' | 'internalFirstToken'> | null} */
+	/** @type {Omit<RunMetrics, 'majorGCs' | 'minorGCs' | 'gcDurationMs' | 'longTaskCount' | 'longAnimationFrameCount' | 'longAnimationFrameTotalMs' | 'timeToUIUpdated' | 'timeToFirstToken' | 'timeToComplete' | 'timeToRenderComplete' | 'layoutDurationMs' | 'instructionCollectionTime' | 'agentInvokeTime' | 'interactionDurationMs' | 'scrollReturnDurationMs' | 'rendererTaskDurationMs' | 'rendererScriptDurationMs' | 'longTaskTotalMs' | 'longTaskMaxMs' | 'hasInternalMarks' | 'internalFirstToken'> | null} */
 	let partialMetrics = null;
 	// Timing vars hoisted for access in post-close trace parsing
 	let submitTime = 0;
@@ -432,6 +455,7 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 		const heapBefore = /** @type {any} */ (await cdp.send('Runtime.getHeapUsage'));
 
 		const metricsBefore = await cdp.send('Performance.getMetrics');
+		assertRequiredPerformanceMetrics(metricsBefore, HISTORY_REQUIRED_METRICS);
 
 		// Open chat
 		const chatShortcut = process.platform === 'darwin' ? 'Control+Meta+KeyI' : 'Control+Alt+KeyI';
@@ -699,6 +723,7 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 
 		const heapAfter = /** @type {any} */ (await cdp.send('Runtime.getHeapUsage'));
 		const metricsAfter = await cdp.send('Performance.getMetrics');
+		assertRequiredPerformanceMetrics(metricsAfter, HISTORY_REQUIRED_METRICS);
 
 		// -- Extension host metrics (non-snapshot) ---------------------------
 		let extHostHeapUsedBefore = -1;
@@ -936,6 +961,12 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 	return {
 		...partialMetrics,
 		timeToUIUpdated, timeToFirstToken, timeToComplete, timeToRenderComplete, instructionCollectionTime, agentInvokeTime,
+		interactionDurationMs: -1,
+		scrollReturnDurationMs: -1,
+		rendererTaskDurationMs: -1,
+		rendererScriptDurationMs: -1,
+		longTaskTotalMs: -1,
+		longTaskMaxMs: -1,
 		hasInternalMarks: chatMarks.length > 0,
 		internalFirstToken,
 		majorGCs, minorGCs,
@@ -945,6 +976,641 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 		longAnimationFrameCount,
 		longAnimationFrameTotalMs: Math.round(longAnimationFrameTotalMs * 100) / 100,
 	};
+}
+
+/**
+ * @param {string} electronPath
+ * @param {boolean} verbose
+ */
+function getBuildRunInfo(electronPath, verbose) {
+	const isDevBuild = !electronPath.includes('.vscode-test') && !electronPath.includes('VSCode-');
+	let buildLabel = 'dev';
+	if (!isDevBuild) {
+		const vscodeTestMatch = electronPath.match(/vscode-test\/vscode-[^/]*?-(\d+\.\d+\.\d+)/);
+		if (vscodeTestMatch) {
+			buildLabel = vscodeTestMatch[1];
+		} else if (electronPath.includes('VSCode-')) {
+			buildLabel = 'production';
+		} else {
+			buildLabel = path.basename(electronPath);
+		}
+	}
+
+	const appRoot = isDevBuild ? (getRepoRoot(electronPath) || ROOT) : ROOT;
+	if (isDevBuild && appRoot !== ROOT && verbose) {
+		console.log(`  [debug] Using appRoot from electron path: ${appRoot}`);
+	}
+	return { isDevBuild, buildLabel, appRoot };
+}
+
+/**
+ * @param {string} electronPath
+ * @param {{ url: string }} mockServer
+ * @param {boolean} verbose
+ * @param {string} runIndex
+ * @param {string} runDir
+ * @param {'baseline' | 'test'} role
+ * @param {Record<string, any>} [settingsOverrides]
+ * @param {{ heapSnapshots?: boolean, gcObjectStats?: boolean }} [runOpts]
+ * @returns {Promise<RunMetrics>}
+ */
+async function runAgentsWindowInteractionOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts) {
+	const corpus = process.env.AGENTS_PERF_SMALL_CORPUS === '1'
+		? createAgentsWindowPerfCorpus({ sessionCount: 4, primaryTurnCount: 20, secondaryTurnCount: 3, peerChatCount: 1, subagentToolCount: 16 })
+		: createAgentsWindowPerfCorpus();
+	const agentsSettings = {
+		'sessions.chat.localAgent.enabled': true,
+		'chat.useLogSessionStorage': false,
+		'chat.agentHost.enabled': false,
+		'chat.progressBorder.enabled': false,
+		...settingsOverrides,
+	};
+	const { userDataDir, extDir, logsDir } = prepareRunDir(runIndex, mockServer, agentsSettings, { agentsWindowCorpus: corpus });
+	const { isDevBuild, buildLabel, appRoot } = getBuildRunInfo(electronPath, verbose);
+	const runDiagDir = path.join(runDir, `${role}-${buildLabel}`, runIndex.replace(/^baseline-/, ''));
+	fs.mkdirSync(runDiagDir, { recursive: true });
+	const tracePath = path.join(runDiagDir, 'trace.json');
+	const profilePath = path.join(runDiagDir, 'profile.cpuprofile');
+	const snapshotPath = '';
+	const extHostProfilePath = '';
+	const extHostSnapshotPath = '';
+	const vscode = await launchVSCode(
+		electronPath,
+		buildArgs(userDataDir, extDir, logsDir, {
+			isDevBuild,
+			traceFile: tracePath,
+			appRoot,
+			gcObjectStats: runOpts?.gcObjectStats,
+			agentsWindow: true,
+		}),
+		buildEnv(mockServer, { isDevBuild }),
+		{ verbose, pageSelector: '.agent-sessions-workbench' },
+	);
+	activeVSCode = vscode;
+	const window = vscode.page;
+	const pageErrors = [];
+	const pageErrorListener = error => pageErrors.push(normalizePageErrorMessage(error));
+	window.on('pageerror', pageErrorListener);
+	const sessionRowSelector = '.sessions-list-control .monaco-list-row';
+	const activeSessionSelector = '.agent-sessions-workbench .session-view.is-active';
+	const transcriptScrollSelector = `${activeSessionSelector} .interactive-list > .monaco-list > .monaco-scrollable-element`;
+	const sessionsScrollSelector = '.sessions-list-control .monaco-list > .monaco-scrollable-element';
+	const markId = runIndex.replace(/[^a-zA-Z0-9_-]/g, '_');
+	const startMark = `code/agentsPerf/${markId}/start`;
+	const endMark = `code/agentsPerf/${markId}/end`;
+	let partialMetrics;
+
+	try {
+		await window.waitForSelector('.agent-sessions-workbench', { timeout: 60_000 });
+		await window.waitForFunction(
+			({ selector, expected }) => document.querySelectorAll(selector).length >= expected,
+			{ selector: sessionRowSelector, expected: 2 },
+			{ timeout: 30_000 },
+		);
+		await activateAgentsSession(window, corpus.expected.primaryTitle, corpus.expected.primarySentinel);
+		await window.waitForSelector(transcriptScrollSelector, { state: 'visible', timeout: 30_000 });
+		await window.waitForSelector(sessionsScrollSelector, { state: 'visible', timeout: 30_000 });
+		await window.evaluate(async commandId => {
+			// @ts-ignore
+			await globalThis.driver.executeCommand(commandId);
+		}, INJECT_AGENTS_PERF_LIVE_SUBAGENT_COMMAND_ID);
+		await window.waitForFunction(
+			selector => document.querySelector(selector)?.textContent?.includes('Live subagent tool 127') === true,
+			activeSessionSelector,
+			{ timeout: 30_000 },
+		);
+		await waitForAnimationFrames(window, 3);
+
+		await window.screenshot({ path: path.join(runDiagDir, 'before-interaction.png') });
+		const cdp = await window.context().newCDPSession(window);
+		await cdp.send('Performance.enable');
+		await cdp.send('Profiler.enable');
+		await cdp.send('HeapProfiler.enable');
+		const heapBefore = await cdp.send('Runtime.getHeapUsage');
+		const metricsBefore = await cdp.send('Performance.getMetrics');
+		assertRequiredPerformanceMetrics(metricsBefore, HISTORY_REQUIRED_METRICS);
+		await window.evaluate(() => {
+			// @ts-ignore
+			globalThis.__agentsPerfLongTasks = [];
+			const observer = new PerformanceObserver(list => {
+				// @ts-ignore
+				globalThis.__agentsPerfLongTasks.push(...list.getEntries().map(entry => entry.duration));
+			});
+			observer.observe({ entryTypes: ['longtask'] });
+			// @ts-ignore
+			globalThis.__agentsPerfLongTaskObserver = observer;
+		});
+		await cdp.send('Profiler.start');
+		await window.evaluate(mark => performance.mark(mark), startMark);
+		const interactionStart = performance.now();
+
+		await activateAgentsSession(window, corpus.expected.secondaryTitle, corpus.expected.secondarySentinel);
+		await activateAgentsSession(window, corpus.expected.primaryTitle, corpus.expected.primarySentinel);
+		await window.evaluate(async commandId => {
+			// @ts-ignore
+			await globalThis.driver.executeCommand(commandId);
+		}, SCROLL_START_AGENTS_PERF_CHAT_COMMAND_ID);
+		await window.waitForFunction(
+			selector => document.querySelector(selector)?.textContent?.includes('Live subagent tool 127') !== true,
+			activeSessionSelector,
+			{ timeout: 30_000 },
+		);
+		const scrollReturnStart = performance.now();
+		await window.evaluate(async commandId => {
+			// @ts-ignore
+			await globalThis.driver.executeCommand(commandId);
+		}, SCROLL_END_AGENTS_PERF_CHAT_COMMAND_ID);
+		await window.waitForFunction(
+			selector => document.querySelector(selector)?.textContent?.includes('Live subagent tool 127') === true,
+			activeSessionSelector,
+			{ timeout: 30_000 },
+		);
+		const scrollReturnDurationMs = performance.now() - scrollReturnStart;
+		await waitForAnimationFrames(window, 3);
+		await scrollAgentsSurface(window, transcriptScrollSelector, 12, -600);
+		await scrollAgentsSurface(window, transcriptScrollSelector, 12, 600);
+		await scrollAgentsSurface(window, sessionsScrollSelector, 10, 500);
+		await scrollAgentsSurface(window, sessionsScrollSelector, 10, -500);
+
+		await waitForAnimationFrames(window, 3);
+		const interactionDurationMs = performance.now() - interactionStart;
+		await window.evaluate(mark => performance.mark(mark), endMark);
+		const { profile } = await cdp.send('Profiler.stop');
+		fs.writeFileSync(profilePath, JSON.stringify(profile));
+		const metricsAfter = await cdp.send('Performance.getMetrics');
+		assertRequiredPerformanceMetrics(metricsAfter, HISTORY_REQUIRED_METRICS);
+		const heapAfter = await cdp.send('Runtime.getHeapUsage');
+		const longTasks = await window.evaluate(() => {
+			// @ts-ignore
+			globalThis.__agentsPerfLongTaskObserver?.disconnect();
+			// @ts-ignore
+			return globalThis.__agentsPerfLongTasks ?? [];
+		});
+		await window.screenshot({ path: path.join(runDiagDir, 'after-interaction.png') });
+		if (pageErrors.length > 0) {
+			fs.writeFileSync(path.join(runDiagDir, 'page-errors.json'), JSON.stringify([...new Set(pageErrors)], null, 2));
+		}
+
+		const getMetric = (result, name) => result.metrics?.find(metric => metric.name === name)?.value ?? 0;
+		const durationDeltaMs = (name) => Math.round((getMetric(metricsAfter, name) - getMetric(metricsBefore, name)) * 100_000) / 100;
+		partialMetrics = {
+			timeToUIUpdated: -1,
+			timeToFirstToken: -1,
+			timeToComplete: -1,
+			timeToRenderComplete: -1,
+			instructionCollectionTime: -1,
+			agentInvokeTime: -1,
+			interactionDurationMs: Math.round(interactionDurationMs * 100) / 100,
+			scrollReturnDurationMs: Math.round(scrollReturnDurationMs * 100) / 100,
+			rendererTaskDurationMs: durationDeltaMs('TaskDuration'),
+			rendererScriptDurationMs: durationDeltaMs('ScriptDuration'),
+			heapUsedBefore: Math.round(heapBefore.usedSize / 1024 / 1024),
+			heapUsedAfter: Math.round(heapAfter.usedSize / 1024 / 1024),
+			heapDelta: Math.round((heapAfter.usedSize - heapBefore.usedSize) / 1024 / 1024),
+			heapDeltaPostGC: -1,
+			majorGCs: 0,
+			minorGCs: 0,
+			gcDurationMs: 0,
+			layoutCount: Math.round(getMetric(metricsAfter, 'LayoutCount') - getMetric(metricsBefore, 'LayoutCount')),
+			layoutDurationMs: durationDeltaMs('LayoutDuration'),
+			recalcStyleDurationMs: durationDeltaMs('RecalcStyleDuration'),
+			recalcStyleCount: Math.round(getMetric(metricsAfter, 'RecalcStyleCount') - getMetric(metricsBefore, 'RecalcStyleCount')),
+			forcedReflowCount: Math.round(getMetric(metricsAfter, 'ForcedStyleRecalcs') - getMetric(metricsBefore, 'ForcedStyleRecalcs')),
+			longTaskCount: longTasks.length,
+			longTaskTotalMs: Math.round(longTasks.reduce((sum, duration) => sum + duration, 0) * 100) / 100,
+			longTaskMaxMs: Math.round((longTasks.length ? Math.max(...longTasks) : 0) * 100) / 100,
+			longAnimationFrameCount: 0,
+			longAnimationFrameTotalMs: 0,
+			frameCount: Math.round(getMetric(metricsAfter, 'FrameCount') - getMetric(metricsBefore, 'FrameCount')),
+			compositeLayers: Math.round(getMetric(metricsAfter, 'CompositeLayers') - getMetric(metricsBefore, 'CompositeLayers')),
+			paintCount: Math.round(getMetric(metricsAfter, 'PaintCount') - getMetric(metricsBefore, 'PaintCount')),
+			hasInternalMarks: true,
+			responseHasContent: true,
+			internalFirstToken: -1,
+			profilePath,
+			tracePath,
+			snapshotPath,
+			extHostHeapUsedBefore: -1,
+			extHostHeapUsedAfter: -1,
+			extHostHeapDelta: -1,
+			extHostHeapDeltaPostGC: -1,
+			extHostProfilePath,
+			extHostSnapshotPath,
+		};
+	} catch (error) {
+		await window.screenshot({ path: path.join(runDiagDir, 'interaction-error.png') }).catch(() => undefined);
+		throw error;
+	} finally {
+		window.off('pageerror', pageErrorListener);
+		activeVSCode = null;
+		await vscode.close();
+	}
+
+	return partialMetrics;
+}
+
+const CONCURRENT_REQUIRED_METRICS = [
+	'ThreadTime',
+	'TaskDuration',
+	'ScriptDuration',
+	'RecalcStyleDuration',
+	'LayoutDuration',
+	'RecalcStyleCount',
+	'LayoutCount',
+];
+
+/**
+ * @param {string} electronPath
+ * @param {{ url: string }} mockServer
+ * @param {boolean} verbose
+ * @param {string} runIndex
+ * @param {string} runDir
+ * @param {'baseline' | 'test'} role
+ * @param {Record<string, any>} [settingsOverrides]
+ * @param {{ heapSnapshots?: boolean, gcObjectStats?: boolean }} [runOpts]
+ * @returns {Promise<RunMetrics>}
+ */
+async function runAgentsWindowConcurrentSessionsOnce(electronPath, mockServer, verbose, runIndex, runDir, role, settingsOverrides, runOpts) {
+	const corpus = createAgentsWindowConcurrentPerfCorpus();
+	const agentsSettings = {
+		'sessions.chat.localAgent.enabled': true,
+		'chat.useLogSessionStorage': false,
+		'chat.agentHost.enabled': false,
+		// Animated progress borders would intentionally keep the quiescent tail busy.
+		'chat.progressBorder.enabled': false,
+		...settingsOverrides,
+	};
+	const { userDataDir, extDir, logsDir } = prepareRunDir(runIndex, mockServer, agentsSettings, { agentsWindowCorpus: corpus });
+	const { isDevBuild, buildLabel, appRoot } = getBuildRunInfo(electronPath, verbose);
+	const runDiagDir = path.join(runDir, `${role}-${buildLabel}`, runIndex.replace(/^baseline-/, ''));
+	fs.mkdirSync(runDiagDir, { recursive: true });
+	const tracePath = path.join(runDiagDir, 'trace.json');
+	const profilePath = path.join(runDiagDir, 'profile.cpuprofile');
+	const vscode = await launchVSCode(
+		electronPath,
+		buildArgs(userDataDir, extDir, logsDir, {
+			isDevBuild,
+			traceFile: tracePath,
+			appRoot,
+			gcObjectStats: runOpts?.gcObjectStats,
+			agentsWindow: true,
+		}),
+		buildEnv(mockServer, { isDevBuild }),
+		{ verbose, pageSelector: '.agent-sessions-workbench' },
+	);
+	activeVSCode = vscode;
+	const window = vscode.page;
+	const pageErrors = [];
+	const pageErrorListener = error => pageErrors.push(normalizePageErrorMessage(error));
+	window.on('pageerror', pageErrorListener);
+	let partialMetrics;
+
+	try {
+		await window.waitForSelector('.agent-sessions-workbench', { timeout: 60_000 });
+		await window.waitForFunction(
+			expected => document.querySelectorAll('.sessions-list-control .monaco-list-row').length >= expected,
+			3,
+			{ timeout: 30_000 },
+		);
+		await executeAgentsPerfCommand(window, SHOW_AGENTS_PERF_CONCURRENT_SESSIONS_COMMAND_ID);
+		await window.waitForFunction(() => {
+			const views = [...document.querySelectorAll('.agent-sessions-workbench .session-view')];
+			return views.length === 3 && views.every(view =>
+				view.querySelector('.interactive-input-part') &&
+				view.textContent?.includes('Run concurrent Agents performance session')
+			);
+		}, undefined, { timeout: 30_000 });
+		const toolbarState = await window.evaluate(() => {
+			const views = [...document.querySelectorAll('.agent-sessions-workbench .session-view')];
+			const toolbarCounts = views.map(view => view.querySelectorAll('.interactive-input-part .monaco-toolbar.responsive').length);
+			return { viewCount: views.length, toolbarCounts, totalToolbarCount: toolbarCounts.reduce((sum, count) => sum + count, 0) };
+		});
+		if (toolbarState.viewCount !== 3 || toolbarState.toolbarCounts.some(count => count < 1)) {
+			throw new Error(`Concurrent toolbar precondition failed: ${JSON.stringify(toolbarState)}`);
+		}
+		await waitForAnimationFrames(window, 3);
+		await window.screenshot({ path: path.join(runDiagDir, 'concurrent-before.png') });
+
+		const cdp = await window.context().newCDPSession(window);
+		await cdp.send('Performance.enable');
+		await cdp.send('Profiler.enable');
+		await cdp.send('HeapProfiler.enable');
+		const heapBefore = await cdp.send('Runtime.getHeapUsage');
+		await installConcurrentPageObservers(window);
+		await cdp.send('Profiler.start');
+		const metricsBefore = await readRequiredPerformanceMetrics(cdp, CONCURRENT_REQUIRED_METRICS);
+		await window.evaluate(mark => performance.mark(mark), `code/agentsPerf/${runIndex}/concurrent-start`);
+
+		const burstStart = performance.now();
+		await executeAgentsPerfCommand(window, RUN_AGENTS_PERF_CONCURRENT_BURST_COMMAND_ID);
+		await window.waitForFunction(marker => {
+			const views = [...document.querySelectorAll('.agent-sessions-workbench .session-view')];
+			return views.length === 3 && views.every(view => view.textContent?.includes(marker));
+		}, AGENTS_PERF_CONCURRENT_FINAL_MARKER, { timeout: 30_000 });
+		await waitForAnimationFrames(window, 3);
+		const concurrentBurstDurationMs = performance.now() - burstStart;
+		const metricsAfterBurst = await readRequiredPerformanceMetrics(cdp, CONCURRENT_REQUIRED_METRICS);
+
+		await window.evaluate(() => {
+			// @ts-ignore
+			globalThis.__agentsConcurrentPerf.phase = 'settle';
+		});
+		await executeAgentsPerfCommand(window, STOP_AGENTS_PERF_CONCURRENT_SESSIONS_COMMAND_ID);
+		await window.waitForFunction(marker => {
+			const views = [...document.querySelectorAll('.agent-sessions-workbench .session-view')];
+			return views.length === 3 &&
+				views.every(view => view.textContent?.includes(marker)) &&
+				views.every(view => !view.querySelector('.chat-response-loading'));
+		}, AGENTS_PERF_CONCURRENT_DONE_MARKER, { timeout: 30_000 });
+		await new Promise(resolve => setTimeout(resolve, 500));
+		const metricsAfterSettle = await readRequiredPerformanceMetrics(cdp, CONCURRENT_REQUIRED_METRICS);
+
+		await window.evaluate(() => {
+			// @ts-ignore
+			globalThis.__agentsConcurrentPerf.phase = 'tail';
+		});
+		await new Promise(resolve => setTimeout(resolve, 1_500));
+		const metricsAfterTail = await readRequiredPerformanceMetrics(cdp, CONCURRENT_REQUIRED_METRICS);
+		await window.evaluate(mark => performance.mark(mark), `code/agentsPerf/${runIndex}/concurrent-end`);
+		const { profile } = await cdp.send('Profiler.stop');
+		fs.writeFileSync(profilePath, JSON.stringify(profile));
+		const heapAfter = await cdp.send('Runtime.getHeapUsage');
+		const observerData = await readConcurrentPageObservers(window);
+		await window.screenshot({ path: path.join(runDiagDir, 'concurrent-after.png') });
+		const errorMessages = [...new Set([...pageErrors, ...observerData.pageErrors].map(normalizePageErrorMessage))];
+		if (errorMessages.length > 0) {
+			fs.writeFileSync(path.join(runDiagDir, 'page-errors.json'), JSON.stringify(errorMessages, null, 2));
+		}
+
+		partialMetrics = {
+			...emptyInteractionMetrics(),
+			concurrentBurstDurationMs: round2(concurrentBurstDurationMs),
+			burstThreadTimeMs: metricDeltaMs(metricsBefore, metricsAfterBurst, 'ThreadTime'),
+			burstTaskDurationMs: metricDeltaMs(metricsBefore, metricsAfterBurst, 'TaskDuration'),
+			burstScriptDurationMs: metricDeltaMs(metricsBefore, metricsAfterBurst, 'ScriptDuration'),
+			burstRecalcStyleDurationMs: metricDeltaMs(metricsBefore, metricsAfterBurst, 'RecalcStyleDuration'),
+			burstLayoutDurationMs: metricDeltaMs(metricsBefore, metricsAfterBurst, 'LayoutDuration'),
+			burstRecalcStyleCount: metricDelta(metricsBefore, metricsAfterBurst, 'RecalcStyleCount'),
+			burstLayoutCount: metricDelta(metricsBefore, metricsAfterBurst, 'LayoutCount'),
+			settleThreadTimeMs: metricDeltaMs(metricsAfterBurst, metricsAfterSettle, 'ThreadTime'),
+			settleRecalcStyleDurationMs: metricDeltaMs(metricsAfterBurst, metricsAfterSettle, 'RecalcStyleDuration'),
+			settleLayoutDurationMs: metricDeltaMs(metricsAfterBurst, metricsAfterSettle, 'LayoutDuration'),
+			tailThreadTimeMs: metricDeltaMs(metricsAfterSettle, metricsAfterTail, 'ThreadTime'),
+			tailRecalcStyleDurationMs: metricDeltaMs(metricsAfterSettle, metricsAfterTail, 'RecalcStyleDuration'),
+			tailLayoutDurationMs: metricDeltaMs(metricsAfterSettle, metricsAfterTail, 'LayoutDuration'),
+			tailRecalcStyleCount: metricDelta(metricsAfterSettle, metricsAfterTail, 'RecalcStyleCount'),
+			tailLayoutCount: metricDelta(metricsAfterSettle, metricsAfterTail, 'LayoutCount'),
+			tailLongTaskCount: observerData.longTasks.tail.length,
+			resizeObserverLoopCount: observerData.resizeObserverLoopCount,
+			pageErrorCount: errorMessages.filter(message => !message.includes('ResizeObserver loop')).length,
+			responsiveToolbarCount: toolbarState.totalToolbarCount,
+			heapUsedBefore: Math.round(heapBefore.usedSize / 1024 / 1024),
+			heapUsedAfter: Math.round(heapAfter.usedSize / 1024 / 1024),
+			heapDelta: Math.round((heapAfter.usedSize - heapBefore.usedSize) / 1024 / 1024),
+			profilePath,
+			tracePath,
+			snapshotPath: '',
+			extHostProfilePath: '',
+			extHostSnapshotPath: '',
+		};
+	} catch (error) {
+		await window.screenshot({ path: path.join(runDiagDir, 'concurrent-error.png') }).catch(() => undefined);
+		throw error;
+	} finally {
+		window.off('pageerror', pageErrorListener);
+		activeVSCode = null;
+		await vscode.close();
+	}
+
+	return partialMetrics;
+}
+
+function emptyInteractionMetrics() {
+	return {
+		timeToUIUpdated: -1,
+		timeToFirstToken: -1,
+		timeToComplete: -1,
+		timeToRenderComplete: -1,
+		instructionCollectionTime: -1,
+		agentInvokeTime: -1,
+		interactionDurationMs: -1,
+		scrollReturnDurationMs: -1,
+		rendererTaskDurationMs: -1,
+		rendererScriptDurationMs: -1,
+		longTaskTotalMs: -1,
+		longTaskMaxMs: -1,
+		heapDeltaPostGC: -1,
+		majorGCs: -1,
+		minorGCs: -1,
+		gcDurationMs: -1,
+		layoutCount: -1,
+		layoutDurationMs: -1,
+		recalcStyleDurationMs: -1,
+		recalcStyleCount: -1,
+		forcedReflowCount: -1,
+		longTaskCount: -1,
+		longAnimationFrameCount: -1,
+		longAnimationFrameTotalMs: -1,
+		frameCount: -1,
+		compositeLayers: -1,
+		paintCount: -1,
+		hasInternalMarks: true,
+		responseHasContent: true,
+		internalFirstToken: -1,
+		extHostHeapUsedBefore: -1,
+		extHostHeapUsedAfter: -1,
+		extHostHeapDelta: -1,
+		extHostHeapDeltaPostGC: -1,
+	};
+}
+
+async function executeAgentsPerfCommand(window, commandId) {
+	await withTimeout(window.evaluate(async id => {
+		// @ts-ignore
+		await globalThis.driver.executeCommand(id);
+	}, commandId), 30_000, `Agents performance command ${commandId}`);
+}
+
+async function installConcurrentPageObservers(window) {
+	await window.evaluate(() => {
+		// @ts-ignore
+		globalThis.__agentsConcurrentPerf = {
+			phase: 'burst',
+			longTasks: { burst: [], settle: [], tail: [] },
+			resizeObserverLoopCount: 0,
+			pageErrors: [],
+		};
+		// @ts-ignore
+		globalThis.__agentsConcurrentPerfObserver = new PerformanceObserver(list => {
+			// @ts-ignore
+			const state = globalThis.__agentsConcurrentPerf;
+			state.longTasks[state.phase].push(...list.getEntries().map(entry => entry.duration));
+		});
+		// @ts-ignore
+		globalThis.__agentsConcurrentPerfObserver.observe({ entryTypes: ['longtask'] });
+		// @ts-ignore
+		globalThis.__agentsConcurrentPerfErrorListener = event => {
+			// @ts-ignore
+			const state = globalThis.__agentsConcurrentPerf;
+			const message = event instanceof ErrorEvent ? event.message : String(event);
+			state.pageErrors.push(message);
+			if (message.includes('ResizeObserver loop')) {
+				state.resizeObserverLoopCount++;
+			}
+		};
+		// @ts-ignore
+		addEventListener('error', globalThis.__agentsConcurrentPerfErrorListener);
+	});
+}
+
+async function readConcurrentPageObservers(window) {
+	return window.evaluate(() => {
+		// @ts-ignore
+		globalThis.__agentsConcurrentPerfObserver?.disconnect();
+		// @ts-ignore
+		removeEventListener('error', globalThis.__agentsConcurrentPerfErrorListener);
+		// @ts-ignore
+		return globalThis.__agentsConcurrentPerf;
+	});
+}
+
+async function readRequiredPerformanceMetrics(cdp, requiredNames) {
+	const result = await cdp.send('Performance.getMetrics');
+	const metrics = new Map(result.metrics.map(metric => [metric.name, metric.value]));
+	const missing = requiredNames.filter(name => !metrics.has(name));
+	if (missing.length > 0) {
+		throw new Error(`Required CDP performance metrics are missing: ${missing.join(', ')}`);
+	}
+	return metrics;
+}
+
+function metricDelta(before, after, name) {
+	return round2((after.get(name) ?? 0) - (before.get(name) ?? 0));
+}
+
+function metricDeltaMs(before, after, name) {
+	return round2(((after.get(name) ?? 0) - (before.get(name) ?? 0)) * 1_000);
+}
+
+function normalizePageErrorMessage(error) {
+	return String(error).replace(/^(?:Uncaught\s+)?Error:\s*/, '').trim();
+}
+
+function round2(value) {
+	return Math.round(value * 100) / 100;
+}
+
+function assertRequiredPerformanceMetrics(result, requiredNames) {
+	const names = new Set(result.metrics?.map(metric => metric.name));
+	const missing = requiredNames.filter(name => !names.has(name));
+	if (missing.length > 0) {
+		throw new Error(`Required CDP performance metrics are missing: ${missing.join(', ')}`);
+	}
+}
+
+/**
+ * @param {import('playwright').Page} window
+ * @param {string} title
+ * @param {string} sentinel
+ */
+async function activateAgentsSession(window, title, sentinel) {
+	const row = window.locator('.sessions-list-control .monaco-list-row').filter({ hasText: title }).first();
+	await row.waitFor({ state: 'visible', timeout: 30_000 });
+	await row.locator('.session-main').click();
+	await window.waitForFunction(
+		({ selector, text }) => document.querySelector(selector)?.textContent?.includes(text) === true,
+		{ selector: '.agent-sessions-workbench .session-view.is-active', text: sentinel },
+		{ timeout: 30_000 },
+	);
+}
+
+/**
+ * @param {import('playwright').Page} window
+ * @param {string} selector
+ * @param {number} steps
+ * @param {number} deltaY
+ */
+async function scrollAgentsSurface(window, selector, steps, deltaY) {
+	const surface = window.locator(selector).first();
+	await surface.waitFor({ state: 'visible', timeout: 30_000 });
+	const box = await surface.boundingBox();
+	if (!box) {
+		throw new Error(`Cannot measure scroll surface ${selector}`);
+	}
+	await window.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	for (let index = 0; index < steps; index++) {
+		await window.mouse.wheel(0, deltaY);
+		await waitForAnimationFrames(window, 1);
+	}
+}
+
+/**
+ * @param {import('playwright').Page} window
+ * @param {number} count
+ */
+async function waitForAnimationFrames(window, count) {
+	await withTimeout(window.evaluate(frameCount => new Promise(resolve => {
+		const next = () => frameCount-- <= 0 ? resolve(undefined) : requestAnimationFrame(next);
+		next();
+	}), count), 30_000, `waiting for ${count} animation frame(s)`);
+}
+
+async function withTimeout(promise, timeoutMs, operation) {
+	let handle;
+	const timeout = new Promise((_, reject) => {
+		handle = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms while ${operation}`)), timeoutMs);
+	});
+	try {
+		return await Promise.race([promise, timeout]);
+	} finally {
+		clearTimeout(handle);
+	}
+}
+
+function appendRawRunTable(lines, scenario, runs) {
+	const kind = getPerfScenarioKind(scenario);
+	const columns = kind === 'agents-window-history'
+		? [
+			['Interaction (ms)', 'interactionDurationMs'],
+			['Scroll Return (ms)', 'scrollReturnDurationMs'],
+			['Renderer CPU (ms)', 'rendererTaskDurationMs'],
+			['Style (ms)', 'recalcStyleDurationMs'],
+			['Layout (ms)', 'layoutDurationMs'],
+			['Long Tasks', 'longTaskCount'],
+		]
+		: kind === 'agents-window-concurrent'
+			? [
+				['Burst Wall (ms)', 'concurrentBurstDurationMs'],
+				['Burst CPU (ms)', 'burstThreadTimeMs'],
+				['Burst Style (ms)', 'burstRecalcStyleDurationMs'],
+				['Burst Layout (ms)', 'burstLayoutDurationMs'],
+				['Tail CPU (ms)', 'tailThreadTimeMs'],
+				['Tail Style (ms)', 'tailRecalcStyleDurationMs'],
+				['Tail Layout (ms)', 'tailLayoutDurationMs'],
+				['RO Errors', 'resizeObserverLoopCount'],
+				['Page Errors', 'pageErrorCount'],
+				['Toolbars', 'responsiveToolbarCount'],
+			]
+			: [
+				['TTFT (ms)', 'timeToFirstToken'],
+				['Complete (ms)', 'timeToComplete'],
+				['Layouts', 'layoutCount'],
+				['Style Recalcs', 'recalcStyleCount'],
+				['LoAF Count', 'longAnimationFrameCount'],
+				['LoAF (ms)', 'longAnimationFrameTotalMs'],
+				['Frames', 'frameCount'],
+				['Heap Delta (MB)', 'heapDelta'],
+			];
+	lines.push(`| Run | ${columns.map(([label]) => label).join(' | ')} |`);
+	lines.push(`|----:|${columns.map(() => '----:').join('|')}|`);
+	for (let index = 0; index < runs.length; index++) {
+		const run = runs[index];
+		const values = columns.map(([, metric]) => {
+			const value = run[metric];
+			return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(round2(value)) : '-';
+		});
+		lines.push(`| ${index + 1} | ${values.join(' | ')} |`);
+	}
 }
 
 // -- CI summary generation ---------------------------------------------------
@@ -1005,8 +1671,35 @@ function generateCISummary(jsonReport, baseline, opts) {
 	const allMetrics = [
 		['timeToFirstToken', 'timing', 'ms'],
 		['timeToComplete', 'timing', 'ms'],
+		['interactionDurationMs', 'interaction', 'ms'],
+		['scrollReturnDurationMs', 'interaction', 'ms'],
+		['rendererTaskDurationMs', 'interaction', 'ms'],
+		['rendererScriptDurationMs', 'interaction', 'ms'],
+		['longTaskTotalMs', 'interaction', 'ms'],
+		['longTaskMaxMs', 'interaction', 'ms'],
+		['concurrentBurstDurationMs', 'concurrent', 'ms'],
+		['burstThreadTimeMs', 'concurrent', 'ms'],
+		['burstTaskDurationMs', 'concurrent', 'ms'],
+		['burstScriptDurationMs', 'concurrent', 'ms'],
+		['burstRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['burstLayoutDurationMs', 'concurrent', 'ms'],
+		['burstRecalcStyleCount', 'concurrent', ''],
+		['burstLayoutCount', 'concurrent', ''],
+		['settleThreadTimeMs', 'concurrent', 'ms'],
+		['settleRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['settleLayoutDurationMs', 'concurrent', 'ms'],
+		['tailThreadTimeMs', 'concurrent', 'ms'],
+		['tailRecalcStyleDurationMs', 'concurrent', 'ms'],
+		['tailLayoutDurationMs', 'concurrent', 'ms'],
+		['tailRecalcStyleCount', 'concurrent', ''],
+		['tailLayoutCount', 'concurrent', ''],
+		['tailLongTaskCount', 'concurrent', ''],
+		['resizeObserverLoopCount', 'concurrent', ''],
+		['pageErrorCount', 'concurrent', ''],
+		['responsiveToolbarCount', 'concurrent', ''],
 		['layoutCount', 'rendering', ''],
 		['layoutDurationMs', 'rendering', 'ms'],
+		['recalcStyleDurationMs', 'rendering', 'ms'],
 		['recalcStyleCount', 'rendering', ''],
 		['forcedReflowCount', 'rendering', ''],
 		['longTaskCount', 'rendering', ''],
@@ -1021,10 +1714,11 @@ function generateCISummary(jsonReport, baseline, opts) {
 		['extHostHeapDelta', 'extHost', 'MB'],
 		['extHostHeapDeltaPostGC', 'extHost', 'MB'],
 	];
-	const regressionMetricNames = new Set(['timeToFirstToken', 'timeToComplete', 'layoutDurationMs', 'forcedReflowCount', 'longTaskCount']);
+	const regressionMetricNames = new Set(['timeToFirstToken', 'timeToComplete', 'scrollReturnDurationMs', 'rendererTaskDurationMs', 'layoutDurationMs', 'longTaskCount']);
 
 	const lines = [];
 	const scenarios = Object.keys(jsonReport.scenarios);
+	const scenariosWithoutBaseline = scenarios.filter(scenario => !baseline?.scenarios?.[scenario]);
 
 	// -- Collect verdicts per scenario/metric --------------------------------
 	/** @type {Map<string, { metric: string, verdict: string, change: number, pValue: string, basStr: string, curStr: string }[]>} */
@@ -1083,9 +1777,11 @@ function generateCISummary(jsonReport, baseline, opts) {
 
 	// -- Header with verdict up front ----------------------------------------
 	const hasRegressions = totalRegressions > 0;
-	const verdictIcon = hasRegressions ? '\u274C' : '\u2705';
+	const verdictIcon = hasRegressions ? '\u274C' : scenariosWithoutBaseline.length > 0 ? '\u26A0\uFE0F' : '\u2705';
 	const verdictText = hasRegressions
 		? `${totalRegressions} regression(s) detected`
+		: scenariosWithoutBaseline.length > 0
+			? `${scenariosWithoutBaseline.length} scenario(s) have no compatible baseline`
 		: totalImprovements > 0
 			? `No regressions \u2014 ${totalImprovements} improvement(s)`
 			: 'No significant changes';
@@ -1158,7 +1854,11 @@ function generateCISummary(jsonReport, baseline, opts) {
 		};
 
 		const keyVerdicts = [ttft, complete, layouts, styles, loaf].filter(Boolean);
-		const rowVerdict = fmtVerdict(/** @type {any[]} */(keyVerdicts));
+		const rowVerdict = !baseline?.scenarios?.[scenario]
+			? '\u26A0\uFE0F No baseline'
+			: keyVerdicts.length === 0
+				? '\u2139\uFE0F Informational'
+				: fmtVerdict(/** @type {any[]} */(keyVerdicts));
 
 		lines.push(`| ${scenario} | ${getScenarioDescription(scenario)} | ${fmtCell(ttft)} | ${fmtCell(complete)} | ${fmtCell(layouts)} | ${fmtCell(styles)} | ${fmtCell(loaf)} | ${rowVerdict} |`);
 	}
@@ -1242,14 +1942,7 @@ function generateCISummary(jsonReport, baseline, opts) {
 		const current = jsonReport.scenarios[scenario];
 		lines.push(`### ${scenario}`);
 		lines.push('');
-		lines.push('| Run | TTFT (ms) | Complete (ms) | Layouts | Style Recalcs | LoAF Count | LoAF (ms) | Frames | Heap Delta (MB) | Internal Marks |');
-		lines.push('|----:|----------:|--------------:|--------:|--------------:|-----------:|----------:|-------:|----------------:|:--------------:|');
-		const runs = current.rawRuns || [];
-		for (let i = 0; i < runs.length; i++) {
-			const r = runs[i];
-			const round2 = (/** @type {number} */ v) => Math.round(v * 100) / 100;
-			lines.push(`| ${i + 1} | ${round2(r.timeToFirstToken)} | ${r.timeToComplete} | ${r.layoutCount} | ${r.recalcStyleCount} | ${r.longAnimationFrameCount ?? '-'} | ${r.longAnimationFrameTotalMs !== null && r.longAnimationFrameTotalMs !== undefined ? round2(r.longAnimationFrameTotalMs) : '-'} | ${r.frameCount ?? '-'} | ${r.heapDelta} | ${r.hasInternalMarks ? 'yes' : 'no'} |`);
-		}
+		appendRawRunTable(lines, scenario, current.rawRuns || []);
 		lines.push('');
 	}
 	if (baseline) {
@@ -1258,14 +1951,7 @@ function generateCISummary(jsonReport, baseline, opts) {
 			if (!base) { continue; }
 			lines.push(`### ${scenario} (baseline)`);
 			lines.push('');
-			lines.push('| Run | TTFT (ms) | Complete (ms) | Layouts | Style Recalcs | LoAF Count | LoAF (ms) | Frames | Heap Delta (MB) | Internal Marks |');
-			lines.push('|----:|----------:|--------------:|--------:|--------------:|-----------:|----------:|-------:|----------------:|:--------------:|');
-			const runs = base.rawRuns || [];
-			for (let i = 0; i < runs.length; i++) {
-				const r = runs[i];
-				const round2 = (/** @type {number} */ v) => Math.round(v * 100) / 100;
-				lines.push(`| ${i + 1} | ${round2(r.timeToFirstToken)} | ${r.timeToComplete} | ${r.layoutCount} | ${r.recalcStyleCount} | ${r.longAnimationFrameCount ?? '-'} | ${r.longAnimationFrameTotalMs !== null && r.longAnimationFrameTotalMs !== undefined ? round2(r.longAnimationFrameTotalMs) : '-'} | ${r.frameCount ?? '-'} | ${r.heapDelta} | ${r.hasInternalMarks ? 'yes' : 'no'} |`);
-			}
+			appendRawRunTable(lines, scenario, base.rawRuns || []);
 			lines.push('');
 		}
 	}
@@ -1424,12 +2110,12 @@ async function main() {
 			}
 
 			// Recompute stats with merged data
-			const sd = /** @type {any} */ ({ runs: prevTestRuns.length, timing: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: prevTestRuns });
+			const sd = /** @type {any} */ ({ runs: prevTestRuns.length, timing: {}, interaction: {}, concurrent: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: prevTestRuns });
 			for (const [metric, group] of METRIC_DEFS) { sd[group][metric] = robustStats(prevTestRuns.map((/** @type {any} */ r) => r[metric])); }
 			prevResults.scenarios[scenario] = sd;
 
 			if (prevBaseline?.scenarios?.[scenario]) {
-				const bsd = /** @type {any} */ ({ runs: prevBaseRuns.length, timing: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: prevBaseRuns });
+				const bsd = /** @type {any} */ ({ runs: prevBaseRuns.length, timing: {}, interaction: {}, concurrent: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: prevBaseRuns });
 				for (const [metric, group] of METRIC_DEFS) { bsd[group][metric] = robustStats(prevBaseRuns.map((/** @type {any} */ r) => r[metric])); }
 				prevBaseline.scenarios[scenario] = bsd;
 			}
@@ -1513,6 +2199,13 @@ async function main() {
 	// Compute effective settings per role
 	const testSettings = { ...opts.settingsOverrides, ...opts.testSettingsOverrides };
 	const baselineSettings = { ...opts.settingsOverrides, ...opts.baselineSettingsOverrides };
+	const baselineScenarios = opts.scenarios.filter(scenario => {
+		if (!isBaselineVersionString || getPerfScenarioKind(scenario) === 'streaming') {
+			return true;
+		}
+		console.log(`[chat-simulation] Skipping release baseline for ${scenario}; the release does not contain the smoke-driver commands required by this scenario.`);
+		return false;
+	});
 
 	// -- Baseline build --------------------------------------------------
 	if (opts.baselineBuild) {
@@ -1532,10 +2225,10 @@ async function main() {
 		if (cachedBaseline?.baselineBuildVersion === opts.baselineBuild) {
 			// Check if the cache covers all requested scenarios
 			const cachedScenarios = new Set(Object.keys(cachedBaseline.scenarios || {}));
-			const missingScenarios = opts.scenarios.filter((/** @type {string} */ s) => !cachedScenarios.has(s));
+			const missingScenarios = baselineScenarios.filter((/** @type {string} */ s) => !cachedScenarios.has(s));
 
 			// Also check if cached scenarios have fewer runs than requested
-			const shortScenarios = opts.scenarios.filter((/** @type {string} */ s) => {
+			const shortScenarios = baselineScenarios.filter((/** @type {string} */ s) => {
 				const cached = cachedBaseline.scenarios?.[s];
 				return cached && (cached.rawRuns?.length || 0) < opts.runs;
 			});
@@ -1570,7 +2263,7 @@ async function main() {
 					}
 					const allRuns = [...existingRuns, ...newResults];
 					if (allRuns.length > 0) {
-						const sd = /** @type {any} */ ({ runs: allRuns.length, timing: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: allRuns });
+						const sd = /** @type {any} */ ({ runs: allRuns.length, timing: {}, interaction: {}, concurrent: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: allRuns });
 						for (const [metric, group] of METRIC_DEFS) { sd[group][metric] = robustStats(allRuns.map((/** @type {any} */ r) => r[metric])); }
 						cachedBaseline.scenarios[scenario] = sd;
 					}
@@ -1583,23 +2276,25 @@ async function main() {
 				opts.baseline = baselineJsonPath;
 			}
 		} else {
-			const baselineExePath = baselineElectronPath || await resolveBuild(opts.baselineBuild);
 			console.log(`[chat-simulation] Benchmarking baseline build (${baselineLabel})...`);
 			/** @type {Record<string, RunMetrics[]>} */
 			const baselineResults = {};
-			for (const scenario of opts.scenarios) {
-				/** @type {RunMetrics[]} */
-				const results = [];
-				for (let i = 0; i < opts.runs; i++) {
-					try {
-						const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
-						// Clean up previous run's diagnostics to bound disk usage; keep the latest
-						if (opts.cleanupDiagnostics && results.length > 0) { cleanupRunDiagnostics(results[results.length - 1]); }
-						results.push(m);
-					}
-					catch (err) { console.error(`[chat-simulation]   Baseline run ${i + 1} failed: ${err}`); }
+			if (baselineScenarios.length > 0) {
+				const baselineExePath = baselineElectronPath || await resolveBuild(opts.baselineBuild);
+				for (const scenario of baselineScenarios) {
+						/** @type {RunMetrics[]} */
+						const results = [];
+						for (let i = 0; i < opts.runs; i++) {
+							try {
+								const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
+								// Clean up previous run's diagnostics to bound disk usage; keep the latest
+								if (opts.cleanupDiagnostics && results.length > 0) { cleanupRunDiagnostics(results[results.length - 1]); }
+								results.push(m);
+							}
+							catch (err) { console.error(`[chat-simulation]   Baseline run ${i + 1} failed: ${err}`); }
+						}
+						if (results.length > 0) { baselineResults[scenario] = results; }
 				}
-				if (results.length > 0) { baselineResults[scenario] = results; }
 			}
 			const baselineReport = {
 				timestamp: new Date().toISOString(),
@@ -1609,7 +2304,7 @@ async function main() {
 				scenarios: /** @type {Record<string, any>} */ ({}),
 			};
 			for (const [scenario, results] of Object.entries(baselineResults)) {
-				const sd = /** @type {any} */ ({ runs: results.length, timing: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: results });
+				const sd = /** @type {any} */ ({ runs: results.length, timing: {}, interaction: {}, concurrent: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: results });
 				for (const [metric, group] of METRIC_DEFS) { sd[group][metric] = robustStats(results.map(r => /** @type {any} */(r)[metric])); }
 				baselineReport.scenarios[scenario] = sd;
 			}
@@ -1680,8 +2375,12 @@ async function main() {
 				if (opts.cleanupDiagnostics && results.length > 0) { cleanupRunDiagnostics(results[results.length - 1]); }
 				results.push(metrics);
 				if (opts.verbose) {
-					const src = metrics.hasInternalMarks ? 'internal' : 'client-side';
-					console.log(`    [${src}] firstToken=${metrics.timeToFirstToken}ms, complete=${metrics.timeToComplete}ms, heap=delta${metrics.heapDelta}MB, longTasks=${metrics.longTaskCount}${metrics.hasInternalMarks ? `, internalTTFT=${metrics.internalFirstToken}ms` : ''}`);
+					if (metrics.interactionDurationMs >= 0) {
+						console.log(`    [interaction] duration=${metrics.interactionDurationMs}ms, rendererTask=${metrics.rendererTaskDurationMs}ms, layout=${metrics.layoutDurationMs}ms, longTasks=${metrics.longTaskCount}`);
+					} else {
+						const src = metrics.hasInternalMarks ? 'internal' : 'client-side';
+						console.log(`    [${src}] firstToken=${metrics.timeToFirstToken}ms, complete=${metrics.timeToComplete}ms, heap=delta${metrics.heapDelta}MB, longTasks=${metrics.longTaskCount}${metrics.hasInternalMarks ? `, internalTTFT=${metrics.internalFirstToken}ms` : ''}`);
+					}
 				}
 			} catch (err) { console.error(`    Run ${i + 1} failed: ${err}`); }
 		}
@@ -1700,6 +2399,34 @@ async function main() {
 		console.log(summarize(results.map(r => r.timeToFirstToken), '  Request → First token ', 'ms'));
 		console.log(summarize(results.map(r => r.timeToComplete), '  Request → Complete    ', 'ms'));
 		console.log(summarize(results.map(r => r.timeToRenderComplete), '  Request → Rendered    ', 'ms'));
+		if (results.some(r => r.interactionDurationMs >= 0)) {
+			console.log('');
+			console.log('  Interaction:');
+			console.log(summarize(results.map(r => r.interactionDurationMs), '  Wall duration         ', 'ms'));
+			console.log(summarize(results.map(r => r.scrollReturnDurationMs), '  Scroll return         ', 'ms'));
+			console.log(summarize(results.map(r => r.rendererTaskDurationMs), '  Renderer task CPU     ', 'ms'));
+			console.log(summarize(results.map(r => r.rendererScriptDurationMs), '  Renderer script CPU   ', 'ms'));
+			console.log(summarize(results.map(r => r.recalcStyleDurationMs ?? -1), '  Style recalculation   ', 'ms'));
+			console.log(summarize(results.map(r => r.longTaskTotalMs), '  Long task total       ', 'ms'));
+			console.log(summarize(results.map(r => r.longTaskMaxMs), '  Long task maximum     ', 'ms'));
+		}
+		if (results.some(r => r.concurrentBurstDurationMs !== undefined)) {
+			console.log('');
+			console.log('  Concurrent sessions:');
+			console.log(summarize(results.map(r => r.concurrentBurstDurationMs ?? -1), '  Burst wall duration   ', 'ms'));
+			console.log(summarize(results.map(r => r.burstThreadTimeMs ?? -1), '  Burst renderer CPU    ', 'ms'));
+			console.log(summarize(results.map(r => r.burstRecalcStyleDurationMs ?? -1), '  Burst style duration  ', 'ms'));
+			console.log(summarize(results.map(r => r.burstLayoutDurationMs ?? -1), '  Burst layout duration ', 'ms'));
+			console.log(summarize(results.map(r => r.settleThreadTimeMs ?? -1), '  Settle renderer CPU   ', 'ms'));
+			console.log(summarize(results.map(r => r.tailThreadTimeMs ?? -1), '  Tail renderer CPU     ', 'ms'));
+			console.log(summarize(results.map(r => r.tailRecalcStyleDurationMs ?? -1), '  Tail style duration   ', 'ms'));
+			console.log(summarize(results.map(r => r.tailLayoutDurationMs ?? -1), '  Tail layout duration  ', 'ms'));
+			console.log(summarize(results.map(r => r.tailRecalcStyleCount ?? -1), '  Tail style recalcs    ', ''));
+			console.log(summarize(results.map(r => r.tailLayoutCount ?? -1), '  Tail layouts          ', ''));
+			console.log(summarize(results.map(r => r.tailLongTaskCount ?? -1), '  Tail long tasks       ', ''));
+			console.log(summarize(results.map(r => r.responsiveToolbarCount ?? -1), '  Responsive toolbars   ', ''));
+			console.log(summarize(results.map(r => r.resizeObserverLoopCount ?? -1), '  RO loop errors        ', ''));
+		}
 		console.log('');
 		console.log('  Rendering:');
 		console.log(summarize(results.map(r => r.layoutCount), '  Layouts               ', ''));
@@ -1738,7 +2465,7 @@ async function main() {
 		scenarios: /** @type {Record<string, any>} */ ({}),
 	});
 	for (const [scenario, results] of Object.entries(allResults)) {
-		const sd = /** @type {any} */ ({ runs: results.length, timing: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: results });
+		const sd = /** @type {any} */ ({ runs: results.length, timing: {}, interaction: {}, concurrent: {}, memory: {}, rendering: {}, extHost: {}, rawRuns: results });
 		for (const [metric, group] of METRIC_DEFS) { sd[group][metric] = robustStats(results.map(r => /** @type {any} */(r)[metric])); }
 		jsonReport.scenarios[scenario] = sd;
 	}
@@ -1794,8 +2521,9 @@ async function printComparison(jsonReport, opts) {
 			// [metric, group, unit]
 			['timeToFirstToken', 'timing', 'ms'],
 			['timeToComplete', 'timing', 'ms'],
+			['scrollReturnDurationMs', 'interaction', 'ms'],
+			['rendererTaskDurationMs', 'interaction', 'ms'],
 			['layoutDurationMs', 'rendering', 'ms'],
-			['forcedReflowCount', 'rendering', ''],
 			['longTaskCount', 'rendering', ''],
 		];
 		// Informational metrics — shown in comparison but don't trigger failure.
@@ -1805,8 +2533,14 @@ async function printComparison(jsonReport, opts) {
 		// build can do more, cheaper layouts yet spend less layout time and finish
 		// faster (e.g. giant-codeblock: +28% layoutCount but -7% layoutDurationMs).
 		const infoMetrics = [
+			['interactionDurationMs', 'interaction', 'ms'],
+			['rendererScriptDurationMs', 'interaction', 'ms'],
+			['longTaskTotalMs', 'interaction', 'ms'],
+			['longTaskMaxMs', 'interaction', 'ms'],
 			['layoutCount', 'rendering', ''],
 			['recalcStyleCount', 'rendering', ''],
+			['recalcStyleDurationMs', 'rendering', 'ms'],
+			['forcedReflowCount', 'rendering', ''],
 			['heapDelta', 'memory', 'MB'],
 			['gcDurationMs', 'memory', 'ms'],
 			['extHostHeapDelta', 'extHost', 'MB'],

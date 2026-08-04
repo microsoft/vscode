@@ -17,6 +17,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const http = require('http');
+const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const { execSync, execFileSync, spawn } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -159,17 +161,83 @@ async function resolveBuild(buildArg) {
  *
  * Requires `sqlite3` on PATH (pre-installed on macOS and Ubuntu).
  * @param {string} userDataDir
+ * @param {import('./agents-window-perf-corpus').AgentsWindowPerfCorpus} [agentsWindowCorpus]
  */
-function preseedStorage(userDataDir) {
+function preseedStorage(userDataDir, agentsWindowCorpus) {
 	const globalStorageDir = path.join(userDataDir, 'User', 'globalStorage');
 	fs.mkdirSync(globalStorageDir, { recursive: true });
-	const dbPath = path.join(globalStorageDir, 'state.vscdb');
-	const sql = [
-		'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
-		'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
-		'INSERT INTO ItemTable (key, value) VALUES (\'chat.tools.global.autoApprove.optIn\', \'true\');',
-	].join(' ');
-	execFileSync('sqlite3', [dbPath, sql]);
+	const defaultEntries = {
+		builtinChatExtensionEnablementMigration: 'true',
+		'chat.tools.global.autoApprove.optIn': 'true',
+	};
+	if (agentsWindowCorpus) {
+		defaultEntries['chat.ChatSessionStore.index'] = JSON.stringify(agentsWindowCorpus.chatSessionIndex);
+	}
+	writeStorageDatabase(path.join(globalStorageDir, 'state.vscdb'), defaultEntries);
+
+	if (!agentsWindowCorpus) {
+		return;
+	}
+
+	writeChatSessionFiles(path.join(globalStorageDir, 'emptyWindowChatSessions'), agentsWindowCorpus);
+
+	const agentsGlobalStorageDir = path.join(userDataDir, 'User', 'profiles', 'builtin', 'agents', 'globalStorage');
+	fs.mkdirSync(agentsGlobalStorageDir, { recursive: true });
+	writeStorageDatabase(path.join(agentsGlobalStorageDir, 'state.vscdb'), {
+		'sessions.localChat.sessions': JSON.stringify(agentsWindowCorpus.storedSessions),
+		'sessions.localChat.migrated': 'true',
+		'chat.ChatSessionStore.index': JSON.stringify(agentsWindowCorpus.chatSessionIndex),
+	});
+
+	const agentsWorkspacePath = path.join(userDataDir, 'User', 'agent-sessions.code-workspace');
+	fs.writeFileSync(agentsWorkspacePath, JSON.stringify({ folders: [] }, null, '\t'));
+	const agentsWorkspaceUri = pathToFileURL(agentsWorkspacePath).toString();
+	const agentsWorkspaceId = vscodeStringHash(agentsWorkspaceUri).toString(16);
+	const agentsWorkspaceStorageDir = path.join(userDataDir, 'User', 'workspaceStorage', agentsWorkspaceId);
+	fs.mkdirSync(agentsWorkspaceStorageDir, { recursive: true });
+	fs.writeFileSync(path.join(agentsWorkspaceStorageDir, 'workspace.json'), JSON.stringify({ workspace: agentsWorkspaceUri }, null, '\t'));
+	writeStorageDatabase(path.join(agentsWorkspaceStorageDir, 'state.vscdb'), {
+		'chat.ChatSessionStore.index': JSON.stringify(agentsWindowCorpus.chatSessionIndex),
+	});
+	writeChatSessionFiles(path.join(agentsWorkspaceStorageDir, 'chatSessions'), agentsWindowCorpus);
+	fs.mkdirSync(agentsWindowCorpus.expected.workspaceFsPath, { recursive: true });
+}
+
+/**
+ * @param {string} chatSessionDir
+ * @param {import('./agents-window-perf-corpus').AgentsWindowPerfCorpus} corpus
+ */
+function writeChatSessionFiles(chatSessionDir, corpus) {
+	fs.mkdirSync(chatSessionDir, { recursive: true });
+	for (const [sessionId, chatData] of Object.entries(corpus.chatFiles)) {
+		fs.writeFileSync(path.join(chatSessionDir, `${sessionId}.json`), JSON.stringify(chatData));
+	}
+}
+
+/** @param {string} value */
+function vscodeStringHash(value) {
+	let hashValue = ((0 * 31) + 149417) | 0;
+	for (let index = 0; index < value.length; index++) {
+		hashValue = ((hashValue * 31) + value.charCodeAt(index)) | 0;
+	}
+	return hashValue;
+}
+
+/**
+ * @param {string} dbPath
+ * @param {Record<string, string>} entries
+ */
+function writeStorageDatabase(dbPath, entries) {
+	const statements = ['CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);'];
+	for (const [key, value] of Object.entries(entries)) {
+		statements.push(`INSERT INTO ItemTable (key, value) VALUES (${sqliteString(key)}, ${sqliteString(value)});`);
+	}
+	execFileSync('sqlite3', [dbPath, statements.join(' ')]);
+}
+
+/** @param {string} value */
+function sqliteString(value) {
+	return `'${value.replace(/'/g, '\'\'')}'`;
 }
 
 // -- Launch helpers ----------------------------------------------------------
@@ -217,7 +285,7 @@ function buildEnv(mockServer, { isDevBuild = true } = {}) {
  * @param {string} logsDir
  * @returns {string[]}
  */
-function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostInspectPort = 0, traceFile = '', appRoot = ROOT, gcObjectStats = false } = {}) {
+function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostInspectPort = 0, traceFile = '', appRoot = ROOT, gcObjectStats = false, agentsWindow = false } = {}) {
 	// Chromium switches must come BEFORE the app path (ROOT) — Chromium
 	// only processes switches that precede the first non-switch argument.
 	const chromiumFlags = [];
@@ -261,6 +329,9 @@ function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostIns
 	if (process.env.CI && process.platform === 'linux') {
 		args.push('--no-sandbox');
 	}
+	if (agentsWindow) {
+		args.push('--agents');
+	}
 	// Enable extension host inspector for profiling/heap snapshots
 	if (extHostInspectPort > 0) {
 		args.push(`--inspect-extensions=${extHostInspectPort}`);
@@ -273,11 +344,12 @@ function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostIns
  * @param {string} userDataDir
  * @param {{ url: string }} mockServer
  * @param {Record<string, any>} [overrides]
+ * @param {{ agentsWindow?: boolean }} [options]
  */
-function writeSettings(userDataDir, mockServer, overrides) {
+function writeSettings(userDataDir, mockServer, overrides, options) {
 	const settingsDir = path.join(userDataDir, 'User');
 	fs.mkdirSync(settingsDir, { recursive: true });
-	fs.writeFileSync(path.join(settingsDir, 'settings.json'), JSON.stringify({
+	const settings = JSON.stringify({
 		'github.copilot.advanced.debug.overrideProxyUrl': mockServer.url,
 		'github.copilot.advanced.debug.overrideCapiUrl': mockServer.url,
 		'chat.allowAnonymousAccess': true,
@@ -291,7 +363,13 @@ function writeSettings(userDataDir, mockServer, overrides) {
 		// scenarios don't block on confirmation dialogs.
 		'chat.tools.global.autoApprove': true,
 		...overrides,
-	}, null, '\t'));
+	}, null, '\t');
+	fs.writeFileSync(path.join(settingsDir, 'settings.json'), settings);
+	if (options?.agentsWindow) {
+		const agentsSettingsDir = path.join(settingsDir, 'profiles', 'builtin', 'agents');
+		fs.mkdirSync(agentsSettingsDir, { recursive: true });
+		fs.writeFileSync(path.join(agentsSettingsDir, 'settings.json'), settings);
+	}
 }
 
 /**
@@ -299,11 +377,14 @@ function writeSettings(userDataDir, mockServer, overrides) {
  * @param {string} runId
  * @param {{ url: string }} mockServer
  * @param {Record<string, any>} [settingsOverrides]
+ * @param {{ agentsWindowCorpus?: import('./agents-window-perf-corpus').AgentsWindowPerfCorpus }} [options]
  * @returns {{ userDataDir: string, extDir: string, logsDir: string }}
  */
-function prepareRunDir(runId, mockServer, settingsOverrides) {
+function prepareRunDir(runId, mockServer, settingsOverrides, options) {
 	const tmpBase = path.join(os.tmpdir(), 'vscode-chat-simulation');
-	const userDataDir = path.join(tmpBase, `run-${runId}`);
+	// Keep the user-data path short enough for Chromium's macOS Unix-domain sockets.
+	const shortRunId = crypto.createHash('sha256').update(runId).digest('hex').slice(0, 12);
+	const userDataDir = path.join(tmpBase, `run-${shortRunId}`);
 	const extDir = path.join(DATA_DIR, 'extensions');
 	const logsDir = path.join(tmpBase, 'logs', `run-${runId}`);
 	// Retry rmSync to handle ENOTEMPTY race conditions from Electron cache locks
@@ -323,8 +404,8 @@ function prepareRunDir(runId, mockServer, settingsOverrides) {
 	fs.mkdirSync(userDataDir, { recursive: true });
 	fs.mkdirSync(extDir, { recursive: true });
 	fs.mkdirSync(logsDir, { recursive: true });
-	preseedStorage(userDataDir);
-	writeSettings(userDataDir, mockServer, settingsOverrides);
+	preseedStorage(userDataDir, options?.agentsWindowCorpus);
+	writeSettings(userDataDir, mockServer, settingsOverrides, { agentsWindow: !!options?.agentsWindowCorpus });
 	return { userDataDir, extDir, logsDir };
 }
 
@@ -478,25 +559,23 @@ async function waitForCDP(port, timeoutMs = 60_000) {
  * For dev builds this checks for `globalThis.driver` (smoke-test driver).
  * For stable builds it checks for `.monaco-workbench` in the DOM.
  * @param {import('playwright').Browser} browser
+ * @param {string} selector
  * @param {number} timeoutMs
  * @returns {Promise<import('playwright').Page>}
  */
-async function findWorkbenchPage(browser, timeoutMs = 60_000) {
+async function findWorkbenchPage(browser, selector = '.monaco-workbench', timeoutMs = 60_000) {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		const pages = browser.contexts().flatMap(ctx => ctx.pages());
 		for (const page of pages) {
-			const hasWorkbench = await page.evaluate(() =>
-				// @ts-ignore
-				!!globalThis.driver?.whenWorkbenchRestored || !!document.querySelector('.monaco-workbench')
-			).catch(() => false);
+			const hasWorkbench = await page.evaluate(targetSelector => !!document.querySelector(targetSelector), selector).catch(() => false);
 			if (hasWorkbench) {
 				return page;
 			}
 		}
 		await new Promise(r => setTimeout(r, 500));
 	}
-	throw new Error('Timed out waiting for the workbench page');
+	throw new Error(`Timed out waiting for workbench page matching ${selector}`);
 }
 
 /** @type {number} */
@@ -509,7 +588,7 @@ let nextPort = 19222;
  * @param {string} executable - Path to the VS Code executable (Electron binary or CLI)
  * @param {string[]} launchArgs - Arguments to pass to the executable
  * @param {Record<string, string>} env - Environment variables
- * @param {{ verbose?: boolean }} [opts]
+ * @param {{ verbose?: boolean, pageSelector?: string }} [opts]
  * @returns {Promise<{ page: import('playwright').Page, browser: import('playwright').Browser, close: () => Promise<void> }>}
  */
 async function launchVSCode(executable, launchArgs, env, opts = {}) {
@@ -547,7 +626,7 @@ async function launchVSCode(executable, launchArgs, env, opts = {}) {
 	}
 
 	const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-	const page = await findWorkbenchPage(browser);
+	const page = await findWorkbenchPage(browser, opts.pageSelector);
 
 	return {
 		page,
@@ -800,11 +879,38 @@ const METRIC_DEFS = [
 	['timeToUIUpdated', 'timing', 'ms'],
 	['instructionCollectionTime', 'timing', 'ms'],
 	['agentInvokeTime', 'timing', 'ms'],
+	['interactionDurationMs', 'interaction', 'ms'],
+	['scrollReturnDurationMs', 'interaction', 'ms'],
+	['rendererTaskDurationMs', 'interaction', 'ms'],
+	['rendererScriptDurationMs', 'interaction', 'ms'],
+	['longTaskTotalMs', 'interaction', 'ms'],
+	['longTaskMaxMs', 'interaction', 'ms'],
+	['concurrentBurstDurationMs', 'concurrent', 'ms'],
+	['burstThreadTimeMs', 'concurrent', 'ms'],
+	['burstTaskDurationMs', 'concurrent', 'ms'],
+	['burstScriptDurationMs', 'concurrent', 'ms'],
+	['burstRecalcStyleDurationMs', 'concurrent', 'ms'],
+	['burstLayoutDurationMs', 'concurrent', 'ms'],
+	['burstRecalcStyleCount', 'concurrent', ''],
+	['burstLayoutCount', 'concurrent', ''],
+	['settleThreadTimeMs', 'concurrent', 'ms'],
+	['settleRecalcStyleDurationMs', 'concurrent', 'ms'],
+	['settleLayoutDurationMs', 'concurrent', 'ms'],
+	['tailThreadTimeMs', 'concurrent', 'ms'],
+	['tailRecalcStyleDurationMs', 'concurrent', 'ms'],
+	['tailLayoutDurationMs', 'concurrent', 'ms'],
+	['tailRecalcStyleCount', 'concurrent', ''],
+	['tailLayoutCount', 'concurrent', ''],
+	['tailLongTaskCount', 'concurrent', ''],
+	['resizeObserverLoopCount', 'concurrent', ''],
+	['pageErrorCount', 'concurrent', ''],
+	['responsiveToolbarCount', 'concurrent', ''],
 	['heapDelta', 'memory', 'MB'],
 	['heapDeltaPostGC', 'memory', 'MB'],
 	['gcDurationMs', 'memory', 'ms'],
 	['layoutCount', 'rendering', ''],
 	['layoutDurationMs', 'rendering', 'ms'],
+	['recalcStyleDurationMs', 'rendering', 'ms'],
 	['recalcStyleCount', 'rendering', ''],
 	['forcedReflowCount', 'rendering', ''],
 	['longTaskCount', 'rendering', ''],
