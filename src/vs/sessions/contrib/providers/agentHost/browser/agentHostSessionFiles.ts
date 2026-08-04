@@ -94,6 +94,7 @@ export function createSessionOutputObs(
 	isActiveSessionObs: IObservable<boolean>,
 	isArchivedObs: IObservable<boolean>,
 	workspaceObs: IObservable<ISessionWorkspace | undefined>,
+	cache: Map<string, unknown>,
 ): ISessionOutputObs {
 	const mapDiffUri = options.mapDiffUri;
 
@@ -176,7 +177,7 @@ export function createSessionOutputObs(
 			for (const chatEditsObs of editsPerChatObs.read(reader)) {
 				const chatEdits = chatEditsObs.read(reader);
 				if (isEqual(chatEdits.chatUri, chatUri)) {
-					return reduceTurnChanges(chatEdits.lastTurnEdits, folderRoots);
+					return reduceTurnChanges(chatEdits.lastTurnEdits, folderRoots, cache);
 				}
 			}
 			return [];
@@ -476,11 +477,23 @@ interface IMutableTurnChange {
  *   before-content, matching the changeset's classification.
  * - Every change records whether its resource is outside all workspace roots.
  */
-export function reduceTurnChanges(edits: readonly IParsedFileEdit[], folderRoots: readonly URI[] = []): (IChatSessionFileChange2 & ISessionTurnFileChange)[] {
+export function reduceTurnChanges(
+	edits: readonly IParsedFileEdit[],
+	folderRoots: readonly URI[] = [],
+	cache?: Map<string, unknown>,
+): (IChatSessionFileChange2 & ISessionTurnFileChange)[] {
 	const byUri = new Map<string, IMutableTurnChange>();
 
-	const isOutsideWorkspace = (uri: URI): boolean =>
-		!folderRoots.some(root => isEqualOrParent(uri, root));
+	const isOutsideWorkspace = (resource: URI): boolean => {
+		const cacheKey = `isOutsideWorkspace:${resource.toString()}`;
+		const cached = cache?.get(cacheKey);
+		if (typeof cached === 'boolean') {
+			return cached;
+		}
+		const result = !folderRoots.some(root => isEqualOrParent(resource, root));
+		cache?.set(cacheKey, result);
+		return result;
+	};
 
 	const setCreated = (uri: URI, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);

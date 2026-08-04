@@ -524,6 +524,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
+	private readonly _sessionOutputCache = new Map<string, unknown>();
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
 	/**
@@ -754,7 +755,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Files created/edited/deleted outside the workspace, plus the last turn's
 		// changes, parsed from the chat-state turns. Computed lazily from the same
 		// active-session subscriptions used for changes.
-		const sessionOutput = createSessionOutputObs(this.backendUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
+		const sessionOutput = createSessionOutputObs(
+			this.backendUri,
+			this._options,
+			this.isActiveSessionObs,
+			this.isArchived,
+			this.workspace,
+			this._sessionOutputCache,
+		);
 		this._sessionOutput = sessionOutput;
 		this.externalChanges = sessionOutput.externalFiles;
 
@@ -1189,8 +1197,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			} else {
 				const workspace = this._computeWorkspace();
-				if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-					this.workspace.set(workspace, tx);
+				if (this._setWorkspace(workspace, tx)) {
 					didChange = true;
 				}
 			}
@@ -1259,8 +1266,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
 			const workspace = this._computeWorkspace();
-			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-				this.workspace.set(workspace, tx);
+			if (this._setWorkspace(workspace, tx)) {
 				didChange = true;
 			}
 		});
@@ -1283,6 +1289,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 		this._isQuickChat.set(true, tx);
+		return true;
+	}
+
+	private _setWorkspace(workspace: ISessionWorkspace | undefined, tx: ITransaction): boolean {
+		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
+			return false;
+		}
+		this._sessionOutputCache.clear();
+		this.workspace.set(workspace, tx);
 		return true;
 	}
 

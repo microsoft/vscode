@@ -271,13 +271,17 @@ suite('agentHostSessionFiles', () => {
 	});
 
 	test('reduceTurnChanges classifies files against workspace and worktree roots', () => {
+		const workspaceFile = URI.file('/repo/src/app.ts');
+		const worktreeFile = URI.file('/tmp/session-worktree/README.md');
+		const externalFile = URI.file('/home/user/.config/tool.json');
 		const edits: IParsedFileEdit[] = [
-			parsedEdit(FileEditKind.Edit, { after: '/repo/src/app.ts', beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
-			parsedEdit(FileEditKind.Create, { after: '/tmp/session-worktree/README.md' }, { insertions: 5 }),
-			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/tool.json', beforeContent: '/home/user/.config/tool.json.before' }, { insertions: 10, deletions: 1 }),
+			parsedEdit(FileEditKind.Edit, { after: workspaceFile.path, beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
+			parsedEdit(FileEditKind.Create, { after: worktreeFile.path }, { insertions: 5 }),
+			parsedEdit(FileEditKind.Edit, { after: externalFile.path, beforeContent: '/home/user/.config/tool.json.before' }, { insertions: 10, deletions: 1 }),
 		];
+		const cache = new Map<string, unknown>();
 
-		const changes = reduceTurnChanges(edits, [URI.file('/repo'), URI.file('/tmp/session-worktree')]).map(c => ({
+		const changes = reduceTurnChanges(edits, [URI.file('/repo'), URI.file('/tmp/session-worktree')], cache).map(c => ({
 			uri: c.uri.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
@@ -286,11 +290,21 @@ suite('agentHostSessionFiles', () => {
 			deletions: c.deletions,
 		}));
 
-		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', isOutsideWorkspace: false, insertions: 2, deletions: 0 },
-			{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, isOutsideWorkspace: false, insertions: 5, deletions: 0 },
-			{ uri: '/home/user/.config/tool.json', modified: '/home/user/.config/tool.json', original: '/home/user/.config/tool.json.before', isOutsideWorkspace: true, insertions: 10, deletions: 1 },
-		]);
+		assert.deepStrictEqual({
+			changes,
+			cache: [...cache],
+		}, {
+			changes: [
+				{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', isOutsideWorkspace: false, insertions: 2, deletions: 0 },
+				{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, isOutsideWorkspace: false, insertions: 5, deletions: 0 },
+				{ uri: '/home/user/.config/tool.json', modified: '/home/user/.config/tool.json', original: '/home/user/.config/tool.json.before', isOutsideWorkspace: true, insertions: 10, deletions: 1 },
+			],
+			cache: [
+				[`isOutsideWorkspace:${workspaceFile.toString()}`, false],
+				[`isOutsideWorkspace:${worktreeFile.toString()}`, false],
+				[`isOutsideWorkspace:${externalFile.toString()}`, true],
+			],
+		});
 	});
 
 	test('reduceTurnChanges nets out a file created and then deleted in the same turn', () => {
