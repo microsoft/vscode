@@ -3161,7 +3161,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (error) {
 			agentSession?.dispose();
 			this._logService.warn(`[Copilot] Failed to resume additional chat ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
-			return undefined;
+			throw error;
 		} finally {
 			lease.dispose();
 		}

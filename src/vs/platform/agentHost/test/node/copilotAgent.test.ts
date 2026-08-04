@@ -4155,7 +4155,7 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await agent.chats.getMessages(chat);
+				await assert.rejects(() => agent.chats.getMessages(chat), /first initialization failed/);
 				await agent.chats.getMessages(chat);
 
 				assert.strictEqual(initializationAttempts, 2);
