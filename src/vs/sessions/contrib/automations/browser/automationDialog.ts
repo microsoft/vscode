@@ -946,6 +946,39 @@ export function renderForm(
 	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
 	newChatInput.render(newChatInputHost, promptHost);
 
+	let dialogAutomationSession: ISession | undefined;
+	const initializeAutomationSession = async () => {
+		const folderUri = isolationModel.folderUriObs.get();
+		const pick = sessionTypePicker.selectedPick;
+		if (!folderUri || !pick || isolationModel.isQuickChatObs.get()) {
+			return;
+		}
+		if (!await canSelectAutomationWorkspace(folderUri, pick.providerId, sessionsManagementService, workspaceTrustRequestService)) {
+			return;
+		}
+		const currentFolderUri = isolationModel.folderUriObs.get();
+		const currentPick = sessionTypePicker.selectedPick;
+		if (disposables.isDisposed
+			|| currentFolderUri?.toString() !== folderUri.toString()
+			|| currentPick?.providerId !== pick.providerId
+			|| currentPick.sessionTypeId !== pick.sessionTypeId
+			|| isolationModel.isQuickChatObs.get()) {
+			return;
+		}
+		try {
+			dialogAutomationSession = sessionsManagementService.createAutomationSession(folderUri, {
+				providerId: pick.providerId,
+				sessionTypeId: pick.sessionTypeId,
+			});
+		} catch (error) {
+			logService.error('[AutomationDialog] Failed to initialize the automation session draft.', error);
+		}
+	};
+	void initializeAutomationSession();
+	disposables.add({
+		dispose: () => sessionsManagementService.discardAutomationSession(dialogAutomationSession),
+	});
+
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
 			const modes = chatInput.currentChatModesObs.get();
