@@ -1076,6 +1076,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('session metadata changes publish multi-root workspace provenance', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('multi-root-meta', {
+			summary: 'Multi-root Session',
+			project: { uri: URI.parse('file:///Users/me/project'), displayName: 'project' },
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0]!;
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		const multiRoot = {
+			workspaceFile: 'file:///Users/me/project.code-workspace',
+			name: 'Project Workspace',
+		};
+
+		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
+		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
+
+		assert.deepStrictEqual({
+			multiRootWorkspace: session.multiRootWorkspace?.get() ? {
+				workspaceFile: session.multiRootWorkspace.get()!.workspaceFile.toString(),
+				name: session.multiRootWorkspace.get()!.name,
+			} : undefined,
+			operationalWorkspaceLabel: session.workspace.get()?.label,
+			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
+		}, {
+			multiRootWorkspace: {
+				workspaceFile: multiRoot.workspaceFile,
+				name: multiRoot.name,
+			},
+			operationalWorkspaceLabel: 'project',
+			changedEvents: [[true]],
+		});
+	}));
+
 	test('getSessions populates from listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('list-1', { summary: 'First' }));
 		agentHost.addSession(createSession('list-2', { summary: 'Second' }));

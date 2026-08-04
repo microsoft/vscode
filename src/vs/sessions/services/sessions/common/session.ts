@@ -160,6 +160,12 @@ export interface ISessionWorkspace {
 	readonly isVirtualWorkspace: boolean;
 }
 
+/** Originating multi-root workspace associated with a session. */
+export interface ISessionMultiRootWorkspace {
+	readonly workspaceFile: URI;
+	readonly name?: string;
+}
+
 /**
  * How a session's workspace should be presented: a virtual (cloud) workspace,
  * the repository checkout itself, or an isolated git worktree.
@@ -543,6 +549,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Originating multi-root workspace, when recorded by the provider. */
+	readonly multiRootWorkspace?: IObservable<ISessionMultiRootWorkspace | undefined>;
 	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
 	readonly hasGitRepository?: IObservable<boolean>;
 	/**

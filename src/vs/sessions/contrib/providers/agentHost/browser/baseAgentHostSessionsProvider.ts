@@ -47,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionMultiRootWorkspace, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -453,6 +453,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
+	readonly multiRootWorkspace: ISettableObservable<ISessionMultiRootWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
@@ -647,6 +648,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		this.multiRootWorkspace = observableValue('multiRootWorkspace', this._computeMultiRootWorkspace());
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
@@ -1258,6 +1260,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		subtransaction(tx, tx => {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
+			const multiRootWorkspace = this._computeMultiRootWorkspace();
+			const currentMultiRootWorkspace = this.multiRootWorkspace.get();
+			if (multiRootWorkspace?.name !== currentMultiRootWorkspace?.name
+				|| !isEqual(multiRootWorkspace?.workspaceFile, currentMultiRootWorkspace?.workspaceFile)) {
+				this.multiRootWorkspace.set(multiRootWorkspace, tx);
+				didChange = true;
+			}
 			const workspace = this._computeWorkspace();
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
@@ -1293,6 +1302,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
 		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+	}
+
+	private _computeMultiRootWorkspace(): ISessionMultiRootWorkspace | undefined {
+		const multiRoot = readSessionMultiRootMetadata(this._meta);
+		return multiRoot ? { workspaceFile: URI.parse(multiRoot.workspaceFile), name: multiRoot.name } : undefined;
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
