@@ -183,7 +183,7 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
 			assert.strictEqual(promptCalls.length, 1);
 			assert.match(promptCalls[0].message, /My Tunnel/);
-			assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Runs in a remote Test Product window and stops when that window closes.');
+			assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Agents are available only while the remote Test Product window is open.');
 			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'editor' }]);
 		});
 
