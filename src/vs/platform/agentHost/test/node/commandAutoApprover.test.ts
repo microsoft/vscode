@@ -86,20 +86,52 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('sed --expression "s/foo/bar/"'), 'denied');
 		});
 
-		test('requires confirmation for sed in-place and dynamic option forms', () => {
+		test('checks static sed in-place write destinations', () => {
+			const seen: string[] = [];
+			const options = {
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return dest === 'file.txt' || dest === 'file.txt.bak';
+				},
+			};
 			const commands = [
 				'sed -i "s/foo/bar/" file.txt',
-				'sed -I "s/foo/bar/" file.txt',
+				'sed -I .bak "s/foo/bar/" file.txt',
 				'sed -ni "s/foo/bar/" file.txt',
 				'sed -i.bak "s/foo/bar/" file.txt',
 				'sed --in-place "s/foo/bar/" file.txt',
 				'sed --in-plac "s/foo/bar/" file.txt',
 				'sed.exe -i "s/foo/bar/" file.txt',
 				'sed -\\i "s/foo/bar/" file.txt',
+			];
+			assert.deepStrictEqual(
+				commands.map(commandLine => approver.shouldAutoApprove(commandLine, options)),
+				commands.map(() => 'approved'),
+			);
+			assert.deepStrictEqual(seen, [
+				'file.txt',
+				'file.txt',
+				'file.txt.bak',
+				'file.txt',
+				'file.txt',
+				'file.txt.bak',
+				'file.txt',
+				'file.txt',
+				'file.txt',
+				'file.txt',
+			]);
+		});
+
+		test('requires confirmation for dynamic or ambiguous sed forms', () => {
+			const commands = [
 				'sed "$SED_OPTIONS" "s/foo/bar/" file.txt',
 				'sed "s/foo/bar/" "$(echo --in-place)" file.txt',
 				'sed${PATH:+} -i "s/foo/bar/" file.txt',
 				'sed${PATH:+} "s/foo/bar/" file.txt',
+				'sed --follow-symlinks -i "s/foo/bar/" file.txt',
+				'sed --in-place --expr="s/foo/bar/" file.txt',
+				'sed -i.bak "-e" $ARGS inside.txt',
+				'sed --in-place --file "$SCRIPT" inside.txt',
 			];
 			assert.deepStrictEqual(
 				commands.map(commandLine => approver.shouldAutoApprove(commandLine)),
@@ -107,16 +139,21 @@ suite('CommandAutoApprover', () => {
 			);
 		});
 
-		test('sed safety gate cannot be overridden by allow rules', () => {
+		test('sed write policy cannot be overridden by allow rules', () => {
 			const commandLine = 'sed -i "s/foo/bar/" file.txt';
 			const autoApproveRules = {
 				sed: true,
 				'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
 			};
-			assert.deepStrictEqual(
-				approver.evaluate(commandLine, { autoApproveRules }),
-				{ result: 'denied', autoApproveRuleResolvable: false },
-			);
+			assert.deepStrictEqual({
+				withoutPredicate: approver.evaluate(commandLine, { autoApproveRules }),
+				rejected: approver.evaluate(commandLine, { autoApproveRules, isWriteDestApproved: () => false }),
+				accepted: approver.evaluate(commandLine, { autoApproveRules, isWriteDestApproved: () => true }),
+			}, {
+				withoutPredicate: { result: 'noMatch', autoApproveRuleResolvable: false },
+				rejected: { result: 'noMatch', autoApproveRuleResolvable: false },
+				accepted: { result: 'approved', autoApproveRuleResolvable: false },
+			});
 		});
 
 		// npm/package managers

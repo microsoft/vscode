@@ -19,7 +19,7 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 
 const nullDevice = Symbol('null device');
 
-type FileWrite = URI | string | typeof nullDevice;
+type FileWrite = URI | string | typeof nullDevice | undefined;
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -64,7 +64,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
 				fileWrites = allCapturedFileWrites.map(e => {
-					if (e === nullDevice) {
+					if (e === nullDevice || e === undefined) {
 						return e;
 					}
 
@@ -92,7 +92,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				fileWrites = allCapturedFileWrites;
 			}
 		}
-		this._log('File writes detected', fileWrites.map(e => e.toString()));
+		this._log('File writes detected', fileWrites.map(e => e?.toString() ?? 'unknown'));
 		return fileWrites;
 	}
 
@@ -107,7 +107,10 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return result;
 	}
 
-	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
+	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string | undefined): string | typeof nullDevice | undefined {
+		if (rawFileWrite === undefined) {
+			return undefined;
+		}
 		if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
 			return rawFileWrite === '$null'
 				? nullDevice
@@ -132,6 +135,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
+							if (fileWrite === undefined) {
+								isAutoApproveAllowed = false;
+								this._log('File write blocked due to unknown destination');
+								break;
+							}
 							if (fileWrite === nullDevice) {
 								this._log('File write to null device allowed', URI.isUri(fileWrite) ? fileWrite.toString() : fileWrite);
 								continue;
@@ -193,7 +201,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw.toString()}\``).join(', ');
+			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw?.toString() ?? localize('unknownFileWriteDestination', "unknown destination")}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {

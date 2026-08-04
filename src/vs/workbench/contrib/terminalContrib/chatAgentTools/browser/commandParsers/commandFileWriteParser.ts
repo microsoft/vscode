@@ -25,7 +25,8 @@ export interface ICommandFileWriteParser {
 	 * Extracts the file paths that would be written to by this command.
 	 * Should only be called if canHandle() returns true.
 	 * @param commandText The full text of a single command (not a pipeline).
-	 * @returns Array of file paths that would be modified.
+	 * @returns Array of file paths that would be modified. An undefined entry
+	 * indicates a write whose destination cannot be determined statically.
 	 */
-	extractFileWrites(commandText: string): string[];
+	extractFileWrites(commandText: string): (string | undefined)[];
 }

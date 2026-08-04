@@ -151,7 +151,7 @@ export class TreeSitterCommandParser extends Disposable {
 	 * Uses registered command parsers (e.g., for `sed -i`) to detect command-specific file writes.
 	 * Returns an array of file paths that would be modified.
 	 */
-	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<(string | undefined)[]> {
 		// Currently only bash-like shells are supported for command-specific parsing
 		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
 			return [];
@@ -161,7 +161,7 @@ export class TreeSitterCommandParser extends Disposable {
 		const query = '(command) @command';
 		const captures = await this._queryTree(languageId, commandLine, query);
 
-		const result: string[] = [];
+		const result: (string | undefined)[] = [];
 		for (const capture of captures) {
 			const commandText = capture.node.text;
 			for (const parser of this._commandFileWriteParsers) {

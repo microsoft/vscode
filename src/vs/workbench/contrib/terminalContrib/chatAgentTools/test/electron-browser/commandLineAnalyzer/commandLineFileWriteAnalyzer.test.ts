@@ -196,7 +196,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		suite('sed in-place editing', () => {
 			// Basic -i flag variants (inside workspace)
 			test('sed -i inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
-			test('sed -I (uppercase) inside workspace - allow', () => t('sed -I \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -I (uppercase) inside workspace - allow', () => t('sed -I \'\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed --in-place inside workspace - allow', () => t('sed --in-place \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 
 			// Backup suffix variants (inside workspace)
@@ -221,6 +221,14 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 			// With blockDetectedFileWrites: never
 			test('sed -i with never setting - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'never', true, 1));
+
+			// Shared sed analysis fails closed when destinations are ambiguous
+			test('sed -i missing target - block', () => t('sed -i \'s/foo/bar/\'', 'outsideWorkspace', false, 1));
+			test('sed -i glob target - block', () => t('sed -i \'s/foo/bar/\' *.txt', 'outsideWorkspace', false, 1));
+			test('sed runtime option - block', () => t('sed "$SED_OPTIONS" \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed runtime expression - block', () => t('sed -i.bak -e "$SCRIPT" file.txt', 'outsideWorkspace', false, 1));
+			test('sed --follow-symlinks -i - block', () => t('sed --follow-symlinks -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed backup suffix outside workspace - block', () => t('sed -i\'../outside/*\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
 
 			// Without -i flag (should not detect as file write)
 			test('sed without -i - no file write detected', () => t('sed \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 0));

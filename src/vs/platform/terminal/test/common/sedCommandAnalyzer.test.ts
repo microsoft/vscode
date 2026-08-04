@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { analyzeSedCommand, SedCommandAnalysis } from '../../common/sedCommandAnalyzer.js';
+import { analyzeSedCommand } from '../../common/sedCommandAnalyzer.js';
 
 suite('analyzeSedCommand', () => {
 
@@ -24,14 +24,14 @@ suite('analyzeSedCommand', () => {
 
 		assert.deepStrictEqual(
 			commands.map(analyzeSedCommand),
-			commands.map(() => SedCommandAnalysis.Safe),
+			commands.map(() => ({ kind: 'safe' })),
 		);
 	});
 
-	test('requires confirmation for semantic in-place options', () => {
+	test('identifies static semantic in-place options', () => {
 		const commands = [
 			'sed -i "s/foo/bar/" file.txt',
-			'sed -I "s/foo/bar/" file.txt',
+			'sed -I .bak "s/foo/bar/" file.txt',
 			'sed -ni "s/foo/bar/" file.txt',
 			'sed -n -i "s/foo/bar/" file.txt',
 			'sed -i.bak "s/foo/bar/" file.txt',
@@ -48,8 +48,24 @@ suite('analyzeSedCommand', () => {
 		];
 
 		assert.deepStrictEqual(
-			commands.map(analyzeSedCommand),
-			commands.map(() => SedCommandAnalysis.RequiresConfirmation),
+			commands.map(command => analyzeSedCommand(command).kind),
+			[
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'inPlace',
+				'requiresConfirmation',
+				'inPlace',
+				'requiresConfirmation',
+			],
 		);
 	});
 
@@ -66,7 +82,58 @@ suite('analyzeSedCommand', () => {
 
 		assert.deepStrictEqual(
 			commands.map(analyzeSedCommand),
-			commands.map(() => SedCommandAnalysis.RequiresConfirmation),
+			commands.map(() => ({ kind: 'requiresConfirmation' })),
+		);
+	});
+
+	test('extracts the union of static GNU and BSD write destinations', () => {
+		const cases = [
+			['sed -i "s/foo/bar/" file.txt', ['file.txt']],
+			['sed -i.bak "s/foo/bar/" file.txt', ['file.txt', 'file.txt.bak']],
+			['sed --in-place "s/foo/bar/" file.txt', ['file.txt']],
+			['sed --in-place=.bak "s/foo/bar/" file.txt', ['file.txt', 'file.txt.bak']],
+			['sed -i "" "s/foo/bar/" file.txt', ['s/foo/bar/', 'file.txt']],
+			['sed -i json "s/foo/bar/" package.', ['s/foo/bar/', 'package.', 'package.json']],
+			['sed -I .json "s/foo/bar/" package', ['package', 'package.json']],
+			['sed -i\'../outside/*\' "s/foo/bar/" inside.txt', ['inside.txt', '../outside/inside.txt', 'inside.txt../outside/*']],
+			['sed -i "s/foo/bar/" file1.txt file2.txt', ['file1.txt', 'file2.txt', 'file2.txts/foo/bar/']],
+			['sed --in-place -e "s/foo/bar/" file.txt', ['file.txt']],
+		] as const;
+
+		assert.deepStrictEqual(
+			cases.map(([commandLine]) => analyzeSedCommand(commandLine)),
+			cases.map(([, fileWrites]) => ({ kind: 'inPlace', fileWrites: [...fileWrites] })),
+		);
+	});
+
+	test('decodes backslashes according to the shell dialect', () => {
+		assert.deepStrictEqual({
+			bashUnquoted: analyzeSedCommand('sed --in-place "s/foo/bar/" \\/etc/config', 'bash'),
+			bashDoubleQuotedLiteral: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\q"', 'bash'),
+			bashDoubleQuotedEscapedExpansion: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\$FILE"', 'bash'),
+			powerShellPath: analyzeSedCommand('sed --in-place "s/foo/bar/" C:\\outside\\file.txt', 'powershell'),
+		}, {
+			bashUnquoted: { kind: 'inPlace', fileWrites: ['/etc/config'] },
+			bashDoubleQuotedLiteral: { kind: 'inPlace', fileWrites: ['path\\q'] },
+			bashDoubleQuotedEscapedExpansion: { kind: 'inPlace', fileWrites: ['path$FILE'] },
+			powerShellPath: { kind: 'inPlace', fileWrites: ['C:\\outside\\file.txt'] },
+		});
+	});
+
+	test('requires confirmation when static destinations cannot be determined', () => {
+		const commands = [
+			'sed -i "s/foo/bar/"',
+			'sed --follow-symlinks -i "s/foo/bar/" link.txt',
+			'sed --in-place --expr="s/foo/bar/" outside.txt',
+			'sed --in-place --fi=script.sed outside.txt',
+			'sed -i -x "s/foo/bar/" file.txt',
+			'sed -i.bak "-e" $ARGS inside.txt',
+			'sed --in-place --file "$SCRIPT" inside.txt',
+		];
+
+		assert.deepStrictEqual(
+			commands.map(analyzeSedCommand),
+			commands.map(() => ({ kind: 'requiresConfirmation' })),
 		);
 	});
 });
