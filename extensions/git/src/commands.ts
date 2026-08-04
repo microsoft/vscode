@@ -2851,8 +2851,34 @@ export class CommandCenter {
 
 	private async _checkout(repository: Repository, opts?: { detached?: boolean; treeish?: string }): Promise<boolean> {
 		if (typeof opts?.treeish === 'string') {
-			await repository.checkout(opts?.treeish, opts);
-			return true;
+			try {
+				await repository.checkout(opts?.treeish, opts);
+				return true;
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+					throw err;
+				}
+
+				const stash = l10n.t('Stash & Checkout');
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
+
+				if (choice === force) {
+					await this.cleanAll(repository);
+					await repository.checkout(opts.treeish, opts);
+				} else if (choice === stash || choice === migrate) {
+					if (await this._stash(repository, true)) {
+						await repository.checkout(opts.treeish, opts);
+
+						if (choice === migrate) {
+							await this.stashPopLatest(repository);
+						}
+					}
+				}
+
+				return true;
+			}
 		}
 
 		const createBranch = new CreateBranchItem();
