@@ -3960,7 +3960,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
 						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
 						parentInvocation.toolSpecificData.isActive = isActive;
-						parentInvocation.toolSpecificData.activity = activity;
+						if (activity) {
+							parentInvocation.toolSpecificData.activity = activity;
+						} else {
+							delete parentInvocation.toolSpecificData.activity;
+						}
 						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
 						parentInvocation.toolSpecificData.duration = fallbackDuration;
 						parentInvocation.notifyToolSpecificDataChanged();
