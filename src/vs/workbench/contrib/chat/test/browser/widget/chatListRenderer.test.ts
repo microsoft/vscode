@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingSessionCreatedTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, moveSessionCreatedToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -146,6 +146,60 @@ suite('ChatListRenderer', () => {
 					mcpAppFirst: 0,
 					multipleMcpApps: 1,
 				});
+			});
+
+			test('moves created-session pills after the final response and before trailing adjuncts', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const firstStep = { kind: 'markdownContent', content: new MarkdownString('First step') } as const;
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Final response') } as const;
+				const trailingAdjunct = { kind: 'references', references: [] } as const;
+
+				const content = [firstStep, tool, finalResponse, trailingAdjunct];
+				assert.deepStrictEqual({
+					content: moveSessionCreatedToolsAfterFinalResponse(content),
+					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingSessionCreatedTools(content),
+				}, {
+					content: [firstStep, finalResponse, tool, trailingAdjunct],
+					finalResponseStartIndex: 1,
+				});
+			});
+
+			test('leaves created-session tools in place when there is no final response', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+
+				assert.deepStrictEqual(moveSessionCreatedToolsAfterFinalResponse([tool]), [tool]);
 			});
 		});
 	});
