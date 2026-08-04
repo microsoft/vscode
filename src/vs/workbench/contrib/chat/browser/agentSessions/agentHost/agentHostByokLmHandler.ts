@@ -18,8 +18,9 @@ import {
 	IByokLmOutputItem,
 	IByokLmReasoningItem,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
@@ -32,6 +33,7 @@ import {
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
 const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
+const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -53,12 +55,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
 		// agent host can refresh its BYOK model list — extension-provided BYOK models
 		// often register shortly after the bridge connects.
 		this._register(Event.debounce(this._languageModelsService.onDidChangeLanguageModels, () => undefined, 500)(() => {
+			this._onDidChangeModels.fire();
+		}));
+		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
 			this._onDidChangeModels.fire();
 		}));
 	}
