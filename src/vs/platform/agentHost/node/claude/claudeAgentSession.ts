@@ -28,7 +28,7 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
-import { toSdkModelId } from './claudeModelId.js';
+import { toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -563,7 +563,7 @@ export class ClaudeAgentSession extends Disposable {
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			toSdkModelId(this._provisionalModel?.id),
+			toClaudeSdkModelId(this._provisionalModel),
 			toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -857,7 +857,7 @@ export class ClaudeAgentSession extends Disposable {
 	async setModel(model: ModelSelection): Promise<void> {
 		this._provisionalModel = model;
 		if (this._pipeline) {
-			await this._pipeline.setModel(toSdkModelId(model.id));
+			await this._pipeline.setModel(toClaudeSdkModelId(model));
 			// Always push the resolved effort, including `undefined`. Switching
 			// to a model that does not support reasoning effort (e.g. Haiku)
 			// resolves to `undefined`, which must actively CLEAR any effort the

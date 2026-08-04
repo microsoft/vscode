@@ -5,6 +5,7 @@
 
 import type { IAgentModelInfo } from '../../common/agentService.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
+import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
 /**
@@ -67,6 +68,27 @@ export function parseClaudeModelSelection(selection: ModelSelection): { readonly
 	} catch {
 		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id };
 	}
+}
+
+/**
+ * Resolves the SDK-canonical model id for a selection, peeling off any provider
+ * qualification first. Under the per-session provider feature a selection id is
+ * provider-qualified (`@provider=anthropic:claude-sonnet-4-5`); neither the
+ * Claude Agent SDK nor CAPI understands that wrapper, so it must be stripped
+ * back to the bare model id before {@link toSdkModelId} normalizes the version
+ * separators — otherwise the SDK receives `@provider=…` verbatim (it is
+ * unparseable, so {@link toSdkModelId} passes it through untouched) and the
+ * model 400s. A bare / legacy id (the flag-off path) has no wrapper and
+ * round-trips exactly as it did before this feature existed. `undefined` passes
+ * through so callers can convert an optional selection in one step.
+ */
+export function toClaudeSdkModelId(model: ModelSelection): string;
+export function toClaudeSdkModelId(model: ModelSelection | undefined): string | undefined;
+export function toClaudeSdkModelId(model: ModelSelection | undefined): string | undefined {
+	if (!model) {
+		return undefined;
+	}
+	return toSdkModelId(parseClaudeModelSelection(model).modelId);
 }
 
 /**

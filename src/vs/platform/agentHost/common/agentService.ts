@@ -99,6 +99,19 @@ export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgen
  */
 export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
 
+/**
+ * Workbench VS Code setting id for the Claude per-session provider picker
+ * (experimental). When enabled, the Claude provider publishes both its
+ * Copilot-routed and native-Anthropic model catalogs as one grouped picker and
+ * derives each session's transport from the selected model's provider, instead
+ * of resolving a single host-global transport. Forwarded into the agent-host
+ * root config under `AgentHostConfigKey.ClaudePerSessionProvider`, which the
+ * Claude provider reads node-side via `getRootValue`. Until it is wired and
+ * enabled the root key is absent, so it reads `false` and behavior is identical
+ * to today (a single resolved-transport catalog).
+ */
+export const AgentHostClaudePerSessionProviderSettingId = 'chat.agentHost.claude.perSessionProvider';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.

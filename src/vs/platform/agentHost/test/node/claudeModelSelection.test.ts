@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agentService.js';
-import { claudeTransportForProvider, CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
+import { claudeTransportForProvider, CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';
 
 suite('claudeModelSelection', () => {
 
@@ -120,6 +120,25 @@ suite('claudeModelSelection', () => {
 					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: 'claude-opus-4-8' }, defaultMode: 'native' }),
 				],
 				['native', 'proxy', 'proxy'],
+			);
+		});
+	});
+
+	suite('toClaudeSdkModelId', () => {
+
+		test('peels off the provider qualification and normalizes to the bare SDK id; a legacy bare id and undefined pass through', () => {
+			// A provider-qualified id must be stripped to its bare model id before
+			// SDK-normalization, or the unparseable `@provider=…` string reaches the
+			// subprocess verbatim and 400s. A bare/legacy id (flag-off) has no
+			// wrapper and just normalizes (dotted→dashed); undefined stays undefined.
+			assert.deepStrictEqual(
+				[
+					toClaudeSdkModelId({ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') }),
+					toClaudeSdkModelId({ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') }),
+					toClaudeSdkModelId({ id: 'claude-opus-4.6' }),
+					toClaudeSdkModelId(undefined),
+				],
+				['claude-sonnet-4-5', 'claude-opus-4-6', 'claude-opus-4-6', undefined],
 			);
 		});
 	});
