@@ -135,6 +135,10 @@
 	transition: border-color 100ms ease-out;
 }
 
+.voice-mode-onboarding-microphone-picker[hidden] {
+	display: none;
+}
+
 .voice-mode-onboarding-microphone-picker:hover {
 	border-color: var(--vscode-focusBorder);
 }
