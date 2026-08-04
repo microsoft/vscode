@@ -284,11 +284,30 @@ class WordHighlighter {
 				this.runDelayer.trigger(() => { this._run(); }).catch(onUnexpectedError);
 			}
 		}));
+
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
+
+			// detect delete operation (text removed)
+			const isDeleteOperation = e.changes.some(change =>
+				change.text === '' && change.rangeLength > 0
+			);
+
+			if (isDeleteOperation) {
+				// refresh highlights after deletion
+				this.runDelayer.cancel();
+				this._run();
+				return;
+			}
+
+			// fallback to original behavior
 			if (!matchesScheme(this.model.uri, 'output')) {
 				this._stopAll();
 			}
 		}));
+
+
+
+
 		this.toUnhook.add(editor.onDidChangeModel((e) => {
 			if (!e.newModelUrl && e.oldModelUrl) {
 				this._stopSingular();
