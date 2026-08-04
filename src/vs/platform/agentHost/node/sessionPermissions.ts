@@ -32,7 +32,7 @@ import {
 } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover } from './commandAutoApprover.js';
+import { CommandAutoApprover, type ITreeSitterReadiness } from './commandAutoApprover.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -234,8 +234,11 @@ export class SessionPermissionManager extends Disposable {
 	 * Initializes async resources (tree-sitter WASM) used for shell command
 	 * auto-approval. Await this before any session events can arrive so that
 	 * shell command parsing within {@link getAutoApproval} is synchronous.
+	 *
+	 * Resolves with which shells can actually be analyzed; an unavailable shell
+	 * fails closed (commands require confirmation) rather than blocking startup.
 	 */
-	initialize(): Promise<void> {
+	initialize(): Promise<ITreeSitterReadiness> {
 		return this._commandAutoApprover.initialize();
 	}
 

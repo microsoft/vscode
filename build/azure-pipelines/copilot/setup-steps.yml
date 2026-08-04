@@ -36,6 +36,10 @@ steps:
     condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
+  - script: node build/azure-pipelines/common/verifyNodeModulesCache.ts BUILD_CACHE_RESTORED
+    condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
+    displayName: Verify node_modules cache
+
   - pwsh: |
       $ErrorActionPreference = 'Stop'
       # Set the private NPM registry to the global npmrc file

@@ -16,7 +16,12 @@ suite('CommandAutoApprover', () => {
 
 	setup(async () => {
 		approver = disposables.add(new CommandAutoApprover(new NullLogService()));
-		await approver.initialize();
+		const readiness = await approver.initialize();
+		// Without a working parser and both grammars every command silently
+		// degrades to `noMatch`, which shows up as dozens of confusing
+		// assertion mismatches instead of one clear failure. Fail fast here so
+		// a packaging/dependency regression is obvious. See issue #328863.
+		assert.deepStrictEqual(readiness, { parser: true, bash: true, powershell: true }, 'tree-sitter must be fully available for these tests');
 	});
 
 	suite('shouldAutoApprove', () => {
@@ -284,6 +289,15 @@ suite('CommandAutoApprover', () => {
 		test('is not rule-resolvable while the parser is unavailable', () => {
 			const uninitialized = disposables.add(new CommandAutoApprover(new NullLogService()));
 			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch', autoApproveRuleResolvable: false });
+		});
+
+		test('initialize reports per-shell readiness by analyzing a probe command', async () => {
+			// Readiness must reflect whether a shell can actually be analyzed,
+			// not merely that the grammar file loaded: a wrong or incompatible
+			// grammar loads cleanly yet silently degrades everything to
+			// `noMatch`.
+			const probe = disposables.add(new CommandAutoApprover(new NullLogService()));
+			assert.deepStrictEqual(await probe.initialize(), { parser: true, bash: true, powershell: true });
 		});
 	});
 

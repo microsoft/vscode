@@ -26,7 +26,14 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 		try {
 			stat = fs.statSync(path.join(ROOT, entryPath));
 		} catch (err) {
-			continue;
+			// A dangling symlink cannot be stat'ed and is safe to skip. Any
+			// other failure would silently drop files from the cache manifest,
+			// producing an incomplete node_modules archive that later fails in
+			// confusing ways, so surface it instead.
+			if (isDanglingSymbolicLink(entryPath)) {
+				continue;
+			}
+			throw new Error(`Failed to stat '${entryPath}' while listing node_modules`, { cause: err });
 		}
 
 		if (stat.isDirectory()) {
@@ -36,6 +43,14 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 				result.push(entryPath.substr(1));
 			}
 		}
+	}
+}
+
+function isDanglingSymbolicLink(entryPath: string): boolean {
+	try {
+		return fs.lstatSync(path.join(ROOT, entryPath)).isSymbolicLink();
+	} catch {
+		return false;
 	}
 }
 

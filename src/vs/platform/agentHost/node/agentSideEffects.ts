@@ -598,7 +598,7 @@ export class AgentSideEffects extends Disposable {
 	 * guarantee that auto-approval checks are fully synchronous.
 	 */
 	initialize(): Promise<void> {
-		return this._permissionManager.initialize();
+		return this._permissionManager.initialize().then(() => undefined);
 	}
 
 	// ---- Agent registration -------------------------------------------------
