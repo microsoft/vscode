@@ -12,21 +12,29 @@ suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves the dictation language from Voice Mode configuration and VS Code display language', () => {
+	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({
-			explicitOverridesDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE'),
-			automaticUsesDisplayLanguage: resolveDictationLanguage('auto', 'de-DE'),
-			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
-			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
-			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
+			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
+			explicitWithDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE', 'ja'),
+			displayLanguage: resolveDictationLanguage('auto', 'en-US', 'de'),
+			englishDisplayLanguage: resolveDictationLanguage('auto', 'de-DE', 'en'),
+			unsupportedDisplayLanguage: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA', 'id-ID'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL', 'id-ID'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU', 'id-ID'),
 			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
 			explicitAdaptationReady: resolveDictationLanguage('lt', 'en-US'),
-			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO', 'id-ID'),
 			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
-			missing: resolveDictationLanguage(undefined, undefined),
+			missing: resolveDictationLanguage(undefined, undefined, 'id-ID'),
 		}, {
-			explicitOverridesDisplayLanguage: 'fr-FR',
-			automaticUsesDisplayLanguage: 'de-DE',
+			explicit: 'fr-FR',
+			explicitWithDisplayLanguage: 'fr-FR',
+			displayLanguage: 'de-DE',
+			englishDisplayLanguage: 'en-US',
+			unsupportedDisplayLanguage: 'pt-BR',
+			automatic: 'uk-UA',
 			regionalAutomatic: 'pt-BR',
 			additionalSupportedAutomatic: 'he-IL',
 			unsupportedRegion: 'en-US',
