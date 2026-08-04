@@ -13,7 +13,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatDictationSurface, ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { startDictation, stopDictation } from '../../browser/speechToText/dictationSession.js';
 
 suite('DictationSession', () => {
@@ -29,6 +29,7 @@ suite('DictationSession', () => {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
 		let state = ChatSpeechToTextState.Idle;
+		let currentSurface: ChatDictationSurface = 'chat';
 		let finalTranscript = transcript;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
@@ -38,6 +39,7 @@ suite('DictationSession', () => {
 			onDidChangeDownloadingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
+			get currentSurface() { return currentSurface; },
 			get showTranscriptWhileDictating() { return showTranscriptWhileDictating; },
 			get analyserNode() { return undefined; },
 			get isConfigured() { return true; },
@@ -46,7 +48,8 @@ suite('DictationSession', () => {
 			get modelDownloadProgress() { return undefined; },
 			get currentBackend() { return 'mai' as const; },
 			async switchMicrophone() { return undefined; },
-			async start() {
+			async start(_window, surface = 'chat') {
+				currentSurface = surface;
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
 			},
@@ -175,6 +178,25 @@ suite('DictationSession', () => {
 		assert.deepStrictEqual(
 			[editor1WhileDictating, editor1.getValue(), editor2WhileDictating, editor2.getValue()],
 			['hello', 'hello', 'world', 'world'],
+		);
+	});
+
+	test('reports dictation activity only for the active surface', async () => {
+		const { service } = createService('', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService(), 'editor');
+		const whileDictating = [
+			isDictationActiveOnSurface(service, 'chat'),
+			isDictationActiveOnSurface(service, 'editor'),
+			isDictationActiveOnSurface(service, 'terminal'),
+		];
+		await stopDictation();
+
+		assert.deepStrictEqual(
+			[whileDictating, isDictationActiveOnSurface(service, 'editor')],
+			[[false, true, false], false],
 		);
 	});
 });

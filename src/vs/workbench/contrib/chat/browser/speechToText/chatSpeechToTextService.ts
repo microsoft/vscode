@@ -253,6 +253,8 @@ export interface IChatSpeechToTextService {
 
 	readonly onDidChangeState: Event<ChatSpeechToTextState>;
 	readonly state: ChatSpeechToTextState;
+	/** Dictation surface associated with the current or most recent session. */
+	readonly currentSurface: ChatDictationSurface;
 
 	/**
 	 * Fires with the cumulative transcript while recording, so callers can
@@ -339,6 +341,10 @@ export interface IChatSpeechToTextService {
 	logDictationAccuracy(measurement: IDictationAccuracyMeasurement): void;
 }
 
+export function isDictationActiveOnSurface(service: IChatSpeechToTextService, surface: ChatDictationSurface): boolean {
+	return service.currentSurface === surface && (service.state !== ChatSpeechToTextState.Idle || service.isPreparingModel);
+}
+
 export class ChatSpeechToTextService extends Disposable implements IChatSpeechToTextService {
 
 	declare readonly _serviceBrand: undefined;
@@ -387,6 +393,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
 		return this._state;
+	}
+
+	get currentSurface(): ChatDictationSurface {
+		return this._sessionSurface;
 	}
 
 	private readonly _recordingContextKey: IContextKey<boolean>;
@@ -544,7 +554,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._isPreparingModel = preparing;
-		this._preparingContextKey.set(preparing);
+		this._preparingContextKey.set(preparing && this.currentSurface === 'chat');
 		if (!preparing) {
 			this._setModelDownloadProgress(undefined);
 			// Preparation ended (ready, error, or teardown): the model is no
@@ -618,7 +628,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._state = state;
-		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording);
+		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording && this.currentSurface === 'chat');
 		this._onDidChangeState.fire(state);
 	}
 

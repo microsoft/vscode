@@ -35,7 +35,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
@@ -492,18 +492,15 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._onClickListen();
 		}));
 
-		// Dictation activity: driven directly by the built-in on-device speech-to-text
-		// service so the mic reliably fills while a dictation session is recording or
-		// transcribing (global, not scope-dependent).
 		const dictationActive = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangeState,
-			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
+			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat'));
 
 		// Model preparation: on first use the on-device model downloads/loads. Swap the
 		// mic for a download affordance while preparing, mirroring the standalone button.
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
-			() => this.chatSpeechToTextService.isPreparingModel);
+			() => this.chatSpeechToTextService.currentSurface === 'chat' && this.chatSpeechToTextService.isPreparingModel);
 		// Sub-state of preparing: `true` only during a confirmed on-disk download
 		// (cache miss), `false` while loading an already-cached model. Drives the
 		// download-vs-spinner glyph below.
