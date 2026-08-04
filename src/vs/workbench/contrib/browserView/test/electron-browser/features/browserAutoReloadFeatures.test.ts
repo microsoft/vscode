@@ -36,7 +36,7 @@ suite('Browser Auto Reload Features', () => {
 			disposedWatchers: 0,
 		});
 
-		emptyModel.navigate('file:///workspace/index.html');
+		emptyModel.navigate('file:///workspace/index.html?theme=dark#section');
 		assert.deepStrictEqual(fileService.snapshot(), {
 			resources: ['file:///workspace/index.html'],
 			activeWatchers: 1,
@@ -46,7 +46,7 @@ suite('Browser Auto Reload Features', () => {
 
 	test('watches file URLs and replaces the watcher on navigation', () => {
 		const fileService = new TestFileService();
-		const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html'));
+		const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html?theme=dark#section'));
 		const watcher = disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service));
 
 		assert.deepStrictEqual(fileService.snapshot(), {
@@ -104,14 +104,17 @@ suite('Browser Auto Reload Features', () => {
 			model.setVisible(false);
 			fileService.fire(URI.file('/workspace/index.html'));
 			fileService.fire(URI.file('/workspace/index.html'));
-			await timeout(301);
+			model.setVisible(true);
 			assert.strictEqual(model.reloadCount, 0);
+			await timeout(301);
+			assert.strictEqual(model.reloadCount, 1);
 
-			model.setVisible(true);
-			assert.strictEqual(model.reloadCount, 1);
 			model.setVisible(false);
-			model.setVisible(true);
+			fileService.fire(URI.file('/workspace/index.html'));
+			await timeout(301);
 			assert.strictEqual(model.reloadCount, 1);
+			model.setVisible(true);
+			assert.strictEqual(model.reloadCount, 2);
 		});
 	});
 
