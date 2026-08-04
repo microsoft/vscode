@@ -140,6 +140,13 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	return [focusedStat];
 }
 
+export function getExplorerTwistieAdditionalCssClass(element: unknown, fileIconTheme: IFileIconTheme): string | undefined {
+	if (element instanceof ExplorerItem && element.hasNests && fileIconTheme.hidesExplorerArrows) {
+		return 'force-twistie';
+	}
+	return undefined;
+}
+
 export interface IExplorerViewContainerDelegate {
 	willOpenElement(event?: UIEvent): void;
 	didOpenElement(event?: UIEvent): void;
@@ -508,6 +515,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			findProvider: this.findProvider,
+			twistieAdditionalCssClass: (e: unknown) => getExplorerTwistieAdditionalCssClass(e, this.themeService.getFileIconTheme()),
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
