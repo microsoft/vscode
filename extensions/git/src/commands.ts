@@ -3179,6 +3179,16 @@ export class CommandCenter {
 		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
+	@command('git.graph.copyBranchName', { repository: true })
+	async graphCopyBranchName(_repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef?.name) {
+			return;
+		}
+
+		env.clipboard.writeText(historyItemRef.name);
+	}
+
 	@command('git.graph.compareWithRemote', { repository: true })
 	async compareWithRemote(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!historyItem || !repository.historyProvider.currentHistoryItemRemoteRef) {
