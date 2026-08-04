@@ -86,6 +86,7 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: false })), { userInvocable: false });
+			assert.deepStrictEqual(readAgentCustomizationMeta({ ...agentCustomization({ userInvocable: true }), disableUserInvocation: true }), { userInvocable: false });
 			assert.strictEqual(toAgentCustomizationMeta({}), undefined);
 			assert.deepStrictEqual(toAgentCustomizationMeta({ userInvocable: true }), { userInvocable: true });
 		});

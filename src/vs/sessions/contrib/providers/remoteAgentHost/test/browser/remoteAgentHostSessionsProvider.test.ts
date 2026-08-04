@@ -232,6 +232,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
+		override getCustomAgents = () => constObservable([]);
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {

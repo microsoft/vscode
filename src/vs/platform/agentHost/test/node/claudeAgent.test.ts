@@ -31,6 +31,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { join } from '../../../../base/common/path.js';
 import { isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -46,6 +47,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentChatContext, IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, resolveChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
@@ -1071,12 +1073,72 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('native transport: getProtectedResources omits the Copilot resource', () => {
+	test('native transport: getProtectedResources keeps the Copilot resource but marks it not required', () => {
+		// Native keeps advertising the Copilot resource with `required: false`
+		// (rather than dropping it) so the host can silently probe for a GitHub
+		// token when the user is already signed in, while the window gate still
+		// treats the type as usable without GitHub. See `getProtectedResources`.
 		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		assert.deepStrictEqual(
-			agent.getProtectedResources().map(r => r.resource),
-			['https://api.github.com/repos'],
+			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+			[
+				{ resource: 'https://api.github.com', required: false },
+				{ resource: 'https://api.github.com/repos', required: false },
+			],
 		);
+	});
+
+	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
+		// The fix for the startup catch-22: with the exp flag on and a local Claude
+		// setup present, a signed-OUT user resolves to native — which still
+		// advertises the Copilot resource as not-required so the host can probe. If
+		// the host then silently forwards a GitHub token (the user was signed in all
+		// along), `authenticate` re-resolves (rule 3: signed in ⇒ proxy) and flips
+		// the transport to proxy, starting the proxy. Real detection is used against
+		// a real `~/.claude/settings.json` credential under a temp home.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-probe-home-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, proxy } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+			// Signed out at startup ⇒ native, Copilot advertised as not-required.
+			const before = {
+				resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+				proxyStarts: proxy.startCalls.length,
+			};
+
+			// Host probe forwards a GitHub token (user was signed in) ⇒ flip to proxy.
+			await agent.authenticate('https://api.github.com', 'gh-token');
+			await tick();
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+					proxyStarts: proxy.startCalls.length,
+				},
+			}, {
+				before: {
+					resources: [
+						{ resource: 'https://api.github.com', required: false },
+						{ resource: 'https://api.github.com/repos', required: false },
+					],
+					proxyStarts: 0,
+				},
+				after: {
+					resources: [
+						{ resource: 'https://api.github.com', required: true },
+						{ resource: 'https://api.github.com/repos', required: false },
+					],
+					proxyStarts: 1,
+				},
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
 	});
 
 	test('coalesces concurrent refreshModels calls onto one CAPI models request', async () => {
@@ -1135,48 +1197,85 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
-		const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		let capiModelsCalls = 0;
-		api.models = async () => { capiModelsCalls++; return []; };
+		// Native enumeration only runs when a credential is actually present, so
+		// give this a real `~/.claude/settings.json` under a temp home.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-models-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+			let capiModelsCalls = 0;
+			api.models = async () => { capiModelsCalls++; return []; };
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			];
+			// The constructor kicks off an initial native refresh; `_fetchNativeModels`
+			// awaits a real `mkdtemp` before enumerating, so poll until it lands.
+			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+				await tick();
+			}
+			await tick();
+			assert.deepStrictEqual({
+				models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
+				proxyStarts: proxy.startCalls.length,
+				supportedModelsCalls: sdk.supportedModelsCallCount,
+				capiModelsCalls,
+			}, {
+				models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
+				proxyStarts: 0,
+				supportedModelsCalls: 1,
+				capiModelsCalls: 0,
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
+	test('native without a credential publishes an empty catalog instead of the SDK static list', async () => {
+		// `supportedModels()` answers even with no credentials (it is a static
+		// catalog), so publishing it would advertise models that fail on first
+		// use — and would make the type look usable-without-GitHub to the window
+		// gate. `/mock-home` has no `.claude` credential.
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		sdk.supportedModelsResult = [
-			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
-		// The constructor kicks off an initial native refresh; `_fetchNativeModels`
-		// awaits a real `mkdtemp` before enumerating, so poll until it lands.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+		for (let i = 0; i < 20; i++) {
 			await tick();
 		}
-		await tick();
 		assert.deepStrictEqual({
-			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
-			proxyStarts: proxy.startCalls.length,
+			models: agent.models.get(),
 			supportedModelsCalls: sdk.supportedModelsCallCount,
-			capiModelsCalls,
 		}, {
-			models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
-			proxyStarts: 0,
-			supportedModelsCalls: 1,
-			capiModelsCalls: 0,
+			models: [],
+			supportedModelsCalls: 0,
 		});
 	});
 
 	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
-		const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		sdk.supportedModelsResult = [
-			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-		];
-		// The constructor kicks off the initial native enumeration; wait for it.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-close-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+			];
+			// The constructor kicks off the initial native enumeration; wait for it.
+			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+				await tick();
+			}
 			await tick();
+			assert.deepStrictEqual({
+				queries: sdk.enumerationQueries.length,
+				closed: sdk.enumerationQueries[0]?.closeCount,
+			}, {
+				queries: 1,
+				closed: 1,
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 		}
-		await tick();
-		assert.deepStrictEqual({
-			queries: sdk.enumerationQueries.length,
-			closed: sdk.enumerationQueries[0]?.closeCount,
-		}, {
-			queries: 1,
-			closed: 1,
-		});
 	});
 
 	test('native transport: authenticate never starts the proxy', async () => {
@@ -1184,6 +1283,24 @@ suite('ClaudeAgent', () => {
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
+	});
+
+	test('unusable native (explicit proxy off, no setup) does not demand GitHub sign-in', async () => {
+		// The "unusable" case: explicit `claudeUseCopilotProxy=false` is a hard
+		// override to native even with no usable credentials. It must degrade to
+		// "no models" (NoModels), NOT a GitHub sign-in prompt — so the Copilot
+		// resource is advertised `required: false` and `createSession` resolves
+		// (native needs no proxy) instead of throwing `AHP_AUTH_REQUIRED` the way
+		// proxy mode does before authentication (cf. the AHP_AUTH_REQUIRED test).
+		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/workspace')] });
+		assert.deepStrictEqual({
+			copilotRequired: agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required,
+			createdWithoutAuthPrompt: created.provisional === true,
+		}, {
+			copilotRequired: false,
+			createdWithoutAuthPrompt: true,
+		});
 	});
 
 	test('transport flip native→proxy with no proxy handle emits auth/required once', () => {
