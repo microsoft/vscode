@@ -1066,6 +1066,95 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('includes prior tracked edits when an oversized edit creates a coverage gap', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/large.ts');
+		const oversizedText = 'x'.repeat(6 * 1024 * 1024);
+		await fileService.writeFile(resource, VSBuffer.fromString(oversizedText));
+
+		let stats: Record<string, string | number | undefined> | undefined;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.stats') {
+					stats = data as Record<string, string | number | undefined>;
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		const marker = await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'ab',
+			afterText: oversizedText,
+			changes: [{ startOffset: 0, endOffsetExclusive: 2, newText: oversizedText }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		await service.flushSession('copilot:/session-1');
+		const acknowledged = await service.prepareFlush({
+			resource,
+			trigger: 'closed',
+			statsUuid: 'stats-1',
+			isDirty: false,
+			flushToken: 'flush-1',
+			languageId: 'typescript',
+		});
+
+		assert.deepStrictEqual({
+			marker: marker?.status === 'skipped' ? {
+				untrackedEditCount: marker.untrackedEditCount,
+				insertedCount: marker.insertedCount,
+			} : marker,
+			stats: stats && {
+				agentHostAttributionCoverage: stats.agentHostAttributionCoverage,
+				agentHostUntrackedEditCount: stats.agentHostUntrackedEditCount,
+				agentHostUntrackedInsertedCount: stats.agentHostUntrackedInsertedCount,
+			},
+			standaloneCoverageGapAcknowledgements: acknowledged?.standaloneCoverageGapAcknowledgements?.map(acknowledgement => ({
+				idLength: acknowledgement.id.length,
+				sequences: acknowledgement.sequences,
+				editCount: acknowledgement.editCount,
+				insertedCount: acknowledgement.insertedCount,
+			})),
+		}, {
+			marker: {
+				untrackedEditCount: 2,
+				insertedCount: oversizedText.length + 1,
+			},
+			stats: {
+				agentHostAttributionCoverage: 'partial',
+				agentHostUntrackedEditCount: 2,
+				agentHostUntrackedInsertedCount: oversizedText.length + 1,
+			},
+			standaloneCoverageGapAcknowledgements: [{
+				idLength: 36,
+				sequences: [2],
+				editCount: 2,
+				insertedCount: oversizedText.length + 1,
+			}],
+		});
+	});
+
 	test('returns a marker when the interval safety limit flushes the resource', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
@@ -1219,9 +1308,9 @@ suite('Agent Edit Attribution Service', () => {
 			toolName: 'edit',
 		});
 
-		await service.flushSession('copilot:/session-a');
-		const afterFirstFlush = events.map(event => event.conversationId);
 		await service.flushSession('copilot:/session-b');
+		const afterFirstFlush = events.map(event => event.conversationId);
+		await service.flushSession('copilot:/session-a');
 		const acknowledged = await service.prepareFlush({
 			resource,
 			trigger: 'closed',
@@ -1250,7 +1339,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: event.deltaModifiedCount,
 			})),
 		}, {
-			afterFirstFlush: ['session-a'],
+			afterFirstFlush: ['session-b'],
 			acknowledged: {
 				agentModifiedCount: 0,
 				lastSequence: 2,
@@ -1260,8 +1349,8 @@ suite('Agent Edit Attribution Service', () => {
 				{ otherAIModifiedCount: 0, agentHostModifiedCount: 1, externalModifiedCount: 0, totalModifiedCharacters: 1 },
 			],
 			allEvents: [
-				{ conversationId: 'session-a', modifiedCount: 1, deltaModifiedCount: 1 },
 				{ conversationId: 'session-b', modifiedCount: 1, deltaModifiedCount: 1 },
+				{ conversationId: 'session-a', modifiedCount: 1, deltaModifiedCount: 1 },
 			],
 		});
 	});

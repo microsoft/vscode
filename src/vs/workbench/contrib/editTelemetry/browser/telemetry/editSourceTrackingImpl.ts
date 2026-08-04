@@ -201,7 +201,6 @@ class TrackedDocumentInfo extends Disposable {
 	}
 
 	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
-		const coverageGap = mode === 'longterm' ? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri) : undefined;
 		t.applyPendingExternalEdits();
 		let ranges = t.getTrackedRanges();
 		let internalKeys = t.getAllKeys();
@@ -245,6 +244,9 @@ class TrackedDocumentInfo extends Disposable {
 			internalKeys = t.getAllKeys(true);
 			data = this.getTelemetryData(ranges);
 		}
+		const coverageGap = mode === 'longterm' && !isDirty && !preparedAgentFlush?.deferCoverageGap
+			? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri)
+			: undefined;
 		const agentModifiedCount = preparedAgentFlush?.agentModifiedCount ?? 0;
 		if (internalKeys.length === 0 && agentModifiedCount === 0 && !coverageGap) {
 			return;

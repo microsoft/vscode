@@ -13,7 +13,7 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/proto
 import { ToolResultContentType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, createFileEditContentDigest, getFileEditAttributionMarker, IEditAttributionFlushResult, IPreparedEditAttributionFlush, ITrackedFileEditAttributionMarker } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
+import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, createFileEditContentDigest, getFileEditAttributionMarker, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IPreparedEditAttributionFlush, ITrackedFileEditAttributionMarker } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { EditTelemetryTrigger } from '../../../../../platform/telemetry/common/editTelemetry.js';
@@ -23,6 +23,7 @@ const ROUTE_TTL = 10 * 60 * 60 * 1000;
 const MAX_MARKERS_PER_RESOURCE = 128;
 const MAX_OBSERVATIONS_PER_RESOURCE = 128;
 const MAX_ROUTES = 1_000;
+const MAX_COVERAGE_GAP_ACKNOWLEDGEMENTS = 1_000;
 const COORDINATION_TIMEOUT = 15_000;
 
 interface IRecentMarker extends ITrackedFileEditAttributionMarker {
@@ -52,6 +53,7 @@ interface IAgentHostResourceRoute {
 export interface IPreparedAgentHostEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	readonly deferCoverageGap?: boolean;
 	commit(totalModifiedCount: number): Promise<void>;
 }
 
@@ -86,6 +88,8 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	private readonly _observations = new Map<string, IExternalObservation[]>();
 	private readonly _routes = new Map<string, IAgentHostResourceRoute>();
 	private readonly _coverageGaps = new Map<string, IAgentHostEditAttributionCoverageGap & { readonly timestamp: number }>();
+	private readonly _acknowledgedCoverageGapIds = new Map<string, number>();
+	private readonly _pendingCoverageGapAcknowledgements = new Map<string, { readonly acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[]; readonly timestamp: number }>();
 	private readonly _onDidSuppress = this._register(new Emitter<string>());
 	private readonly _onDidInvalidate = this._register(new Emitter<string>());
 	private readonly _onDidReceiveMarker = this._register(new Emitter<{ readonly resourceKey: string; readonly connection: IAgentConnection; readonly sequence: number }>());
@@ -113,14 +117,12 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 
 	takeCoverageGap(resource: URI): IAgentHostEditAttributionCoverageGap | undefined {
 		const resourceKey = this._key(resource);
+		this._prune(resourceKey);
 		const coverageGap = this._coverageGaps.get(resourceKey);
 		if (!coverageGap) {
 			return undefined;
 		}
 		this._coverageGaps.delete(resourceKey);
-		if (coverageGap.timestamp < Date.now() - ROUTE_TTL) {
-			return undefined;
-		}
 		return {
 			editCount: coverageGap.editCount,
 			insertedCount: coverageGap.insertedCount,
@@ -151,13 +153,18 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 					prepared.flushToken !== flushToken ||
 					!Number.isSafeInteger(prepared.agentModifiedCount) ||
 					prepared.agentModifiedCount < 0 ||
-					(prepared.lastSequence !== undefined && (!Number.isSafeInteger(prepared.lastSequence) || prepared.lastSequence < 0))
+					(prepared.lastSequence !== undefined && (!Number.isSafeInteger(prepared.lastSequence) || prepared.lastSequence < 0)) ||
+					(prepared.standaloneCoverageGapAcknowledgements !== undefined && prepared.lastSequence === undefined) ||
+					!isValidCoverageGapAcknowledgements(prepared.standaloneCoverageGapAcknowledgements, prepared.lastSequence)
 				)
 			) {
 				throw new Error('Agent Host edit attribution returned an invalid prepared flush');
 			}
 			if (prepared?.lastSequence !== undefined) {
 				await this._waitForMarker(resourceKey, route.connection, prepared.lastSequence);
+			}
+			if (prepared?.standaloneCoverageGapAcknowledgements !== undefined) {
+				this._acknowledgeCoverageGaps(resourceKey, prepared.standaloneCoverageGapAcknowledgements);
 			}
 			return prepared ? {
 				...prepared,
@@ -193,11 +200,11 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 				},
 			} : undefined;
 		} catch (prepareError) {
-			return this._recoverFailedPrepare(route.connection, flushToken, prepareError);
+			return this._recoverFailedPrepare(route.connection, resourceKey, flushToken, prepareError);
 		}
 	}
 
-	private async _recoverFailedPrepare(connection: IAgentConnection, flushToken: string, prepareError: unknown): Promise<IPreparedAgentHostEditAttributionFlush> {
+	private async _recoverFailedPrepare(connection: IAgentConnection, resourceKey: string, flushToken: string, prepareError: unknown): Promise<IPreparedAgentHostEditAttributionFlush> {
 		let cancelResult: IEditAttributionFlushResult;
 		try {
 			cancelResult = await this._readOutcome(connection, buildCancelEditAttributionResource({ flushToken }));
@@ -208,9 +215,20 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			));
 		}
 		if (cancelResult.outcome === 'committed') {
+			let deferCoverageGap = false;
+			if (cancelResult.standaloneCoverageGapAcknowledgements?.length) {
+				try {
+					await this._waitForMarker(resourceKey, connection, getLastAcknowledgedSequence(cancelResult.standaloneCoverageGapAcknowledgements));
+					this._acknowledgeCoverageGaps(resourceKey, cancelResult.standaloneCoverageGapAcknowledgements);
+				} catch {
+					this._queuePendingCoverageGapAcknowledgements(resourceKey, cancelResult.standaloneCoverageGapAcknowledgements);
+					deferCoverageGap = true;
+				}
+			}
 			return {
 				flushToken,
 				agentModifiedCount: cancelResult.agentModifiedCount,
+				deferCoverageGap,
 				commit: async () => { },
 			};
 		}
@@ -247,13 +265,15 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		const parsed = JSON.parse(result.data) as Partial<IEditAttributionFlushResult>;
 		if (
 			(parsed.outcome !== 'committed' && parsed.outcome !== 'cancelled' && parsed.outcome !== 'missing') ||
-			typeof parsed.agentModifiedCount !== 'number'
+			typeof parsed.agentModifiedCount !== 'number' ||
+			!isValidCoverageGapAcknowledgements(parsed.standaloneCoverageGapAcknowledgements)
 		) {
 			throw new Error(`Invalid Agent Host edit attribution outcome: ${resource.path}`);
 		}
 		return {
 			outcome: parsed.outcome,
 			agentModifiedCount: parsed.agentModifiedCount,
+			standaloneCoverageGapAcknowledgements: parsed.standaloneCoverageGapAcknowledgements,
 		};
 	}
 
@@ -308,20 +328,21 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 						this._routes.delete(oldestKey);
 					}
 					if (marker.status === 'skipped') {
-						this._recordCoverageGap(resourceKey, marker.insertedCount);
+						this._recordCoverageGap(resourceKey, marker.untrackedEditCount ?? 1, marker.insertedCount);
 					} else {
 						this._recordMarker(resourceKey, marker);
 					}
+					this._applyPendingCoverageGapAcknowledgements(resourceKey);
 				}
 			}));
 		}
 	}
 
-	private _recordCoverageGap(resourceKey: string, insertedCount: number): void {
+	private _recordCoverageGap(resourceKey: string, editCount: number, insertedCount: number): void {
 		const existing = this._coverageGaps.get(resourceKey);
 		this._coverageGaps.delete(resourceKey);
 		this._coverageGaps.set(resourceKey, {
-			editCount: (existing?.editCount ?? 0) + 1,
+			editCount: (existing?.editCount ?? 0) + editCount,
 			insertedCount: (existing?.insertedCount ?? 0) + insertedCount,
 			timestamp: Date.now(),
 		});
@@ -331,6 +352,84 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 				break;
 			}
 			this._coverageGaps.delete(oldestKey);
+		}
+	}
+
+	private _acknowledgeCoverageGaps(resourceKey: string, acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[]): readonly IEditAttributionCoverageGapAcknowledgement[] {
+		const remaining: IEditAttributionCoverageGapAcknowledgement[] = [];
+		for (const acknowledgement of acknowledgements) {
+			const acknowledgementKey = coverageGapAcknowledgementKey(resourceKey, acknowledgement.id);
+			if (this._acknowledgedCoverageGapIds.has(acknowledgementKey)) {
+				continue;
+			}
+			const coverageGap = this._coverageGaps.get(resourceKey);
+			if (!coverageGap) {
+				this._recordCoverageGapAcknowledgement(acknowledgementKey);
+				continue;
+			}
+			if (coverageGap.editCount < acknowledgement.editCount || coverageGap.insertedCount < acknowledgement.insertedCount) {
+				remaining.push(acknowledgement);
+				continue;
+			}
+			const editCount = coverageGap.editCount - acknowledgement.editCount;
+			const insertedCount = coverageGap.insertedCount - acknowledgement.insertedCount;
+			if (editCount > 0 || insertedCount > 0) {
+				this._coverageGaps.set(resourceKey, {
+					editCount,
+					insertedCount,
+					timestamp: coverageGap.timestamp,
+				});
+			} else {
+				this._coverageGaps.delete(resourceKey);
+			}
+			this._recordCoverageGapAcknowledgement(acknowledgementKey);
+		}
+		return remaining;
+	}
+
+	private _recordCoverageGapAcknowledgement(acknowledgementKey: string): void {
+		this._acknowledgedCoverageGapIds.delete(acknowledgementKey);
+		this._acknowledgedCoverageGapIds.set(acknowledgementKey, Date.now());
+		while (this._acknowledgedCoverageGapIds.size > MAX_COVERAGE_GAP_ACKNOWLEDGEMENTS) {
+			const oldestKey = this._acknowledgedCoverageGapIds.keys().next().value;
+			if (oldestKey === undefined) {
+				break;
+			}
+			this._acknowledgedCoverageGapIds.delete(oldestKey);
+		}
+	}
+
+	private _queuePendingCoverageGapAcknowledgements(resourceKey: string, acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[]): void {
+		const pending = new Map(
+			(this._pendingCoverageGapAcknowledgements.get(resourceKey)?.acknowledgements ?? []).map(acknowledgement => [acknowledgement.id, acknowledgement])
+		);
+		for (const acknowledgement of acknowledgements) {
+			pending.set(acknowledgement.id, acknowledgement);
+		}
+		this._pendingCoverageGapAcknowledgements.delete(resourceKey);
+		this._pendingCoverageGapAcknowledgements.set(resourceKey, {
+			acknowledgements: Array.from(pending.values()),
+			timestamp: Date.now(),
+		});
+		while (this._pendingCoverageGapAcknowledgements.size > MAX_ROUTES) {
+			const oldestKey = this._pendingCoverageGapAcknowledgements.keys().next().value;
+			if (oldestKey === undefined) {
+				break;
+			}
+			this._pendingCoverageGapAcknowledgements.delete(oldestKey);
+		}
+	}
+
+	private _applyPendingCoverageGapAcknowledgements(resourceKey: string): void {
+		const pending = this._pendingCoverageGapAcknowledgements.get(resourceKey);
+		const route = this._routes.get(resourceKey);
+		if (!pending || !route || route.lastSequence < getLastAcknowledgedSequence(pending.acknowledgements)) {
+			return;
+		}
+		this._pendingCoverageGapAcknowledgements.delete(resourceKey);
+		const remaining = this._acknowledgeCoverageGaps(resourceKey, pending.acknowledgements);
+		if (remaining.length > 0) {
+			this._queuePendingCoverageGapAcknowledgements(resourceKey, remaining);
 		}
 	}
 
@@ -434,6 +533,14 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 
 	private _invalidateObservations(resourceKey: string): void {
 		this._markers.delete(resourceKey);
+		this._coverageGaps.delete(resourceKey);
+		this._pendingCoverageGapAcknowledgements.delete(resourceKey);
+		const acknowledgementPrefix = coverageGapAcknowledgementKey(resourceKey, '');
+		for (const acknowledgementKey of this._acknowledgedCoverageGapIds.keys()) {
+			if (acknowledgementKey.startsWith(acknowledgementPrefix)) {
+				this._acknowledgedCoverageGapIds.delete(acknowledgementKey);
+			}
+		}
 		const observations = this._observations.get(resourceKey);
 		if (!observations) {
 			return;
@@ -468,6 +575,14 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		if ((this._coverageGaps.get(resourceKey)?.timestamp ?? now) < now - ROUTE_TTL) {
 			this._coverageGaps.delete(resourceKey);
 		}
+		if ((this._pendingCoverageGapAcknowledgements.get(resourceKey)?.timestamp ?? now) < now - ROUTE_TTL) {
+			this._pendingCoverageGapAcknowledgements.delete(resourceKey);
+		}
+		for (const [acknowledgementKey, timestamp] of this._acknowledgedCoverageGapIds) {
+			if (timestamp < now - ROUTE_TTL) {
+				this._acknowledgedCoverageGapIds.delete(acknowledgementKey);
+			}
+		}
 	}
 
 	private _key(resource: URI): string {
@@ -476,6 +591,35 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			: resource;
 		return this._uriIdentityService.extUri.getComparisonKey(this._uriIdentityService.asCanonicalUri(normalizedResource));
 	}
+}
+
+function isValidCoverageGapAcknowledgements(acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[] | undefined, lastSequence?: number): boolean {
+	if (acknowledgements === undefined) {
+		return true;
+	}
+	if (!Array.isArray(acknowledgements) || acknowledgements.length === 0 || new Set(acknowledgements.map(acknowledgement => acknowledgement.id)).size !== acknowledgements.length) {
+		return false;
+	}
+	return acknowledgements.every(acknowledgement =>
+		typeof acknowledgement.id === 'string' &&
+		acknowledgement.id.length > 0 &&
+		Array.isArray(acknowledgement.sequences) &&
+		acknowledgement.sequences.length > 0 &&
+		acknowledgement.sequences.every((sequence: number) => Number.isSafeInteger(sequence) && sequence >= 0 && (lastSequence === undefined || sequence <= lastSequence)) &&
+		new Set(acknowledgement.sequences).size === acknowledgement.sequences.length &&
+		Number.isSafeInteger(acknowledgement.editCount) &&
+		acknowledgement.editCount > 0 &&
+		Number.isSafeInteger(acknowledgement.insertedCount) &&
+		acknowledgement.insertedCount >= 0
+	);
+}
+
+function getLastAcknowledgedSequence(acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[]): number {
+	return Math.max(...acknowledgements.flatMap(acknowledgement => acknowledgement.sequences));
+}
+
+function coverageGapAcknowledgementKey(resourceKey: string, acknowledgementId: string): string {
+	return `${resourceKey}\0${acknowledgementId}`;
 }
 
 function removeCompletedCycle(markers: IRecentMarker[], latestEditId: string): void {

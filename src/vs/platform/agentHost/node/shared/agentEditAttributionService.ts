@@ -17,7 +17,7 @@ import { EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesS
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
-import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
+import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
@@ -60,6 +60,7 @@ interface IStandaloneAcknowledgement {
 	readonly timestamp: number;
 	readonly fileKey: string;
 	readonly lastSequence: number;
+	readonly coverageGapAcknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[];
 }
 
 interface ITrackedResource {
@@ -72,6 +73,8 @@ interface ITrackedResource {
 	intervals: IAttributedInterval[];
 	readonly sources: Map<string, ISourceStatistics>;
 	coverageGap: IAttributionCoverageGap | undefined;
+	readonly coverageGapSequences: number[];
+	trackedEditCount: number;
 	repositoryRoot: string | undefined;
 	lastSequence: number;
 }
@@ -189,14 +192,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (!this._isCurrentGeneration(generation)) {
 			return undefined;
 		}
-		const marker: ISkippedFileEditAttributionMarker = {
-			version: 1,
-			editId: generateUuid(),
-			sequence: ++this._sequence,
-			status: 'skipped',
-			reason: 'fileTooLarge',
-			insertedCount: edit.changes.reduce((sum, change) => sum + change.newText.length, 0),
-		};
+		let discardedEditCount = 0;
+		let discardedInsertedCount = 0;
 		if (!resource) {
 			resource = {
 				key,
@@ -208,23 +205,39 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				intervals: [],
 				sources: new Map(),
 				coverageGap: undefined,
+				coverageGapSequences: [],
+				trackedEditCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
 			this._resources.set(key, resource);
 		} else {
+			discardedEditCount = resource.trackedEditCount;
+			discardedInsertedCount = Array.from(resource.sources.values()).reduce((sum, source) => sum + source.insertedCount, 0);
 			this._trackedTextLength -= resource.currentContent?.length ?? 0;
 			resource.currentContent = undefined;
 			resource.intervals = [];
 			resource.sources.clear();
+			resource.trackedEditCount = 0;
 			resource.repositoryRoot = repository?.root;
 			this._resources.delete(key);
 			this._resources.set(key, resource);
 		}
+		const untrackedEditCount = discardedEditCount + 1;
+		const marker: ISkippedFileEditAttributionMarker = {
+			version: 1,
+			editId: generateUuid(),
+			sequence: ++this._sequence,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			untrackedEditCount,
+			insertedCount: discardedInsertedCount + edit.changes.reduce((sum, change) => sum + change.newText.length, 0),
+		};
 		resource.coverageGap = {
-			editCount: (resource.coverageGap?.editCount ?? 0) + 1,
+			editCount: (resource.coverageGap?.editCount ?? 0) + untrackedEditCount,
 			insertedCount: (resource.coverageGap?.insertedCount ?? 0) + marker.insertedCount,
 		};
+		resource.coverageGapSequences.push(marker.sequence);
 		resource.lastSequence = marker.sequence;
 		return marker;
 	}
@@ -253,6 +266,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				intervals: [],
 				sources: new Map(),
 				coverageGap: undefined,
+				coverageGapSequences: [],
+				trackedEditCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
@@ -294,6 +309,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			resource.sources.set(sourceKey, source);
 		}
 		this._applyChanges(resource, edit.changes, source, edit.afterText);
+		resource.trackedEditCount++;
 		const marker: IFileEditAttributionMarker = {
 			version: 1,
 			editId: generateUuid(),
@@ -338,6 +354,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				flushToken: existing.token,
 				agentModifiedCount: existing.agentModifiedCount,
 				lastSequence: existing.lastSequence,
+				...getStandaloneAcknowledgementData(existing),
 			};
 		}
 		if (this._settledFlushes.has(params.flushToken)) {
@@ -410,6 +427,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			flushToken: prepared.token,
 			agentModifiedCount: prepared.agentModifiedCount,
 			lastSequence: prepared.lastSequence,
+			...getStandaloneAcknowledgementData(prepared),
 		};
 	}
 
@@ -436,7 +454,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		this._preparedFlushes.delete(params.flushToken);
 		this._releaseResourceClaims(prepared.resources);
 		this._emitTelemetry(prepared, params.totalModifiedCount);
-		const result = { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount } as const;
+		const result = {
+			outcome: 'committed',
+			agentModifiedCount: prepared.agentModifiedCount,
+			...getStandaloneAcknowledgementData(prepared),
+		} as const;
 		this._recordSettledFlush(params.flushToken, result);
 		this._cleanupRepositories(prepared.resources);
 		return result;
@@ -486,7 +508,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (prepared.resources.some(resource => this._resources.has(resource.key))) {
 			this._releaseResourceClaims(prepared.resources);
 			this._emitTelemetry(prepared, prepared.agentModifiedCount);
-			const result = { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount } as const;
+			const result = {
+				outcome: 'committed',
+				agentModifiedCount: prepared.agentModifiedCount,
+				...getStandaloneAcknowledgementData(prepared),
+			} as const;
 			this._recordSettledFlush(params.flushToken, result);
 			this._cleanupRepositories(prepared.resources);
 			return result;
@@ -655,7 +681,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 						return undefined;
 					}
 					this._applyChanges(resource, diff.changes, 'external', currentContent, false);
-					this._excludeOtherSessionAgentIntervals(resource);
+				}
+				if (!await this._reconcileOtherSessionResources(resource, generation)) {
+					return undefined;
 				}
 			}
 			const retainedBySource = new Map<string, number>();
@@ -818,6 +846,38 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
+	private async _reconcileOtherSessionResources(resource: ITrackedResource, generation: number): Promise<boolean> {
+		if (resource.currentContent === undefined) {
+			return true;
+		}
+		const currentContent = resource.currentContent;
+		const resourceAgentIntervals = resource.intervals.filter(interval => interval.sourceKey !== undefined);
+		const candidates = Array.from(this._resources.values()).filter(candidate =>
+			candidate !== resource && candidate.fileKey === resource.fileKey && candidate.currentContent !== undefined
+		);
+		for (const candidate of candidates) {
+			const candidateContent = candidate.currentContent;
+			if (candidateContent === undefined) {
+				continue;
+			}
+			if (candidateContent !== currentContent) {
+				const diff = await this._diffComputeService.computeDiffCounts(candidateContent, currentContent);
+				if (!this._isCurrentGeneration(generation)) {
+					return false;
+				}
+				this._applyChanges(candidate, diff.changes, 'external', currentContent);
+			}
+			const candidateAgentIntervals = candidate.intervals.filter(interval => interval.sourceKey !== undefined);
+			if (candidateAgentIntervals.length > 0) {
+				resource.intervals = excludeExternalIntervals(resource.intervals, candidateAgentIntervals);
+			}
+			if (resourceAgentIntervals.length > 0) {
+				candidate.intervals = excludeExternalIntervals(candidate.intervals, resourceAgentIntervals);
+			}
+		}
+		return true;
+	}
+
 	private _restoreResources(resources: readonly ITrackedResource[]): void {
 		for (const resource of resources) {
 			this._claimedResources.delete(resource);
@@ -890,6 +950,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			timestamp: this._now(),
 			fileKey: resource.fileKey,
 			lastSequence,
+			coverageGapAcknowledgements: resource.coverageGap && resource.coverageGapSequences.length > 0 ? [{
+				id: generateUuid(),
+				sequences: resource.coverageGapSequences,
+				editCount: resource.coverageGap.editCount,
+				insertedCount: resource.coverageGap.insertedCount,
+			}] : [],
 		}]]);
 	}
 
@@ -907,11 +973,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	private _restoreStandaloneAcknowledgements(acknowledgements: readonly (readonly [string, IStandaloneAcknowledgement])[]): void {
 		for (const [key, value] of acknowledgements) {
 			const existing = this._standaloneAcknowledgements.get(key);
+			const coverageGapAcknowledgements = new Map(
+				(existing?.coverageGapAcknowledgements ?? []).map(acknowledgement => [acknowledgement.id, acknowledgement])
+			);
+			for (const acknowledgement of value.coverageGapAcknowledgements) {
+				coverageGapAcknowledgements.set(acknowledgement.id, acknowledgement);
+			}
 			this._standaloneAcknowledgements.delete(key);
 			this._standaloneAcknowledgements.set(key, {
 				timestamp: Math.max(existing?.timestamp ?? 0, value.timestamp),
 				fileKey: value.fileKey,
 				lastSequence: Math.max(existing?.lastSequence ?? 0, value.lastSequence),
+				coverageGapAcknowledgements: Array.from(coverageGapAcknowledgements.values()),
 			});
 		}
 		while (this._standaloneAcknowledgements.size > MAX_STANDALONE_ACKNOWLEDGEMENTS) {
@@ -961,7 +1034,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (prepared.resources.some(resource => this._resources.has(resource.key))) {
 			this._releaseResourceClaims(prepared.resources);
 			this._emitTelemetry(prepared, prepared.agentModifiedCount);
-			this._recordSettledFlush(flushToken, { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount });
+			this._recordSettledFlush(flushToken, {
+				outcome: 'committed',
+				agentModifiedCount: prepared.agentModifiedCount,
+				...getStandaloneAcknowledgementData(prepared),
+			});
 		} else {
 			this._restoreResources(prepared.resources);
 			this._restoreStandaloneAcknowledgements(prepared.standaloneAcknowledgements);
@@ -1036,6 +1113,17 @@ function combinePreparedFlushes(
 		standaloneAcknowledgements,
 		timestamp,
 	};
+}
+
+function getStandaloneAcknowledgementData(prepared: IPreparedFlush): { readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[] } {
+	const acknowledgements = new Map<string, IEditAttributionCoverageGapAcknowledgement>();
+	for (const [, standaloneAcknowledgement] of prepared.standaloneAcknowledgements) {
+		for (const coverageGapAcknowledgement of standaloneAcknowledgement.coverageGapAcknowledgements) {
+			acknowledgements.set(coverageGapAcknowledgement.id, coverageGapAcknowledgement);
+		}
+	}
+	const standaloneCoverageGapAcknowledgements = Array.from(acknowledgements.values());
+	return standaloneCoverageGapAcknowledgements.length === 0 ? {} : { standaloneCoverageGapAcknowledgements };
 }
 
 function validateChanges(before: string, after: string, changes: readonly IOffsetEdit[]): boolean {

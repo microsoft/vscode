@@ -99,9 +99,9 @@ type EditSourcesStatsTelemetryClassification = {
 	actualTime?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The actual time in ms during the session.'; isMeasurement: true };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
 	trackingScope?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies stats emitted for files tracked only by the Agent Host.' };
-	agentHostAttributionCoverage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether long-term Agent Host edit attribution was complete or skipped at least one oversized edit.' };
-	agentHostUntrackedEditCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of oversized Agent Host edits excluded from detailed attribution in this long-term window.'; isMeasurement: true };
-	agentHostUntrackedInsertedCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Characters inserted by oversized Agent Host edits excluded from retained-character attribution in this long-term window.'; isMeasurement: true };
+	agentHostAttributionCoverage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether long-term Agent Host edit attribution was complete or an oversized edit prevented retained-character attribution.' };
+	agentHostUntrackedEditCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of Agent Host edits excluded from detailed retained-character attribution after an oversized edit.'; isMeasurement: true };
+	agentHostUntrackedInsertedCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Characters inserted by Agent Host edits excluded from retained-character attribution after an oversized edit.'; isMeasurement: true };
 };
 
 export function sendEditSourcesStatsTelemetry(telemetryService: ITelemetryService, data: IEditSourcesStatsTelemetryData): void {

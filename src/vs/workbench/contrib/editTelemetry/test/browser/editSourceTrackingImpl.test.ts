@@ -287,6 +287,7 @@ suite('Edit Source Tracking Windows', () => {
 
 	test('defers Agent Host attribution while the model is dirty', () => runWithFakedTimers({}, async () => {
 		const dirtyStates: boolean[] = [];
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -301,6 +302,10 @@ suite('Edit Source Tracking Windows', () => {
 				}
 				return undefined;
 			},
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
+			},
 		};
 		const context = setup(undefined, markerService, true);
 		await timeout(10);
@@ -312,12 +317,14 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual({
 			dirtyStates,
+			coverageGapTakeCount,
 			details: context.details.map(event => ({
 				modifiedCount: event.modifiedCount,
 				totalModifiedCount: event.totalModifiedCount,
 			})),
 		}, {
 			dirtyStates: [true],
+			coverageGapTakeCount: 0,
 			details: [{
 				modifiedCount: 5,
 				totalModifiedCount: 5,
