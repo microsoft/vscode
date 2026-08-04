@@ -214,8 +214,8 @@ and hands control back once the user reopens the sessions sidebar manually.
   `suppressEditorPartAutoVisibility()` so the hide never triggers the docked swap-reveal of the editor, and
   never reveals it — reveals stay with D3/D8. Symmetrically, `Workbench.setAuxiliaryBarHidden` gates its
   docked "show last/default composite" fallback on `_isAuxViewContainerActive(id)` (mirroring
-  `IViewsService.isViewContainerActive`) so it never force-opens an empty `hideIfEmpty` container. The base
-  `toggleSidePane` re-open branch guards the aux-bar
+  `IViewsService.isViewContainerActive`) so it never force-opens an empty `hideIfEmpty` container. The
+  workbench layout service's `toggleSidePane` re-open branch guards the aux-bar
   un-hide with `_hasActiveAuxViewContainers()` symmetric to the editor's `hasEditors` guard, and the
   "ensure a visible effect" fallback prefers the editor and only falls back to the aux bar when it has
   active containers. The `Toggle Side Panel` command itself (`workbench.action.agentToggleSidePanel`,
@@ -227,7 +227,8 @@ and hands control back once the user reopens the sessions sidebar manually.
   becoming visible. The latter covers re-clicking the **Changes** button after the whole side pane was
   closed (D9): the Changes editor is still the active editor (only hidden), so re-opening it re-reveals
   the editor part without firing an active-editor change. The reveal is skipped while `_togglingSidePane`
-  is set so re-opening the side pane via the toggle restores exactly `_lastVisibleSidePaneParts` instead.
+  is set so re-opening the side pane via the toggle restores exactly the layout service's remembered
+  last-visible parts instead.
   It recognizes a Changes editor via `ISessionChangesService.getSessionResource` (the multi-diff source
   URI's session), and opens `CHANGES_VIEW_ID` when that session is the active titled session, the editor
   part is **visible** (a Changes editor restored on reload becomes active while the editor part is still
@@ -242,25 +243,26 @@ and hands control back once the user reopens the sessions sidebar manually.
   or Changes editor becomes active. That reveal is edge-triggered on editor activation, so explicitly
   hiding the detail panel is respected while the same editor remains active; Browser tabs still hide the
   panel transiently and switching back re-opens it.
-- **Side-pane close [D9]** — the side-pane toggle lives on the controller (`toggleSidePane`). Its UI
-  entry point (the `Toggle Side Panel` action: menu item, keybinding, command-palette entry, toggled
-  icon) is registered by the base controller in its constructor and calls `toggleSidePane` directly.
-  The toggle hides/shows the editor area and auxiliary bar together (remembering which parts to restore
-  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set. The [D2] listener skips capture
-  while `_togglingSidePane` is set, so closing or opening the whole side pane is never recorded by it.
-  Instead the `_onSidePaneToggled(collapsed, previousAuxiliaryBarVisible)` hook (D9b) records the result
+- **Side-pane close [D9]** — the side-pane toggle's UI entry point (the `Toggle Side Panel` action: menu
+  item, keybinding, command-palette entry, toggled icon) is registered by the base controller, but its
+  handler calls the workbench layout service's `toggleSidePane()` directly. The workbench remembers/restores the raw editor/aux visibility and emits `onWillToggleSidePane` / `onDidToggleSidePane` with one
+  `{ visible, editor, auxiliaryBar }` state. Will only establishes toggle suppression; did carries `{ before, after }`, records collapse/reopen after completion, and the shared
+  `onDidRevealSidePane` event filters unavailable editor/aux content after both parts settle; did-toggle
+  records that filtered result and clears `_togglingSidePane`. The [D2]
+  listener therefore skips every intermediate part change without the command calling through a controller
+  wrapper. `_onSidePaneToggled(collapsed, previousAuxiliaryBarVisible)`
+  records the result
   for the **active** session: a full collapse of a previously-**visible** aux bar writes that session's
   view state with `auxiliaryBarHiddenByCollapse: true`. The marker is therefore scoped to the session that
   was actually collapsed — `_captureViewState` (save-time, on switch-away and shutdown) only **preserves**
   an existing marker while the aux bar stays hidden and never fabricates one, so an explicit aux-bar hide
   on another session is never mistaken for a collapse. On reload the side pane is restored closed, yet
   opening Changes (D8) re-reveals it because the marker is present.
-  In single-pane mode, hiding the docked detail panel via `workbench.action.toggleAuxiliaryBar` reveals
-  editor content first when it was hidden, so the detail toggle swaps detail → editor instead of closing
-  the whole side pane; `Toggle Side Panel` remains the action that can hide both parts.
-- **New-session / side-pane close [D9b]** — the base `toggleSidePane` calls the
-  `_onSidePaneToggled(collapsed, previousAuxiliaryBarVisible)` hook at the end (still inside the
-  `_togglingSidePane` window). The desktop controller overrides it (skipped while multi-session /
+  In single-pane mode `toggleSecondarySideBar()` also routes to `toggleSidePane()`, because the docked
+  detail and editor form one side-pane surface.
+- **New-session / side-pane close [D9b]** — the layout service's did-toggle event calls
+  `_onSidePaneToggled(collapsed, previousAuxiliaryBarVisible)` before clearing the
+  `_togglingSidePane` window. The desktop controller overrides it (skipped while multi-session /
   maximized): for an **uncreated** session it records the resulting aux-bar visibility via
   `_setNewSessionViewState` (so a closed side pane survives a re-sync of the same new session and the
   creation of the next one, D3b). For a **created** session it marks `auxiliaryBarHiddenByCollapse: true`

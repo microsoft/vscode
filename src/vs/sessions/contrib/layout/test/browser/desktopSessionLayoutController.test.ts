@@ -40,6 +40,12 @@ suite('LayoutController (desktop)', () => {
 	let harness: ITestLayoutHarness;
 
 	class TestLayoutController extends LayoutController {
+		readonly sidePaneToggles: { collapsed: boolean; previousAuxiliaryBarVisible: boolean; auxiliaryBarVisible: boolean }[] = [];
+		get isTogglingSidePane(): boolean { return this._togglingSidePane; }
+		protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
+			this.sidePaneToggles.push({ collapsed, previousAuxiliaryBarVisible, auxiliaryBarVisible });
+			super._onSidePaneToggled(collapsed, previousAuxiliaryBarVisible, auxiliaryBarVisible);
+		}
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
@@ -1049,10 +1055,49 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
+	test('[D9] Toggle Side Panel command calls the workbench layout service directly', async () => {
+		createController();
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		const handler = CommandsRegistry.getCommand('workbench.action.agentToggleSidePanel')?.handler;
+		assert.ok(handler, 'Toggle Side Panel command should be registered');
+
+		await handler(harness.instaService);
+
+		assert.deepStrictEqual({
+			toggleSidePaneCalls: harness.toggleSidePaneCalls,
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			toggleSidePaneCalls: 1,
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
+	test('[D9] controller derives the toggling state from workbench events', () => {
+		const controller = createController();
+		const togglingStates: boolean[] = [];
+		store.add(harness.onDidChangePartVisibility.event(() => togglingStates.push(controller.isTogglingSidePane)));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.layoutService.toggleSidePane();
+
+		assert.deepStrictEqual({
+			togglingStates,
+			afterToggle: controller.isTogglingSidePane,
+		}, {
+			togglingStates: [true, true],
+			afterToggle: false,
+		});
+	});
+
 	// --- [D9b] Closing the whole side pane on a new (uncreated) session ---
 
 	test('[D9b] closing the whole side pane on a new session keeps it closed for the next new session', () => {
-		const controller = createController();
+		createController();
 		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
 		const existing = makeSession(URI.parse('session:existing'));
 		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
@@ -1064,7 +1109,7 @@ suite('LayoutController (desktop)', () => {
 		// User closes the whole side pane (editor + aux bar) via the toggle.
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		// The closed state is recorded for the shared new-session view.
 		assert.deepStrictEqual(
@@ -1090,7 +1135,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[D9b] closing the whole side pane while composing a new session does not reopen it when the session re-syncs', () => {
-		const controller = createController();
+		createController();
 		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
 		const other = makeSession(URI.parse('session:other'), { status: SessionStatus.Untitled });
 
@@ -1101,7 +1146,7 @@ suite('LayoutController (desktop)', () => {
 		// User closes the whole side pane while still composing the new session.
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		// The same uncreated session re-syncs (e.g. a multi-session view collapses
 		// back to it). This must not reopen the aux bar the user just closed.
@@ -1144,7 +1189,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[D9] closing the whole side pane is not remembered, so reopening Changes reveals it again', () => {
-		const controller = createController({ revealAuxiliaryBarOnOpen: true });
+		createController({ revealAuxiliaryBarOnOpen: true });
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
 
@@ -1159,7 +1204,7 @@ suite('LayoutController (desktop)', () => {
 		// User closes the whole side pane via the controller-owned toggle, which
 		// hides the editor and aux bar together. This must not be remembered as a
 		// per-session aux-bar choice.
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		// Re-clicking Changes re-reveals the (still-active, just hidden) editor part
 		// without firing an active-editor change; the side pane opens again (the
@@ -1171,26 +1216,59 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[D9] reopening the side pane restores the parts that were visible when it was closed', () => {
-		const controller = createController();
+		createController();
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 
 		// Closing hides both parts.
-		const visibleAfterClose = controller.toggleSidePane();
+		const visibleAfterClose = harness.layoutService.toggleSidePane();
 		assert.strictEqual(visibleAfterClose, false, 'side pane should be hidden after closing');
 		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true), 'aux bar should be hidden');
 		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === true), 'editor should be hidden');
 
 		// Reopening restores both parts that were visible before.
 		harness.setPartHiddenCalls.length = 0;
-		const visibleAfterOpen = controller.toggleSidePane();
+		const visibleAfterOpen = harness.layoutService.toggleSidePane();
 		assert.strictEqual(visibleAfterOpen, true, 'side pane should be visible after reopening');
 		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false), 'editor should be restored');
 		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false), 'aux bar should be restored');
 	});
 
+	test('[D9] reopening reports the resulting auxiliary bar visibility', () => {
+		const controller = createController();
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+
+		harness.layoutService.toggleSidePane();
+
+		assert.deepStrictEqual(controller.sidePaneToggles, [{
+			collapsed: false,
+			previousAuxiliaryBarVisible: false,
+			auxiliaryBarVisible: true,
+		}]);
+	});
+
+	test('[D9] closing a maximized single-pane exits maximize and hides both parts', () => {
+		createSinglePaneController({ singlePaneLayoutEnabled: true });
+		harness.editorMaximized = true;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.layoutService.toggleSidePane();
+
+		assert.deepStrictEqual({
+			setEditorMaximizedCalls: harness.setEditorMaximizedCalls,
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			setEditorMaximizedCalls: [false],
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
 	test('[reopen default single-pane] a created session opens the side pane to the editor with the detail closed', () => {
-		const controller = createSinglePaneController();
+		createSinglePaneController({ singlePaneLayoutEnabled: true });
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		harness.editorGroupsHaveContent = true;
 
@@ -1199,29 +1277,33 @@ suite('LayoutController (desktop)', () => {
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.setPartHiddenCalls = [];
 
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		assert.deepStrictEqual({
-			editorRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
-			detailRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-		}, { editorRevealed: true, detailRevealed: false });
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, { editorVisible: true, detailVisible: false });
 	});
 
-	test('[reopen default single-pane] a new-session view opens the side pane to the Files detail', () => {
-		const controller = createSinglePaneController();
+	test('[reopen default single-pane] a new-session view restores the Files detail from remembered parts', () => {
+		createSinglePaneController({ singlePaneLayoutEnabled: true });
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		harness.editorGroupsHaveContent = true;
 
+		// A new-session view shows the Files detail with the editor hidden (R1).
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.setPartHiddenCalls = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 
-		controller.toggleSidePane();
+		// Closing remembers { editor: false, auxiliaryBar: true } ...
+		harness.layoutService.toggleSidePane();
+		harness.setPartHiddenCalls = [];
+		// ... so reopening restores exactly the Files detail (not the layout default).
+		harness.layoutService.toggleSidePane();
 
 		assert.deepStrictEqual({
-			editorRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
-			detailRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-		}, { editorRevealed: false, detailRevealed: true });
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, { editorVisible: false, detailVisible: true });
 	});
 
 	test('[D8] does not reveal the Changes view for an untitled session', () => {
@@ -1871,7 +1953,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(controller.getViewState(session.resource)?.auxiliaryBarVisible, true);
 
 		// User closes the whole side pane (editor + aux bar) via the toggle, then reloads.
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
 		assert.ok(stored, 'state should be persisted');
@@ -1938,7 +2020,7 @@ suite('LayoutController (desktop)', () => {
 		harness.activeSessionObs.set(sessionCollapse, undefined);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 		assert.strictEqual(controller.getViewState(sessionCollapse.resource)?.auxiliaryBarHiddenByCollapse, true);
 
 		// Switching back to A captures it again — its explicit hide must remain
@@ -1965,8 +2047,8 @@ suite('LayoutController (desktop)', () => {
 
 		// Collapse the whole side pane, then re-open it: it restores the editor-only
 		// state (aux bar stays hidden because it was explicitly hidden before).
-		controller.toggleSidePane();
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		// The explicit aux-bar hide must not have become a collapse-driven hide.
 		assert.strictEqual(controller.getViewState(session.resource)?.auxiliaryBarHiddenByCollapse, undefined);
@@ -2070,7 +2152,7 @@ suite('LayoutController (desktop)', () => {
 		// pane (editor + aux bar) are hidden, on a small window. The controller only
 		// auto-reveals a sidebar it auto-hid, so a sidebar the user closed before the
 		// reload (already hidden here) must stay closed.
-		const controller = createController({
+		createController({
 			mainContainerWidth: 800,
 			initialPartVisibility: new Map<Parts, boolean>([
 				[Parts.SIDEBAR_PART, false],
@@ -2081,8 +2163,8 @@ suite('LayoutController (desktop)', () => {
 		harness.setPartHiddenCalls = [];
 
 		// Open the side pane (becomes space constrained), then close it again.
-		controller.toggleSidePane();
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
 		assert.ok(
 			!sidebarHiddenCalls().includes(false),
@@ -2570,39 +2652,40 @@ suite('LayoutController (desktop)', () => {
 	// --- [D10] Toggle Side Panel with an empty aux bar ---
 
 	test('[D10] toggling the side pane with no aux containers reveals the editor, not an empty aux bar', () => {
-		const controller = createController({ activeAuxViewContainerIds: [] });
+		createController({ activeAuxViewContainerIds: [] });
 		// Side pane fully closed; editors exist but no aux view containers.
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.editorGroupsHaveContent = true;
 		harness.setPartHiddenCalls = [];
 
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
-			'toggle should reveal the editor part'
-		);
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'toggle should never reveal an empty aux bar'
-		);
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+		});
 	});
 
 	test('[D10] toggling the side pane with neither editors nor aux containers reveals nothing', () => {
-		const controller = createController({ activeAuxViewContainerIds: [] });
+		createController({ activeAuxViewContainerIds: [] });
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.editorGroupsHaveContent = false;
 		harness.setPartHiddenCalls = [];
 
-		controller.toggleSidePane();
+		harness.layoutService.toggleSidePane();
 
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.hidden === false),
-			[],
-			'toggle should reveal nothing when there is no content on either side'
-		);
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
 	});
 
 	// --- Single-pane managed docked tabs (Changes + Files placeholder) ---
