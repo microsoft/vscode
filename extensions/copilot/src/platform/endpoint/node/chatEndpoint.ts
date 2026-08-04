@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isGpt5PlusFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -339,15 +339,16 @@ export class ChatEndpoint implements IChatEndpoint {
 			body.stream = false;
 		}
 
-		if (
-			body?.max_tokens !== undefined
-			&& this.customModel
-			&& this.modelMetadata.capabilities.supports.thinking
-			&& isGpt5PlusFamily(this)
-			&& this.apiType === 'chatCompletions'
-		) {
-			body.max_completion_tokens = body.max_tokens;
-			delete body.max_tokens;
+		if (body && this.customModel && this.apiType === 'chatCompletions') {
+			// Server-provided custom-model metadata does not reliably identify the underlying OpenAI-compatible provider.
+			const tokenParameter = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, this._expService);
+			if (tokenParameter === 'max_tokens' && body.max_completion_tokens !== undefined) {
+				body.max_tokens = body.max_completion_tokens;
+				delete body.max_completion_tokens;
+			} else if (tokenParameter === 'max_completion_tokens' && body.max_tokens !== undefined) {
+				body.max_completion_tokens = body.max_tokens;
+				delete body.max_tokens;
+			}
 		}
 
 		// If it's o1 we must modify the body significantly as the request is very different
