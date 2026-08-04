@@ -81,90 +81,39 @@ suite('CommandAutoApprover', () => {
 		});
 
 		test('handles sed with blocked args', () => {
-			assert.strictEqual(approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('sed -e "s/foo/bar/"'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('sed --expression "s/foo/bar/"'), 'denied');
-		});
-
-		test('checks static sed in-place write destinations', () => {
-			const seen: string[] = [];
-			const options = {
-				isWriteDestApproved: (dest: string) => {
-					seen.push(dest);
-					return dest === 'file.txt' || dest === 'file.txt.bak';
-				},
-			};
-			const commands = [
-				'sed -i "s/foo/bar/" file.txt',
-				'sed -I .bak "s/foo/bar/" file.txt',
-				'sed -ni "s/foo/bar/" file.txt',
-				'sed -i.bak "s/foo/bar/" file.txt',
-				'sed --in-place "s/foo/bar/" file.txt',
-				'sed --in-plac "s/foo/bar/" file.txt',
-				'sed.exe -i "s/foo/bar/" file.txt',
-				'sed -\\i "s/foo/bar/" file.txt',
-			];
-			assert.deepStrictEqual(
-				commands.map(commandLine => approver.shouldAutoApprove(commandLine, options)),
-				commands.map(() => 'approved'),
-			);
-			assert.deepStrictEqual(seen, [
-				'file.txt',
-				'file.txt',
-				'file.txt.bak',
-				'file.txt',
-				'file.txt',
-				'file.txt.bak',
-				'file.txt',
-				'file.txt',
-				'file.txt',
-				'file.txt',
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
+				approver.shouldAutoApprove('sed -e "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed --expression "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -I "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -ni "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i.bak "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i \'\' "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place=.bak "s/foo/bar/" file.txt'),
+			], [
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 			]);
 		});
 
-		test('requires confirmation for dynamic or ambiguous sed forms', () => {
-			const commands = [
-				'sed "$SED_OPTIONS" "s/foo/bar/" file.txt',
-				'sed "s/foo/bar/" "$(echo --in-place)" file.txt',
-				'sed${PATH:+} -i "s/foo/bar/" file.txt',
-				'sed${PATH:+} "s/foo/bar/" file.txt',
-				'sed --follow-symlinks -i "s/foo/bar/" file.txt',
-				'sed --in-place --expr="s/foo/bar/" file.txt',
-				'sed -i.bak "-e" $ARGS inside.txt',
-				'sed --in-place --file "$SCRIPT" inside.txt',
-			];
-			assert.deepStrictEqual(
-				commands.map(commandLine => approver.shouldAutoApprove(commandLine)),
-				commands.map(() => 'denied'),
-			);
-		});
-
-		test('sed write policy cannot be overridden by allow rules', () => {
+		test('sed in-place commands cannot be allowed by a full-command rule', () => {
 			const commandLine = 'sed -i "s/foo/bar/" file.txt';
-			const autoApproveRules = {
-				sed: true,
-				'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
-			};
-			assert.deepStrictEqual({
-				withoutPredicate: approver.evaluate(commandLine, { autoApproveRules }),
-				rejected: approver.evaluate(commandLine, { autoApproveRules, isWriteDestApproved: () => false }),
-				accepted: approver.evaluate(commandLine, { autoApproveRules, isWriteDestApproved: () => true }),
-			}, {
-				withoutPredicate: { result: 'noMatch', autoApproveRuleResolvable: false },
-				rejected: { result: 'noMatch', autoApproveRuleResolvable: false },
-				accepted: { result: 'approved', autoApproveRuleResolvable: false },
-			});
-
-			test('checks PowerShell sed executable casing', () => {
-				const options = {
-					language: 'powershell' as const,
-					isWriteDestApproved: (dest: string) => dest === 'file.txt',
-				};
-				assert.deepStrictEqual([
-					approver.shouldAutoApprove('SED -i "s/foo/bar/" file.txt', options),
-					approver.shouldAutoApprove('SED.EXE -i "s/foo/bar/" file.txt', options),
-				], ['approved', 'approved']);
-			});
+			assert.deepStrictEqual(approver.evaluate(commandLine, {
+				autoApproveRules: {
+					sed: true,
+					'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
+				},
+			}), { result: 'denied', autoApproveRuleResolvable: false });
 		});
 
 		// npm/package managers

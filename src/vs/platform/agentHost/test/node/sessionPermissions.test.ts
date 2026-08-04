@@ -239,27 +239,14 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
-	test('sed in-place edits use the shell destination policy', async () => {
-		const cases: [commandLine: string, expected: ToolCallConfirmationReason | undefined][] = [
-			['sed -i "s/foo/bar/" file.txt', ToolCallConfirmationReason.NotNeeded],
-			['sed -i.bak "s/foo/bar/" file.txt', ToolCallConfirmationReason.NotNeeded],
-			[`sed --in-place "s/foo/bar/" "${join(outsideDir, 'file.txt')}"`, undefined],
-			['sed -i "s/foo/bar/" package.json', undefined],
-			['sed "$SED_OPTIONS" "s/foo/bar/" file.txt', undefined],
-		];
-		const approvals = [];
-		const ruleResolvable = [];
-		for (const [commandLine] of cases) {
-			const event = shellEvent(commandLine, 'bash');
-			approvals.push(await permissions.getAutoApproval(event, sessionUri));
-			ruleResolvable.push(permissions.isAutoApproveRuleResolvable(event, sessionUri));
-		}
+	test('requires confirmation for sed in-place edits', async () => {
+		const event = shellEvent('sed -i "s/foo/bar/" file.txt', 'bash');
 		assert.deepStrictEqual({
-			approvals,
-			ruleResolvable,
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
 		}, {
-			approvals: cases.map(([, expected]) => expected),
-			ruleResolvable: cases.map(() => false),
+			approval: undefined,
+			ruleResolvable: false,
 		});
 	});
 

@@ -11,7 +11,7 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
-import { analyzeSedCommand } from '../../terminal/common/sedCommandAnalyzer.js';
+import { SedFileWriteParser } from '../../terminal/common/sedFileWriteParser.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -171,6 +171,7 @@ interface IAutoApproveRules {
 
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
+const sedFileWriteParser = new SedFileWriteParser();
 
 /**
  * Auto-approves or denies shell commands based on terminal auto-approve rules.
@@ -246,28 +247,25 @@ export class CommandAutoApprover extends Disposable {
 			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
 
-		const sedAnalyses = parsed.subCommands.map(subCommand => analyzeSedCommand(subCommand, isPowerShell ? 'powershell' : 'bash'));
-		if (sedAnalyses.some(analysis => analysis.kind === 'requiresConfirmation')) {
-			return { result: 'denied', autoApproveRuleResolvable: false };
-		}
-		const sedWriteDests = sedAnalyses.flatMap(analysis => analysis.kind === 'inPlace' ? analysis.fileWrites : []);
-		const writeDests = [...parsed.unsafeWriteDests, ...sedWriteDests];
-		const hasUnapprovedWriteDest = () => writeDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
+		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
 
 		let result = this._matchSubCommands(parsed.subCommands, rules, isPowerShell);
 		if (result !== 'denied' && this._matchesCommandLineRule(trimmed, rules.allowCommandLineRules)) {
 			result = 'approved';
 		}
-		if (result === 'approved' && hasUnapprovedWriteDest()) {
-			this._logService.trace('[CommandAutoApprover] Write to non-approved destination, requiring confirmation');
+		if (result === 'approved' && hasUnapprovedRedirect()) {
+			this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
 			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
-		return { result, autoApproveRuleResolvable: result === 'noMatch' && !hasUnapprovedWriteDest() };
+		return { result, autoApproveRuleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
 	}
 
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules, isPowerShell: boolean): CommandApprovalResult {
 		let allApproved = true;
 		for (const subCommand of subCommands) {
+			if (sedFileWriteParser.canHandle(subCommand)) {
+				return 'denied';
+			}
 			// Deny transient env var assignments
 			if (transientEnvVarRegex.test(subCommand)) {
 				return 'denied';

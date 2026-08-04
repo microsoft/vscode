@@ -11,8 +11,8 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { SedFileWriteParser } from '../../../../../platform/terminal/common/sedFileWriteParser.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
-import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -151,7 +151,7 @@ export class TreeSitterCommandParser extends Disposable {
 	 * Uses registered command parsers (e.g., for `sed -i`) to detect command-specific file writes.
 	 * Returns an array of file paths that would be modified.
 	 */
-	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<(string | undefined)[]> {
+	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
 		// Currently only bash-like shells are supported for command-specific parsing
 		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
 			return [];
@@ -161,7 +161,7 @@ export class TreeSitterCommandParser extends Disposable {
 		const query = '(command) @command';
 		const captures = await this._queryTree(languageId, commandLine, query);
 
-		const result: (string | undefined)[] = [];
+		const result: string[] = [];
 		for (const capture of captures) {
 			const commandText = capture.node.text;
 			for (const parser of this._commandFileWriteParsers) {
