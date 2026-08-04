@@ -1143,48 +1143,85 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
-		const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		let capiModelsCalls = 0;
-		api.models = async () => { capiModelsCalls++; return []; };
+		// Native enumeration only runs when a credential is actually present, so
+		// give this a real `~/.claude/settings.json` under a temp home.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-models-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+			let capiModelsCalls = 0;
+			api.models = async () => { capiModelsCalls++; return []; };
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			];
+			// The constructor kicks off an initial native refresh; `_fetchNativeModels`
+			// awaits a real `mkdtemp` before enumerating, so poll until it lands.
+			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+				await tick();
+			}
+			await tick();
+			assert.deepStrictEqual({
+				models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
+				proxyStarts: proxy.startCalls.length,
+				supportedModelsCalls: sdk.supportedModelsCallCount,
+				capiModelsCalls,
+			}, {
+				models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
+				proxyStarts: 0,
+				supportedModelsCalls: 1,
+				capiModelsCalls: 0,
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
+	test('native without a credential publishes an empty catalog instead of the SDK static list', async () => {
+		// `supportedModels()` answers even with no credentials (it is a static
+		// catalog), so publishing it would advertise models that fail on first
+		// use — and would make the type look usable-without-GitHub to the window
+		// gate. `/mock-home` has no `.claude` credential.
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		sdk.supportedModelsResult = [
-			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
-		// The constructor kicks off an initial native refresh; `_fetchNativeModels`
-		// awaits a real `mkdtemp` before enumerating, so poll until it lands.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+		for (let i = 0; i < 20; i++) {
 			await tick();
 		}
-		await tick();
 		assert.deepStrictEqual({
-			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
-			proxyStarts: proxy.startCalls.length,
+			models: agent.models.get(),
 			supportedModelsCalls: sdk.supportedModelsCallCount,
-			capiModelsCalls,
 		}, {
-			models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
-			proxyStarts: 0,
-			supportedModelsCalls: 1,
-			capiModelsCalls: 0,
+			models: [],
+			supportedModelsCalls: 0,
 		});
 	});
 
 	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
-		const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		sdk.supportedModelsResult = [
-			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-		];
-		// The constructor kicks off the initial native enumeration; wait for it.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-close-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+			];
+			// The constructor kicks off the initial native enumeration; wait for it.
+			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+				await tick();
+			}
 			await tick();
+			assert.deepStrictEqual({
+				queries: sdk.enumerationQueries.length,
+				closed: sdk.enumerationQueries[0]?.closeCount,
+			}, {
+				queries: 1,
+				closed: 1,
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 		}
-		await tick();
-		assert.deepStrictEqual({
-			queries: sdk.enumerationQueries.length,
-			closed: sdk.enumerationQueries[0]?.closeCount,
-		}, {
-			queries: 1,
-			closed: 1,
-		});
 	});
 
 	test('native transport: authenticate never starts the proxy', async () => {

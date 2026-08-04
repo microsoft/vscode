@@ -102,7 +102,32 @@ class SessionsSetUpWidget extends Disposable {
 	) {
 		super();
 		this._usableWithoutGitHub = observeUsableWithoutGitHub(this.sessionsManagementService, this.configurationService);
+		// The gate's inputs resolve asynchronously: the local agent host advertises
+		// Claude at `AfterRestored`, i.e. after this widget has already decided. So
+		// this subscription is lifetime-scoped rather than installed once setup
+		// completes — otherwise a signed-out startup shows the non-dismissible
+		// modal before Claude resolves and never reconsiders.
+		this._register(runOnChange(this._usableWithoutGitHub, usable => this._onUsableWithoutGitHubChanged(usable)));
 		this._start();
+	}
+
+	/**
+	 * The last-resort gate's answer changed while the window is open. Signed-in
+	 * users are unaffected. Becoming usable retires an already-open sign-in
+	 * modal (it was raised before the answer resolved); becoming unusable falls
+	 * back to demanding sign-in.
+	 */
+	private _onUsableWithoutGitHubChanged(usable: boolean): void {
+		if (this.defaultAccountService.currentDefaultAccount !== null) {
+			return;
+		}
+		if (!usable) {
+			this._proceedingSignedOut = false;
+			void this._showWelcome(false);
+			return;
+		}
+		this.dialogRef.clear();
+		void this._proceedWithoutGitHub();
 	}
 
 	private _start(): void {
@@ -193,15 +218,6 @@ class SessionsSetUpWidget extends Disposable {
 				this._proceedingSignedOut = false;
 			}
 			signedIn = nowSignedIn;
-		}));
-
-		// While signed out, a change to the set of session types usable without
-		// GitHub (or to the opt-in itself) can flip the last-resort gate, so
-		// re-drive the decision.
-		disposables.add(runOnChange(this._usableWithoutGitHub, () => {
-			if (!signedIn) {
-				this._reevaluateSignedOut();
-			}
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {

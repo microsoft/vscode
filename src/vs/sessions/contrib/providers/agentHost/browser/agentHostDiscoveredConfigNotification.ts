@@ -27,9 +27,11 @@ const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const MUTE_COMMAND_ID = 'workbench.action.agentHost.discoveredConfig.mute';
 
 /**
- * Application-scoped flag persisting the user's "Don't Show Again" choice. The
- * discovered config lives on this machine, so the preference is machine-wide
- * ({@link StorageScope.APPLICATION}) rather than per-workspace or per-profile.
+ * Persists the user's "Don't Show Again" choice. The discovered config lives on
+ * this machine, so the preference is scoped to the machine — {@link
+ * StorageScope.APPLICATION} to span profiles and workspaces, and {@link
+ * StorageTarget.MACHINE} so settings sync does not carry it to a machine where
+ * no such config exists.
  */
 const MUTED_STORAGE_KEY = 'agentHost.discoveredConfig.claude.muted';
 
@@ -65,13 +67,13 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 		// The bell-slash button runs this command, which persists the mute; the
 		// storage listener below then re-drives `_update` to tear the banner down.
 		this._register(CommandsRegistry.registerCommand(MUTE_COMMAND_ID, () => {
-			this._storageService.store(MUTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			this._storageService.store(MUTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}));
 
 		// Signing in/out flips the nudge; a session-type change is how the agent
 		// host signals that Claude switched between native and proxy (i.e. whether
 		// it is usable without GitHub); the opt-in and the mute can both toggle at
-		// runtime (the latter possibly via settings sync from another machine).
+		// runtime (the mute from another window on this machine).
 		this._register(Event.any(
 			this._defaultAccountService.onDidChangeDefaultAccount,
 			this._sessionsManagementService.onDidChangeSessionTypes,
@@ -84,8 +86,12 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 
 	private _update(): void {
 		// The Claude agent-host session type, once the host has advertised it.
-		const claude = this._sessionsManagementService.getAllSessionTypes()
-			.find(type => (type.chatSessionType ?? type.id) === SessionType.AgentHostClaude);
+		// Two providers (local / remote agent host) can offer the same id, so
+		// prefer a usable instance and fall back to any for the display label.
+		const claudeTypes = this._sessionsManagementService.getAllProviderSessionTypes()
+			.filter(type => (type.sessionType.chatSessionType ?? type.sessionType.id) === SessionType.AgentHostClaude)
+			.map(type => type.sessionType);
+		const claude = claudeTypes.find(type => type.authRequirement === SessionTypeAuthRequirement.None) ?? claudeTypes[0];
 
 		const show = shouldShowDiscoveredConfigNudge({
 			signedIn: this._defaultAccountService.currentDefaultAccount !== null,

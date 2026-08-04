@@ -633,7 +633,11 @@ export class NewChatWidget extends Disposable {
 		}
 		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
 			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
-		if (usable.length === 0 || usable.some(type => type.sessionType.id === pick?.sessionTypeId)) {
+		// Match on provider too when the pick names one: two providers can offer
+		// the same session type id, and only one of them may be usable.
+		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
+			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
+		if (usable.length === 0 || pickIsUsable) {
 			return pick;
 		}
 		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };

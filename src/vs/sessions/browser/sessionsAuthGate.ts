@@ -54,7 +54,7 @@ export function observeUsableWithoutGitHub(
 			sessionsManagementService.onDidChangeSessionTypes,
 		),
 		() => isAllowSignedOutWhenUsableEnabled(configurationService)
-			&& sessionsManagementService.getAllSessionTypes().some(type => type.authRequirement === SessionTypeAuthRequirement.None));
+			&& sessionsManagementService.getAllProviderSessionTypes().some(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None));
 }
 
 /**
