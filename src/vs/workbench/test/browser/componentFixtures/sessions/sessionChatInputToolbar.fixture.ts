@@ -25,7 +25,7 @@ import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInpu
 // eslint-disable-next-line local/code-import-patterns
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, ISessionFileChange, IChat, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, ISessionTurnFileChange, IChat, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -37,21 +37,22 @@ import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js
 // ============================================================================
 
 /** A file created during the turn (no original => classified as "created"). */
-function createdFile(name: string, insertions: number, deletions: number): ISessionFileChange {
-	return { uri: URI.file(`/repo/${name}`), modifiedUri: URI.file(`/repo/${name}`), insertions, deletions };
+function createdFile(name: string, insertions: number, deletions: number, isOutsideWorkspace = false): ISessionTurnFileChange {
+	const uri = URI.file(`/${isOutsideWorkspace ? 'outside' : 'repo'}/${name}`);
+	return { uri, modifiedUri: uri, insertions, deletions, isOutsideWorkspace };
 }
 
 /** A file edited during the turn (has an original => classified as "modified"). */
-function editedFile(name: string, insertions: number, deletions: number): ISessionFileChange {
-	const uri = URI.file(`/repo/${name}`);
-	return { uri, modifiedUri: uri, originalUri: uri, insertions, deletions };
+function editedFile(name: string, insertions: number, deletions: number, isOutsideWorkspace = false): ISessionTurnFileChange {
+	const uri = URI.file(`/${isOutsideWorkspace ? 'outside' : 'repo'}/${name}`);
+	return { uri, modifiedUri: uri, originalUri: uri, insertions, deletions, isOutsideWorkspace };
 }
 
 interface ISessionSpec {
 	readonly providerId?: string;
 	readonly status?: SessionStatus;
 	/** File changes in the last turn; omit for a chat with no last-turn changes. */
-	readonly turnChanges?: readonly ISessionFileChange[];
+	readonly turnChanges?: readonly ISessionTurnFileChange[];
 	readonly browsers?: readonly { readonly title?: string; readonly ownerSubagent?: number }[];
 	readonly subagents?: readonly string[];
 }
@@ -69,7 +70,7 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly title = constObservable('Main chat');
 		// Pills above the input show while the chat has an active turn.
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.InProgress);
-		override readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]> | undefined =
+		override readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]> | undefined =
 			spec.turnChanges !== undefined ? constObservable(spec.turnChanges) : undefined;
 	}();
 	const subagents = (spec.subagents ?? []).map((title, index) => new class extends mock<IChat>() {
@@ -218,7 +219,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionChatPills_PreviewMarkdown: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			status: SessionStatus.NeedsInput,
-			turnChanges: [createdFile('README.md', 20, 0), editedFile('app.ts', 8, 3)],
+			turnChanges: [createdFile('README.md', 20, 0, true), editedFile('app.ts', 8, 3)],
 		})),
 	}),
 
@@ -232,16 +233,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderPills(ctx, createMockSession({
 			turnChanges: [
 				editedFile('app.ts', 8, 3),
-				createdFile('README.md', 20, 0),
+				createdFile('README.md', 20, 0, true),
 				createdFile('index.html', 30, 4),
-				editedFile('CHANGELOG.md', 6, 1),
+				editedFile('CHANGELOG.md', 6, 1, true),
 			],
 		})),
 	}),
 
 	SessionChatPills_PreviewMultiple_PrimaryEdited: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
-			turnChanges: [editedFile('docs.md', 10, 2), editedFile('page.html', 4, 1)],
+			turnChanges: [editedFile('docs.md', 10, 2, true), editedFile('page.html', 4, 1)],
 		})),
 	}),
 
@@ -326,7 +327,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatView_BothPills: defineComponentFixture({
 		render: (ctx) => renderChatViewWithPills(ctx, createMockSession({
-			turnChanges: [createdFile('README.md', 20, 0), createdFile('index.html', 30, 4), editedFile('app.ts', 8, 3)],
+			turnChanges: [createdFile('README.md', 20, 0, true), createdFile('index.html', 30, 4), editedFile('app.ts', 8, 3)],
 		}), FULL_VIEW_MESSAGES),
 	}),
 

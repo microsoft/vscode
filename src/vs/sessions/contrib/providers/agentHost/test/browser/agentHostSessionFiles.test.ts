@@ -254,22 +254,23 @@ suite('agentHostSessionFiles', () => {
 			parsedEdit(FileEditKind.Delete, { before: '/repo/gone.ts', beforeContent: '/repo/gone.ts.before' }, { deletions: 8 }),
 		];
 
-		const changes = reduceTurnChanges(edits).map(c => ({
+		const changes = reduceTurnChanges(edits, [URI.file('/repo')]).map(c => ({
 			uri: c.uri.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
+			isOutsideWorkspace: c.isOutsideWorkspace,
 			insertions: c.insertions,
 			deletions: c.deletions,
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/new.ts', modified: '/repo/new.ts', original: undefined, insertions: 13, deletions: 1 },
-			{ uri: '/repo/existing.ts', modified: '/repo/existing.ts', original: '/repo/existing.ts.before', insertions: 3, deletions: 4 },
-			{ uri: '/repo/gone.ts', modified: undefined, original: '/repo/gone.ts.before', insertions: 0, deletions: 8 },
+			{ uri: '/repo/new.ts', modified: '/repo/new.ts', original: undefined, isOutsideWorkspace: false, insertions: 13, deletions: 1 },
+			{ uri: '/repo/existing.ts', modified: '/repo/existing.ts', original: '/repo/existing.ts.before', isOutsideWorkspace: false, insertions: 3, deletions: 4 },
+			{ uri: '/repo/gone.ts', modified: undefined, original: '/repo/gone.ts.before', isOutsideWorkspace: false, insertions: 0, deletions: 8 },
 		]);
 	});
 
-	test('reduceTurnChanges filters files outside the workspace and worktree roots', () => {
+	test('reduceTurnChanges classifies files against workspace and worktree roots', () => {
 		const edits: IParsedFileEdit[] = [
 			parsedEdit(FileEditKind.Edit, { after: '/repo/src/app.ts', beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
 			parsedEdit(FileEditKind.Create, { after: '/tmp/session-worktree/README.md' }, { insertions: 5 }),
@@ -280,13 +281,15 @@ suite('agentHostSessionFiles', () => {
 			uri: c.uri.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
+			isOutsideWorkspace: c.isOutsideWorkspace,
 			insertions: c.insertions,
 			deletions: c.deletions,
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', insertions: 2, deletions: 0 },
-			{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, insertions: 5, deletions: 0 },
+			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', isOutsideWorkspace: false, insertions: 2, deletions: 0 },
+			{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, isOutsideWorkspace: false, insertions: 5, deletions: 0 },
+			{ uri: '/home/user/.config/tool.json', modified: '/home/user/.config/tool.json', original: '/home/user/.config/tool.json.before', isOutsideWorkspace: true, insertions: 10, deletions: 1 },
 		]);
 	});
 
@@ -304,16 +307,17 @@ suite('agentHostSessionFiles', () => {
 			parsedEdit(FileEditKind.Rename, { before: '/repo/old.ts', after: '/repo/renamed.ts', beforeContent: '/repo/old.ts.before' }, { insertions: 1, deletions: 2 }),
 		];
 
-		const changes = reduceTurnChanges(edits).map(c => ({
+		const changes = reduceTurnChanges(edits, [URI.file('/repo')]).map(c => ({
 			uri: c.uri.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
+			isOutsideWorkspace: c.isOutsideWorkspace,
 			insertions: c.insertions,
 			deletions: c.deletions,
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/renamed.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', insertions: 1, deletions: 2 },
+			{ uri: '/repo/renamed.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
 		]);
 	});
 });
