@@ -50,7 +50,6 @@ import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
-import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
@@ -369,6 +368,7 @@ async function main(): Promise<void> {
 		});
 	}
 
+<<<<<<< HEAD
 	// Keep every provider's model catalog fresh. Provider-owned refresh
 	// triggers (authentication, transport flips, client restarts) are all
 	// edge-based, so this periodic tick is the only thing that notices a model
@@ -378,6 +378,8 @@ async function main(): Promise<void> {
 	// can ever drain.
 	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
+=======
+>>>>>>> e5b4addd5c7 (Revert https://github.com/microsoft/vscode/pull/327408 (#328871))
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({
 		port: options.port,

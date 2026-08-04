@@ -8,7 +8,11 @@ import assert from 'assert';
 import { PassThrough } from 'stream';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+<<<<<<< HEAD
 import { Schemas } from '../../../../../base/common/network.js';
+=======
+import { waitForState } from '../../../../../base/common/observable.js';
+>>>>>>> e5b4addd5c7 (Revert https://github.com/microsoft/vscode/pull/327408 (#328871))
 import { URI } from '../../../../../base/common/uri.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -188,7 +192,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
-	await agent.refreshModels();
+	await waitForState(agent.models, models => models.length > 0);
 	return agent;
 }
 

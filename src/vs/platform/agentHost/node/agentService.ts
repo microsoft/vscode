@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDis
 import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -548,6 +548,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor()));
 	}
 
+<<<<<<< HEAD
 	/**
 	 * The registered providers. Exposed so process-lifetime background jobs
 	 * (notably {@link AgentModelRefreshScheduler}) can observe registrations
@@ -566,6 +567,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._sideEffects.onDidStartTurn;
 	}
 
+=======
+>>>>>>> e5b4addd5c7 (Revert https://github.com/microsoft/vscode/pull/327408 (#328871))
 	// ---- provider registration ----------------------------------------------
 
 	/**

@@ -17,7 +17,6 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -281,6 +280,7 @@ async function startAgentHost(): Promise<void> {
 		throw err;
 	}
 
+<<<<<<< HEAD
 	// Keep every provider's model catalog fresh. Provider-owned refresh
 	// triggers (authentication, transport flips, client restarts) are all
 	// edge-based, so this periodic tick is the only thing that notices a model
@@ -290,6 +290,8 @@ async function startAgentHost(): Promise<void> {
 	// can ever drain.
 	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
+=======
+>>>>>>> e5b4addd5c7 (Revert https://github.com/microsoft/vscode/pull/327408 (#328871))
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
 	// id; the agent service fans each out to the `createSession` progress tokens
