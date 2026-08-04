@@ -566,8 +566,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		// Native (BYO-Anthropic) mode does not *require* GitHub Copilot auth — the
 		// SDK owns the Anthropic credential. Rather than DROP the Copilot resource,
-		// native keeps advertising it with `required: false` (mirroring Codex on
-		// OpenAI — see `codexProtectedResourcesForUsageSource`). Two effects, both
+		// native keeps advertising it with `required: false` (mirroring Codex when
+		// using a provider that does not require GitHub). Two effects, both
 		// wanted:
 		//   1. The host silently forwards a GitHub token IFF the user is already
 		//      signed in (no prompt when signed out) — the sign-in probe that lets

@@ -16,7 +16,7 @@ import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEn
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
-import { CodexAgent } from '../../../node/codex/codexAgent.js';
+import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -46,6 +46,27 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 suite('CodexAgent model refresh', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const modelListResponse = {
+		data: [{
+			id: 'gpt-5.6-sol',
+			model: 'gpt-5.6-sol',
+			upgrade: null,
+			upgradeInfo: null,
+			availabilityNux: null,
+			displayName: 'GPT-5.6-Sol',
+			description: 'Latest frontier agentic coding model.',
+			hidden: false,
+			supportedReasoningEfforts: [],
+			defaultReasoningEffort: 'medium',
+			inputModalities: ['text', 'image'],
+			supportsPersonality: true,
+			additionalSpeedTiers: [],
+			serviceTiers: [],
+			defaultServiceTier: null,
+			isDefault: true,
+		}],
+		nextCursor: null,
+	};
 
 	test('keeps the last known-good models when a periodic refresh fails', async () => {
 		let shouldFail = false;
@@ -63,33 +84,125 @@ suite('CodexAgent model refresh', () => {
 		shouldFail = true;
 		await agent.refreshModels();
 
-		assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-5.5']);
+		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
 	});
 
-	test('reuses a connection created while OpenAI usage-source validation is pending', async () => {
+	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
 		const agent = createAgent(disposables, async () => []);
-		await Promise.resolve();
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'openai' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
 
-		let resolveValidation!: () => void;
-		agent['_usageSource'] = 'openai';
-		agent['_usageSourceValidation'] = new Promise<void>(resolve => resolveValidation = resolve);
-		agent['_connection'] = { kind: 'idle' };
+		await agent.refreshModels();
 
-		let startCount = 0;
-		agent['_startConnection'] = async () => {
-			startCount++;
-			return { client: { dispose() { } }, child: { kill() { return true; } }, usageSource: 'openai' } as never;
-		};
+		assert.deepStrictEqual(agent.models.get().map(model => ({
+			provider: model.provider,
+			id: model.id,
+			name: model.name,
+		})), [{
+			provider: 'chatgpt',
+			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
+			name: 'GPT-5.6-Sol',
+		}]);
+	});
 
-		const connectionPromise = agent['_ensureConnection']();
-		await Promise.resolve();
-		const existingConnection = { kind: 'ready', client: { dispose() { } }, child: { kill() { return true; } }, usageSource: 'openai' } as const;
-		agent['_connection'] = existingConnection as never;
-		resolveValidation();
+	test('removes ChatGPT models when account/read reports signed out', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_codexModels'] = [{ provider: 'chatgpt', id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'), name: 'GPT-5.6-Sol', supportsVision: true }];
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					assert.strictEqual(method, 'account/read');
+					return { account: null, requiresOpenaiAuth: true };
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
 
-		const connection = await connectionPromise;
-		assert.strictEqual(connection, existingConnection);
-		assert.strictEqual(startCount, 0);
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'], []);
+	});
+
+	test('keeps configured non-human providers out of the ChatGPT group', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'apiKey' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'custom-provider' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id })), [{
+			provider: 'custom-provider',
+			id: toCodexModelSelectionId('custom-provider', 'gpt-5.6-sol'),
+		}]);
+	});
+
+	test('signs out through app-server and refreshes account state', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const requests: string[] = [];
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					requests.push(method);
+					if (method === 'account/logout') {
+						return {};
+					}
+					if (method === 'account/read') {
+						return { account: null, requiresOpenaiAuth: true };
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+		agent['_queueModelRefresh'] = async () => { };
+
+		await agent['_signOutOfChatGPT']();
+
+		assert.deepStrictEqual({
+			requests,
+			accountStatus: agent['_openAIAccountState'].status,
+		}, {
+			requests: ['account/logout', 'account/read'],
+			accountStatus: 'signedOut',
+		});
 	});
 
 	test('advertises multiple working directories only while enabled', () => {

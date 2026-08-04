@@ -8,9 +8,6 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
-export const codexUsageSources = ['copilot', 'openai'] as const;
-export type CodexUsageSource = typeof codexUsageSources[number];
-
 /**
  * Well-known root-config keys used by the platform to configure agent-host
  * customizations.
@@ -39,7 +36,6 @@ export const enum AgentHostConfigKey {
 	 * feature is dark (today's always-proxy behavior).
 	 */
 	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
-	CodexUsageSource = 'codexUsageSource',
 	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
 	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
@@ -113,13 +109,6 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
 		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
 		default: false,
-	}),
-	[AgentHostConfigKey.CodexUsageSource]: schemaProperty<CodexUsageSource>({
-		type: 'string',
-		title: localize('agentHost.config.codexUsageSource.title', "Codex Usage Source"),
-		description: localize('agentHost.config.codexUsageSource.description', "Choose whether Codex usage is routed through GitHub Copilot or uses an existing Codex OpenAI login. VS Code does not provide the OpenAI sign-in flow; authenticate Codex separately before selecting OpenAI."),
-		default: 'copilot',
-		enum: [...codexUsageSources],
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
 		type: 'string',
