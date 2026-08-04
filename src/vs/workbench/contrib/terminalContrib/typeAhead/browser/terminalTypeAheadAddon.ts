@@ -1080,7 +1080,7 @@ const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T
 	}
 
 	for (let bi = 0; bi < b.length; bi++, ai++) {
-		if (b[ai] !== a[ai]) {
+		if (b[bi] !== a[ai]) {
 			return false;
 		}
 	}
