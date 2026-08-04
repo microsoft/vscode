@@ -137,7 +137,7 @@
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px 0 0 4px;
+	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
 }
 
 /* Move the bottom gutter into the scrollable element so the horizontal
@@ -173,6 +173,11 @@
 	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2) !important;
 	border-top:  var(--vscode-spacing-size20) solid transparent !important;
 	border-bottom: var(--vscode-spacing-size20) solid transparent !important;
+	/* Horizontal inset borders create a "fake" gap between tabs (2px each ->
+	 * 4px total) without a real margin, so the clickable hit boxes stay flush. */
+	border-left: var(--vscode-spacing-size20) solid transparent !important;
+	border-right: var(--vscode-spacing-size20) solid transparent !important;
+	margin-right: 0 !important;
 	align-items: center;
 	background-color: transparent !important;
 }
