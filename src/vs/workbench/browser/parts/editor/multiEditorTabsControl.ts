@@ -138,6 +138,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
 	private blockRevealActiveTab: boolean | undefined;
 
+	// Guards against the native `click` the browser still synthesizes after an Alt+click
+	// mousedown, on whichever tab node ends up representing the clicked tab post-redraw.
+	// That node's own close/unpin action must not also run - see the mousedown listener below.
+	private suppressNextTabActionClick = false;
+
 	private path: IPath = isWindows ? win32 : posix;
 
 	private lastMouseWheelEventTime = 0;
@@ -930,6 +935,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Alt+Click to close other tabs
 		// Closes every other non-sticky tab, leaving the current tab open
 		const tabActionsAltClickListener = addDisposableListener(tabActionsContainer, EventType.MOUSE_DOWN, e => {
+			// Clear any stale suppression left behind by a previous alt-click gesture whose
+			// follow-up click never arrived (e.g. its tab's DOM node was removed by the
+			// redraw, so the browser never synthesized one) - don't let it leak into an
+			// unrelated future click. Safe to do unconditionally: this can only clear a flag
+			// set by an earlier, already-finished gesture, never the one about to start below.
+			this.suppressNextTabActionClick = false;
+
 			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey || !this.groupsView.partOptions.closeOtherTabsOnAltClick) {
 				return;
 			}
@@ -951,11 +963,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			this.blockRevealActiveTabOnce();
 
+			// The tab bar redraw below removes DOM nodes purely by position (from the end),
+			// reusing survivors in place (see handleClosedEditors/redrawTab). If the clicked
+			// tab was already the leftmost non-sticky tab, its node isn't removed, so the
+			// browser still synthesizes a native click here on mouseup - suppress that so it
+			// doesn't also run this tab's own close action on top of "close others".
+			this.suppressNextTabActionClick = true;
+
 			const editorsToClose = this.groupView.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(other => other !== editor);
 			this.groupView.closeEditors(editorsToClose);
 		}, true /* capture */);
 
-		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, tabActionsAltClickListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		const tabActionsAltClickSuppressListener = addDisposableListener(tabActionsContainer, EventType.CLICK, e => {
+			if (this.suppressNextTabActionClick) {
+				this.suppressNextTabActionClick = false;
+				EventHelper.stop(e, true);
+			}
+		}, true /* capture */);
+
+		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, tabActionsAltClickListener, tabActionsAltClickSuppressListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Fade Hider
 		// Hides the tab fade to the right when tab action left and sizing shrink/fixed, ::after, ::before are already used

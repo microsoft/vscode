@@ -39,6 +39,15 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		target.dispatchEvent(new MouseEvent('mousedown', { altKey: true, button: 0, bubbles: true, cancelable: true }));
 	}
 
+	// The actual clickable node a real mouse click lands on: a descendant <li class="action-item">
+	// of .tab-actions, not .tab-actions itself (see the click-suppression tests below).
+	function getActionItem(titleContainer: HTMLElement, tabIndex: number): HTMLElement {
+		const actionItems = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab .tab-actions .action-item');
+		const target = actionItems[tabIndex];
+		assert.ok(target, `expected an action-item element at tab index ${tabIndex}`);
+		return target;
+	}
+
 	test('closes every other non-sticky tab when the setting is enabled', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, {
 			editors,
@@ -109,6 +118,66 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 
 		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.deepStrictEqual(afterOrder, beforeOrder, 'nothing should have closed');
+	});
+
+	// ActionViewItem's own click listener (actionViewItems.ts) unconditionally calls
+	// EventHelper.stop() on every click regardless of our code, so dispatchEvent()'s return
+	// value can't tell suppressed from unsuppressed - it's always false either way. What
+	// distinguishes them is whether the click *reaches* the target at all: our capture-phase
+	// listener either stops it beforehand (suppressed) or lets it through to a listener
+	// registered directly on the target (not suppressed).
+	function dispatchClickAndCheckIfReachedTarget(target: HTMLElement, opts: MouseEventInit): boolean {
+		let reachedTarget = false;
+		const listener = () => { reachedTarget = true; };
+		target.addEventListener('click', listener);
+		try {
+			target.dispatchEvent(new MouseEvent('click', opts));
+		} finally {
+			target.removeEventListener('click', listener);
+		}
+		return reachedTarget;
+	}
+
+	test('suppresses the native click that follows the alt-click mousedown', () => {
+		// handleClosedEditors() removes DOM nodes purely by trailing position and redrawTab()
+		// reuses a surviving node's action button in place (no rebuild) as long as its action
+		// type is unchanged. So the leftmost non-sticky tab's node is never removed by "close
+		// others" - the browser still synthesizes a native click there on mouseup, which must
+		// be suppressed or it re-runs this tab's own close action on top of "close others".
+		// A real click (not just mousedown) is what a real Alt+click gesture produces; this is
+		// the click the fix is about, so exercise it directly rather than only via mousedown.
+		const { titleContainer } = createTabBarTestContext(container, {
+			editors,
+			partOptions: { closeOtherTabsOnAltClick: true },
+		}, disposables);
+
+		const target = getActionItem(titleContainer, 1);
+		const opts = { altKey: true, button: 0, bubbles: true, cancelable: true };
+		target.dispatchEvent(new MouseEvent('mousedown', opts));
+
+		const reached = dispatchClickAndCheckIfReachedTarget(target, opts);
+		assert.strictEqual(reached, false, 'the click following the alt-click mousedown should have been suppressed before reaching the target');
+	});
+
+	test('does not suppress a later, unrelated click if the alt-click gesture\'s own click never arrives', () => {
+		// Guards the suppression flag itself: it must not leak past the gesture it was set
+		// for. Simulates the (more common) case where the clicked tab's node WAS removed by
+		// the redraw, so no click ever followed the alt-click mousedown to consume the flag -
+		// the very next mousedown anywhere in the tab bar must still clear it defensively.
+		const { titleContainer } = createTabBarTestContext(container, {
+			editors,
+			partOptions: { closeOtherTabsOnAltClick: true },
+		}, disposables);
+
+		const altOpts = { altKey: true, button: 0, bubbles: true, cancelable: true };
+		getActionItem(titleContainer, 1).dispatchEvent(new MouseEvent('mousedown', altOpts));
+		// (no follow-up click - simulates the node having been removed by the redraw)
+
+		const laterTarget = getActionItem(titleContainer, 0);
+		const plainOpts = { button: 0, bubbles: true, cancelable: true };
+		laterTarget.dispatchEvent(new MouseEvent('mousedown', plainOpts));
+		const reached = dispatchClickAndCheckIfReachedTarget(laterTarget, plainOpts);
+		assert.strictEqual(reached, true, 'an unrelated later click should not be suppressed by a stale flag');
 	});
 
 	test('does nothing when the setting is disabled (default)', () => {
