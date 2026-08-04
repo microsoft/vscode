@@ -14,12 +14,10 @@ import { ICAPIClientService } from '../common/capiClient';
 import type { IModelAPIResponse } from '../common/endpointProvider';
 
 /**
- * The model object embedded in a `POST /auto` response. Shares the shape of an
- * entry from `GET /models`, but volatile fields (warning banners, policy state,
- * promo pricing, picker UI flags) are intentionally left unset by the server.
- *
- * Typed as a partial `IModelAPIResponse` so that any field the server does send
- * is carried through verbatim: only `id` is guaranteed.
+ * The model embedded in a `POST /auto` response. Same shape as a `GET /models`
+ * entry, but volatile fields (warnings, policy state, promos, picker flags) are
+ * left unset. Typed as a partial so unknown fields pass through; only `id` is
+ * guaranteed.
  */
 export type AutoV2SelectedModel = Partial<IModelAPIResponse> & { id: string };
 
@@ -32,10 +30,7 @@ export interface AutoV2Response {
 	discounted_costs?: Record<string, number>;
 }
 
-/**
- * Client-side multi-turn routing state. Logged server-side only today, it does
- * not influence the routing decision.
- */
+/** Multi-turn routing state. Logged server-side only; does not affect routing. */
 export interface AutoV2MultiTurnState {
 	routing_intent?: string;
 	turns_since_anchor?: number;
@@ -44,9 +39,8 @@ export interface AutoV2MultiTurnState {
 }
 
 /**
- * Thrown when `POST /auto` returns a non-OK HTTP response. Carries the status so
- * callers can distinguish "endpoint unavailable" (404, e.g. the API version or
- * feature flag gate) from a transient failure (503).
+ * Thrown when `POST /auto` returns a non-OK response. Carries the status so
+ * callers can tell "gated off" (404) from a transient failure (503).
  */
 export class AutoV2Error extends Error {
 	override readonly name = 'AutoV2Error';
@@ -56,12 +50,9 @@ export class AutoV2Error extends Error {
 }
 
 /**
- * Fetches a model selection from the single-call Auto endpoint (`POST /auto`).
- *
- * This endpoint collapses the legacy two-call flow (`POST /models/session` then
- * `POST /models/session/intent`) into one request: it mints the session token
- * and resolves task intent server-side, returning the chosen model with its
- * full `/models`-shaped metadata embedded.
+ * Fetches a model selection from `POST /auto`, which collapses the legacy
+ * two-call flow (`/models/session` then `/models/session/intent`) into one
+ * request and embeds the chosen model's metadata.
  */
 export class AutoV2Fetcher {
 	private static readonly TIMEOUT_MS = 5000;
@@ -82,9 +73,8 @@ export class AutoV2Fetcher {
 			conversationId?: string;
 			vscodeRequestId?: string;
 			/**
-			 * Set when the call exists only to read `discounted_costs` for the
-			 * model picker. Keeps the placeholder prompt out of routing
-			 * telemetry and the request log.
+			 * Set when the call only reads `discounted_costs` for the picker.
+			 * Keeps the placeholder prompt out of telemetry and the request log.
 			 */
 			isDiscountProbe?: boolean;
 		} = {},
@@ -117,8 +107,7 @@ export class AutoV2Fetcher {
 		}
 
 		if (!response.ok) {
-			// Error bodies are not guaranteed to be JSON (e.g. gateway HTML),
-			// so a parse failure just means we have no error code to report.
+			// Error bodies are not always JSON (e.g. gateway HTML).
 			const parsed = await response.json().catch(() => undefined);
 			const errorCode = typeof parsed === 'object' && parsed !== null && typeof parsed.error === 'string'
 				? parsed.error

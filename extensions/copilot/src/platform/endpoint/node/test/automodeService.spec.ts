@@ -1854,6 +1854,26 @@ describe('AutomodeService', () => {
 			expect(globalStateStore.get('copilot.autoMode.v2.lastDiscountedCosts')).toBeUndefined();
 		});
 
+		it('resets the 404 latch and discount probe when authentication changes', async () => {
+			enableAutoV2();
+			mockAuto({ error: 'not_found' }, 404);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-auth-latch'
+			};
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			expect((mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto)).toHaveLength(1);
+
+			// The new account may well have access even though the old one did not.
+			onDidAuthenticationChangeEmitter.fire();
+			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'after switch' } as ChatRequest, [mockChatEndpoint]);
+
+			expect((mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto)).toHaveLength(2);
+		});
+
 		it('resolves picker metadata via the legacy session call when the setting is disabled', async () => {
 			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockResolvedValue(
 				makeMockTokenResponse({

@@ -17,7 +17,7 @@ import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoin
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
-import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { IAutomodeService, type IAutoModeRoutingRequest } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -93,36 +93,39 @@ function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boole
 }
 
 /**
- * Builds the routing context auto mode needs from a `vscode.lm` request.
- *
- * The `vscode.lm` API has no `ChatRequest`, but the single-call Auto endpoint
- * only needs the prompt text to classify the task, plus a stable id to key its
- * per-conversation cache. Returns `undefined` when no user text is available,
- * in which case auto mode falls back to prompt-free model selection.
+ * Extracts what auto mode needs from a `vscode.lm` request, which has no
+ * `ChatRequest`: the prompt to classify, any attached images, and a cache key.
+ * Returns `undefined` without user text, falling back to prompt-free selection.
  */
 function buildAutoRoutingContext(
 	messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[],
 	options: vscode.ProvideLanguageModelChatResponseOptions,
-): { prompt: string; sessionId: string } | undefined {
+): IAutoModeRoutingRequest | undefined {
 	// The last user message is the turn being answered.
 	const lastUserMessage = [...messages].reverse().find(m => m.role === vscode.LanguageModelChatMessageRole.User);
 	if (!lastUserMessage) {
 		return undefined;
 	}
 	const content = lastUserMessage.content;
+	const parts = typeof content === 'string' ? [] : content;
 	const prompt = (typeof content === 'string'
 		? content
-		: content
+		: parts
 			.map(part => part instanceof vscode.LanguageModelTextPart ? part.value : '')
 			.join('')
 	).trim();
 	if (!prompt) {
 		return undefined;
 	}
-	// Extensions are not conversations, so key the cache by the initiating
-	// extension. That keeps a chatty extension from re-routing on every call
-	// while still isolating it from other callers.
-	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}` };
+	// Images are forwarded to the selected model, so `/auto` must see them too
+	// or it may pick a text-only model. Only the mime type matters here.
+	const references = parts
+		.filter((part): part is vscode.LanguageModelDataPart => part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/'))
+		.map(part => ({ value: { mimeType: part.mimeType } }));
+	// Key by the calling extension. Like a panel conversation, the first prompt
+	// picks the model and later ones reuse it, which bounds the cache at one
+	// entry per extension.
+	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references };
 }
 
 // Auto model delegates to different backends, so don't expose config pickers
@@ -523,19 +526,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 	}
 
-	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation, autoRoutingContext?: { prompt: string; sessionId: string }) {
+	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation, autoRoutingContext?: IAutoModeRoutingRequest) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			// The `vscode.lm` API has no ChatRequest, so synthesize the minimal
-			// shape auto mode reads. Without a prompt the single-call Auto
-			// endpoint cannot classify and we fall back to the legacy flow.
-			const chatRequest = autoRoutingContext
-				? { prompt: autoRoutingContext.prompt, sessionId: autoRoutingContext.sessionId, location: ChatLocation.Panel } as vscode.ChatRequest
-				: undefined;
-			return await this._automodeService.resolveAutoModeEndpoint(chatRequest, allEndpoints);
+			// Without routing context (no user text) auto mode falls back to
+			// prompt-free model selection.
+			return await this._automodeService.resolveAutoModeEndpoint(autoRoutingContext, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
 		if (aliasEndpoint) {
@@ -573,9 +572,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		text: string | vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2,
 		token: vscode.CancellationToken
 	): Promise<number> {
-		// Counting tokens only needs a tokenizer, so avoid routing a model for
-		// the Auto entry: that would mint a session token (and, on the legacy
-		// flow, an extra round-trip) for a purely local computation.
+		// Counting only needs a tokenizer, so don't route a model for Auto: that
+		// would mint a session token for a purely local computation.
 		let endpoint: IChatEndpoint | undefined;
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
