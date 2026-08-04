@@ -120,6 +120,9 @@ export class PlaywrightTab {
 	}
 
 	private _handleRequestFailed(request: playwright.Request) {
+		if (this._getBlockedURLErrorMessage(request.url())) {
+			return;
+		}
 		const timing = request.timing();
 		this._logs.push({ type: 'requestFailed', time: timing.responseEnd + timing.startTime, description: `${request.method()} request to ${request.url()} failed: "${request.failure()?.errorText}"` });
 	}
@@ -135,12 +138,24 @@ export class PlaywrightTab {
 	}
 
 	/**
-	 * Returns a blocked-by-policy error message if the current page URL is
-	 * denied by the network filter, or `undefined` if the URL is allowed.
+	 * Returns a blocked-by-policy error message if the current page or any frame
+	 * is denied by the network filter, or `undefined` if all URLs are allowed.
 	 */
-	private _getBlockedURLErrorMessage(): string | undefined {
-		const url = this.page.url();
-		if (!url || url === 'about:blank') {
+	private _getBlockedURLErrorMessage(url?: string): string | undefined {
+		if (url !== undefined) {
+			return this._getBlockedURLMessage(url);
+		}
+		for (const frame of this.page.frames()) {
+			const error = this._getBlockedURLMessage(frame.url());
+			if (error) {
+				return error;
+			}
+		}
+		return undefined;
+	}
+
+	private _getBlockedURLMessage(url: string): string | undefined {
+		if (!url || url === 'about:blank' || url.startsWith('chrome-error://')) {
 			return undefined;
 		}
 		let uri: URI | undefined;
@@ -165,13 +180,14 @@ export class PlaywrightTab {
 			throw new Error(`Cannot perform action while a dialog is open`);
 		}
 
-		// Block agent actions when the current page URL is on the deny list.
+		// Block agent actions when the current page or any frame is on the deny list.
 		const blockedError = this._getBlockedURLErrorMessage();
 		if (blockedError) {
 			throw new Error(blockedError);
 		}
 
 		let actionDidComplete = false;
+		let postActionBlockedError: string | undefined;
 		let result: T | void;
 		const dialogOpened = Event.toPromise(this._onDialogStateChanged.event);
 		const actionCompleted = createCancelablePromise(async (token) => {
@@ -186,6 +202,7 @@ export class PlaywrightTab {
 			try {
 				this.actionScope.activeCalls++;
 				result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
+				postActionBlockedError = this._getBlockedURLErrorMessage();
 				actionDidComplete = true;
 			} finally {
 				this.page.off('filechooser', handleFileChooser);
@@ -198,6 +215,9 @@ export class PlaywrightTab {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
 				throw new DialogInterruptedError();
 			}
+			if (postActionBlockedError) {
+				throw new Error(postActionBlockedError);
+			}
 			return result!;
 		});
 	}
@@ -205,7 +225,7 @@ export class PlaywrightTab {
 	async getSummary(full = this._needsFullSnapshot): Promise<string> {
 		await this._initialized;
 
-		// When the current page URL is blocked by network policy, return only a
+		// When the current page or any frame is blocked by network policy, return only a
 		// policy error — do not expose title, URL, console logs, or snapshot to
 		// avoid prompt-injection via blocked content.
 		const blockedError = this._getBlockedURLErrorMessage();

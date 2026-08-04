@@ -16,6 +16,7 @@ import { BrowserSession } from './browserSession.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BrowserViewCDPTarget } from './browserViewCDPTarget.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { setBrowserViewGroupAgentNetworkFiltering } from './browserViewAgentNetworkFilter.js';
 
 /**
  * An isolated group of {@link BrowserView} instances exposed as CDP targets.
@@ -83,6 +84,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		if (!view) {
 			throw new Error(`Browser view ${viewId} not found`);
 		}
+		setBrowserViewGroupAgentNetworkFiltering(view, this.owner, true);
 		this.views.set(view.id, view);
 		this.knownContextIds.add(view.session.id);
 		this._onDidAddView.fire({ viewId: view.id });
@@ -134,6 +136,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	async removeView(viewId: string): Promise<void> {
 		const view = this.views.get(viewId);
 		if (view && this.views.delete(viewId)) {
+			setBrowserViewGroupAgentNetworkFiltering(view, this.owner, false);
 			// If no remaining views belong to the view's context, and we don't own the context, remove it from known contexts
 			if (!this.ownedContextIds.has(view.session.id) && ![...this.views.values()].some(v => v.session.id === view.session.id)) {
 				this.knownContextIds.delete(view.session.id);
@@ -270,6 +273,9 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	// #endregion
 
 	override dispose(): void {
+		for (const view of this.views.values()) {
+			setBrowserViewGroupAgentNetworkFiltering(view, this.owner, false);
+		}
 		this._onDidDestroy.fire();
 		super.dispose();
 	}

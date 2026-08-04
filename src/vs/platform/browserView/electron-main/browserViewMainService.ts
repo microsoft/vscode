@@ -246,6 +246,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).getURL();
 	}
 
+	async getNetworkPolicyError(id: string): Promise<string | undefined> {
+		return this._getBrowserView(id).getAgentNetworkPolicyError();
+	}
+
 	async goBack(id: string): Promise<void> {
 		return this._getBrowserView(id).goBack();
 	}
