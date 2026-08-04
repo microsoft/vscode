@@ -927,21 +927,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		});
 
-		// Alt+Click to close other tabs
-		// Closes every other non-sticky tab, leaving the current tab open. Handled on the
-		// capture-phase CLICK rather than MOUSE_DOWN, so it only fires on a real, committed
-		// click (matching how the close/unpin button itself commits, in actionViewItems.ts)
-		// and not while merely pressing down. Stopping it here, before it reaches the action
-		// item's own CLICK listener further down the tree, also preempts that button's normal
-		// close/unpin action from running on top of "close others".
+		// Alt+Click to close other tabs. Capture-phase click, not mousedown, pre-empts the button's own action.
 		const tabActionsAltClickListener = addDisposableListener(tabActionsContainer, EventType.CLICK, e => {
 			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey || !this.groupsView.partOptions.closeOtherTabsOnAltClick) {
 				return;
 			}
 
-			// The visible action here may be Unpin rather than Close (sticky tabs default to
-			// showing Unpin). This gesture is specifically about the close button, so leave
-			// the Unpin button's own click behavior alone rather than closing other tabs.
+			// Sticky tabs show Unpin here, not Close; leave Unpin's own click alone.
 			const isSticky = this.tabsModel.isSticky(tabIndex);
 			if (isSticky && this.groupsView.partOptions.tabActionUnpinVisibility) {
 				return;

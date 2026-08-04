@@ -44,7 +44,24 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 	}
 
 	function altClickCloseButton(titleContainer: HTMLElement, tabIndex: number): void {
-		getActionItem(titleContainer, tabIndex).dispatchEvent(new MouseEvent('click', { altKey: true, button: 0, bubbles: true, cancelable: true }));
+		altClickAndCheckIfReachedTarget(titleContainer, tabIndex);
+	}
+
+	// Also reports whether the click reached the action item's own listener, so tests can tell
+	// "nothing closed because the gesture correctly no-opped" apart from "nothing closed because
+	// the click got swallowed before it could do anything at all" (including the button's own
+	// normal action).
+	function altClickAndCheckIfReachedTarget(titleContainer: HTMLElement, tabIndex: number): boolean {
+		const target = getActionItem(titleContainer, tabIndex);
+		let reachedTarget = false;
+		const listener = () => { reachedTarget = true; };
+		target.addEventListener('click', listener);
+		try {
+			target.dispatchEvent(new MouseEvent('click', { altKey: true, button: 0, bubbles: true, cancelable: true }));
+		} finally {
+			target.removeEventListener('click', listener);
+		}
+		return reachedTarget;
 	}
 
 	test('closes every other non-sticky tab when the setting is enabled', () => {
@@ -113,7 +130,10 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.ok(model.isSticky(beforeOrder[0]), 'expected tab 0 to be sticky in this fixture');
 
-		altClickCloseButton(titleContainer, 0);
+		// Must reach the target: proves the click fell through to the Unpin button's own
+		// action rather than merely being swallowed alongside "close others" no-opping.
+		const reached = altClickAndCheckIfReachedTarget(titleContainer, 0);
+		assert.strictEqual(reached, true, 'the click should have reached the Unpin button');
 
 		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.deepStrictEqual(afterOrder, beforeOrder, 'nothing should have closed');
@@ -129,13 +149,9 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 			partOptions: { closeOtherTabsOnAltClick: true },
 		}, disposables);
 
-		const target = getActionItem(titleContainer, 1);
-		let reachedTarget = false;
-		target.addEventListener('click', () => { reachedTarget = true; });
+		const reached = altClickAndCheckIfReachedTarget(titleContainer, 1);
 
-		altClickCloseButton(titleContainer, 1);
-
-		assert.strictEqual(reachedTarget, false, 'the click should have been stopped before reaching the action item');
+		assert.strictEqual(reached, false, 'the click should have been stopped before reaching the action item');
 	});
 
 	test('does nothing when the setting is disabled (default)', () => {
@@ -146,7 +162,10 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 
-		altClickCloseButton(titleContainer, 1);
+		// Must reach the target: proves the click fell through to the button's own normal
+		// close action rather than being swallowed by a listener that ignored the setting.
+		const reached = altClickAndCheckIfReachedTarget(titleContainer, 1);
+		assert.strictEqual(reached, true, 'the click should have reached the close button');
 
 		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.deepStrictEqual(afterOrder, beforeOrder);
