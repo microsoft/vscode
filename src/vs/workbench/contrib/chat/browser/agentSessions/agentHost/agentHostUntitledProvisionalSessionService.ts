@@ -61,11 +61,12 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
@@ -105,6 +106,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * the initial config supplied on the request.
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
+
+	/** Initial session metadata contributed by the current Editor workspace. */
+	getInitialSessionMetadata(): Record<string, unknown> | undefined;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -294,6 +298,19 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
 	}
 
+	getInitialSessionMetadata(): Record<string, unknown> | undefined {
+		const workspace = this._workspaceContextService.getWorkspace();
+		if (this._environmentService.isSessionsWindow
+			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
+			|| !URI.isUri(workspace.configuration)) {
+			return undefined;
+		}
+		return withSessionMultiRootMetadata(undefined, {
+			workspaceFile: workspace.configuration.toString(),
+			name: workspace.name,
+		});
+	}
+
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
 		return this._getInitialConfig();
 	}
@@ -421,6 +438,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				created = await this._agentHostService.createSession({
 					provider: entry.provider,
 					session: candidate,
+					_meta: this.getInitialSessionMetadata(),
 					workingDirectories: this._computeWorkingDirectories(workingDirectory, entry.provider),
 					config,
 					progressToken: generateUuid(),
@@ -524,6 +542,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					created = await this._agentHostService.createSession({
 						provider,
 						session: newBackendSession,
+						_meta: this.getInitialSessionMetadata(),
 						workingDirectories: this._computeWorkingDirectories(targetWorkingDirectory, provider),
 						config,
 						...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),

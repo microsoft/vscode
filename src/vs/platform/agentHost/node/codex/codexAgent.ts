@@ -52,6 +52,7 @@ import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
@@ -838,6 +839,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
@@ -1487,7 +1489,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 
 		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
-		const launchConfig = buildCodexLaunchConfig(usageSource, process.env, proxyHandle, extraArgs);
+		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
+		const launchConfig = buildCodexLaunchConfig(usageSource, process.env, proxyHandle, extraArgs, telemetry);
 		const env = launchConfig.env;
 		const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
 		if (userCodexHome) {
@@ -3095,6 +3098,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _traceContext(session: ICodexSession) {
+		return this._otelService.getSessionTraceContext(session.sessionId, session.sessionUri.toString());
+	}
+
 	private async _materialize(session: ICodexSession): Promise<void> {
 		if (session.disposed) {
 			return;
@@ -3139,7 +3146,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			approvalsReviewer,
 			config: threadConfig,
 			dynamicTools: this._buildDynamicTools(session),
-		});
+		}, this._traceContext(session));
 		const threadId = startResult.thread.id;
 		if (multiRootActive && !session.workingDirectories && startResult.runtimeWorkspaceRoots?.length) {
 			session.workingDirectories = startResult.runtimeWorkspaceRoots.map(path => URI.file(path));
@@ -3433,6 +3440,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					buildCodexResumeParams(this._usageSource, threadId, mcpServers, runtimeWorkspaceRoots),
+					this._traceContext(session),
 				);
 				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
 					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
@@ -3469,7 +3477,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				input: input.slice(),
 				model: model.id,
 				...turnOptions,
-			});
+			}, this._traceContext(session));
 			// The thread now has committed history; client tools are locked to
 			// what was registered at `thread/start` and won't be re-applied.
 			session.firstTurnSent = true;
@@ -3591,10 +3599,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session) {
-			return;
+		if (session) {
+			await this._teardownSessionInMemory(session, sessionId);
 		}
-		await this._teardownSessionInMemory(session, sessionId);
+		this._otelService.releaseSessionTraceContext(sessionUri.toString());
 	}
 
 	/**

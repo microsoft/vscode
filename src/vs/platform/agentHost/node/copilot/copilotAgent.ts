@@ -41,7 +41,7 @@ import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
-import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -274,6 +274,23 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
  * Exported for tests, which inject fake sessions into the container.
  */
 export class CopilotSessionEntry extends AgentSessionEntry<CopilotAgentSession> { }
+
+export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'http/json' | 'http/protobuf' | 'grpc'): string {
+	if (protocol === 'grpc') {
+		return endpoint;
+	}
+	try {
+		const url = new URL(endpoint);
+		if (url.pathname === '' || url.pathname === '/') {
+			url.pathname = '/v1/metrics';
+		} else if (url.pathname.endsWith('/v1/traces')) {
+			url.pathname = `${url.pathname.slice(0, -'/v1/traces'.length)}/v1/metrics`;
+		}
+		return url.toString().replace(/\/$/, '');
+	} catch {
+		return endpoint;
+	}
+}
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
@@ -1093,9 +1110,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
-			const supportedReasoningEfforts = m.supportedReasoningEfforts?.filter(isCopilotReasoningEffort);
-			const defaultReasoningEffort = supportedReasoningEfforts?.find(effort => effort === m.defaultReasoningEffort) ?? supportedReasoningEfforts?.[0];
-			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts, defaultReasoningEffort);
+			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 			return {
 				provider: this.id,
 				id: `${m.vendor}/${getByokLmSelectionModelId(m)}`,
@@ -1325,6 +1340,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
+			const nativeTelemetry = await this._otelService.getNativeSdkTelemetryConfig();
+			if (nativeTelemetry) {
+				env['OTEL_SERVICE_NAME'] = 'github-copilot';
+				env['OTEL_RESOURCE_ATTRIBUTES'] = Object.entries(nativeTelemetry.resourceAttributes).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join(',');
+			}
+			if (nativeTelemetry?.traces) {
+				env['OTEL_EXPORTER_OTLP_TRACES_ENDPOINT'] = nativeTelemetry.traces.endpoint;
+				env['OTEL_EXPORTER_OTLP_TRACES_PROTOCOL'] = nativeTelemetry.traces.protocol;
+			}
+			if (nativeTelemetry?.external) {
+				env['OTEL_EXPORTER_OTLP_METRICS_ENDPOINT'] = resolveCopilotOtlpMetricsEndpoint(nativeTelemetry.external.endpoint, nativeTelemetry.external.protocol);
+				env['OTEL_EXPORTER_OTLP_METRICS_PROTOCOL'] = nativeTelemetry.external.protocol;
+			} else if (nativeTelemetry) {
+				env['OTEL_METRICS_EXPORTER'] = 'none';
+			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(copilotSdkLogLevelSettingAtStartup);
 
 			const clientOptions: CopilotClientOptions = {
@@ -1334,6 +1364,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: sessionSyncAtStartup,
+				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
 				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
 			};
 			const client = this._createCopilotClient(clientOptions);
@@ -1361,7 +1392,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- session management -------------------------------------------------
 
-	private _createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined): ConfigPropertySchema | undefined {
+	private _createThinkingLevelConfigSchemaProperty(reasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined, modelId: string | undefined): ConfigPropertySchema | undefined {
+		// Only advertise efforts the Copilot launcher actually accepts, otherwise the picker would
+		// surface a level that is silently dropped when the session is launched.
+		const supportedReasoningEfforts = reasoningEfforts?.filter(isCopilotReasoningEffort);
 		if (!supportedReasoningEfforts?.length) {
 			return undefined;
 		}
@@ -1370,7 +1404,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			type: 'string',
 			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
 			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
-			default: defaultReasoningEffort,
+			default: resolveDefaultReasoningEffort(supportedReasoningEfforts, defaultReasoningEffort, modelId),
 			enum: [...supportedReasoningEfforts],
 			enumLabels: supportedReasoningEfforts.map(getReasoningEffortLabel),
 			enumDescriptions: supportedReasoningEfforts.map(value => getReasoningEffortDescription(value) ?? ''),
@@ -1458,7 +1492,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _createModelConfigSchema(m: ModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
-		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort);
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
@@ -2472,6 +2506,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 			}
 		});
+		this._otelService.releaseSessionTraceContext(session.toString());
 	}
 
 	/**

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.133.0",
-  "distro": "b2ef7d83248f73d41b551318c4a079e0e3546c1c",
+  "distro": "0a2adcd7a64dfe443b6122097cd88f5958c22147",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -151,7 +151,7 @@
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
     "node-addon-api": "^6.0.0",
-    "node-pty": "^1.2.0-beta.13",
+    "node-pty": "^1.2.0-beta.15",
     "open": "^10.1.2",
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
@@ -215,7 +215,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.7.1",
+    "electron": "42.8.0",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -299,7 +299,7 @@
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,
-    "node-pty@1.2.0-beta.13": true,
+    "node-pty@1.2.0-beta.15": true,
     "utf-8-validate@5.0.10": true,
     "windows-foreground-love@0.6.1": true,
     "@parcel/watcher@2.5.6": true,

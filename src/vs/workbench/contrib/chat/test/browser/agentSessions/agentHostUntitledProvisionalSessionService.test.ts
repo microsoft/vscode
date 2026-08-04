@@ -19,7 +19,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -160,22 +160,36 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let workspaceTrusted: boolean;
 	let untrustedFolders: Set<string>;
 	let workspaceFolders: URI[];
+	let workspaceConfiguration: URI | null;
+	let workspaceName: string | undefined;
+	let workbenchState: WorkbenchState;
+	let isSessionsWindow: boolean;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
 		workspaceFolders = [];
+		workspaceConfiguration = null;
+		workspaceName = undefined;
+		workbenchState = WorkbenchState.EMPTY;
+		isSessionsWindow = false;
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
-		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace(): IWorkspace {
-				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
+				return {
+					id: 'workspace',
+					folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)),
+					configuration: workspaceConfiguration,
+					name: workspaceName,
+				};
 			}
+			override getWorkbenchState(): WorkbenchState { return workbenchState; }
 		});
 		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
@@ -209,6 +223,42 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: 1,
 			config: { isolation: 'folder' },
 		});
+	});
+
+	test('getOrCreate includes Editor multi-root workspace metadata', async () => {
+		workspaceFolders = [URI.file('/workspace/one')];
+		workspaceConfiguration = URI.parse('vscode-remote://ssh-remote+host/work/demo.code-workspace');
+		workspaceName = 'Demo Workspace';
+		workbenchState = WorkbenchState.WORKSPACE;
+
+		await provisional.getOrCreate(untitledChatUri('multi-root'), 'copilot', workspaceFolders[0]);
+
+		assert.deepStrictEqual(agentHost.createCalls[0]._meta, {
+			multiRoot: {
+				workspaceFile: workspaceConfiguration.toString(),
+				name: workspaceName,
+			},
+		});
+	});
+
+	test('getOrCreate omits multi-root metadata without a workspace configuration', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workbenchState = WorkbenchState.WORKSPACE;
+
+		await provisional.getOrCreate(untitledChatUri('multi-root-no-config'), 'copilot', workspaceFolders[0]);
+
+		assert.strictEqual(agentHost.createCalls[0]._meta, undefined);
+	});
+
+	test('getOrCreate omits multi-root metadata in the Agents window', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		isSessionsWindow = true;
+
+		await provisional.getOrCreate(untitledChatUri('agents-window'), 'copilot', workspaceFolders[0]);
+
+		assert.strictEqual(agentHost.createCalls[0]._meta, undefined);
 	});
 
 	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {
@@ -416,6 +466,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	});
 
 	test('tryRebind waits for pending config reconciliation', async () => {
+		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workspaceName = 'Demo Workspace';
+		workbenchState = WorkbenchState.WORKSPACE;
 		const ui = untitledChatUri('g');
 		// Block the re-resolve so it does NOT run before tryRebind's read.
 		const blocked = new DeferredPromise<ResolveSessionConfigResult>();
@@ -440,7 +494,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-g');
 		assert.ok(reboundCreate, 'rebind triggered a createSession');
-		assert.strictEqual(reboundCreate.config?.['isolation'], 'worktree');
+		assert.deepStrictEqual({
+			isolation: reboundCreate.config?.['isolation'],
+			_meta: reboundCreate._meta,
+		}, {
+			isolation: 'worktree',
+			_meta: {
+				multiRoot: {
+					workspaceFile: workspaceConfiguration.toString(),
+					name: workspaceName,
+				},
+			},
+		});
 	});
 
 	test('tryRebind retries when config changes during final session creation', async () => {
