@@ -1091,6 +1091,67 @@ export const SESSION_META_GITHUB_KEY = 'github';
 
 export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
+export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
+
+const MAX_WORKSPACE_FILE_LENGTH = 4096;
+const MAX_WORKSPACE_NAME_LENGTH = 512;
+
+/** Multi-root workspace provenance attached by the creating client. */
+export interface ISessionMultiRootMetadata {
+	readonly workspaceFile: string;
+	readonly name?: string;
+}
+
+/** Reads validated multi-root workspace provenance from session metadata. */
+export function readSessionMultiRootMetadata(meta: SessionMeta | undefined): ISessionMultiRootMetadata | undefined {
+	return validateSessionMultiRootMetadata(meta?.[SESSION_META_MULTI_ROOT_KEY]);
+}
+
+/** Parses validated multi-root workspace provenance from its persisted JSON representation. */
+export function parseSessionMultiRootMetadata(value: string | undefined): ISessionMultiRootMetadata | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionMultiRootMetadata(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+/** Returns session metadata with the multi-root workspace provenance updated or removed. */
+export function withSessionMultiRootMetadata(meta: SessionMeta | undefined, multiRoot: ISessionMultiRootMetadata | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (multiRoot) {
+		next[SESSION_META_MULTI_ROOT_KEY] = multiRoot;
+	} else {
+		delete next[SESSION_META_MULTI_ROOT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMetadata | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
+		return undefined;
+	}
+	const name = raw.name;
+	if (name !== undefined && (typeof name !== 'string' || name.length > MAX_WORKSPACE_NAME_LENGTH)) {
+		return undefined;
+	}
+	try {
+		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	return name === undefined ? { workspaceFile: raw.workspaceFile } : { workspaceFile: raw.workspaceFile, name };
+}
+
 /** Latest known prompt-cache state for the model active in an agent session. */
 export interface ISessionPromptCacheState {
 	readonly modelId: string;

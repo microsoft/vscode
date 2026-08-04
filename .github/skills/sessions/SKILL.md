@@ -120,9 +120,7 @@ Whenever the user flags a wrong pattern, rejects an approach, or gives design/ru
 
 - **Centralize session workspace filtering behind a semantic predicate**: refresh, add-notification, and summary-update paths should call one `_isSessionInWorkspace(entry)`-style helper. Keep key construction, working-directory parsing, pending-local lookup, and provenance checks out of each caller so the high-level list flow stays readable and all paths apply identical rules.
 
-- **Feature-specific workspace storage must be gated at the storage service boundary**: Editor multi-root provenance is enabled only for a non-Sessions window with `WorkbenchState.WORKSPACE` and more than one open folder. Lazy-load it only after that gate passes; folder/empty/Agents windows must use ordinary path filtering and never read, write, refresh, or delete the persisted state.
-
-- **Keep legacy single-folder filtering explicit when adding multi-root provenance**: zero-folder windows still include all sessions, and one-folder windows still use direct any-directory path containment. Call the provenance service only when the window has multiple folders; keep its internal scope gate as defense-in-depth.
+- **Multi-root Editor filtering belongs to durable session metadata, not a workspace memento**: sessions with `_meta.multiRoot.workspaceFile` match a multi-root Editor window by URI identity against `IWorkspace.configuration`. Metadata-less sessions use containment against any current folder; do not retain a parallel workspace-scoped membership store whose lifecycle can drift from the host-owned session metadata.
 
 - **Name semantic layout operations after the user-facing surface**: a shared operation must use the stable UI concept (`toggleSecondarySideBar()`), not the implementation term (`AuxiliaryBar`) that happens to back it in classic layouts. This keeps single-pane mappings clear and avoids leaking layout internals through the API.
 
