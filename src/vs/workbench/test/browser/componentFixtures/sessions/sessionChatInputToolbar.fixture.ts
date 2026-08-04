@@ -216,20 +216,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	// --- Preview pill (resource label + dropdown) ---------------------------
 
-	SessionChatPills_PreviewMarkdown: defineComponentFixture({
+	SessionChatPills_ExternalMarkdownPreview: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			status: SessionStatus.NeedsInput,
 			turnChanges: [createdFile('README.md', 20, 0, true), editedFile('app.ts', 8, 3)],
 		})),
 	}),
 
-	SessionChatPills_PreviewHtml: defineComponentFixture({
+	SessionChatPills_WorkspaceMarkdown_NoPreview: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
-			turnChanges: [createdFile('index.html', 60, 2), editedFile('styles.css', 14, 1)],
+			turnChanges: [createdFile('README.md', 60, 2), editedFile('app.ts', 14, 1)],
 		})),
 	}),
 
-	SessionChatPills_PreviewMultiple_PrimaryCreated: defineComponentFixture({
+	SessionChatPills_ExternalMarkdownMultiple_PrimaryCreated: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			turnChanges: [
 				editedFile('app.ts', 8, 3),
@@ -240,7 +240,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
-	SessionChatPills_PreviewMultiple_PrimaryEdited: defineComponentFixture({
+	SessionChatPills_ExternalMarkdown_PrimaryEdited: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			turnChanges: [editedFile('docs.md', 10, 2, true), editedFile('page.html', 4, 1)],
 		})),
@@ -325,7 +325,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}), FULL_VIEW_MESSAGES),
 	}),
 
-	SessionChatView_BothPills: defineComponentFixture({
+	SessionChatView_ChangesAndExternalPreview: defineComponentFixture({
 		render: (ctx) => renderChatViewWithPills(ctx, createMockSession({
 			turnChanges: [createdFile('README.md', 20, 0, true), createdFile('index.html', 30, 4), editedFile('app.ts', 8, 3)],
 		}), FULL_VIEW_MESSAGES),

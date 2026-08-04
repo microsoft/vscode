@@ -712,7 +712,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 
-		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => {
+		const gitHubInfoWithIcon = derived<IGitHubInfo | undefined>(this, reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
 			if (!baseGitHubInfo?.pullRequest) {
 				return baseGitHubInfo;
@@ -726,6 +726,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			};
 		});
+		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));
 
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
