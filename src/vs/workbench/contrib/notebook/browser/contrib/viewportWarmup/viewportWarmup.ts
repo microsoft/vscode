@@ -8,8 +8,9 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
-import { CellKind } from '../../../common/notebookCommon.js';
+import { CodeCellViewModel, outputDisplayLimit as defaultOutputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { cellRangesToIndexes } from '../../../common/notebookRange.js';
 import { INotebookService } from '../../../common/notebookService.js';
 
@@ -22,6 +23,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		private readonly _notebookEditor: INotebookEditor,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -86,6 +88,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		}
 
 		const outputs = viewCell.outputsViewModels;
+		const outputDisplayLimit = this._configurationService.getValue<number>(NotebookSetting.outputDisplayLimit) || defaultOutputDisplayLimit;
 		for (const output of outputs.slice(0, outputDisplayLimit)) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
 			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
