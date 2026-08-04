@@ -48,7 +48,10 @@ export function setup(logger: Logger): void {
 				throw new Error('Integrated Browser smoke server did not expose a TCP address.');
 			}
 			baseUrl = `http://127.0.0.1:${address.port}`;
-			await app.workbench.settingsEditor.addUserSetting('workbench.browser.experimentalUserTools.enabled', 'true');
+			await app.workbench.settingsEditor.addUserSettings([
+				['workbench.browser.experimentalUserTools.enabled', 'true'],
+				['window.menuStyle', '"custom"'],
+			]);
 		});
 
 		afterEach(async () => {
