@@ -18,14 +18,13 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, focusHintForCommand, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -566,7 +565,6 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -580,7 +578,6 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 			ariaDescription: bannerOptions.previewMicrophone
 				? localize('dictation.onboarding.regionDescription.preview', "Say anything to check your microphone.")
 				: localize('dictation.onboarding.regionDescription', "Speak and it becomes text."),
-			focusHint: focusHintForCommand(keybindingService, SHOW_DICTATION_ONBOARDING_COMMAND),
 			onEscape: () => this.dismiss('escape'),
 		}));
 		this.domNode = this.card.domNode;
@@ -634,10 +631,6 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 
 	announce(): void {
 		this.card.announce();
-	}
-
-	focus(): void {
-		this.card.focus();
 	}
 
 	/**
@@ -927,7 +920,7 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	}
 
 	show(): boolean {
-		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true), true);
+		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
 	}
 
 	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void {

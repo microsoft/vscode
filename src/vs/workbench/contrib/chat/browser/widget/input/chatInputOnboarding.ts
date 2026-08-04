@@ -10,7 +10,6 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 
 interface IChatInputOnboardingHost {
@@ -32,26 +31,8 @@ export interface IChatInputOnboardingContext {
 	readonly dismiss: (restoreFocus?: boolean) => void;
 }
 
-/**
- * The onboarding card returned by the create callback. `announce` alerts that
- * the card opened without moving focus; `focus` moves focus onto the card and
- * announces it, so screen reader users can hear and reach it.
- */
 export interface IChatInputOnboardingBanner extends IDisposable {
 	announce(): void;
-	focus(): void;
-}
-
-/**
- * Builds the announcement hint that tells screen reader users how to move focus
- * onto the card by running `commandId`, including its keybinding when one is
- * bound. Returned as a sentence so it can be appended to the card label.
- */
-export function focusHintForCommand(keybindingService: IKeybindingService, commandId: string): string {
-	const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-	return keybinding
-		? localize('chatInputOnboarding.focusHint.keybinding', "Press {0} to focus the introduction.", keybinding)
-		: localize('chatInputOnboarding.focusHint.command', "Run the Show Introduction command to focus it.");
 }
 
 export interface IChatInputOnboardingCardOptions {
@@ -59,12 +40,6 @@ export interface IChatInputOnboardingCardOptions {
 	readonly className: string;
 	readonly ariaLabel: string;
 	readonly ariaDescription?: string;
-	/**
-	 * Optional hint appended to the open announcement telling screen reader
-	 * users how to move focus onto the card (e.g. which command to run), since
-	 * the card is out of the Tab order and cannot otherwise be reached.
-	 */
-	readonly focusHint?: string;
 	readonly onEscape: () => void;
 }
 
@@ -126,11 +101,7 @@ export class ChatInputOnboarding extends Disposable {
 		return this.show(createOnboarding);
 	}
 
-	/**
-	 * Shows the card. When `focus` is set, focus moves onto the card and it is
-	 * announced there; otherwise the card is announced without moving focus.
-	 */
-	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner, focus?: boolean): boolean {
+	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -161,11 +132,7 @@ export class ChatInputOnboarding extends Disposable {
 		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 
-		if (focus) {
-			banner.focus();
-		} else {
-			banner.announce();
-		}
+		banner.announce();
 		return true;
 	}
 
@@ -204,15 +171,11 @@ export class ChatInputOnboardingCard extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly ariaLabel: string;
-	private readonly ariaDescription: string | undefined;
-	private readonly focusHint: string | undefined;
 
 	constructor(options: IChatInputOnboardingCardOptions) {
 		super();
 
 		this.ariaLabel = options.ariaLabel;
-		this.ariaDescription = options.ariaDescription;
-		this.focusHint = options.focusHint;
 
 		this.domNode = options.container.ownerDocument.createElement('div');
 		this.domNode.classList.add(options.className);
@@ -225,8 +188,7 @@ export class ChatInputOnboardingCard extends Disposable {
 		options.container.appendChild(this.domNode);
 		this._register(toDisposable(() => this.domNode.remove()));
 
-		// `-1` makes the card focusable by command while keeping it out of the Tab order.
-		this.domNode.tabIndex = -1;
+		this.domNode.tabIndex = 0;
 
 		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -238,23 +200,8 @@ export class ChatInputOnboardingCard extends Disposable {
 		}));
 	}
 
-	/**
-	 * Announce that the card opened without moving focus, so screen reader users
-	 * are told something appeared while staying where they are. Includes the
-	 * focus hint, if provided, so they know how to reach the card on demand.
-	 */
 	announce(): void {
-		alert(this.focusHint ? `${this.ariaLabel}. ${this.focusHint}` : this.ariaLabel);
-	}
-
-	/**
-	 * Move focus onto the card and announce its label so screen reader users
-	 * hear what opened. Focusing the region alone is not reliably announced, so
-	 * the label (and description, if any) are alerted explicitly.
-	 */
-	focus(): void {
-		this.domNode.focus();
-		alert(this.ariaDescription ? `${this.ariaLabel}. ${this.ariaDescription}` : this.ariaLabel);
+		alert(localize('chatInputOnboarding.focusHint', "{0}. Use Shift+Tab to reach the introduction.", this.ariaLabel));
 	}
 
 	addAction(options: IChatInputOnboardingActionOptions): HTMLElement {

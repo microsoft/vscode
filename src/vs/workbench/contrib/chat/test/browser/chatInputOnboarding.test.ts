@@ -41,16 +41,13 @@ suite('Chat input onboarding', () => {
 		const disposable = toDisposable(() => card.remove());
 		return {
 			announce: () => { announceCalls++; },
-			focus: () => { focusCardCalls++; },
 			dispose: () => disposable.dispose(),
 		};
 	}
 
 	let announceCalls = 0;
-	let focusCardCalls = 0;
 	setup(() => {
 		announceCalls = 0;
-		focusCardCalls = 0;
 	});
 
 	test('owns one card and restores focus when it is dismissed', () => {
@@ -112,21 +109,20 @@ suite('Chat input onboarding', () => {
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
 	});
 
-	test('announces once on show and focuses instead when asked', () => {
+	test('announces once on show', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
 		const host = createHost(disposables);
 		disposables.add(onboarding.registerHost(host.container, host.root));
 
 		const shown = onboarding.show(createCard);
 		onboarding.showIfNeeded(createCard); // no-op while already visible, must not re-announce
-		const shownWithFocus = onboarding.show(createCard, true);
 
 		assert.deepStrictEqual(
-			{ shown, shownWithFocus, announceCalls, focusCardCalls },
-			{ shown: true, shownWithFocus: true, announceCalls: 1, focusCardCalls: 1 });
+			{ shown, announceCalls },
+			{ shown: true, announceCalls: 1 });
 	});
 
-	test('announces the label and description when focused', () => {
+	test('announces how to reach the card in the tab order', () => {
 		const host = createHost(disposables);
 		const ariaContainer = dom.append(host.root, dom.$('div'));
 		setARIAContainer(ariaContainer);
@@ -135,18 +131,15 @@ suite('Chat input onboarding', () => {
 			className: 'chat-input-onboarding-card',
 			ariaLabel: 'Test onboarding',
 			ariaDescription: 'Test description.',
-			focusHint: 'Press F1 to focus the introduction.',
 			onEscape: () => { },
 		}));
 
 		card.announce();
 		const announced = ariaContainer.textContent;
-		card.focus();
-		const focusAnnounced = ariaContainer.textContent;
 
 		assert.deepStrictEqual(
-			{ announced, focusAnnounced },
-			{ announced: 'Test onboarding. Press F1 to focus the introduction.', focusAnnounced: 'Test onboarding. Test description.' });
+			{ announced, tabIndex: card.domNode.tabIndex },
+			{ announced: 'Test onboarding. Use Shift+Tab to reach the introduction.', tabIndex: 0 });
 	});
 
 	test('handles unmodified keyboard dismissal and action activation', () => {
