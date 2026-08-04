@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { buildMicrophoneOptions, IMicrophoneOption, indexOfMicrophone } from '../../chat/browser/speechToText/dictationOnboarding.js';
 import './media/voiceModeOnboarding.css';
@@ -815,7 +816,13 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 			this.microphoneOptions.map(option => ({ text: option.label })),
 			selected,
 			this.contextViewService,
-			{ ...defaultSelectBoxStyles, selectBackground: undefined, selectBorder: undefined, selectForeground: undefined },
+			{
+				...defaultSelectBoxStyles,
+				selectBackground: undefined,
+				selectBorder: undefined,
+				selectForeground: undefined,
+				selectListBackground: asCssVariableWithDefault(selectListBackground, asCssVariable(selectBackground)),
+			},
 			{ ariaLabel: localize('voiceMode.onboarding.microphone', "Microphone"), useCustomDrawn: true },
 		));
 		selectBox.render(this.microphonePickerContainer);
