@@ -780,6 +780,35 @@
             "included": true
         },
         {
+            "key": "extensions.gallery.authProvider",
+            "name": "ExtensionGalleryAuthProvider",
+            "category": "Extensions",
+            "minimumVersion": "1.133",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.authProvider",
+                    "value": "Configure the authentication provider for the Extensions Marketplace"
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.gallery.authProvider.github",
+                        "value": "Authenticate to the Extensions Marketplace using GitHub."
+                    },
+                    {
+                        "key": "extensions.gallery.authProvider.microsoft",
+                        "value": "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "",
+            "enum": [
+                "github",
+                "microsoft"
+            ],
+            "included": false
+        },
+        {
             "key": "extensions.gallery.serviceUrl",
             "name": "ExtensionGalleryServiceUrl",
             "category": "Extensions",

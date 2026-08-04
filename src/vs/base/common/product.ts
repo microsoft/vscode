@@ -152,6 +152,15 @@ export interface IProductConfiguration {
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
 
+	/**
+	 * Hard gate for the Entra ID (Microsoft) authentication path of the Extensions
+	 * Marketplace. When falsy, the `extensions.gallery.authProvider: microsoft`
+	 * setting is ignored and the GitHub/default auth path is used instead. This keeps
+	 * the Entra path dormant on builds where the Private Marketplace has not yet been
+	 * publicly released, independent of any admin policy configuration.
+	 */
+	readonly enableExtensionGalleryEntraAuth?: boolean;
+
 	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	readonly mcpGallery?: {
