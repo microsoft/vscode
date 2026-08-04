@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { SedFileWriteParser } from '../../common/sedFileWriteParser.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SedFileWriteParser } from '../../../common/autoApprove/sedFileWriteParser.js';
 
 suite('SedFileWriteParser', () => {
 
