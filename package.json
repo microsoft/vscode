@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.133.0",
-  "distro": "b2ef7d83248f73d41b551318c4a079e0e3546c1c",
+  "distro": "0a2adcd7a64dfe443b6122097cd88f5958c22147",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -151,7 +151,7 @@
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
     "node-addon-api": "^6.0.0",
-    "node-pty": "^1.2.0-beta.13",
+    "node-pty": "^1.2.0-beta.15",
     "open": "^10.1.2",
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
@@ -164,11 +164,11 @@
     "ws": "^8.19.0",
     "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.220",
-    "@openai/codex": "0.142.0",
+		"@openai/codex": "0.146.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.61.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
@@ -197,8 +197,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vscode/component-explorer": "^0.2.1-58",
-    "@vscode/component-explorer-cli": "^0.2.1-59",
+    "@vscode/component-explorer": "^0.2.1-94",
+    "@vscode/component-explorer-cli": "^0.2.1-95",
     "@vscode/gulp-electron": "^1.42.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.4",
@@ -215,7 +215,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.7.1",
+    "electron": "42.8.0",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -299,7 +299,7 @@
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,
-    "node-pty@1.2.0-beta.13": true,
+    "node-pty@1.2.0-beta.15": true,
     "utf-8-validate@5.0.10": true,
     "windows-foreground-love@0.6.1": true,
     "@parcel/watcher@2.5.6": true,

@@ -6,18 +6,23 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
+	ByokLmImageMimeType,
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmContentPart,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
 	IByokLmReasoningItem,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
+	ChatImageMimeType,
 	ChatMessageRole,
 	IChatMessage,
 	IChatMessagePart,
@@ -28,6 +33,7 @@ import {
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
 const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
+const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -48,6 +54,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -56,9 +64,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		this._register(Event.debounce(this._languageModelsService.onDidChangeLanguageModels, () => undefined, 500)(() => {
 			this._onDidChangeModels.fire();
 		}));
+		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
+			this._onDidChangeModels.fire();
+		}));
 	}
 
 	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return { output: [], error: 'BYOK models are disabled by policy.' };
+		}
+
 		const modelIdentifier = this._resolveModelIdentifier(request.vendor, request.modelId);
 		if (!modelIdentifier) {
 			return { output: [], error: `No BYOK model found for ${request.vendor}/${request.modelId}` };
@@ -131,6 +146,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	}
 
 	async listModels(_token: CancellationToken): Promise<IByokLmModelInfo[]> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return [];
+		}
+
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
@@ -160,6 +179,11 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	 * provider-local id (the `provider/id` selection id the picker surfaced).
 	 */
 	private _resolveModelIdentifier(vendor: string, modelId: string): string | undefined {
+		const exactIdentifier = `${vendor}/${modelId}`;
+		const exactMetadata = this._languageModelsService.lookupLanguageModel(exactIdentifier);
+		if (exactMetadata?.isBYOK && exactMetadata.vendor === vendor) {
+			return exactIdentifier;
+		}
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			if (metadata?.isBYOK && metadata.vendor === vendor && metadata.id === modelId) {
@@ -207,7 +231,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			case 'message':
 				return {
 					role: this._toChatRole(item.role),
-					content: [{ type: 'text', value: item.content.map(part => part.text).join('') }],
+					content: this._toChatMessageParts(item.content),
 				};
 			case 'reasoning': {
 				return {
@@ -253,6 +277,38 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 						value: [{ type: 'text', value: item.output }],
 					}],
 				};
+		}
+	}
+
+	private _toChatMessageParts(parts: IByokLmContentPart[]): IChatMessagePart[] {
+		const result: IChatMessagePart[] = [];
+		for (const part of parts) {
+			if (part.type === 'text') {
+				const previous = result.at(-1);
+				if (previous?.type === 'text') {
+					previous.value += part.text;
+				} else {
+					result.push({ type: 'text', value: part.text });
+				}
+			} else {
+				result.push({ type: 'image_url', value: { mimeType: this._toChatImageMimeType(part.mimeType), data: decodeBase64(part.data) } });
+			}
+		}
+		return result.length ? result : [{ type: 'text', value: '' }];
+	}
+
+	private _toChatImageMimeType(mimeType: ByokLmImageMimeType): ChatImageMimeType {
+		switch (mimeType) {
+			case 'image/png':
+				return ChatImageMimeType.PNG;
+			case 'image/jpeg':
+				return ChatImageMimeType.JPEG;
+			case 'image/gif':
+				return ChatImageMimeType.GIF;
+			case 'image/webp':
+				return ChatImageMimeType.WEBP;
+			case 'image/bmp':
+				return ChatImageMimeType.BMP;
 		}
 	}
 
