@@ -20,6 +20,7 @@ suite('analyzeSedCommand', () => {
 			'sed --quiet "s/foo/bar/p" file.txt',
 			'sed --sandbox "s/foo/bar/" file.txt',
 			'sed -- "$SED_OPTIONS" file.txt',
+			'sed "s/foo/bar/" "-\\inside.txt"',
 		];
 
 		assert.deepStrictEqual(
@@ -98,6 +99,7 @@ suite('analyzeSedCommand', () => {
 			['sed -i\'../outside/*\' "s/foo/bar/" inside.txt', ['inside.txt', '../outside/inside.txt', 'inside.txt../outside/*']],
 			['sed -i "s/foo/bar/" file1.txt file2.txt', ['file1.txt', 'file2.txt', 'file2.txts/foo/bar/']],
 			['sed --in-place -e "s/foo/bar/" file.txt', ['file.txt']],
+			['sed -i -x "s/foo/bar/" file.txt', ['file.txt', 'file.txt-x']],
 		] as const;
 
 		assert.deepStrictEqual(
@@ -112,11 +114,15 @@ suite('analyzeSedCommand', () => {
 			bashDoubleQuotedLiteral: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\q"', 'bash'),
 			bashDoubleQuotedEscapedExpansion: analyzeSedCommand('sed --in-place "s/foo/bar/" "path\\$FILE"', 'bash'),
 			powerShellPath: analyzeSedCommand('sed --in-place "s/foo/bar/" C:\\outside\\file.txt', 'powershell'),
+			powerShellUppercase: analyzeSedCommand('SED -i "s/foo/bar/" file.txt', 'powershell'),
+			powerShellUppercaseExe: analyzeSedCommand('SED.EXE -i "s/foo/bar/" file.txt', 'powershell'),
 		}, {
 			bashUnquoted: { kind: 'inPlace', fileWrites: ['/etc/config'] },
 			bashDoubleQuotedLiteral: { kind: 'inPlace', fileWrites: ['path\\q'] },
 			bashDoubleQuotedEscapedExpansion: { kind: 'inPlace', fileWrites: ['path$FILE'] },
 			powerShellPath: { kind: 'inPlace', fileWrites: ['C:\\outside\\file.txt'] },
+			powerShellUppercase: { kind: 'inPlace', fileWrites: ['file.txt'] },
+			powerShellUppercaseExe: { kind: 'inPlace', fileWrites: ['file.txt'] },
 		});
 	});
 
@@ -126,7 +132,6 @@ suite('analyzeSedCommand', () => {
 			'sed --follow-symlinks -i "s/foo/bar/" link.txt',
 			'sed --in-place --expr="s/foo/bar/" outside.txt',
 			'sed --in-place --fi=script.sed outside.txt',
-			'sed -i -x "s/foo/bar/" file.txt',
 			'sed -i.bak "-e" $ARGS inside.txt',
 			'sed --in-place --file "$SCRIPT" inside.txt',
 		];

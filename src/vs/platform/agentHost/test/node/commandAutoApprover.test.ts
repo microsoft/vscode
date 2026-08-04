@@ -154,6 +154,17 @@ suite('CommandAutoApprover', () => {
 				rejected: { result: 'noMatch', autoApproveRuleResolvable: false },
 				accepted: { result: 'approved', autoApproveRuleResolvable: false },
 			});
+
+			test('checks PowerShell sed executable casing', () => {
+				const options = {
+					language: 'powershell' as const,
+					isWriteDestApproved: (dest: string) => dest === 'file.txt',
+				};
+				assert.deepStrictEqual([
+					approver.shouldAutoApprove('SED -i "s/foo/bar/" file.txt', options),
+					approver.shouldAutoApprove('SED.EXE -i "s/foo/bar/" file.txt', options),
+				], ['approved', 'approved']);
+			});
 		});
 
 		// npm/package managers

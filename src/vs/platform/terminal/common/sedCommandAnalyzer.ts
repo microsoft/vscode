@@ -14,7 +14,7 @@ interface IShellWord {
 }
 
 interface ISedParseResult {
-	readonly kind: 'safe' | 'inPlace' | 'invalidInPlace' | 'requiresConfirmation';
+	readonly kind: 'safe' | 'inPlace' | 'invalid' | 'invalidInPlace' | 'requiresConfirmation';
 	readonly fileWrites?: readonly string[];
 }
 
@@ -25,7 +25,7 @@ const inPlaceLongOption = '--in-place';
 export function analyzeSedCommand(commandText: string, shellDialect: 'bash' | 'powershell' = 'bash'): SedCommandAnalysis {
 	const words = tokenizeCommand(commandText, shellDialect);
 	const executable = words[0];
-	if (!executable || !isSedExecutable(executable.value)) {
+	if (!executable || !isSedExecutable(executable.value, shellDialect)) {
 		return safe;
 	}
 	if (executable.hasRuntimeExpansion) {
@@ -99,6 +99,9 @@ function parseSedArguments(arguments_: readonly IShellWord[], style: 'gnu' | 'bs
 			if (shortOption.kind === 'requiresConfirmation') {
 				return shortOption;
 			}
+			if (shortOption.kind === 'invalid') {
+				return shortOption;
+			}
 			if (shortOption.inPlaceSuffix !== undefined) {
 				if (inPlaceSuffix !== undefined) {
 					return requiresConfirmation;
@@ -150,8 +153,7 @@ function parseShortOptions(flags: string, style: 'gnu' | 'bsd'): {
 	readonly hasScriptOption: boolean;
 	readonly consumesNextAsScript: boolean;
 	readonly hasUnknownOption: boolean;
-} | { readonly kind: 'requiresConfirmation' } {
-	let hasUnknownOption = false;
+} | { readonly kind: 'invalid' } | { readonly kind: 'requiresConfirmation' } {
 	for (let index = 0; index < flags.length; index++) {
 		const flag = flags[index];
 		if (flag === 'e' || flag === 'f') {
@@ -160,7 +162,7 @@ function parseShortOptions(flags: string, style: 'gnu' | 'bsd'): {
 				consumesNextAsSuffix: false,
 				hasScriptOption: true,
 				consumesNextAsScript: index === flags.length - 1,
-				hasUnknownOption,
+				hasUnknownOption: false,
 			};
 		}
 		if (flag === 'i' || (style === 'bsd' && flag === 'I')) {
@@ -170,11 +172,11 @@ function parseShortOptions(flags: string, style: 'gnu' | 'bsd'): {
 				consumesNextAsSuffix: style === 'bsd' && index === flags.length - 1,
 				hasScriptOption: false,
 				consumesNextAsScript: false,
-				hasUnknownOption,
+				hasUnknownOption: false,
 			};
 		}
 		if (!'nErsuzl'.includes(flag)) {
-			hasUnknownOption = true;
+			return { kind: 'invalid' };
 		}
 	}
 	return {
@@ -182,7 +184,7 @@ function parseShortOptions(flags: string, style: 'gnu' | 'bsd'): {
 		consumesNextAsSuffix: false,
 		hasScriptOption: false,
 		consumesNextAsScript: false,
-		hasUnknownOption,
+		hasUnknownOption: false,
 	};
 }
 
@@ -196,8 +198,9 @@ function getInPlaceFileWrites(target: string, suffix: string, style: 'gnu' | 'bs
 	return [target, `${target}${suffix}`];
 }
 
-function isSedExecutable(value: string): boolean {
-	return /(?:^|[/\\])sed(?:\.exe)?$/.test(value) || /^sed\b/.test(value);
+function isSedExecutable(value: string, shellDialect: 'bash' | 'powershell'): boolean {
+	const normalized = shellDialect === 'powershell' ? value.toLowerCase() : value;
+	return /(?:^|[/\\])sed(?:\.exe)?$/.test(normalized) || /^sed\b/.test(normalized);
 }
 
 function isLongOptionAbbreviation(optionName: string, fullName: string, minimumLength: number): boolean {
