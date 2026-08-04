@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -18,10 +19,12 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -54,10 +57,12 @@ export class NewChatWidget extends Disposable {
 	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _isInputOnboardingVisible = false;
+	private _isInputNotificationVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
+	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -115,6 +120,7 @@ export class NewChatWidget extends Disposable {
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -127,6 +133,7 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
+		this._register(this._newSessionCreation);
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
@@ -182,6 +189,7 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			getInputOnboardingTipContainer: () => this._chatTipContainer,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -394,7 +402,7 @@ export class NewChatWidget extends Disposable {
 		if (!this._chatTipContainer) {
 			return;
 		}
-		if (this.isInputOnboardingVisible()) {
+		if (this.isChatTipSuppressed()) {
 			this._clearChatTip();
 			return;
 		}
@@ -451,7 +459,20 @@ export class NewChatWidget extends Disposable {
 
 	private setInputOnboardingVisible(visible: boolean): void {
 		this._isInputOnboardingVisible = visible;
-		if (visible) {
+		this.updateChatTipVisibility();
+	}
+
+	private setInputNotificationVisible(visible: boolean): void {
+		this._isInputNotificationVisible = visible;
+		this.updateChatTipVisibility();
+	}
+
+	private isChatTipSuppressed(): boolean {
+		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+	}
+
+	private updateChatTipVisibility(): void {
+		if (this.isChatTipSuppressed()) {
 			this._clearChatTip();
 		} else {
 			this._renderChatTip();
@@ -523,6 +544,9 @@ export class NewChatWidget extends Disposable {
 
 	private async _createNewSession(folderUri: URI): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
+		const creationCts = new CancellationTokenSource();
+		const creationLifecycle = toDisposable(() => creationCts.dispose(true));
+		this._newSessionCreation.value = creationLifecycle;
 		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
 		// Session creation is async, so a provider can start serving the folder
 		// (e.g. the local agent host finishing its handshake) between the call
@@ -535,14 +559,21 @@ export class NewChatWidget extends Disposable {
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
 		try {
-			result = await this._createSessionNow(folderUri, userPick);
+			result = await this._createSessionNow(folderUri, userPick, creationCts.token);
 		} finally {
 			pendingChange.dispose();
+		}
+		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
+		if (isCurrentCreation) {
+			this._newSessionCreation.clear();
+		} else {
+			return result;
 		}
 		if (result.trustDeclined) {
 			// The user explicitly declined trust: don't schedule a retry, which
 			// would silently recreate (and possibly re-prompt) the draft once a
 			// provider registers/changes without any further user action.
+			this._pendingPreferredUpgrade.clear();
 			return result;
 		}
 		// Keep the draft in sync with late-registering providers. Agent hosts
@@ -560,12 +591,19 @@ export class NewChatWidget extends Disposable {
 		return result;
 	}
 
-	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined): Promise<IOpenNewSessionResult> {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
-		const effectivePick = userPick && this._isPreferredServable(folderUri, userPick)
+		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
+		// A signed-out user (under the conditional-auth opt-in) can't run a type
+		// that requires GitHub, so default to the first offered type usable
+		// without it. No-op when signed in or the opt-in is off — today's behavior.
+		// TODO: reconsider silently switching away from the remembered selection;
+		// instead keep it and surface an inline "sign in for this type" affordance
+		// for GitHub-only types.
+		const effectivePick = this._preferUsableSessionTypeWhenSignedOut(folderUri, preferredPick);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
@@ -575,11 +613,34 @@ export class NewChatWidget extends Disposable {
 					: fallbackProviderId
 						? { providerId: fallbackProviderId }
 						: undefined),
-			});
+			}, token);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
 		}
+	}
+
+	/**
+	 * While the user is signed out and the conditional-auth opt-in is on, replace
+	 * a pick that requires GitHub with the first offered session type usable
+	 * without it. A no-op when signed in, when the opt-in is off (today's
+	 * behavior), or when no offered type is usable — in which case the caller's
+	 * existing fallbacks still apply.
+	 */
+	private _preferUsableSessionTypeWhenSignedOut(folderUri: URI, pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
+		if (this.defaultAccountService.currentDefaultAccount !== null || !isAllowSignedOutWhenUsableEnabled(this.configurationService)) {
+			return pick;
+		}
+		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
+			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
+		// Match on provider too when the pick names one: two providers can offer
+		// the same session type id, and only one of them may be usable.
+		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
+			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
+		if (usable.length === 0 || pickIsUsable) {
+			return pick;
+		}
+		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };
 	}
 
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {

@@ -9,15 +9,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentSession } from '../../common/agentService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import type { IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -205,18 +207,22 @@ function getErrorMessage(err: unknown): string {
 }
 
 /**
+ * Messages from a failed Copilot SDK `session.resume` that positively indicate
+ * the session has no events on disk, so there is no history to lose. Includes
+ * the post-"Start Over" case, where `truncateSession` leaves zero events.
+ */
+const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
+	/\bSession not found\b/i,
+	/\bno events\b/i,
+	/\bempty session\b/i,
+];
+
+/**
  * Decide whether a Copilot SDK `resumeSession` failure should fall back to
- * `createSession({ sessionId })`. We want to preserve the original
- * recovery for empty / truncated sessions (e.g. after the user invoked
- * "Start Over", which calls `truncateSession` and leaves the on-disk
- * session with zero events - the SDK then refuses to resume it), but we
- * must NOT silently swallow corruption / schema-validation / parse
- * failures: those should surface so the user sees the real error and the
- * original session contents are not masked by a fresh empty session.
- *
- * Heuristic: any `-32603` Internal Error is treated as the empty-session
- * case UNLESS the message clearly indicates corruption, schema
- * validation, parse failure, or malformed input.
+ * `createSession({ sessionId })`, which presents the session as having no
+ * history. Deliberately an allowlist: a fallback on an unrelated failure (a
+ * transient `network fetch failed` is also `-32603`) discards a live session's
+ * history and leaves it exposed to empty-session GC.
  */
 function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	if (getCopilotSdkErrorCode(err) !== -32603) {
@@ -224,7 +230,7 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	}
 
 	const message = getErrorMessage(err);
-	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
+	return RESUMABLE_HISTORY_ABSENT_PATTERNS.some(pattern => pattern.test(message));
 }
 
 function isCustomAgentNotFoundError(err: unknown): boolean {
@@ -299,7 +305,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
- * provider-qualified selection id `vendor/id`, matching what the renderer's
+ * provider-qualified selection id `vendor/[group/]id`, matching what the renderer's
  * `AgentHostByokLmHandler` resolves.
  *
  * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
@@ -325,14 +331,14 @@ export async function resolveByokSessionConfig(
 	if (byokModels.length === 0) {
 		return {};
 	}
-	// Deduplicate by selection id (`vendor/id`). The same BYOK model can be
+	// Deduplicate by group-qualified selection id (`vendor/[group/]id`). The same BYOK model can be
 	// reported more than once — e.g. when two renderer bridges are transiently
 	// serving during a window hand-off (continuing a chat into a new session) —
 	// and the runtime rejects a session config with duplicate BYOK model
 	// selection ids ("Duplicate BYOK model selection id ...").
 	const seenSelectionIds = new Set<string>();
 	byokModels = byokModels.filter(m => {
-		const selectionId = `${m.vendor}/${m.id}`;
+		const selectionId = `${m.vendor}/${getByokLmSelectionModelId(m)}`;
 		if (seenSelectionIds.has(selectionId)) {
 			return false;
 		}
@@ -357,7 +363,7 @@ export async function resolveByokSessionConfig(
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));
 	const models: ProviderModelConfig[] = byokModels.map(m => ({
-		id: m.id,
+		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
@@ -385,6 +391,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IFileService private readonly _fileService: IFileService,
 		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -399,7 +406,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			const stopWatch = new StopWatch();
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
-			const raw = await plan.client.resumeSession(plan.sessionId, config);
+			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
@@ -413,7 +420,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
-					const raw = await fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig);
+					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
 					await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 					return new CopilotSessionWrapper(raw);
 				} catch (retryErr) {
@@ -421,14 +428,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
 				}
 			}
-			// The SDK fails to resume sessions that have no messages.
-			// Fall back to creating a new session with the same ID,
-			// seeding model & working directory from stored metadata.
+			// Only a session with no events on disk may fall back to creating a
+			// fresh one under the same ID (seeding model & working directory
+			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
 
-			this._logService.warn(`[Copilot:${plan.sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
+			this._logService.warn(`[Copilot:${plan.sessionId}] Resume reported no session history; falling back to createSession with same ID`);
 			const wrapper = await this._createSession({
 				...fallbackPlan,
 				kind: 'create',
@@ -441,8 +449,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
+	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
+		const sessionUri = AgentSession.uri('copilotcli', sessionId).toString();
+		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
+	}
+
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: CopilotSessionLaunchConfig, sandboxConfig: ISdkSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
-		const raw = await plan.client.createSession({
+		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
 			streaming: true,
@@ -451,7 +464,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
-		});
+		}));
 		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 		return new CopilotSessionWrapper(raw);
 	}
@@ -570,6 +583,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
@@ -609,7 +623,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
-			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: 1 } : { enabled: false },
+			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

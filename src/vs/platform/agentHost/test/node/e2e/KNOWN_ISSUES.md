@@ -34,6 +34,16 @@ Two tests remain scoped, both at their call site with the reason:
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
 - `worktree session uses the resolved worktree as working directory` — its shell half was enabled and then reverted after Windows CI failed it for two reasons unrelated to command portability, described below. Its non-shell half still asserts worktree resolution on Windows.
 
+The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
+
+- Expected: one committed baseline per model describes the prompt the bundled CLI assembles.
+- Observed: the Windows prompt is not a renaming of the POSIX one. Beyond the shell tool names, the CLI runtime carries PowerShell-only sections that POSIX never emits — no-heredoc guidance ("avoid `python - <<'PY'`", use a single-quoted here-string), `; with explicit checks such as `if ($?) { ... }`` for dependent steps, and the caveat that "the PATH/LIB/INCLUDE changes from the .bat will not be available". A fixture handles the name difference by storing a `${shell}` placeholder that `expandShellToolName` swaps back in, but here the prose *is* the asserted artifact — projecting it away would delete the tool instructions the snapshot exists to pin.
+- Reproduction: `.\scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\copilotPromptsE2E.integrationTest.ts`
+
+Closing this needs a second set of Windows baselines, generated and reviewed on a Windows host, keyed by platform — and one PowerShell section is gated on `supportsPowerShell7Syntax`, which the CLI resolves by probing the host, so a Windows baseline is only stable across runners that agree on the installed PowerShell. It is a deliberate gap rather than a pending one: prompt drift from an SDK bump is provider-wide, so the Linux and macOS runners already fail on it, and a Windows baseline would add maintenance without adding signal.
+
+Note that simply keying the snapshot name by platform would be worse than skipping — `assertSnapshot` creates a missing baseline and passes, so Windows CI would go green against a file nobody wrote or reviewed.
+
 ### Path shape differs between the test and the shell
 
 The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a process running inside it reports as its working directory:
@@ -250,6 +260,17 @@ One row remains, and it is not about command portability:
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
+| `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
+| ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
+
+Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview`
+on Windows, while its terminal-shaped resource is not backed by the host terminal
+manager and cannot be subscribed. These tests are skipped for Copilot on Windows
+because their direct output oracle would otherwise be empty:
+
+- `lists workspace entries`
+- `runs a deterministic shell command`
+- `inspects git status`
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
@@ -258,12 +279,12 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Scope: Codex on Linux in deterministic replay.
 - Gate: `shellToolReplayUnstableOnLinux: true`.
 - Tests directly affected by this gate:
-  - `tool call triggers permission request and can be approved`
   - `worktree session uses the resolved worktree as working directory`
   - `lists workspace entries`
   - `counts lines in a file`
   - `renames a workspace file`
   - `runs a deterministic shell command`
+  - `secondary workspace skill reaches the Codex model request`
 - Recording mode remains enabled so a future capture or provider update can be evaluated.
 
 ### Claude subagent replay on Windows
@@ -291,9 +312,14 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Scope: deterministic replay for every provider (`can abort a running turn`);
   Copilot deterministic replay (`accepted steering followed by abort does not block the replacement turn`).
 - Reason: replay serves the intentionally truncated response immediately, so there is no real streaming window in which to abort.
+- Expected: the client-dispatched `chat/turnCancelled` action cancels the active provider turn, clears active/input-needed state, and allows a replacement turn to complete.
 - Run:
 
   ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "can abort a running turn"
+
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "accepted steering followed by abort"
@@ -305,12 +331,11 @@ This is an intentional test-mode limitation, not a suspected product bug.
 
 The tests in `codexAgentHostLive.integrationTest.ts` require `AGENT_HOST_REAL_CODEX=1` because they exercise live, timing-sensitive Codex behavior that is not represented by deterministic model replay:
 
-- `mid-turn steering surfaces as a new turn and never sticks in pending`
+- `mid-turn steering clears pending state without getting stuck`
 - `client tool is registered and invoked end-to-end`
-- `client tool registered after the thread prewarms restarts the thread and still works`
+- `client tool registered after session creation is still invoked`
 - `server tool (listComments) is registered and executed in-process`
 - `file-change approval is surfaced and can be approved`
-- `truncate rolls back trailing turns and archive/unarchive reach codex`
 - `Plan mode (Agent Mode control) makes request_user_input reachable end-to-end`
 
 These are opt-in live tests, not known failures.

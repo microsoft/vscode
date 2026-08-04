@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -14,7 +15,7 @@ import { createTestCodeEditor } from '../../../../../editor/test/browser/testCod
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { startDictation, stopDictation } from '../../browser/speechToText/dictationSession.js';
+import { isDictating, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
 
 suite('DictationSession', () => {
 
@@ -25,11 +26,12 @@ suite('DictationSession', () => {
 	 * the test drive interim updates through the returned emitter. `setTranscript`
 	 * updates what a subsequent `stopAndTranscribe` resolves with.
 	 */
-	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void } {
+	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void; blockStop(): () => void } {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
 		let state = ChatSpeechToTextState.Idle;
 		let finalTranscript = transcript;
+		let stopBarrier: Promise<void> | undefined;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
 			onDidUpdateTranscript: onDidUpdateTranscript.event,
@@ -45,11 +47,14 @@ suite('DictationSession', () => {
 			get isDownloadingModel() { return false; },
 			get modelDownloadProgress() { return undefined; },
 			get currentBackend() { return 'mai' as const; },
+			async switchMicrophone() { return undefined; },
 			async start() {
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
 			},
 			async stopAndTranscribe() {
+				// Lets a test hold the finalization open to exercise concurrent stops.
+				await stopBarrier;
 				state = ChatSpeechToTextState.Idle;
 				onDidChangeState.fire(state);
 				return finalTranscript;
@@ -57,7 +62,16 @@ suite('DictationSession', () => {
 			cancel() { },
 			logDictationAccuracy() { },
 		};
-		return { service, onDidUpdateTranscript, setTranscript: text => { finalTranscript = text; } };
+		return {
+			service,
+			onDidUpdateTranscript,
+			setTranscript: text => { finalTranscript = text; },
+			blockStop: () => {
+				const deferred = new DeferredPromise<void>();
+				stopBarrier = deferred.p;
+				return () => deferred.complete();
+			},
+		};
 	}
 
 	/** Ranges rendered as still being processed, as `[startLine,startColumn -> endLine,endColumn]`. */
@@ -95,6 +109,59 @@ suite('DictationSession', () => {
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
 	});
 
+	test('stops only when the submitted editor owns dictation', async () => {
+		const { service } = createService('hello world', true);
+		const dictationEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		const otherEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+
+		await startDictation(service, dictationEditor, mainWindow, new NullLogService());
+		await stopDictationForEditor(otherEditor);
+		const afterOtherEditor = isDictating();
+		await stopDictationForEditor(dictationEditor);
+
+		assert.deepStrictEqual({
+			afterOtherEditor,
+			afterDictationEditor: isDictating(),
+			value: dictationEditor.getValue(),
+		}, {
+			afterOtherEditor: true,
+			afterDictationEditor: false,
+			value: 'hello world',
+		});
+	});
+
+	test('a second submit during finalization waits for the final transcript', async () => {
+		const { service, onDidUpdateTranscript, blockStop } = createService('hello world', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'hello world', finalizedText: '' });
+
+		// The first submit begins finalizing but blocks inside stopAndTranscribe.
+		const release = blockStop();
+		const firstStop = stopDictationForEditor(editor);
+		// A second submit for the same editor arrives mid-finalization; it must
+		// await the in-flight finalization rather than returning early.
+		let secondResolved = false;
+		const secondStop = stopDictationForEditor(editor).then(() => { secondResolved = true; });
+		await timeout(0);
+		const secondResolvedWhileBlocked = secondResolved;
+
+		release();
+		await Promise.all([firstStop, secondStop]);
+
+		assert.deepStrictEqual({
+			secondResolvedWhileBlocked,
+			secondResolvedAfterFinal: secondResolved,
+			value: editor.getValue(),
+		}, {
+			secondResolvedWhileBlocked: false,
+			secondResolvedAfterFinal: true,
+			value: 'hello world',
+		});
+	});
+
 	test('renders the whole in-progress transcript as still processing', async () => {
 		const transcript = 'hello world';
 		const { service, onDidUpdateTranscript } = createService(transcript, true);
@@ -129,5 +196,24 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([afterMore, editor.getValue()], ['one tw three', 'one tw three']);
+	});
+
+	test('appends a stray keystroke after the transcript instead of at the start', async () => {
+		const { service, onDidUpdateTranscript, setTranscript } = createService('one two', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'one two', finalizedText: '' });
+		// A bumped key must be appended at the hidden caret after the dictated region.
+		editor.trigger('test', 'type', { text: 'x' });
+		// More speech arrives and is appended after the stray character rather
+		// than jumping to the start of the input.
+		setTranscript('one two three');
+		onDidUpdateTranscript.fire({ text: 'one two three', finalizedText: '' });
+		const afterMore = editor.getValue();
+		await stopDictation();
+
+		assert.deepStrictEqual([afterMore, editor.getValue()], ['one twox three', 'one twox three']);
 	});
 });

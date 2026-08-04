@@ -56,7 +56,6 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-// Returns the available context size options for a model, or undefined if the model has no configurable context sizes. With a long_context surcharge, offers the default tier and the full window as an opt-in. Without a surcharge, `chat.preferLongContext.enabled` decides: enabled shows only the full window, disabled (default) still shows both so the smaller window stays selectable.
 function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
 
