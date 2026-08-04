@@ -17,7 +17,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, McpServerStatus, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 
@@ -40,6 +40,10 @@ async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: strin
 			customization.type === CustomizationType.Plugin
 			&& customization.uri === pluginUri
 			&& (customization.children?.length ?? 0) >= 4
+			&& customization.children?.some((child): child is McpServerCustomization =>
+				child.type === CustomizationType.McpServer
+				&& child.state.kind === McpServerStatus.Ready
+			) === true
 		);
 		if (plugin) {
 			return plugin;
