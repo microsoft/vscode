@@ -314,7 +314,17 @@ registerAction2(class extends Action2 {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
 			if (res.confirmed) {
+				// Skip the host reload here. The Issue Reporter is opened in an
+				// auxiliary window that depends on services living in the main
+				// window. Reloading the main window while the Issue Reporter is
+				// open orphans those services, causing buttons such as "Create
+				// on GitHub" to silently do nothing. The user can reload the
+				// window manually after reporting to re-enable any other
+				// extensions that bisect had temporarily disabled.
+				// See microsoft/vscode#248339.
+				await bisectService.reset();
 				await commandService.executeCommand('workbench.action.openIssueReporter', done.id);
+				return;
 			}
 		}
 		await bisectService.reset();
