@@ -96,6 +96,48 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
+	test('positions absolute view relative to the containing block when the container is position: static', () => {
+		// The containing block for an absolutely positioned element is the nearest
+		// positioned ancestor (offsetParent), which is not necessarily the container
+		// the context view is appended to. When the container is position: static
+		// (the default) and sits offset inside a positioned ancestor, positioning the
+		// view relative to the container instead of the ancestor pushed it off-screen.
+		const ancestor = $('.ancestor');
+		ancestor.style.position = 'relative';
+
+		// A spacer offsets the (statically positioned) container inside the ancestor,
+		// so the container's page position differs from the containing block's.
+		const spacer = $('.spacer');
+		spacer.style.height = '60px';
+
+		const container = $('.container'); // position: static (default)
+		ancestor.appendChild(spacer);
+		ancestor.appendChild(container);
+		document.body.appendChild(ancestor);
+
+		const anchorY = 100;
+		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
+		contextView.show({
+			getAnchor: () => ({ x: 0, y: anchorY, width: 0, height: 0 }),
+			render: view => {
+				view.textContent = 'x';
+				return null;
+			}
+		});
+
+		// The view must render at the anchor's page position. Anchoring it to the
+		// container (60px lower) instead of the containing block would render it
+		// ~60px too high.
+		const viewTop = contextView.getViewElement().getBoundingClientRect().top;
+		assert.ok(
+			Math.abs(viewTop - anchorY) <= 8,
+			`expected view to render near anchor y=${anchorY}, got ${viewTop}`
+		);
+
+		contextView.dispose();
+		ancestor.remove();
+	});
+
 	test('menu motion does not retain a containing block for submenus (#326248)', () => {
 		const container = $('.container');
 		container.classList.add('style-override', 'monaco-enable-motion');
