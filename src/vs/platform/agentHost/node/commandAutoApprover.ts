@@ -11,6 +11,7 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
+import { analyzeSedCommand, SedCommandAnalysis } from '../../terminal/common/sedCommandAnalyzer.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -261,6 +262,9 @@ export class CommandAutoApprover extends Disposable {
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules, isPowerShell: boolean): CommandApprovalResult {
 		let allApproved = true;
 		for (const subCommand of subCommands) {
+			if (analyzeSedCommand(subCommand) === SedCommandAnalysis.RequiresConfirmation) {
+				return 'denied';
+			}
 			// Deny transient env var assignments
 			if (transientEnvVarRegex.test(subCommand)) {
 				return 'denied';

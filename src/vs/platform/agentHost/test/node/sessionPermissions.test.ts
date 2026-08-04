@@ -239,6 +239,28 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('requires confirmation for sed in-place edits regardless of destination', async () => {
+		const commands = [
+			'sed -i "s/foo/bar/" file.txt',
+			`sed --in-place "s/foo/bar/" ${join(outsideDir, 'file.txt')}`,
+			'sed "$SED_OPTIONS" "s/foo/bar/" file.txt',
+		];
+		const approvals = [];
+		const ruleResolvable = [];
+		for (const commandLine of commands) {
+			const event = shellEvent(commandLine, 'bash');
+			approvals.push(await permissions.getAutoApproval(event, sessionUri));
+			ruleResolvable.push(permissions.isAutoApproveRuleResolvable(event, sessionUri));
+		}
+		assert.deepStrictEqual({
+			approvals,
+			ruleResolvable,
+		}, {
+			approvals: commands.map(() => undefined),
+			ruleResolvable: commands.map(() => false),
+		});
+	});
+
 	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
 

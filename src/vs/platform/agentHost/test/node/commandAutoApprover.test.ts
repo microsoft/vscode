@@ -86,6 +86,39 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('sed --expression "s/foo/bar/"'), 'denied');
 		});
 
+		test('requires confirmation for sed in-place and dynamic option forms', () => {
+			const commands = [
+				'sed -i "s/foo/bar/" file.txt',
+				'sed -I "s/foo/bar/" file.txt',
+				'sed -ni "s/foo/bar/" file.txt',
+				'sed -i.bak "s/foo/bar/" file.txt',
+				'sed --in-place "s/foo/bar/" file.txt',
+				'sed --in-plac "s/foo/bar/" file.txt',
+				'sed.exe -i "s/foo/bar/" file.txt',
+				'sed -\\i "s/foo/bar/" file.txt',
+				'sed "$SED_OPTIONS" "s/foo/bar/" file.txt',
+				'sed "s/foo/bar/" "$(echo --in-place)" file.txt',
+				'sed${PATH:+} -i "s/foo/bar/" file.txt',
+				'sed${PATH:+} "s/foo/bar/" file.txt',
+			];
+			assert.deepStrictEqual(
+				commands.map(commandLine => approver.shouldAutoApprove(commandLine)),
+				commands.map(() => 'denied'),
+			);
+		});
+
+		test('sed safety gate cannot be overridden by allow rules', () => {
+			const commandLine = 'sed -i "s/foo/bar/" file.txt';
+			const autoApproveRules = {
+				sed: true,
+				'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
+			};
+			assert.deepStrictEqual(
+				approver.evaluate(commandLine, { autoApproveRules }),
+				{ result: 'denied', autoApproveRuleResolvable: false },
+			);
+		});
+
 		// npm/package managers
 		test('approves allowed npm commands', () => {
 			assert.strictEqual(approver.shouldAutoApprove('npm ci'), 'approved');
