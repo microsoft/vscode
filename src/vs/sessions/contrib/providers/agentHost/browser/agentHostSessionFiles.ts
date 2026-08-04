@@ -68,6 +68,13 @@ export interface ISessionOutputObs {
 	 * recent request produced.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * Like {@link getLastTurnChanges}, but **without** the workspace/worktree
+	 * filter. Used by markdown preview pills so session-state files such as
+	 * `plan.md` (written under `~/.copilot/session-state/`) still surface as
+	 * preview candidates without inflating the workspace-scoped changes count.
+	 */
+	getLastTurnPreviewChanges(chatUri: URI): IObservable<readonly ISessionFileChange[]>;
 }
 
 /**
@@ -85,6 +92,9 @@ export interface ISessionOutputObs {
  *   chat's last turn's in-workspace/worktree edits reduced per file into
  *   {@link ISessionFileChange | changes} (with diff stats), mirroring the
  *   "Last Turn Changes" changeset without depending on it.
+ * - {@link ISessionOutputObs.getLastTurnPreviewChanges}: same as
+ *   {@link ISessionOutputObs.getLastTurnChanges} but including out-of-workspace
+ *   edits (e.g. session-state `plan.md`) for markdown preview pills.
  * Computation only happens for the active, non-archived session: archived
  * sessions never open a live chat-state subscription, so no parsing work is
  * done for them.
@@ -183,7 +193,20 @@ export function createSessionOutputObs(
 			return [];
 		});
 
-	return { externalFiles, getLastTurnChanges };
+	const getLastTurnPreviewChanges = (chatUri: URI): IObservable<readonly ISessionFileChange[]> =>
+		derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
+			for (const chatEditsObs of editsPerChatObs.read(reader)) {
+				const chatEdits = chatEditsObs.read(reader);
+				if (isEqual(chatEdits.chatUri, chatUri)) {
+					// No folderRoots: include session-state plan.md and other
+					// out-of-workspace markdown so preview pills can show them.
+					return reduceTurnChanges(chatEdits.lastTurnEdits);
+				}
+			}
+			return [];
+		});
+
+	return { externalFiles, getLastTurnChanges, getLastTurnPreviewChanges };
 }
 
 /**

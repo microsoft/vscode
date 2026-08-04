@@ -473,6 +473,14 @@ export interface IChat {
 	 * this omit the observable.
 	 */
 	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * Like {@link lastTurnChanges}, but including files outside the
+	 * workspace/worktree (e.g. session-state `plan.md`). Used by markdown
+	 * preview pills so those files remain discoverable without inflating the
+	 * workspace-scoped changes count. Providers that cannot determine this omit
+	 * the observable; consumers then fall back to {@link lastTurnChanges}.
+	 */
+	readonly lastTurnPreviewChanges?: IObservable<readonly ISessionFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

@@ -290,6 +290,31 @@ suite('agentHostSessionFiles', () => {
 		]);
 	});
 
+	test('reduceTurnChanges keeps session-state plan.md when unfiltered for preview pills', () => {
+		const edits: IParsedFileEdit[] = [
+			parsedEdit(FileEditKind.Edit, { after: '/repo/src/app.ts', beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
+			parsedEdit(FileEditKind.Create, { after: '/home/user/.copilot/session-state/abc/plan.md' }, { insertions: 12 }),
+			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/tool.json', beforeContent: '/home/user/.config/tool.json.before' }, { insertions: 1 }),
+		];
+		const folderRoots = [URI.file('/repo')];
+
+		const workspaceChanges = reduceTurnChanges(edits, folderRoots).map(c => c.uri.path);
+		assert.deepStrictEqual(workspaceChanges, ['/repo/src/app.ts'], 'workspace-scoped last-turn changes must drop session-state plan.md');
+
+		const previewChanges = reduceTurnChanges(edits).map(c => ({
+			uri: c.uri.path,
+			modified: c.modifiedUri?.path,
+			original: c.originalUri?.path,
+			insertions: c.insertions,
+			deletions: c.deletions,
+		}));
+		assert.deepStrictEqual(previewChanges, [
+			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', insertions: 2, deletions: 0 },
+			{ uri: '/home/user/.copilot/session-state/abc/plan.md', modified: '/home/user/.copilot/session-state/abc/plan.md', original: undefined, insertions: 12, deletions: 0 },
+			{ uri: '/home/user/.config/tool.json', modified: '/home/user/.config/tool.json', original: '/home/user/.config/tool.json.before', insertions: 1, deletions: 0 },
+		], 'unfiltered preview stream must keep session-state plan.md');
+	});
+
 	test('reduceTurnChanges nets out a file created and then deleted in the same turn', () => {
 		const edits: IParsedFileEdit[] = [
 			parsedEdit(FileEditKind.Create, { after: '/repo/scratch.tmp' }, { insertions: 5 }),

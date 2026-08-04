@@ -36,24 +36,31 @@ const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] }
 
 /**
  * Compute the current turn's diff stats and previewable files from the chat's
- * last-turn changes ({@link IChat.lastTurnChanges}), which the provider derives
- * from the live output stream. Files are classified as created vs. edited with
- * the same rules as the Changes view (an addition has no original; a deletion
- * has no modified resource). Created files are listed before edited ones so the
- * primary (first) file is the first created one, falling back to the first
- * edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes no last-turn
- * changes (e.g. before its first turn, or a provider that can't determine them).
+ * last-turn changes. Diff stats come from {@link IChat.lastTurnChanges}
+ * (workspace/worktree scoped). Previewable files prefer
+ * {@link IChat.lastTurnPreviewChanges} when present so out-of-workspace
+ * markdown such as session-state `plan.md` still gets a preview pill, then
+ * fall back to the scoped stream. Files are classified as created vs. edited
+ * with the same rules as the Changes view (an addition has no original; a
+ * deletion has no modified resource). Created files are listed before edited
+ * ones so the primary (first) file is the first created one, falling back to
+ * the first edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes
+ * no last-turn changes (e.g. before its first turn, or a provider that can't
+ * determine them).
  */
 function computeTurnData(chat: IChat, reader: IReader): ITurnData {
 	const changes = chat.lastTurnChanges?.read(reader) ?? [];
+	const previewChanges = chat.lastTurnPreviewChanges?.read(reader) ?? changes;
 
 	let insertions = 0, deletions = 0;
-	const created: IPreviewFile[] = [];
-	const edited: IPreviewFile[] = [];
 	for (const change of changes) {
 		insertions += change.insertions;
 		deletions += change.deletions;
+	}
 
+	const created: IPreviewFile[] = [];
+	const edited: IPreviewFile[] = [];
+	for (const change of previewChanges) {
 		if (change.modifiedUri === undefined) {
 			continue; // a deletion has nothing to preview
 		}
