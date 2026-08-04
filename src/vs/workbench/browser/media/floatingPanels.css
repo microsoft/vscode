@@ -374,3 +374,39 @@
 .monaco-workbench.floating-panels.nopanel .monaco-sash.horizontal.maximum:not(.part .monaco-sash)::before {
 	top: calc(50% - (var(--vscode-sash-hover-size) / 2) - (var(--vscode-sash-size) / 2));
 }
+
+/*
+ * Fitts's Law: When the window is maximized or fullscreen, the outermost floating cards
+ * should snap flush to the screen edges so that scrollbars and panel edges can be quickly
+ * targeted. We remove the outer margins, borders, border-radius, and any box shadows.
+ */
+.monaco-workbench.floating-panels:is(.maximized, .fullscreen) .part.floating-part-outer-left,
+.monaco-workbench.floating-panels:is(.maximized, .fullscreen) > .monaco-grid-view .part.editor.floating-editor-outer-left {
+	margin-left: 0 !important;
+	border-left: 0 !important;
+	border-top-left-radius: 0 !important;
+	border-bottom-left-radius: 0 !important;
+	box-shadow: none !important;
+}
+
+.monaco-workbench.floating-panels:is(.maximized, .fullscreen) .part.floating-part-outer-right,
+.monaco-workbench.floating-panels:is(.maximized, .fullscreen) > .monaco-grid-view .part.editor.floating-editor-outer-right {
+	margin-right: 0 !important;
+	border-right: 0 !important;
+	border-top-right-radius: 0 !important;
+	border-bottom-right-radius: 0 !important;
+	box-shadow: none !important;
+}
+
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) .part.panel.bottom,
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) .part.panel.left,
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) .part.panel.right,
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) .part.sidebar,
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) .part.auxiliarybar,
+.monaco-workbench.floating-panels.nostatusbar:is(.maximized, .fullscreen) > .monaco-grid-view .part.editor {
+	margin-bottom: 0 !important;
+	border-bottom: 0 !important;
+	border-bottom-left-radius: 0 !important;
+	border-bottom-right-radius: 0 !important;
+	box-shadow: none !important;
+}

@@ -160,7 +160,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		}
 	}
 
-	private relayout() {
+	protected relayout() {
 		const dimension = this.getRelayoutDimension();
 		if (dimension && this.contentPosition) {
 			this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left);

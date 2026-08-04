@@ -15,7 +15,7 @@ import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -184,6 +184,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private registerListeners(): void {
 		this._register(this.onDidPaneCompositeOpen(composite => this.onDidOpen(composite)));
 		this._register(this.onDidPaneCompositeClose(this.onDidClose, this));
+		this._register(this.layoutService.onDidChangeWindowMaximized(e => {
+			if (this.element && e.windowId === getWindowId(getWindow(this.element))) {
+				this.relayout();
+			}
+		}));
 
 		this._register(this.registry.onDidDeregister((viewletDescriptor: PaneCompositeDescriptor) => {
 
@@ -726,11 +731,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
 		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
 		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
-		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
-			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
+		const targetWindow = getWindow(this.element);
+		const isMaximized = this.layoutService.isWindowMaximized(targetWindow) || this.layoutService.getContainer(targetWindow).classList.contains('fullscreen');
+
+		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) && isAtWindowBottom
+			? (isMaximized ? 0 : margin * 2) : FLOATING_PANEL_INNER_MARGIN;
 		const outerGutter = this.getFloatingOuterGutterEdges();
-		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
+		const leftMargin = outerGutter.left ? (isMaximized ? 0 : margin * 2) : margin;
+		const rightMargin = outerGutter.right ? (isMaximized ? 0 : margin * 2) : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
 			height: topMargin + bottomMargin + borderTotal
