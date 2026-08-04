@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider, isModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
@@ -92,7 +93,7 @@ suite('Modal Editor Compact Header', () => {
 
 	test('compact header removes the modal header divider styling', () => {
 		const modalElement = document.createElement('div');
-		modalElement.classList.add('compact-header');
+		modalElement.classList.add('monaco-modal-editor-block', 'compact-header');
 		const modalPart = document.createElement('div');
 		modalPart.classList.add('modal-editor-part');
 		modalElement.appendChild(modalPart);
@@ -101,7 +102,13 @@ suite('Modal Editor Compact Header', () => {
 		header.classList.add('modal-editor-header');
 		modalPart.appendChild(header);
 
-		assert.strictEqual(modalElement.classList.contains('compact-header'), true);
-		assert.strictEqual(modalPart.classList.contains('modal-editor-part'), true);
+		document.body.appendChild(modalElement);
+
+		try {
+			const computedStyle = window.getComputedStyle(modalPart);
+			assert.strictEqual(computedStyle.borderTopStyle, 'none');
+		} finally {
+			modalElement.remove();
+		}
 	});
 });
