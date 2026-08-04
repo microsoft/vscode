@@ -70,20 +70,12 @@
 	border-bottom-right-radius: 0;
 }
 
-.style-override .part.statusbar > .left-items > .statusbar-item.has-background-color + .statusbar-item.has-background-color {
+.style-override .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
 	margin-left: var(--vscode-spacing-size40);
 }
 
-.style-override .part.statusbar > .right-items > .statusbar-item.has-background-color + .statusbar-item.has-background-color {
+.style-override .part.statusbar > .right-items > .statusbar-item.visible-background-color-neighbor {
 	margin-right: var(--vscode-spacing-size40);
-}
-
-.style-override .part.statusbar > .left-items > .statusbar-item.has-background-color.compact-right + .statusbar-item.has-background-color.compact-left {
-	margin-left: 0;
-}
-
-.style-override .part.statusbar > .right-items > .statusbar-item.has-background-color.compact-left + .statusbar-item.has-background-color.compact-right {
-	margin-right: 0;
 }
 
 /*
