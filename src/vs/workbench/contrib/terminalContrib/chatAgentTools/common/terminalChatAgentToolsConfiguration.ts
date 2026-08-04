@@ -9,6 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -228,26 +229,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #region PowerShell
 
-			'Get-ChildItem': true,
-			'Get-Content': true,
-			'Get-Date': true,
-			'Get-Random': true,
-			'Get-Location': true,
-			'Set-Location': true,
-			'Write-Host': true,
-			'Write-Output': true,
-			'Out-String': true,
-			'Split-Path': true,
-			'Join-Path': true,
-			'Start-Sleep': true,
-			'Where-Object': true,
-
-			// Blanket approval of safe verbs
-			'/^Select-[a-z0-9]/i': true,
-			'/^Measure-[a-z0-9]/i': true,
-			'/^Compare-[a-z0-9]/i': true,
-			'/^Format-[a-z0-9]/i': true,
-			'/^Sort-[a-z0-9]/i': true,
+			...powershellAutoApproveRules,
 
 			// #endregion
 
@@ -334,7 +316,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   blocked currently
 			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
 			//   of service.
-			sort: true,
+			'/^sort\\b(?!-)/': true,
 			'/^sort\\b.*\\s-(o|S)\\b/': false,
 
 			// tree
