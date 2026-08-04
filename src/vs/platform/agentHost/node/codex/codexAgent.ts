@@ -219,17 +219,15 @@ const codexSessionConfigSchema = createSchema({
 		type: 'string',
 		title: localize('codex.sessionConfig.approvalPolicy', "Approvals"),
 		description: localize('codex.sessionConfig.approvalPolicyDescription', "How Codex requests approval for tool calls."),
-		enum: ['never', 'on-request', 'on-failure', 'untrusted'],
+		enum: ['never', 'on-request', 'untrusted'],
 		enumLabels: [
 			localize('codex.sessionConfig.approvalPolicy.never', "No Escalations"),
 			localize('codex.sessionConfig.approvalPolicy.onRequest', "Ask When Needed"),
-			localize('codex.sessionConfig.approvalPolicy.onFailure', "Ask on Failure"),
 			localize('codex.sessionConfig.approvalPolicy.untrusted', "Ask More Often"),
 		],
 		enumDescriptions: [
 			localize('codex.sessionConfig.approvalPolicy.neverDescription', "Never ask for elevated permission; commands that cannot run in the sandbox are rejected."),
 			localize('codex.sessionConfig.approvalPolicy.onRequestDescription', "Ask only when Codex determines a command needs elevated permission."),
-			localize('codex.sessionConfig.approvalPolicy.onFailureDescription', "Try commands in the sandbox first, then ask to retry with elevated permission if the sandbox blocks them."),
 			localize('codex.sessionConfig.approvalPolicy.untrustedDescription', "Ask before more command categories so you can review actions more closely."),
 		],
 		default: 'on-request',
