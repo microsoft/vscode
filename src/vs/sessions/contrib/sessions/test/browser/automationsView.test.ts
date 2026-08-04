@@ -240,6 +240,7 @@ class FakeSessionsService extends mock<ISessionsService>() {
 
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly sessionDeletedEmitter = new Emitter<ISession>();
+	private readonly deletedSessionResources = new Set<string>();
 	override readonly onDidDeleteSession = this.sessionDeletedEmitter.event;
 	sessionExists = true;
 	readonly isRead = observableValue<boolean>(this, false);
@@ -269,6 +270,9 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (!this.sessionExists) {
 			return undefined;
 		}
+		if (this.deletedSessionResources.has(resource.toString())) {
+			return undefined;
+		}
 		if (resource.toString() === SESSION_RESOURCE.toString()) {
 			return this.session;
 		}
@@ -291,7 +295,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (this.deleteError) {
 			throw this.deleteError;
 		}
-		this.sessionExists = false;
+		this.deletedSessionResources.add(session.resource.toString());
 		this.sessionDeletedEmitter.fire(session);
 	}
 
@@ -654,6 +658,14 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
 	});
 
+	test('does not expose session deletion for an active run', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+
+		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
+	});
+
 	test('deleting a run session confirms the permanent deletion without opening it', async () => {
 		const { automationService, dialogService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -682,6 +694,32 @@ suite('AutomationsCardsWidget', () => {
 			deleteRunCalls: 1,
 			openCalls: 0,
 			historyItemStillVisible: false,
+		});
+	});
+
+	test('deleting the focused run moves focus to the next run', async () => {
+		const { automationService, dialogService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([
+			run(),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+		]);
+		dialogService.confirmResult = { confirmed: true };
+
+		const deleteButton = widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button');
+		assert.ok(deleteButton);
+		deleteButton.focus();
+		deleteButton.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		const remainingOpenButton = widget.element.querySelector<HTMLElement>('.automations-run-card-main[role="button"]');
+
+		assert.deepStrictEqual({
+			historyItemCount: widget.element.querySelectorAll('.automations-run-card').length,
+			focusedNextRun: document.activeElement === remainingOpenButton,
+		}, {
+			historyItemCount: 1,
+			focusedNextRun: true,
 		});
 	});
 

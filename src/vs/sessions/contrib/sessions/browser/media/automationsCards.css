@@ -374,7 +374,7 @@
 }
 
 .automations-run-card-main:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
@@ -409,7 +409,7 @@
 }
 
 .automations-run-card-actions .monaco-button.automations-run-card-delete-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 

@@ -81,7 +81,7 @@ export class AutomationsCardsWidget extends Disposable {
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
 
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.isMarkingAllRead));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
@@ -400,9 +400,14 @@ class AutomationHistorySection extends Disposable {
 
 	private readonly container: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
+	private readonly runFocusTargets = new Map<string, HTMLElement>();
+	private renderedFocusableRunIds: string[] = [];
+	private pendingFocusRunId: string | undefined;
+	private shouldRestoreFocus = false;
 
 	constructor(
 		parent: HTMLElement,
+		private readonly focusFallback: HTMLElement,
 		private readonly isMarkingAllRead: ISettableObservable<boolean>,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -417,9 +422,12 @@ class AutomationHistorySection extends Disposable {
 	render(runs: readonly IAutomationRun[], automations: readonly IAutomation[], sessions: ReadonlyMap<string, IAutomationRunSessionState>): void {
 		this.disposables.clear();
 		DOM.clearNode(this.container);
+		this.runFocusTargets.clear();
+		this.renderedFocusableRunIds = [];
 
 		if (runs.length === 0) {
 			this.container.style.display = 'none';
+			this.restoreFocusAfterRender();
 			return;
 		}
 
@@ -457,6 +465,7 @@ class AutomationHistorySection extends Disposable {
 				this.renderRunRow(groupGrid, run, automationMap, group.kind, sessions.get(run.id));
 			}
 		}
+		this.restoreFocusAfterRender();
 	}
 
 	private renderRunRow(parent: HTMLElement, run: IAutomationRun, automationMap: Map<string, IAutomation>, bucketKind: DateBucketKind, sessionState: IAutomationRunSessionState | undefined): void {
@@ -535,14 +544,16 @@ class AutomationHistorySection extends Disposable {
 			}));
 		}
 
-		const canDeleteSession = sessionState?.supportsDelete === true;
-		const canDeleteHistory = !sessionState && (run.status === 'completed' || run.status === 'failed');
+		const isTerminal = run.status === 'completed' || run.status === 'failed';
+		const canDeleteSession = isTerminal && sessionState?.supportsDelete === true;
+		const canDeleteHistory = isTerminal && !sessionState;
+		let deleteButton: Button | undefined;
 		if (canDeleteSession || canDeleteHistory) {
 			const actions = DOM.append(card, $('.automations-run-card-actions'));
 			const deleteLabel = canDeleteSession
 				? localize('deleteAutomationRunSession', "Delete session for {0}", title)
 				: localize('deleteAutomationRunHistory', "Delete run for {0} from history", title);
-			const deleteButton = this.disposables.add(new Button(actions, {
+			deleteButton = this.disposables.add(new Button(actions, {
 				ariaLabel: deleteLabel,
 				supportIcons: true,
 				title: deleteLabel,
@@ -556,6 +567,11 @@ class AutomationHistorySection extends Disposable {
 					void this.confirmDeleteRunHistory(run, title);
 				}
 			}));
+		}
+		const focusTarget = openButton?.element ?? deleteButton?.element;
+		if (focusTarget) {
+			this.renderedFocusableRunIds.push(run.id);
+			this.runFocusTargets.set(run.id, focusTarget);
 		}
 	}
 
@@ -587,9 +603,11 @@ class AutomationHistorySection extends Disposable {
 		if (!confirmed.confirmed) {
 			return;
 		}
+		this.prepareFocusAfterDeletion(run.id);
 		try {
 			await this.sessionsManagementService.deleteSession(session);
 		} catch (error) {
+			this.clearPendingFocus();
 			this.logService.error('[AutomationsCards] Failed to delete automation run session', error);
 			await this.dialogService.error(
 				localize('automationRunSessionDeleteFailed', "Failed to delete the automation run session."),
@@ -597,10 +615,13 @@ class AutomationHistorySection extends Disposable {
 			);
 			return;
 		}
+		this.prepareFocusAfterDeletion(run.id);
 		try {
 			await this.automationService.deleteRun(run.id);
+			this.restoreFocusAfterRender();
 			status(localize('automationRunSessionDeletedStatus', "Deleted the session for {0}", automationName));
 		} catch (error) {
+			this.clearPendingFocus();
 			this.logService.error('[AutomationsCards] Failed to remove deleted automation run from history', error);
 			await this.dialogService.error(
 				localize('automationRunHistoryDeleteFailed', "The session was deleted, but its run history item could not be removed."),
@@ -618,16 +639,41 @@ class AutomationHistorySection extends Disposable {
 		if (!confirmed.confirmed) {
 			return;
 		}
+		this.prepareFocusAfterDeletion(run.id);
 		try {
 			await this.automationService.deleteRun(run.id);
+			this.restoreFocusAfterRender();
 			status(localize('automationRunDeletedStatus', "Removed the run for {0} from history", automationName));
 		} catch (error) {
+			this.clearPendingFocus();
 			this.logService.error('[AutomationsCards] Failed to remove automation run from history', error);
 			await this.dialogService.error(
 				localize('automationRunDeleteFailed', "Failed to remove the automation run from history."),
 				getErrorMessage(error),
 			);
 		}
+	}
+
+	private prepareFocusAfterDeletion(runId: string): void {
+		const index = this.renderedFocusableRunIds.indexOf(runId);
+		this.pendingFocusRunId = index >= 0
+			? this.renderedFocusableRunIds[index + 1] ?? this.renderedFocusableRunIds[index - 1]
+			: undefined;
+		this.shouldRestoreFocus = true;
+	}
+
+	private restoreFocusAfterRender(): void {
+		if (!this.shouldRestoreFocus) {
+			return;
+		}
+		const target = this.pendingFocusRunId ? this.runFocusTargets.get(this.pendingFocusRunId) : undefined;
+		this.clearPendingFocus();
+		(target ?? this.focusFallback).focus();
+	}
+
+	private clearPendingFocus(): void {
+		this.pendingFocusRunId = undefined;
+		this.shouldRestoreFocus = false;
 	}
 
 	private async markAllRunsRead(runs: readonly IAutomationRun[]): Promise<void> {
