@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DEFAULT_PANE_HEADER_SIZE, Pane, setGlobalPaneHeaderSize } from '../../../../browser/ui/splitview/paneview.js';
+import { DEFAULT_PANE_HEADER_SIZE, Pane, PaneView, setGlobalPaneHeaderSize } from '../../../../browser/ui/splitview/paneview.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class TestPane extends Pane {
 
 	lastLayout: { height: number; width: number } | undefined;
 
-	constructor() {
-		super({ title: 'Test', minimumBodySize: 10, maximumBodySize: 100 });
+	constructor(expanded = true) {
+		super({ title: 'Test', minimumBodySize: 10, maximumBodySize: 100, expanded });
 		this.render();
 	}
 
@@ -53,6 +53,27 @@ suite('Paneview', () => {
 			defaultLayout: { height: 28, width: 200 },
 			overrideSizes: { minimumSize: 38, maximumSize: 128 },
 			overrideLayout: { height: 22, width: 200 },
+		});
+	});
+
+	test('reclamps a collapsed pane when the global header size changes', () => {
+		const paneView = store.add(new PaneView(document.createElement('div')));
+		const pane = store.add(new TestPane(false));
+		paneView.addPane(pane, pane.minimumSize);
+		paneView.layout(100, 200);
+		const defaultSize = paneView.getPaneSize(pane);
+
+		setGlobalPaneHeaderSize(28);
+		paneView.layout(100, 200);
+		const overrideSize = paneView.getPaneSize(pane);
+
+		setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
+		paneView.layout(100, 200);
+
+		assert.deepStrictEqual({ defaultSize, overrideSize, restoredSize: paneView.getPaneSize(pane) }, {
+			defaultSize: 22,
+			overrideSize: 28,
+			restoredSize: 22,
 		});
 	});
 });
