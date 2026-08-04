@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { afterEach, beforeEach, describe, suite, test } from 'vitest';
-import type { Selection, TextEditor } from 'vscode';
+import type { CommentThread, Selection, TextEditor } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
@@ -60,7 +60,7 @@ suite('doReview', () => {
 					show: () => { tracker.logShown = true; },
 				} as unknown as ILogService,
 				reviewService: {
-					addReviewComments: (comments: ReviewComment[]) => { tracker.addedComments.push(...comments); },
+					addReviewComments: (comments: ReviewComment[], _opts?: { suppressAutoReveal?: boolean }) => { tracker.addedComments.push(...comments); },
 				} as unknown as IReviewService,
 			};
 		}
@@ -337,7 +337,7 @@ suite('doReview', () => {
 			isIntentEnabled(): boolean { return true; }
 			getDiagnosticCollection() { return { get: () => undefined, set: () => { } }; }
 			getReviewComments(): ReviewComment[] { return this.comments; }
-			addReviewComments(comments: ReviewComment[]): void {
+			addReviewComments(comments: ReviewComment[], _opts?: { suppressAutoReveal?: boolean }): void {
 				this.addedComments.push(...comments);
 				this.comments.push(...comments);
 			}
@@ -349,6 +349,7 @@ suite('doReview', () => {
 			updateReviewComment(_comment: ReviewComment): void { }
 			findReviewComment() { return undefined; }
 			findCommentThread() { return undefined; }
+			getActiveThread(): CommentThread | undefined { return undefined; }
 		}
 
 		// Mock authentication service for testing different auth states
