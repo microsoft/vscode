@@ -64,6 +64,14 @@ export interface IAccountTitleBarStateContext {
 		readonly chat?: IQuotaSnapshot;
 		readonly completions?: IQuotaSnapshot;
 	};
+	/**
+	 * Whether at least one registered session type is usable without GitHub
+	 * right now (the conditional-auth opt-in is on and a usable type exists).
+	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
+	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
+	 * keeps today's behavior.
+	 */
+	readonly usableWithoutGitHub: boolean;
 }
 
 export interface IAccountTitleBarState {
@@ -105,7 +113,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.usableWithoutGitHub);
 	if (copilotState) {
 		return copilotState;
 	}
@@ -135,13 +143,25 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
-	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot }
+	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
+	usableWithoutGitHub: boolean
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
 	}
 
 	if (entitlement === ChatEntitlement.Unknown) {
+		if (usableWithoutGitHub) {
+			// A session type is usable without GitHub, so signing in is optional:
+			// present a calm opt-in affordance rather than alarming the user.
+			return {
+				source: 'copilot',
+				kind: 'default',
+				icon: Codicon.account,
+				label: localize('agentsSignInOptional', "Sign In"),
+				ariaLabel: localize('agentsSignInOptionalAria', "Sign in to GitHub to use more agents"),
+			};
+		}
 		return {
 			source: 'copilot',
 			kind: 'prominent',
