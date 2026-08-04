@@ -284,6 +284,10 @@ export function getFinalResponseStartIndexAfterMovingSessionCreatedTools(content
 	return finalResponseStartIndex - movedToolCount;
 }
 
+export function isFinalResponseRendered(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number | undefined): boolean {
+	return finalResponseStartIndex !== undefined && content[finalResponseStartIndex]?.kind === 'markdownContent';
+}
+
 export function moveSessionCreatedToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
 	const sessionCreatedTools = content.filter(isSessionCreatedTool);
 	if (sessionCreatedTools.length === 0) {
@@ -2413,7 +2417,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
 		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingSessionCreatedTools(responseContent);
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
-		if (finalResponseStartIndex === undefined || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
+		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
