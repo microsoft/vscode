@@ -14,7 +14,7 @@ import { createTestCodeEditor } from '../../../../../editor/test/browser/testCod
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { startDictation, stopDictation } from '../../browser/speechToText/dictationSession.js';
+import { isDictating, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
 
 suite('DictationSession', () => {
 
@@ -94,6 +94,27 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
+	});
+
+	test('stops only when the submitted editor owns dictation', async () => {
+		const { service } = createService('hello world', true);
+		const dictationEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		const otherEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+
+		await startDictation(service, dictationEditor, mainWindow, new NullLogService());
+		await stopDictationForEditor(otherEditor);
+		const afterOtherEditor = isDictating();
+		await stopDictationForEditor(dictationEditor);
+
+		assert.deepStrictEqual({
+			afterOtherEditor,
+			afterDictationEditor: isDictating(),
+			value: dictationEditor.getValue(),
+		}, {
+			afterOtherEditor: true,
+			afterDictationEditor: false,
+			value: 'hello world',
+		});
 	});
 
 	test('renders the whole in-progress transcript as still processing', async () => {

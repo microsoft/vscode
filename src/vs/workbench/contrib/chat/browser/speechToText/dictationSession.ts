@@ -441,6 +441,13 @@ export async function stopDictation(): Promise<void> {
 	}
 }
 
+/** Stop dictation only when it is targeting `editor`. */
+export async function stopDictationForEditor(editor: ICodeEditor): Promise<void> {
+	if (_active?.editor === editor) {
+		await stopDictation();
+	}
+}
+
 /** Abort the active dictation, discarding whatever was recorded. */
 export function cancelDictation(): void {
 	const active = _active;

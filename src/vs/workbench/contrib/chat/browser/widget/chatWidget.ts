@@ -93,6 +93,7 @@ import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnly
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
+import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 
 const $ = dom.$;
 
@@ -2601,6 +2602,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
+
+		await stopDictationForEditor(this.inputEditor);
 
 		if (this.viewModel) {
 			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
