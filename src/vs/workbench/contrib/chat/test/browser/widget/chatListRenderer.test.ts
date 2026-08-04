@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithCompletedQuestionInteraction, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -783,7 +783,7 @@ suite('ChatListRenderer', () => {
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 			isComplete: true,
 			presentation: undefined,
-			toolSpecificData: { kind: 'subagent', description: 'Investigate' },
+			toolSpecificData: { kind: 'subagent', description: 'Investigate', isActive: true },
 		};
 		const childTool: IChatToolInvocationSerialized = {
 			...parentSubagent,
@@ -802,17 +802,20 @@ suite('ChatListRenderer', () => {
 
 		assert.deepStrictEqual({
 			relevantParts: getWorkingProgressRelevantParts(parts).map(part => part.kind),
-			endsWithTaggedMarkdown: endsWithSubagentContent(parts.slice(0, 4)),
-			endsWithSubagentHook: endsWithSubagentContent(parts),
-			endsWithSubagentChildTool: endsWithSubagentContent(parts.slice(0, 3)),
-			endsWithParentSubagentTool: endsWithSubagentContent(parts.slice(0, 2)),
+			endsWithTaggedMarkdown: endsWithActiveSubagentContent(parts.slice(0, 4)),
+			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
+			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
+			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
 		}, {
 			relevantParts: ['references'],
-			endsWithTaggedMarkdown: false,
-			endsWithSubagentHook: false,
-			endsWithSubagentChildTool: false,
+			endsWithTaggedMarkdown: true,
+			endsWithSubagentHook: true,
+			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
 		});
+
+		parentSubagent.toolSpecificData = { kind: 'subagent', description: 'Investigate', isActive: false };
+		assert.strictEqual(endsWithActiveSubagentContent(parts), false);
 	});
 
 	test('working progress is hidden while MCP servers are starting', () => {
