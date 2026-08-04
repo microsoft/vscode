@@ -276,11 +276,11 @@
 	border-top: none;
 }
 
-/*
- * Re-center the icon within its item. With the rounded box in place the item is
- * given a touch more horizontal padding and the codicon glyph is nudged so it
- * sits centered inside the box, matching the default position.
- */
+/* Center the icon and its rounded box within the compact header/footer chrome. */
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	height: 32px;
+}
+
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
 	padding: 0 4px;

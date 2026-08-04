@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "WORKSPACE_TARGET_READY".
+    response:
+      content: WORKSPACE_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}/other", then reply exactly "filtered".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            workspace: ${workdir}/other
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}/other", then reply exactly "filtered".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                workspace: ${workdir}/other
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"copilotcli:/${uuid_0}","title":"Reply exactly \"WORKSPACE_TARGET_READY\".","status":"idle","workingDirectory":"file://${workdir}/other","unread":true,"createdAt":"2026-08-02T02:18:35.761Z","modifiedAt":"2026-08-02T02:18:37.544Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: filtered
+      stopReason: end_turn
