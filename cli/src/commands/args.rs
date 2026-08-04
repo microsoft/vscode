@@ -287,6 +287,14 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub new_instance: bool,
 
+	/// Run a newly started agent host supervisor in the foreground instead
+	/// of detaching it, keeping its logs attached to this terminal and
+	/// stopping it on Ctrl-C. Useful for debugging. An existing compatible
+	/// supervisor is still reused, so combine this with `--replace` or
+	/// `--new-instance` to guarantee a supervisor is actually started here.
+	#[clap(long)]
+	pub foreground: bool,
+
 	/// Expose the agent host over a dev tunnel.
 	#[clap(long)]
 	pub tunnel: bool,
