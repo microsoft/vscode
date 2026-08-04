@@ -263,10 +263,21 @@
 	 * with the other form fields.
 	 */
 	margin: 0;
+	/* chat.css sets `padding: 4px 0` — zero both ends so the container
+	 * sits flush with the label above and the Enabled separator below. */
+	padding-top: 0;
+	padding-bottom: 0;
 	/* Don't let long custom-mode names or model identifiers push the
 	 * modal wider than its declared max-width. */
 	max-width: 100%;
 	min-width: 0;
+}
+
+.automation-form-prompt-host .chat-input-container {
+	/* chat.css sets `padding: 0 6px 6px` — the 6px bottom gap between the
+	 * picker chips and the container border looks excessive in the compact
+	 * dialog. Tighten it to 2px. */
+	padding-bottom: 2px;
 }
 
 .automation-form-prompt-host .interactive-input-editor,
