@@ -57,19 +57,52 @@ suite('CommandAutoApprover', () => {
 
 		// Safe git sub-commands
 		test('approves allowed git sub-commands', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git status'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git log --oneline'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git diff HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git show HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git ls-files'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git branch'), 'approved');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git status'),
+				approver.shouldAutoApprove('git log --oneline'),
+				approver.shouldAutoApprove('git diff HEAD'),
+				approver.shouldAutoApprove('git show HEAD'),
+				approver.shouldAutoApprove('git show --format=%B HEAD'),
+				approver.shouldAutoApprove('git --no-pager show HEAD'),
+				approver.shouldAutoApprove('git -C repo show HEAD'),
+				approver.shouldAutoApprove('git show --output-format=text HEAD'),
+				approver.shouldAutoApprove('git ls-files'),
+				approver.shouldAutoApprove('git branch'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+			]);
 		});
 
 		// Unsafe git sub-commands
 		test('denies denied git operations', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git branch -D main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git branch --delete main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git log --output=/tmp/out'), 'denied');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git branch -D main'),
+				approver.shouldAutoApprove('git branch --delete main'),
+				approver.shouldAutoApprove('git log --output=/tmp/out'),
+				approver.shouldAutoApprove('git show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git show --output message.txt HEAD'),
+				approver.shouldAutoApprove('git show --format=%B --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git --no-pager show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git -C repo show --output message.txt HEAD'),
+			], [
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
 		});
 
 		// Safe commands with dangerous arg blocking
@@ -81,9 +114,39 @@ suite('CommandAutoApprover', () => {
 		});
 
 		test('handles sed with blocked args', () => {
-			assert.strictEqual(approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('sed -e "s/foo/bar/"'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('sed --expression "s/foo/bar/"'), 'denied');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
+				approver.shouldAutoApprove('sed -e "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed --expression "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -I "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -ni "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i.bak "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed -i \'\' "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place "s/foo/bar/" file.txt'),
+				approver.shouldAutoApprove('sed --in-place=.bak "s/foo/bar/" file.txt'),
+			], [
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
+		});
+
+		test('sed in-place commands cannot be allowed by a full-command rule', () => {
+			const commandLine = 'sed -i "s/foo/bar/" file.txt';
+			assert.deepStrictEqual(approver.evaluate(commandLine, {
+				autoApproveRules: {
+					sed: true,
+					'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
+				},
+			}), { result: 'denied', autoApproveRuleResolvable: false });
 		});
 
 		// npm/package managers

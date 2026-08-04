@@ -252,6 +252,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly suiteTitle: string;
 	/** Provider id passed to `createSession`. */
 	readonly provider: string;
+	/** Provider ids expected on models advertised by this harness. Defaults to {@link provider}. */
+	readonly modelProviders?: readonly string[];
 	/** URI scheme used when minting session URIs. */
 	readonly scheme: string;
 	/**

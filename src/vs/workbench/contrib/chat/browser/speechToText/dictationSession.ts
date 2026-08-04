@@ -295,6 +295,14 @@ interface IActiveDictation {
  */
 let _active: IActiveDictation | undefined;
 
+/**
+ * The in-flight {@link stopDictation} finalization, if any. `stopDictation`
+ * clears {@link _active} before awaiting the final transcript, so this lets a
+ * concurrent stop/submit for the same editor await that same finalization (and
+ * the final transcript it inserts) instead of racing ahead with interim text.
+ */
+let _finalizing: { readonly editor: ICodeEditor; readonly promise: Promise<void> } | undefined;
+
 /** True while a dictation is in progress. */
 export function isDictating(): boolean {
 	return !!_active;
@@ -424,9 +432,25 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 export async function stopDictation(): Promise<void> {
 	const active = _active;
 	if (!active) {
+		// A finalization started by an earlier stop may still be running for the
+		// same editor (it cleared `_active` before awaiting the transcript); wait
+		// for it so callers observe the final transcript rather than returning early.
+		await _finalizing?.promise;
 		return;
 	}
 	_active = undefined;
+	const promise = finalizeDictation(active);
+	_finalizing = { editor: active.editor, promise };
+	try {
+		await promise;
+	} finally {
+		if (_finalizing?.promise === promise) {
+			_finalizing = undefined;
+		}
+	}
+}
+
+async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	active.logService.trace(`${LOG_PREFIX} stopDictation begin, state=${active.service.state}`);
 	// Drop the interim styling and lock out interim updates right away so a
 	// trailing interim transcript emitted while transcription finalizes cannot
@@ -453,6 +477,18 @@ export async function stopDictation(): Promise<void> {
 		// disposing the hide-cursor class) reappears immediately at the end of the
 		// inserted transcript, ready for the user to continue typing.
 		active.editor.focus();
+	}
+}
+
+/** Stop dictation only when it is targeting `editor`. */
+export async function stopDictationForEditor(editor: ICodeEditor): Promise<void> {
+	if (_active?.editor === editor) {
+		await stopDictation();
+	} else if (_finalizing?.editor === editor) {
+		// A stop for this editor is already finalizing (it cleared `_active` before
+		// awaiting the transcript); await that finalization so a second submit does
+		// not send interim text ahead of the final transcript being inserted.
+		await _finalizing.promise;
 	}
 }
 

@@ -5,8 +5,6 @@
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
-import { mainWindow } from '../../base/browser/window.js';
-import { Emitter, Event } from '../../base/common/event.js';
 import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
@@ -59,9 +57,6 @@ export class SinglePaneWorkbench extends Workbench {
 	private _detailHiddenForEditorResize = false;
 	private readonly _memento = new DockedEditorSizeMemento();
 
-	private readonly _onDidRevealSidePane = this._register(new Emitter<void>());
-	override readonly onDidRevealSidePane: Event<void> = this._onDidRevealSidePane.event;
-
 	override get isSinglePaneLayoutEnabled(): boolean {
 		return true;
 	}
@@ -73,28 +68,17 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	override toggleSecondarySideBar(): void {
-		this.toggleEditorPane();
+		const visible = this.toggleSidePane();
+		alert(visible
+			? localize('sidePaneVisible', "Side pane shown")
+			: localize('sidePaneHidden', "Side pane hidden"));
 	}
 
 	override isSecondarySideBarVisible(): boolean {
-		return this.isVisible(Parts.EDITOR_PART, mainWindow);
+		return this.isSidePaneVisible();
 	}
 
-	toggleEditorPane(): void {
-		const visible = !this.isSecondarySideBarVisible();
-		const editorHadFocus = !visible && this.hasFocus(Parts.EDITOR_PART);
-		this.setEditorHidden(!visible, /* explicit */ true);
-		if (editorHadFocus) {
-			this.focusPart(this.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.SESSIONS_PART);
-		}
-		alert(visible
-			? localize('editorPaneVisible', "Editor pane shown")
-			: localize('editorPaneHidden', "Editor pane hidden"));
-	}
-
-	protected override _onSidePaneRevealed(): void {
-		this._onDidRevealSidePane.fire();
-	}
+	protected override readonly _defaultSidePaneState = { editor: true, auxiliaryBar: false };
 
 	/**
 	 * A docked-detail editor (Changes/Files) renders its content in the docked
