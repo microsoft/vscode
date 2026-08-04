@@ -372,12 +372,12 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 					? `${g1}`
 					: (number < Constants.MAX_SAFE_SMALL_INTEGER
 						? `${g1} ${number + 1}`
-						: `${g1}${g2} copy`);
+						: `${g1}${g2}_copy`);
 			}) + extSuffix;
 		}
 
 		// name(.txt) => name copy(.txt)
-		return `${namePrefix} copy${extSuffix}`;
+		return `${namePrefix}_copy${extSuffix}`;
 	}
 
 	const separators = '[\\.\\-_]';
