@@ -322,6 +322,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+	private readonly _releaseSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 
@@ -2332,9 +2333,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// the provider sequences the release internally and re-checks its own
 		// invariants (e.g. a turn that started after this call).
 		const provider = this._findProviderForSession(evictionTarget);
-		provider?.releaseSession?.(evictionTarget).catch(err => {
-			this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
-		});
+		const release = provider?.releaseSession?.(evictionTarget);
+		if (release) {
+			const trackedRelease = release.catch(err => {
+				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
+			});
+			this._releaseSessionInFlight.set(evictionTargetKey, trackedRelease);
+			void trackedRelease.then(() => {
+				if (this._releaseSessionInFlight.get(evictionTargetKey) === trackedRelease) {
+					this._releaseSessionInFlight.delete(evictionTargetKey);
+				}
+			});
+		}
 	}
 
 	// Returns true when a changeset is safe to drop from the in-memory cache.
@@ -2621,6 +2631,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async restoreSession(session: URI): Promise<void> {
 		const sessionStr = session.toString();
+		await this._releaseSessionInFlight.get(sessionStr);
 
 		// Already in state manager - nothing to do.
 		if (this._stateManager.getSessionState(sessionStr)) {

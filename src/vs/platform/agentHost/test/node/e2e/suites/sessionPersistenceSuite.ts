@@ -6,11 +6,13 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -39,6 +41,51 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		return firstStat.dev === secondStat.dev && firstStat.ino === secondStat.ino;
 	}
 
+	function responsePartIds(turns: readonly { readonly responseParts: readonly object[] }[]): string[] {
+		return turns.flatMap(turn => turn.responseParts.flatMap(part => hasKey(part, 'id') && typeof part.id === 'string' ? [part.id] : []));
+	}
+
+	function durableTurnContent<T extends {
+		readonly message: { readonly text: string; readonly origin: { readonly kind: string } };
+		readonly state: string;
+		readonly responseParts: readonly object[];
+	}>(turns: readonly T[]): object[] {
+		return turns.map(turn => ({
+			message: { text: turn.message.text, origin: turn.message.origin.kind },
+			state: turn.state,
+			responseParts: turn.responseParts.map(part => {
+				if (hasKey(part, 'id')) {
+					const { id: _, ...rest } = part;
+					return rest;
+				}
+				return part;
+			}),
+		}));
+	}
+
+	async function releaseAndRestoreSession(sessionUri: string): Promise<void> {
+		const before = await fetchSessionWithChat(context.client, sessionUri);
+		const beforeResponsePartIds = responsePartIds(before.turns);
+		const beforeTurns = durableTurnContent(before.turns);
+		assert.ok(beforeResponsePartIds.length > 0);
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		context.client.notify('unsubscribe', { channel: sessionUri });
+
+		await retry(async () => {
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredResponsePartIds = responsePartIds(restored.turns);
+			const restoredTurns = durableTurnContent(restored.turns);
+			assert.deepStrictEqual(restoredTurns, beforeTurns);
+			assert.strictEqual(restoredResponsePartIds.length, beforeResponsePartIds.length);
+			if (restoredResponsePartIds.every((id, index) => id === beforeResponsePartIds[index])) {
+				context.client.notify('unsubscribe', { channel: chatUri });
+				context.client.notify('unsubscribe', { channel: sessionUri });
+				throw new Error('Session has not been reconstructed with complete durable provider state');
+			}
+		}, 50, 20);
+	}
+
 	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
@@ -47,6 +94,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1);
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-memory', 'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".', 10);
 
+		await releaseAndRestoreSession(sessionUri);
 		await restartAndInitialize(`persistence-reconnect-${config.provider}`, workspace);
 
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
