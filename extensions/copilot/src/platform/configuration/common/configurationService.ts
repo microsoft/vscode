@@ -746,7 +746,7 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
-		export const ChatCompletionsTokenParameter = defineSetting('chat.advanced.chatCompletionsTokenParameter', ConfigType.ExperimentBased, 'max_completion_tokens', vEnum('max_completion_tokens', 'max_tokens'));
+		export const ChatCompletionsTokenParameter = defineSetting('chat.chatCompletionsTokenParameter', ConfigType.ExperimentBased, 'max_completion_tokens', vEnum('max_completion_tokens', 'max_tokens'));
 
 		/**
 		 * When enabled, periodic keep-alive probes are sent during long-running tool calls

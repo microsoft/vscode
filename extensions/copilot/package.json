@@ -3542,23 +3542,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.advanced.chatCompletionsTokenParameter": {
-            "type": "string",
-            "enum": [
-              "max_completion_tokens",
-              "max_tokens"
-            ],
-            "enumDescriptions": [
-              "%github.copilot.config.chatCompletionsTokenParameter.maxCompletionTokens%",
-              "%github.copilot.config.chatCompletionsTokenParameter.maxTokens%"
-            ],
-            "default": "max_completion_tokens",
-            "markdownDescription": "%github.copilot.config.chatCompletionsTokenParameter%",
-            "tags": [
-              "advanced",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.imageUpload.enabled": {
             "type": "boolean",
             "default": true,
@@ -4456,6 +4439,23 @@
       {
         "id": "advanced",
         "properties": {
+          "github.copilot.chat.chatCompletionsTokenParameter": {
+            "type": "string",
+            "enum": [
+              "max_completion_tokens",
+              "max_tokens"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.chatCompletionsTokenParameter.maxCompletionTokens%",
+              "%github.copilot.config.chatCompletionsTokenParameter.maxTokens%"
+            ],
+            "default": "max_completion_tokens",
+            "markdownDescription": "%github.copilot.config.chatCompletionsTokenParameter%",
+            "tags": [
+              "advanced",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
             "type": [
               "object",
