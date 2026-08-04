@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -47,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionMultiRootWorkspace, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionMultiRootWorkspace, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -226,7 +226,24 @@ export const CopilotCLISessionType: ISessionType = {
 	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 	supportsWorktreeConfiguration: true,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
+
+/**
+ * Resolve what an agent needs before it can serve a request, from what it
+ * advertises. An agent that still requires the GitHub Copilot protected
+ * resource needs sign-in; one that has dropped the requirement is running on
+ * its own credentials — but only counts as usable if it actually has models,
+ * since an agent with an empty catalog cannot produce a request no matter who
+ * is signed in. Absent resources mean the host has not resolved the agent yet,
+ * so assume GitHub until it does.
+ */
+export function resolveAgentAuthRequirement(agent: AgentInfo): SessionTypeAuthRequirement {
+	if (!agent.protectedResources || protectedResourcesRequireGitHubCopilotSignIn(agent.protectedResources)) {
+		return SessionTypeAuthRequirement.GitHub;
+	}
+	return agent.models.length > 0 ? SessionTypeAuthRequirement.None : SessionTypeAuthRequirement.Unusable;
+}
 
 /**
  * Strategy that captures the quick-chat vs. workspace differences of an
@@ -1468,6 +1485,18 @@ class NewSession extends Disposable {
 	private _selectedModelId: string | undefined;
 	private _selectedAgent: ISessionAgentRef | undefined;
 
+	observeClientCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>, onDidChange: () => void): void {
+		let previous = customAgents.get();
+		this._register(autorun(reader => {
+			const current = customAgents.read(reader);
+			if (current === previous) {
+				return;
+			}
+			previous = current;
+			onDidChange();
+		}));
+	}
+
 	/**
 	 * Latest resolved config. Replaces what used to live in `_newSessionConfigs`.
 	 * `undefined` indicates the most recent {@link resolveConfig} failed and no
@@ -2339,6 +2368,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
 				// not the bare provider id, so carry it for availability lookups.
@@ -2348,7 +2378,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 
 		const prev = this._sessionTypes;
-		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label)) {
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
 			return;
 		}
 		this._sessionTypes = next;
@@ -2578,6 +2608,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions);
 		this._newSessions.set(newSession.sessionId, newSession);
+		newSession.observeClientCustomAgents(this._activeClientService.getCustomAgents(resourceScheme), () => {
+			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
+		});
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 
 		// Kick off the initial config resolve and the eager backend session
@@ -3249,7 +3283,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getCustomAgents(sessionId: string): readonly AgentCustomization[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return getEffectiveAgents(sessionState?.customizations);
+		const stateAgents = getEffectiveAgents(sessionState?.customizations);
+		const newSession = this._newSessions.get(sessionId);
+		if (!newSession) {
+			return stateAgents;
+		}
+		const clientAgents = this._activeClientService.getCustomAgents(newSession.session.resource.scheme).get();
+		if (clientAgents.length === 0) {
+			return stateAgents;
+		}
+		const agentsByUri = new Map(stateAgents.map(agent => [agent.uri.toString(), agent]));
+		for (const agent of clientAgents) {
+			agentsByUri.set(agent.uri.toString(), agent);
+		}
+		return [...agentsByUri.values()].sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	}
 
 	getCustomizations(sessionId: string): Customization[] {

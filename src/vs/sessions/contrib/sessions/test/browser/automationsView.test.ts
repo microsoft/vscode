@@ -28,8 +28,12 @@ import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICrea
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
-import { AutomationsCardsWidget } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+
 
 const AUTOMATION_ID = 'automation-1';
 const RUN_ID = 'run-1';
@@ -591,5 +595,39 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })]).includes('Daily review, Failed'),
 			true,
 		);
+	});
+});
+
+suite('AutomationsCustomViewContribution — context key', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup() {
+		const automationService = new FakeAutomationService();
+		const contextKeyService = new MockContextKeyService();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+			override registerCustomView() { return { dispose() { } }; }
+			override hideCustomView() { }
+		}());
+		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override register() { return { dispose() { } }; }
+		}());
+		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
+		return { automationService, contextKeyService, contribution };
+	}
+
+	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
+		const { automationService, contextKeyService } = setup();
+
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'initially false');
+
+		automationService.setAutomations([automation()]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), true, 'true when non-empty');
+
+		automationService.setAutomations([]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'false when empty again');
 	});
 });
