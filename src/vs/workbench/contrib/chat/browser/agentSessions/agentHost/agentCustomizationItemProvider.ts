@@ -42,6 +42,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
+	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
 		private readonly _connectionAuthority: string,
@@ -63,6 +64,14 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._draftCustomAgents = customAgents;
 		this._register(autorun(reader => {
 			customAgents.read(reader);
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomizations(customizations: IObservable<readonly ClientPluginCustomization[]>): void {
+		this._draftCustomizations = customizations;
+		this._register(autorun(reader => {
+			customizations.read(reader);
 			this._onDidChange.fire();
 		}));
 	}
@@ -246,7 +255,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
 
-		const customizations = this._customAgentsService.getCustomizations(sessionResource);
+		const customizations = this.getCustomizations(sessionResource);
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {
@@ -303,7 +312,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// location) so the item reflects where it actually came from.
 				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${enriched.type}::${enriched.name}`, {
+				items.set(enriched.uri.toString(), {
 					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
@@ -330,6 +339,20 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
 		const sessionAgents = this._customAgentsService.getCustomAgents(sessionResource);
 		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
+	}
+
+	private getCustomizations(sessionResource: URI): readonly Customization[] {
+		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
+		const draftCustomizations = this._draftCustomizations?.get() ?? [];
+		if (draftCustomizations.length === 0) {
+			return sessionCustomizations;
+		}
+
+		const sessionKeys = new Set(sessionCustomizations.map(customization => `${customization.type}:${customization.uri}`));
+		return [
+			...sessionCustomizations,
+			...draftCustomizations.filter(customization => !sessionKeys.has(`${customization.type}:${customization.uri}`)),
+		];
 	}
 
 	/**
