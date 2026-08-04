@@ -133,7 +133,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			try {
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options),
-					resolveLocalCustomAgents(this._fileService, syncProvider, this._agentPluginService),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, syncProvider, this._agentPluginService, sessionType, options),
 				]);
 				if (seq !== updateSeq) {
 					return;

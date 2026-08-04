@@ -1304,7 +1304,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const customization = await codexCustomizationConfigFromPlugins(plugins, session.agent, this._fileService);
 		const config: Record<string, JsonValue> = {};
 		if (customization.agentRoles.length > 0) {
-			const root = join(os.tmpdir(), 'vscode-agent-codex-customizations', session.sessionId);
+			const root = session.customizationDirectory?.fsPath
+				?? await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-agent-codex-customizations-'));
 			const agentsDirectory = join(root, 'agents');
 			await fs.promises.mkdir(agentsDirectory, { recursive: true });
 			const agents: Record<string, JsonValue> = {};
@@ -1314,7 +1315,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				agents[role.name] = { description: role.description, config_file: rolePath };
 			}
 			config.agents = agents;
-			session.customizationDirectory = URI.file(root);
+			session.customizationDirectory ??= URI.file(root);
 		}
 
 		const selectedCapabilityRoots = codexSkillCapabilityRoots(plugins).map((uri, index): SelectedCapabilityRoot => ({
@@ -2886,6 +2887,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (existing) {
 			existing.model = effectiveModel ?? existing.model;
 			existing.agent = config.agent ?? existing.agent;
+			await this._seedEagerActiveClient(sessionUri, config.activeClient);
 			const cwd = existing.workingDirectory ?? config.workingDirectories?.[0];
 			return {
 				session: sessionUri,
@@ -2936,12 +2938,31 @@ export class CodexAgent extends Disposable implements IAgent {
 			clientCustomizations: new CodexClientCustomizationStore(),
 		};
 		this._sessions.set(sessionId, session);
+		await this._seedEagerActiveClient(sessionUri, config.activeClient);
 		this._schedulePrewarm(session);
 		return {
 			session: sessionUri,
 			resolvedWorkingDirectory: config.workingDirectories?.[0],
 			provisional: true,
 		};
+	}
+
+	/**
+	 * Seed the active client supplied with `createSession` before the agent host
+	 * asks for the initial customization snapshot. The initial state is assigned
+	 * directly rather than dispatched as `session/activeClientSet`, so without
+	 * this step Codex would not receive the client's tools or customizations until
+	 * a later turn happened to re-register the client.
+	 */
+	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateSessionConfig['activeClient']): Promise<void> {
+		if (!activeClient) {
+			return;
+		}
+		const handle = this.getOrCreateActiveClient(sessionUri, { clientId: activeClient.clientId, displayName: activeClient.displayName });
+		handle.tools = activeClient.tools;
+		if (activeClient.customizations !== undefined) {
+			await this._syncClientCustomizations(sessionUri, activeClient.clientId, activeClient.customizations, { quiet: true });
+		}
 	}
 
 	/**
@@ -4117,7 +4138,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * and refresh the process-global skill roots. MCP servers are attached
 	 * per-thread at the next {@link _materialize}.
 	 */
-	private async _syncClientCustomizations(sessionUri: URI, clientId: string, customizations: readonly ClientPluginCustomization[]): Promise<void> {
+	private async _syncClientCustomizations(sessionUri: URI, clientId: string, customizations: readonly ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<void> {
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (!session) {
 			return;
@@ -4125,7 +4146,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		const synced = await this._pluginManager.syncCustomizations(
 			clientId,
 			[...customizations],
-			status => this._fire(sessionUri, { type: ActionType.SessionCustomizationUpdated, customization: status }),
+			status => {
+				if (!options?.quiet) {
+					this._fire(sessionUri, { type: ActionType.SessionCustomizationUpdated, customization: status });
+				}
+			},
 		);
 		if (session.disposed) {
 			return;
@@ -4135,7 +4160,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		session.clientCustomizations.setClient(clientId, plugins);
-		this._publishClientCustomizations(session);
+		if (!options?.quiet) {
+			this._publishClientCustomizations(session);
+		}
 		await this._refreshSkillExtraRoots();
 		await this._reconcileMaterializedCustomizations(session);
 	}

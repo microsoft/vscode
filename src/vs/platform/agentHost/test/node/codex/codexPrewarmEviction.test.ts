@@ -7,12 +7,13 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
+import * as os from 'os';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { sep } from '../../../../../base/common/path.js';
+import { join, sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -317,7 +318,8 @@ suite('CodexAgent prewarm eviction', () => {
 				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
 			}],
 		};
-		const { session } = await agent.createSession({ workingDirectories: [repo], model: { id: 'gpt-test' }, agent: { uri: agentUri.toString() } });
+		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
+		const { session } = await agent.createSession({ session: unsafeSession, workingDirectories: [repo], model: { id: 'gpt-test' }, agent: { uri: agentUri.toString() } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.clientCustomizations.setClient('test', [{
 			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
@@ -339,12 +341,14 @@ suite('CodexAgent prewarm eviction', () => {
 			developerInstructions: start.params.developerInstructions,
 			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
 			roleFile,
+			roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
 		}, {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
 			developerInstructions: 'Run focused tests.\n\nReview carefully.',
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
+			roleFileUsesHostGeneratedRoot: true,
 		});
 		peer.exit();
 	});

@@ -158,6 +158,23 @@ suite('codexClientCustomizations', () => {
 		].join('\n'));
 	});
 
+	test('does not promote path-scoped plugin instructions to thread-global instructions', async () => {
+		const globalInstructionUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/rules/global.instructions.md' });
+		const scopedInstructionUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/rules/typescript.instructions.md' });
+		await fileService.writeFile(globalInstructionUri, VSBuffer.fromString(`---\napplyTo: "**/*"\n---\nApply globally.`));
+		await fileService.writeFile(scopedInstructionUri, VSBuffer.fromString(`---\napplyTo: "**/*.ts"\n---\nApply only to TypeScript.`));
+		const plugins = [plugin('p', undefined, parsed({
+			instructions: [
+				instructionDef(globalInstructionUri, 'global'),
+				instructionDef(scopedInstructionUri, 'typescript'),
+			],
+		}))];
+
+		const config = await codexCustomizationConfigFromPlugins(plugins, undefined, fileService);
+
+		assert.strictEqual(config.developerInstructions, 'Apply globally.');
+	});
+
 	test('matches a selected source agent to its host-synced plugin copy', async () => {
 		const sourcePluginUri = URI.from({ scheme: Schemas.inMemory, path: '/source/plugin' });
 		const syncedPluginUri = URI.from({ scheme: Schemas.inMemory, path: '/synced/plugin' });

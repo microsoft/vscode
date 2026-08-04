@@ -7,9 +7,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -40,6 +41,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
+	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
 
 	constructor(
 		private readonly _connectionAuthority: string,
@@ -53,6 +55,14 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
 		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>): void {
+		this._draftCustomAgents = customAgents;
+		this._register(autorun(reader => {
+			customAgents.read(reader);
 			this._onDidChange.fire();
 		}));
 	}
@@ -183,7 +193,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {
-		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
 			id: agent.uri,
@@ -213,6 +223,23 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+
+		for (const agent of this.getCustomAgents(sessionResource)) {
+			const source = isUnderAnyRoot(workingDirectories, agent.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			items.set(agent.id, {
+				itemKey: agent.id,
+				uri: this.toRemoteUri(agent.uri),
+				type: PromptsType.agent,
+				name: agent.name,
+				description: agent.description,
+				source,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: agent.enabled !== false,
+				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
+			});
+		}
 
 		// Build parent plugin items keyed by customization ref
 		const plugins: PluginMeta[] = [];
@@ -285,8 +312,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
-		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
-
 		for (const sessionCustomization of directoryCustomizations) {
 			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
@@ -300,6 +325,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 		return [...items.values()];
+	}
+
+	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
+		const sessionAgents = this._customAgentsService.getCustomAgents(sessionResource);
+		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
 	}
 
 	/**

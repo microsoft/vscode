@@ -10287,8 +10287,8 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
 		});
 
-		test('dispatches activeClientSet on first turn when restoring a session where current client customizations are stale', async () => {
-			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+		test('refreshes stale customizations on open when the current client is already active', async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
@@ -10322,24 +10322,72 @@ suite('AgentHostChatContribution', () => {
 				connectionAuthority: 'local',
 			}));
 
-			// Opening the session does NOT re-claim with fresh customizations.
+			// Opening refreshes this client's stale customizations without claiming
+			// a session where only another client is active.
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
-			assert.strictEqual(
-				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet').length,
-				0,
-				'no dispatch expected on session open',
-			);
-
-			// The fresh customization set is published on first turn.
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { type: string; activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(activeClientAction.type, 'session/activeClientSet');
+			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+			]);
+		});
+
+		test('refreshes customizations when the current active client hydrates after open', async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			agentHostService.fireAction({
+				channel: sessionResource.toString(),
+				action: {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: {
+						clientId: agentHostService.clientId,
+						tools: [],
+						customizations: [],
+					},
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionActiveClientSet);
+			assert.strictEqual(activeClientActions.length, 1);
+			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);

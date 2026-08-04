@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -49,6 +49,7 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
+	PromptsStorage.local,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
@@ -128,46 +129,55 @@ export async function enumerateLocalCustomizationsForHarness(
  */
 export async function resolveLocalCustomAgents(
 	fileService: IFileService,
+	promptsService: IPromptsService,
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
+	sessionType: string,
+	options?: ILocalCustomizationSyncOptions,
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
-	for (const plugin of plugins) {
-		if (syncProvider.isDisabled(plugin.uri) || !isContributionEnabled(plugin.enablement.get())) {
+	for (const agent of enumerated) {
+		if (agent.type !== PromptsType.agent || agent.disabled) {
 			continue;
 		}
-		for (const agent of plugin.agents.get()) {
-			pending.push((async () => {
-				let name = agent.name;
-				let description = agent.description;
-				let disableUserInvocation: boolean | undefined;
-				try {
-					const content = await fileService.readFile(agent.uri);
-					const header = parser.parse(agent.uri, content.value.toString()).header;
-					name = header?.name ?? name;
-					description = header?.description ?? description;
-					disableUserInvocation = header?.userInvocable === false || undefined;
-				} catch {
-					// The host will parse the full agent after session creation. Keep the
-					// discovery metadata as a best-effort draft fallback if the file moved.
-				}
-				result.push({
-					type: CustomizationType.Agent,
-					id: agent.uri.toString(),
-					uri: agent.uri.toString(),
-					name,
-					description,
-					disableUserInvocation,
-				});
-			})());
+		const plugin = agent.source === AICustomizationSources.plugin
+			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
+			: undefined;
+		if (agent.source === AICustomizationSources.plugin
+			&& (!plugin || syncProvider.isDisabled(plugin.uri) || !isContributionEnabled(plugin.enablement.get()))) {
+			continue;
 		}
+		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
+		pending.push((async () => {
+			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
+			let description = pluginAgent?.description;
+			let disableUserInvocation: boolean | undefined;
+			try {
+				const content = await fileService.readFile(agent.uri);
+				const header = parser.parse(agent.uri, content.value.toString()).header;
+				name = header?.name ?? name;
+				description = header?.description ?? description;
+				disableUserInvocation = header?.userInvocable === false || undefined;
+			} catch {
+				// The host will parse the full agent after session creation. Keep the
+				// discovery metadata as a best-effort draft fallback if the file moved.
+			}
+			result.push({
+				type: CustomizationType.Agent,
+				id: agent.uri.toString(),
+				uri: agent.uri.toString(),
+				name,
+				description,
+				disableUserInvocation,
+			});
+		})());
 	}
 	await Promise.all(pending);
-
 	result.sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	return result;
 }

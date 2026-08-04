@@ -8,7 +8,7 @@ import { extUri, joinPath, relativePath } from '../../../../base/common/resource
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
-import type { IMcpServerDefinition, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { AgentSelection } from '../../common/state/protocol/state.js';
 import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
@@ -225,6 +225,10 @@ export async function codexCustomizationConfigFromPlugins(
 
 		for (const instruction of plugin.parsed?.instructions ?? []) {
 			try {
+				const rule = await parseRuleFile(instruction.uri, fileService);
+				if (!isAlwaysOnRule(rule.globs, rule.alwaysApply)) {
+					continue;
+				}
 				const content = (await fileService.readFile(instruction.uri)).value.toString();
 				const frontmatter = parseFrontMatter(content);
 				const body = frontmatter?.body ?? content;
@@ -244,6 +248,13 @@ export async function codexCustomizationConfigFromPlugins(
 		agentRoles: [...agentRoles.values()],
 		...(developerInstructions ? { developerInstructions } : {}),
 	};
+}
+
+function isAlwaysOnRule(globs: readonly string[] | undefined, alwaysApply: boolean | undefined): boolean {
+	if (!globs?.length) {
+		return alwaysApply !== false;
+	}
+	return globs.some(glob => glob.trim() === '**' || glob.trim() === '**/*');
 }
 
 function isSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): boolean {

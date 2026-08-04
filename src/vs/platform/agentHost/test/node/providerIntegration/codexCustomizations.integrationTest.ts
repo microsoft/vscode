@@ -15,9 +15,9 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { McpServerStatus } from '../../../common/state/protocol/state.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
@@ -35,23 +35,22 @@ interface ICapturedRequest {
 
 async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
 	const deadline = Date.now() + 60_000;
+	let lastPlugin: PluginCustomization | undefined;
 	while (Date.now() < deadline) {
 		const session = await fetchSessionWithChat(client, sessionUri);
 		const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
 			customization.type === CustomizationType.Plugin
 			&& customization.uri === pluginUri
-			&& (customization.children?.length ?? 0) >= 4
-			&& customization.children?.some((child): child is McpServerCustomization =>
-				child.type === CustomizationType.McpServer
-				&& child.state.kind === McpServerStatus.Ready
-			) === true
 		);
-		if (plugin) {
+		lastPlugin = plugin;
+		if (plugin
+			&& (plugin.children?.length ?? 0) >= 4
+			&& plugin.children?.some((child): child is McpServerCustomization => child.type === CustomizationType.McpServer) === true) {
 			return plugin;
 		}
 		await new Promise<void>(resolve => setTimeout(resolve, 100));
 	}
-	throw new Error(`Timed out waiting for parsed plugin ${pluginUri}`);
+	throw new Error(`Timed out waiting for parsed plugin ${pluginUri}; last state: ${JSON.stringify(lastPlugin)}`);
 }
 
 suite('Agent Host Provider Integration — Codex Customizations', function () {
@@ -166,19 +165,6 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		const clientId = 'codex-customizations-client';
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
-
-		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
-		await client.call('createSession', {
-			channel: sessionUri,
-			provider: 'codex',
-			workingDirectories: [URI.file(workspaceDir).toString()],
-			config: { isolation: 'folder' },
-		}, 30_000);
-		createdSessions.push(sessionUri);
-		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
-		client.clearReceived();
-
 		const pluginCustomization: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
@@ -187,18 +173,23 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			nonce: '1',
 			enabled: true,
 		};
-		client.dispatch({
+
+		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+		await client.call('createSession', {
 			channel: sessionUri,
-			clientSeq: 1,
-			action: {
-				type: ActionType.SessionActiveClientSet,
-				activeClient: {
-					clientId,
-					tools: [],
-					customizations: [pluginCustomization],
-				},
+			provider: 'codex',
+			workingDirectories: [URI.file(workspaceDir).toString()],
+			config: { isolation: 'folder' },
+			activeClient: {
+				clientId,
+				tools: [],
+				customizations: [pluginCustomization],
 			},
-		});
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client.clearReceived();
 
 		const parsedPlugin = await waitForParsedPlugin(client, sessionUri, pluginUri);
 		assert.deepStrictEqual(
@@ -209,7 +200,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		const turnId = 'turn-codex-customizations';
 		client.dispatch({
 			channel: buildDefaultChatUri(sessionUri),
-			clientSeq: 2,
+			clientSeq: 1,
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -236,5 +227,42 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.ok(requestText.includes(RULE_MARKER), 'plugin instructions must reach the Codex model request');
 		assert.ok(requestText.includes(SKILL_MARKER), 'plugin skills must be advertised in the Codex model request');
 		assert.ok(requestText.includes(MCP_MARKER), 'plugin MCP tools must be advertised in the Codex model request');
+	});
+
+	test('standalone host registers Codex after runtime enablement', async function () {
+		this.timeout(120_000);
+		const runtimeServer = await startRealServer({ mockLlm: true, codexSdkRoot: CODEX_SDK_ROOT, codexAgentEnabled: false });
+		const runtimeClient = new TestProtocolClient(runtimeServer.port);
+		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-'));
+		try {
+			await runtimeClient.connect();
+			await runtimeClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-runtime-enablement-client' }, 30_000);
+			await runtimeClient.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+			await runtimeClient.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			runtimeClient.clearReceived();
+			runtimeClient.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexEnabledConfigKey]: true } },
+			});
+			await runtimeClient.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootConfigChanged)
+				&& (getActionEnvelope(notification).action as { readonly config?: Readonly<Record<string, boolean>> }).config?.[AgentHostCodexEnabledConfigKey] === true,
+				30_000,
+			);
+
+			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+			await runtimeClient.call('createSession', {
+				channel: sessionUri,
+				provider: 'codex',
+				workingDirectories: [URI.file(workspaceDir).toString()],
+				config: { isolation: 'folder' },
+			}, 30_000);
+		} finally {
+			runtimeClient.close();
+			runtimeServer.process.kill();
+			await runtimeServer.mockLlm?.close();
+			await rm(workspaceDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+		}
 	});
 });

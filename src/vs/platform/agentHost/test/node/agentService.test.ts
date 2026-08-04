@@ -2536,6 +2536,21 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('replays stored authentication to a provider registered later', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+			const lateAgent = new MockAgent('codex');
+			lateAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			disposables.add(toDisposable(() => lateAgent.dispose()));
+
+			service.registerProvider(lateAgent);
+			for (let attempt = 0; attempt < 20 && lateAgent.authenticateCalls.length === 0; attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 5));
+			}
+
+			assert.deepStrictEqual(lateAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok' }]);
+		});
+
 		test('isolates a provider that throws — others still authenticate', async () => {
 			// Regression: if any provider's authenticate() rejects, the
 			// fan-out must NOT sink the others. Previously the call used

@@ -151,7 +151,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. Enabling takes effect without restarting the agent host; disabling takes effect after a restart."),
+			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. Enabling takes effect without restarting the agent host."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			// Allow the default to be overridden by an experiment. Uses `startup`
