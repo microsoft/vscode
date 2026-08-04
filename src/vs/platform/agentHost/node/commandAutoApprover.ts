@@ -11,6 +11,7 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
+import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
@@ -336,10 +337,7 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			try {
-				if (isPowerShell && tree.rootNode.hasError) {
-					// An erroring parse can produce truncated captures that hide
-					// part of the command line from rule matching, so require
-					// confirmation instead of judging the partial parse.
+				if (shouldRequireConfirmationForAutoApproveParse(isPowerShell ? 'powershell' : 'bash', tree.rootNode.hasError)) {
 					this._logService.trace('[CommandAutoApprover] PowerShell parse contains errors, requiring confirmation');
 					return undefined;
 				}

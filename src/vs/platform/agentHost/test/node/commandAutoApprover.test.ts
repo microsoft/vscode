@@ -434,6 +434,13 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'denied']);
 		});
 
+		test('requires confirmation for incomplete PowerShell parses', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Write-Output before; "unterminated', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem -Recurse', pwsh),
+			], ['noMatch', 'approved']);
+		});
+
 		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
 			const autoApproveRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
 			assert.deepStrictEqual([

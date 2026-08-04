@@ -255,6 +255,34 @@ suite('TreeSitterCommandParser', () => {
 				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
 			]);
 		});
+
+		test('marks incomplete PowerShell parses as unanalyzable for auto-approve', async () => {
+			const result = await parser.extractAutoApprovalSubCommands(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Write-Output before; "unterminated',
+			);
+			deepStrictEqual(result.hasUnanalyzableSyntax, true);
+			ok(result.subCommands.some(command => /Write-Output/i.test(command)));
+		});
+
+		test('marks PowerShell method invocations as unanalyzable for auto-approve', async () => {
+			const result = await parser.extractAutoApprovalSubCommands(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Write-Output ([Math]::Max(1, 2))',
+			);
+			deepStrictEqual(result.hasUnanalyzableSyntax, true);
+		});
+
+		test('keeps clean PowerShell commands analyzable', async () => {
+			const result = await parser.extractAutoApprovalSubCommands(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Get-ChildItem -Recurse',
+			);
+			deepStrictEqual(result, {
+				subCommands: ['Get-ChildItem -Recurse'],
+				hasUnanalyzableSyntax: false,
+			});
+		});
 	});
 
 	suite('extractCommands', () => {
