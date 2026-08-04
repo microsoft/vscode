@@ -99,9 +99,18 @@ export interface IPromptFileResource {
 
 /**
  * Returns whether a customization can be used in the provided chat session type.
+ *
+ * An entry ending in `*` matches by prefix, so a customization can target a
+ * whole family of session types (e.g. `agent-host-*` for every local agent host,
+ * or `remote-*` for remote ones, whose ids embed a connection authority).
  */
 export function matchesSessionType(sessionTypes: readonly string[] | undefined, currentSessionType: string | undefined): boolean {
-	return sessionTypes === undefined || currentSessionType === undefined || sessionTypes.includes(currentSessionType);
+	if (sessionTypes === undefined || currentSessionType === undefined) {
+		return true;
+	}
+	return sessionTypes.some(sessionType => sessionType.endsWith('*')
+		? currentSessionType.startsWith(sessionType.slice(0, -1))
+		: sessionType === currentSessionType);
 }
 
 /**

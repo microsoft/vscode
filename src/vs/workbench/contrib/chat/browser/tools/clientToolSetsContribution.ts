@@ -89,6 +89,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				'rename',
 				'usages',
 				'toolSearch',
+				'codeTour',
 			],
 		}));
 

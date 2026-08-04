@@ -756,7 +756,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData | IChatCodeTourData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1044,7 +1044,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData | IChatCodeTourData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1181,6 +1181,35 @@ export interface IChatAutomationConfigurationData {
 	readonly kind: 'automationConfiguration';
 	readonly expectedAutomationId: string;
 	readonly expectedEditableState: string;
+}
+
+/**
+ * A single stop in a code tour: a piece of narration anchored to a location in
+ * the workspace and/or a page in the integrated browser.
+ */
+export interface IChatCodeTourStop {
+	/** Short label shown in the tour widget. */
+	readonly title: string;
+	/** Markdown narration explaining this stop. */
+	readonly narration: string;
+	/** File revealed for this stop, when the stop is anchored to code. */
+	readonly uri?: UriComponents;
+	/** Range revealed and highlighted within {@link uri}. */
+	readonly range?: IRange;
+	/** Page opened in the integrated browser for this stop. */
+	readonly url?: string;
+}
+
+/**
+ * Tool-specific data for a code tour. The agent contributes one stop per tool
+ * call, so {@link stops} is appended to in place while the tour runs and the
+ * widget re-renders from the code tour service.
+ */
+export interface IChatCodeTourData {
+	readonly kind: 'codeTour';
+	readonly tourId: string;
+	readonly title: string;
+	readonly stops: IChatCodeTourStop[];
 }
 
 export interface IChatModifiedFilesConfirmationData {

@@ -298,6 +298,9 @@ const desktopResourcePatterns = [
 	// Sessions - built-in prompts and skills
 	'vs/sessions/prompts/*.prompt.md',
 	'vs/sessions/skills/**/SKILL.md',
+
+	// Chat - built-in skills bundled with the workbench
+	'vs/workbench/contrib/chat/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)

@@ -35,7 +35,7 @@ import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFi
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IBuiltinPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptFileContext, IPromptFileResource, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
 import { Delayer, raceCancellationError } from '../../../../../../base/common/async.js';
-import { Schemas } from '../../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType } from '../hookTypes.js';
@@ -48,6 +48,10 @@ import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ExtensionPromptFileService } from './extensionPromptFileService.js';
+import { BUILTIN_SKILL_ENABLEMENT_SETTING_IDS, discoverBuiltinSkills, isBuiltinSkillEnabled } from './builtinSkillDiscovery.js';
+
+/** URI root for skills bundled with the workbench. */
+export const WORKBENCH_BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/workbench/contrib/chat/skills');
 
 /**
  * Provides prompt services.
@@ -79,6 +83,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached skill discovery info.
 	 */
 	private readonly cachedSkills: CachedPromise<IPromptDiscoveryInfo>;
+
+	/**
+	 * Built-in skills bundled with the workbench. They never change at runtime,
+	 * so the folder is scanned once per service instance.
+	 */
+	private _builtinSkillsCache: Promise<readonly IBuiltinPromptPath[]> | undefined;
 
 	/**
 	 * Cached instructions.
@@ -167,6 +177,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}));
 
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
+		const builtinSkillEnablementChangeEvent = Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			e => BUILTIN_SKILL_ENABLEMENT_SETTING_IDS.some(setting => e.affectsConfiguration(setting)));
+
+		// Which built-in skills are offered depends on configuration, so the
+		// memoized file list has to be dropped alongside the discovery caches.
+		this._register(builtinSkillEnablementChangeEvent(() => {
+			this.cachedFileLocations[PromptsType.skill] = undefined;
+		}));
+
 		this.cachedCustomAgents = this._register(new CachedPromise(
 			(token) => this.computeAgentDiscoveryInfo(token),
 			() => Event.any(
@@ -187,6 +207,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.prompt),
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.prompt || e.type === PromptsType.skill),
+				builtinSkillEnablementChangeEvent,
 				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.prompt || t === PromptsType.skill)),
 		));
 
@@ -196,6 +217,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.skill),
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.skill),
+				builtinSkillEnablementChangeEvent,
 				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.skill))
 		));
 
@@ -398,12 +420,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Returns the built-in prompt files of the given type. The base service ships
-	 * no built-in prompts; subclasses (e.g. the Agents app) override this to
-	 * contribute bundled prompts such as built-in skills.
+	 * Returns the built-in prompt files of the given type. The base service
+	 * contributes the skills bundled with the workbench (e.g. `/explain`);
+	 * subclasses (e.g. the Agents app) override this to add their own bundled
+	 * prompts on top.
 	 */
 	protected async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
-		return [];
+		if (type !== PromptsType.skill) {
+			return [];
+		}
+		if (!this._builtinSkillsCache) {
+			this._builtinSkillsCache = discoverBuiltinSkills(WORKBENCH_BUILTIN_SKILLS_URI, this.fileService, (uri, t) => this.parseNew(uri, t), this.logger);
+		}
+		return (await this._builtinSkillsCache).filter(skill => isBuiltinSkillEnabled(skill.name, this.configurationService));
 	}
 
 	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {

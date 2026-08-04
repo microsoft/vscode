@@ -86,6 +86,8 @@ import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.j
 import './telemetry/chatModelCountTelemetry.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { RenameToolContribution } from './tools/renameTool.js';
+import { CodeTourToolContribution } from './tools/codeTourTool.js';
+import { CodeTourService, ICodeTourService } from './codeTour/codeTourService.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import './voiceClient/voiceClientService.js';
@@ -741,6 +743,12 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
 			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
+			type: 'boolean',
+			tags: ['experimental']
+		},
+		[ChatConfiguration.CodeTourEnabled]: {
+			default: false,
+			description: nls.localize('chat.codeTour.enabled', "Controls whether the agent can present explanations as a guided code tour that opens and highlights files as it narrates."),
 			type: 'boolean',
 			tags: ['experimental']
 		},
@@ -2827,6 +2835,7 @@ registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, Workbe
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CodeTourToolContribution.ID, CodeTourToolContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatForegroundSessionCountContribution.ID, ChatForegroundSessionCountContribution, WorkbenchPhase.AfterRestored);
@@ -2936,5 +2945,6 @@ registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
+registerSingleton(ICodeTourService, CodeTourService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
