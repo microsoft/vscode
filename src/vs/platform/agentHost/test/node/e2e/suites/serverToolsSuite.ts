@@ -254,14 +254,15 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 
 	serverToolTest('server tool: sessions advertise the complete host-owned tool catalog', async function () {
 		const session = await createSession('catalog');
-		const toolsChanged = context.client.waitForNotification(n =>
-			isActionNotification(n, 'session/serverToolsChanged')
-			&& getActionEnvelope(n).channel === session.sessionUri,
-			30_000,
-		);
 		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-catalog', 'Reply exactly "ready".', reserveClientSequenceBlock());
-		const tools = (getActionEnvelope(await toolsChanged).action as { readonly tools: readonly { readonly name: string }[] }).tools;
-		assert.deepStrictEqual(tools.map(tool => tool.name), [...feedbackToolNames, ...sessionToolNames]);
+		const toolNames = await retry(async () => {
+			const state = await sessionState(session.sessionUri);
+			if (!state.serverTools) {
+				throw new Error('Server tools have not been advertised');
+			}
+			return state.serverTools.map(tool => tool.name);
+		}, 100, 30);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
 	});
 
 	serverToolTest('server tool: listComments executes in-process with an empty annotation channel', async function () {
