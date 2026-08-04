@@ -45,6 +45,8 @@ export {
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientSetAction,
 	type SessionActiveClientRemovedAction,
+	type SessionWorkingDirectorySetAction,
+	type SessionWorkingDirectoryRemovedAction,
 	type SessionCustomizationsChangedAction,
 	type SessionCustomizationToggledAction,
 	type ChatPendingMessageSetAction,
@@ -191,6 +193,11 @@ export type IPendingMessageRemovedAction = ChatPendingMessageRemovedAction;
 export type IQueuedMessagesReorderedAction = ChatQueuedMessagesReorderedAction;
 export type IIsReadChangedAction = SessionIsReadChangedAction;
 export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
+
+/** Session-level working-directory mutations accepted by awaitable dispatch. */
+export type SessionWorkingDirectoryAction =
+	| import('./protocol/actions.js').SessionWorkingDirectorySetAction
+	| import('./protocol/actions.js').SessionWorkingDirectoryRemovedAction;
 
 // Notifications
 export type INotification = ProtocolNotification;

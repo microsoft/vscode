@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -31,24 +31,55 @@ export function computeWorkingDirectories(primary: URI | undefined, workspaceFol
 	if (!primary) {
 		return undefined;
 	}
-	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
-	const supportsMultiple = !!agent?.capabilities?.multipleWorkingDirectories;
+	const supportsMultiple = supportsMultipleWorkingDirectories(rootState, provider);
 	if (!supportsMultiple || !workspaceFolders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, primary))) {
 		return [primary];
 	}
-	const rest = workspaceFolders.filter(folder => !extUriBiasedIgnorePathCase.isEqual(folder, primary));
-	return [primary, ...rest];
+	return computeDesiredWorkingDirectories(primary, [primary], workspaceFolders);
+}
+
+export function supportsMultipleWorkingDirectories(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return !!agent?.capabilities?.multipleWorkingDirectories;
+}
+
+/**
+ * Computes a primary-first root set while treating secondary roots as an identity set.
+ * Retained secondaries keep their existing order; newly added folders follow workspace order.
+ */
+export function computeDesiredWorkingDirectories(
+	primary: URI,
+	currentWorkingDirectories: readonly URI[],
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri = extUriBiasedIgnorePathCase,
+): readonly URI[] {
+	const desired: URI[] = [primary];
+	const addIfSecondary = (candidate: URI) => {
+		if (extUri.isEqual(candidate, primary) || desired.some(existing => extUri.isEqual(existing, candidate))) {
+			return;
+		}
+		if (workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+			desired.push(candidate);
+		}
+	};
+
+	for (const current of currentWorkingDirectories.slice(1)) {
+		addIfSecondary(current);
+	}
+	for (const folder of workspaceFolders) {
+		addIfSecondary(folder);
+	}
+	return desired;
 }
 
 /**
  * Per-window store of the working directory a user picked for a not-yet-started
  * agent-host session, keyed by the chat session resource it was picked against
  * (including the untitled compose resource). An agent-host session's working
- * directory is an argument to session creation and is immutable afterwards, so
- * in a multi-root window the Folder picker chip records the choice here and the
- * working-directory resolution sites consult it before falling back to the
- * first workspace folder. Keying by the compose resource lets the choice
- * survive the untitled-to-real rebind that happens when the session is created.
+ * primary directory is fixed when the session is created, so in a multi-root
+ * window the Folder picker chip records the choice here and the working-directory
+ * resolution sites consult it before falling back to the first workspace folder.
+ * Keying by the compose resource lets the choice survive the untitled-to-real rebind.
  */
 export interface IAgentHostNewSessionFolderService {
 	readonly _serviceBrand: undefined;

@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
@@ -545,13 +545,11 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
 
-	test('unsupported working-directory actions are rejected, not dispatched', () => {
+	test('unsupported chat working-directory actions are rejected, not dispatched', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const cases: readonly { readonly type: ActionType; readonly channel: string }[] = [
-			{ type: ActionType.SessionWorkingDirectorySet, channel: sessionUri },
-			{ type: ActionType.SessionWorkingDirectoryRemoved, channel: sessionUri },
 			{ type: ActionType.ChatWorkingDirectorySet, channel: defaultChatUri },
 			{ type: ActionType.ChatWorkingDirectoryRemoved, channel: defaultChatUri },
 		];
@@ -583,6 +581,29 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}
+	});
+
+	test('session working-directory actions reach the agent service', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('working-directory-client', [sessionUri]);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+		}));
+
+		const action = agentService.handledActions.at(-1);
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			action,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+			rejectionReason: undefined,
+		});
 	});
 
 	test('actions are scoped to subscribed sessions', () => {

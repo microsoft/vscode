@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionActionAbandonedError, SessionActionRejectedError, SessionActionStateRebasedError, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -452,6 +454,59 @@ suite('SessionStateSubscription', () => {
 
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].title, 'Changed');
+	});
+
+	suite('applyOptimisticAwaitable', () => {
+
+		function workingDirectorySet(directory: string): { type: ActionType.SessionWorkingDirectorySet; directory: string } {
+			return { type: ActionType.SessionWorkingDirectorySet, directory };
+		}
+
+		test('resolves with the accepted envelope', async () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+
+			const action = workingDirectorySet('file:///ws2');
+			const { clientSeq, promise } = sub.applyOptimisticAwaitable(action, undefined);
+
+			const envelope = makeEnvelope(action, 1, { clientId: 'c1', clientSeq });
+			sub.receiveEnvelope(envelope);
+
+			assert.strictEqual(await promise, envelope);
+		});
+
+		test('rejects with SessionActionRejectedError carrying the rejectionReason', async () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+
+			const action = workingDirectorySet('file:///ws2');
+			const { clientSeq, promise } = sub.applyOptimisticAwaitable(action, undefined);
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }, 'denied'));
+
+			await assert.rejects(promise, (error: unknown) => {
+				assert.ok(error instanceof SessionActionRejectedError);
+				assert.strictEqual(error.channel, sessionUri);
+				assert.strictEqual(error.clientSeq, clientSeq);
+				assert.strictEqual(error.rejectionReason, 'denied');
+				return true;
+			});
+			// A rejected action must not leave a dangling pending entry either.
+			assert.strictEqual((sub.value as SessionState).workingDirectories, undefined);
+		});
+
+		test('rejects with CancellationError when the token cancels before the echo arrives', async () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+
+			const cts = disposables.add(new CancellationTokenSource());
+			const action = workingDirectorySet('file:///ws2');
+			const { promise } = sub.applyOptimisticAwaitable(action, cts.token);
+
+			cts.cancel();
+
+			await assert.rejects(promise, CancellationError);
+		});
+
 	});
 });
 
@@ -985,5 +1040,76 @@ suite('AgentSubscriptionManager', () => {
 			[{ kind: StateComponents.Session, status: 'error' }],
 		);
 		ref.dispose();
+	});
+
+	suite('dispatchSessionWorkingDirectoryAction', () => {
+
+		function workingDirectorySet(directory: string): { type: ActionType.SessionWorkingDirectorySet; directory: string } {
+			return { type: ActionType.SessionWorkingDirectorySet, directory };
+		}
+
+		test('throws synchronously when no session subscription is tracked for the channel', () => {
+			const mgr = createManager();
+			assert.throws(() => mgr.dispatchSessionWorkingDirectoryAction(sessionUri, workingDirectorySet('file:///ws2'), undefined));
+		});
+
+		test('resolves once the tracked subscription receives the accepted echo', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			const action = workingDirectorySet('file:///ws2');
+			const { clientSeq, promise } = mgr.dispatchSessionWorkingDirectoryAction(sessionUri, action, undefined);
+			mgr.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+			const envelope = await promise;
+			assert.strictEqual(envelope.origin?.clientSeq, clientSeq);
+			ref.dispose();
+		});
+
+		test('applyReconnectSnapshot rejects an outstanding waiter with SessionActionStateRebasedError', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			const { promise } = mgr.dispatchSessionWorkingDirectoryAction(sessionUri, workingDirectorySet('file:///ws2'), undefined);
+
+			mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { title: 'Rebased' }), 5);
+
+			await assert.rejects(promise, SessionActionStateRebasedError);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing rejects an outstanding waiter with SessionActionAbandonedError', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			const { promise } = mgr.dispatchSessionWorkingDirectoryAction(sessionUri, workingDirectorySet('file:///ws2'), undefined);
+
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+
+			await assert.rejects(promise, SessionActionAbandonedError);
+			ref.dispose();
+		});
+
+		test('rejectAllPendingActionWaiters settles every outstanding waiter with the given error', async () => {
+			const mgr = createManager();
+			const otherSessionUri = URI.from({ scheme: 'copilot', path: '/other-session' }).toString();
+			const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(otherSessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			const { promise: promise1 } = mgr.dispatchSessionWorkingDirectoryAction(sessionUri, workingDirectorySet('file:///ws2'), undefined);
+			const { promise: promise2 } = mgr.dispatchSessionWorkingDirectoryAction(otherSessionUri, workingDirectorySet('file:///ws3'), undefined);
+
+			const closeError = new Error('connection closed');
+			mgr.rejectAllPendingActionWaiters(closeError);
+
+			await assert.rejects(promise1, (e: unknown) => e === closeError);
+			await assert.rejects(promise2, (e: unknown) => e === closeError);
+			ref1.dispose();
+			ref2.dispose();
+		});
 	});
 });

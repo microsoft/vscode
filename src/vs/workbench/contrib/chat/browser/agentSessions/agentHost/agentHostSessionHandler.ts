@@ -90,6 +90,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
@@ -830,6 +831,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
+	private readonly _workingDirectoryRegistrations = new Map<string, IDisposable>();
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -868,6 +870,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostSessionWorkingDirectorySynchronizer private readonly _workingDirectorySynchronizer: IAgentHostSessionWorkingDirectorySynchronizer,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
@@ -2454,6 +2457,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const chatURI = this._getChatURI(request.sessionResource);
@@ -5673,11 +5680,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref?.object.value instanceof Error) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
+			this._workingDirectoryRegistrations.get(sessionUri)?.dispose();
+			this._workingDirectoryRegistrations.delete(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
 			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri), 'AgentHostSessionHandler');
 			this._sessionSubscriptions.set(sessionUri, ref);
+			this._workingDirectoryRegistrations.set(sessionUri, this._workingDirectorySynchronizer.register({
+				session: URI.parse(sessionUri),
+				provider: this._config.provider,
+				connection: this._config.connection,
+				subscription: ref.object,
+			}));
 		}
 		return ref.object;
 	}
@@ -5739,6 +5754,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
+			this._workingDirectoryRegistrations.get(sessionUri)?.dispose();
+			this._workingDirectoryRegistrations.delete(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {
@@ -5898,6 +5915,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref.dispose();
 		}
 		this._sessionSubscriptions.clear();
+		for (const registration of this._workingDirectoryRegistrations.values()) {
+			registration.dispose();
+		}
+		this._workingDirectoryRegistrations.clear();
 		for (const ref of this._defaultChatSubscriptions.values()) {
 			ref.dispose();
 		}

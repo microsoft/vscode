@@ -22,12 +22,13 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -752,6 +753,234 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			return { svc, agent, session, db };
 		}
+
+		class DynamicWorkingDirectoryAgent extends MockAgent {
+			readonly desiredWorkingDirectories: URI[][] = [];
+			readonly writeStarted = new DeferredPromise<void>();
+			readonly chatCreateStarted = new DeferredPromise<void>();
+			writeGate: DeferredPromise<void> | undefined;
+			chatCreateGate: DeferredPromise<void> | undefined;
+			writeError: Error | undefined;
+
+			override getDescriptor(): IAgentDescriptor {
+				return {
+					provider: this.id,
+					displayName: this.id,
+					description: this.id,
+					capabilities: {
+						multipleWorkingDirectories: { immutablePrimary: true },
+						multipleChats: { fork: true, sideChat: true },
+					},
+				};
+			}
+
+			override async createChat(): Promise<void> {
+				if (!this.chatCreateStarted.isSettled) {
+					this.chatCreateStarted.complete();
+				}
+				const gate = this.chatCreateGate;
+				this.chatCreateGate = undefined;
+				await gate?.p;
+			}
+
+			async setDesiredWorkingDirectories(_session: URI, workingDirectories: readonly URI[]): Promise<void> {
+				this.desiredWorkingDirectories.push([...workingDirectories]);
+				if (!this.writeStarted.isSettled) {
+					this.writeStarted.complete();
+				}
+				const gate = this.writeGate;
+				this.writeGate = undefined;
+				if (gate) {
+					await gate.p;
+				}
+				if (this.writeError) {
+					throw this.writeError;
+				}
+			}
+		}
+
+		async function createDynamicWorkingDirectorySession(): Promise<{ svc: AgentService; agent: DynamicWorkingDirectoryAgent; session: URI; primary: URI; secondary: URI }> {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new DynamicWorkingDirectoryAgent('dynamic');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const session = await svc.createSession({
+				provider: agent.id,
+				workingDirectories: [primary, secondary],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/demo.code-workspace').toString() }),
+			});
+			return { svc, agent, session, primary, secondary };
+		}
+
+		test('rejects working-directory mutations from non-Editor clients', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				providerCalls: agent.desiredWorkingDirectories.length,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejectionReason: 'Session working-directory actions require an Editor Window client.',
+				providerCalls: 0,
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('serializes working-directory mutations per session before confirming state', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const added = URI.file('/workspace/added');
+			const gate = new DeferredPromise<void>();
+			agent.writeGate = gate;
+			const firstEnvelope = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			const secondEnvelope = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 2));
+
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 'first-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: secondary.toString() }, 'second-client', 2, AgentHostClientType.EditorWindow);
+			await agent.writeStarted.p;
+			assert.strictEqual(agent.desiredWorkingDirectories.length, 1);
+			gate.complete();
+			await Promise.all([firstEnvelope, secondEnvelope]);
+
+			assert.deepStrictEqual({
+				persistedCandidates: agent.desiredWorkingDirectories.map(directories => directories.map(directory => directory.toString())),
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				persistedCandidates: [
+					[primary.toString(), secondary.toString(), added.toString()],
+					[primary.toString(), added.toString()],
+				],
+				confirmed: [primary.toString(), added.toString()],
+			});
+		});
+
+		test('waits for peer-chat creation before validating a working-directory mutation', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const chatGate = new DeferredPromise<void>();
+			agent.chatCreateGate = chatGate;
+			const chat = URI.parse(buildChatUri(session.toString(), 'peer'));
+			const createChat = svc.createChat(session, chat);
+			await agent.chatCreateStarted.p;
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			assert.strictEqual(agent.desiredWorkingDirectories.length, 0);
+			chatGate.complete();
+			await createChat;
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				providerCalls: agent.desiredWorkingDirectories.length,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejected: true,
+				providerCalls: 0,
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('rejects a failed working-directory persistence without changing confirmed state', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			agent.writeError = new Error('persist failed');
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejectionReason: 'persist failed',
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('rejects removal of the immutable primary without calling the provider', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: primary.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				providerCalls: agent.desiredWorkingDirectories.length,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejected: true,
+				providerCalls: 0,
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('accepts idempotent working-directory mutations without persisting', async () => {
+			const { svc, agent, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const firstEnvelope = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			const secondEnvelope = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 2));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: secondary.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: URI.file('/workspace/absent').toString(),
+			}, 'test-client', 2, AgentHostClientType.EditorWindow);
+			await Promise.all([firstEnvelope, secondEnvelope]);
+
+			assert.deepStrictEqual({
+				providerCalls: agent.desiredWorkingDirectories.length,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				providerCalls: 0,
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('serializes session disposal behind an in-flight working-directory mutation', async () => {
+			const { svc, agent, session } = await createDynamicWorkingDirectorySession();
+			const gate = new DeferredPromise<void>();
+			agent.writeGate = gate;
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await agent.writeStarted.p;
+			const disposeSession = svc.disposeSession(session);
+			gate.complete();
+			const [envelope] = await Promise.all([envelopePromise, disposeSession]);
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				providerCalls: agent.desiredWorkingDirectories.length,
+				sessionState: svc.stateManager.getSessionState(session.toString()),
+			}, {
+				rejected: false,
+				providerCalls: 1,
+				sessionState: undefined,
+			});
+		});
 
 		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));

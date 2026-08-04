@@ -463,15 +463,14 @@ interface ICodexSession {
 	 */
 	workingDirectory: URI | undefined;
 	/**
-	 * The full resolved working-directory set handed to the first send (index 0
-	 * = the process root, mirrored in {@link workingDirectory}; the tail carries
-	 * any additional session roots). Populated only when the host-owned send hook
-	 * supplied a set, so the materialization receipt can record the lossless set;
-	 * `undefined` on the resume/restore path (the receipt then emits the singular
-	 * `workingDirectory`).
+	 * The current full working-directory set (index 0 = the process root,
+	 * mirrored in {@link workingDirectory}; the tail carries additional session
+	 * roots). Workspace-folder reconciliation can replace the tail before a
+	 * turn; `turn/start.runtimeWorkspaceRoots` applies the latest set to the
+	 * existing thread.
 	 */
 	workingDirectories?: readonly URI[];
-	readonly multiRootEnabled: boolean;
+	multiRootEnabled: boolean;
 	/**
 	 * Set to the temp folder created for this session when no working
 	 * directory was supplied, so {@link CodexAgent.disposeSession} can remove
@@ -799,6 +798,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
+	private readonly _desiredWorkingDirectories = new Map<string, readonly URI[]>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
 	private readonly _sessionIdByThreadId = new Map<string, string>();
 	/**
@@ -2764,6 +2764,29 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	async setDesiredWorkingDirectories(sessionUri: URI, workingDirectories: readonly URI[]): Promise<void> {
+		const sessionId = AgentSession.id(sessionUri);
+		const session = this._sessions.get(sessionId);
+		let primary = session?.workingDirectory;
+		if (!primary) {
+			const read = await this._readSession(sessionUri);
+			primary = read?.thread.cwd ? URI.file(read.thread.cwd) : read?.persistedWorkingDirectories?.[0];
+		}
+		if (!primary || !isEqual(primary, workingDirectories[0])) {
+			throw new Error(`Cannot change Codex session primary working directory: ${sessionId}`);
+		}
+		const desired = distinctWorkingDirectories(workingDirectories);
+		if (!desired?.length) {
+			throw new Error(`Codex session requires a working directory: ${sessionId}`);
+		}
+		this._desiredWorkingDirectories.set(sessionId, desired);
+		if (session) {
+			session.workingDirectory = desired[0];
+			session.workingDirectories = desired;
+			session.multiRootEnabled = this._isMultiRootEnabled();
+		}
+	}
+
 	private _isMultiRootEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
@@ -2961,12 +2984,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _createResumedSessionEntry(sessionId: string, threadId: string, sessionUri: URI, workingDirectory: URI | undefined, model: ModelSelection | undefined, workingDirectories?: readonly URI[], multiRootEnabled?: boolean, agent?: AgentSelection): ICodexSession {
 		const clientToolSet = new ActiveClientToolSet();
-		const effectiveWorkingDirectories = distinctWorkingDirectories(workingDirectories);
+		const effectiveWorkingDirectories = distinctWorkingDirectories(this._desiredWorkingDirectories.get(sessionId) ?? workingDirectories);
 		return {
 			sessionId,
 			threadId,
 			sessionUri,
-			workingDirectory,
+			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
 			managedWorkingDirectory: undefined,
@@ -3741,6 +3764,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	async disposeSession(sessionUri: URI): Promise<void> {
 		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
+		this._desiredWorkingDirectories.delete(sessionId);
 		const session = this._sessions.get(sessionId);
 		if (session) {
 			await this._teardownSessionInMemory(session, sessionId);

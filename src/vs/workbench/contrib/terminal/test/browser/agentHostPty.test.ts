@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,7 +14,7 @@ import { IAgentConnection, IAgentCreateSessionConfig, IAgentHostManagedSettingsD
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
@@ -135,6 +136,9 @@ class MockAgentConnection implements IAgentConnection {
 	}
 	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action });
+	}
+	async dispatchSessionWorkingDirectoryAction(_channel: string, _action: SessionWorkingDirectoryAction, _token?: CancellationToken): Promise<ActionEnvelope> {
+		throw new Error('Not implemented');
 	}
 
 	dispose(): void {

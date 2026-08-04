@@ -12,6 +12,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -342,6 +343,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 
 	private readonly _metadataStore: ClaudeSessionMetadataStore;
+	private readonly _desiredWorkingDirectories = new Map<string, readonly URI[]>();
 
 	/**
 	 * Unified per-session lookup. Returns the session's default chat whether it
@@ -350,6 +352,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _findAnySession(sessionId: string): ClaudeAgentSession | undefined {
 		return this._sessions.get(sessionId)?.defaultChat;
+	}
+
+	async setDesiredWorkingDirectories(session: URI, workingDirectories: readonly URI[]): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const live = this._findAnySession(sessionId);
+			const overlay = await this._metadataStore.read(session);
+			let primary = live?.workingDirectory ?? overlay.workingDirectories?.[0];
+			if (!primary) {
+				const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
+				primary = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : undefined;
+			}
+			if (!primary || !isEqual(primary, workingDirectories[0])) {
+				throw new Error(`Cannot change Claude session primary working directory: ${sessionId}`);
+			}
+			this._desiredWorkingDirectories.set(sessionId, [...workingDirectories]);
+			live?.setDesiredWorkingDirectories(workingDirectories);
+		});
 	}
 
 	/**
@@ -1223,8 +1243,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// one (the caller carries it from `sendMessage`); otherwise from the
 		// persisted overlay so a cold resume from disk still reaches every root.
 		// The SDK's `cwd` stays authoritative for the primary (index 0).
-		const additionalDirectories = (workingDirectories && workingDirectories.length > 1)
-			? workingDirectories.slice(1)
+		const desiredWorkingDirectories = this._desiredWorkingDirectories.get(sessionId) ?? workingDirectories;
+		const additionalDirectories = (desiredWorkingDirectories && desiredWorkingDirectories.length > 1)
+			? desiredWorkingDirectories.slice(1)
 			: overlay.workingDirectories?.slice(1) ?? [];
 		const permissionMode = readClaudePermissionMode(this._configurationService, sessionUri)
 			?? overlay.permissionMode
@@ -1291,6 +1312,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// no DB write — symmetric with `createSession`.
 		const sessionId = AgentSession.id(session);
 		return this._disposeSequencer.queue(sessionId, async () => {
+			this._desiredWorkingDirectories.delete(sessionId);
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
 			this._otelService.releaseSessionTraceContext(session.toString());

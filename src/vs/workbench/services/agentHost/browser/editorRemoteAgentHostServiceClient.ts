@@ -9,6 +9,7 @@
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
@@ -22,7 +23,7 @@ import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/br
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -30,6 +31,7 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { fromRemoteAgentHostWorkingDirectory, toRemoteAgentHostWorkingDirectory } from '../common/agentHostWorkingDirectoryUri.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -56,6 +58,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _remoteAuthority: string | undefined;
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -76,6 +79,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 		const enabled = agentHostEnablementService.enabled.get();
 		const connection = this._remoteAgentService.getConnection();
+		this._remoteAuthority = connection?.remoteAuthority;
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
@@ -124,6 +128,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			throw new Error('Remote agent host is not enabled or no remote connection is available.');
 		}
 		return this._protocolClient;
+	}
+
+	private _requireRemoteAuthority(): string {
+		if (!this._remoteAuthority) {
+			throw new Error('Remote agent authority is unavailable.');
+		}
+		return this._remoteAuthority;
 	}
 
 	// ---- IAgentHostService local-only surface (stubs) -----------------------
@@ -202,6 +213,11 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		this._protocolClient?.dispatch(channel, action);
 	}
 
+	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope> {
+		const directory = toRemoteAgentHostWorkingDirectory(URI.parse(action.directory), this._requireRemoteAuthority());
+		return this._requireClient().dispatchSessionWorkingDirectoryAction(channel, { ...action, directory: directory.toString() }, token);
+	}
+
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._requireClient().authenticate(params);
 	}
@@ -219,19 +235,40 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
-		return this._requireClient().listSessions();
+		const remoteAuthority = this._requireRemoteAuthority();
+		return this._requireClient().listSessions().then(sessions => sessions.map(session => ({
+			...session,
+			workingDirectories: session.workingDirectories?.map(directory => fromRemoteAgentHostWorkingDirectory(directory, remoteAuthority)),
+			project: session.project
+				? { ...session.project, uri: fromRemoteAgentHostWorkingDirectory(session.project.uri, remoteAuthority) }
+				: undefined,
+		})));
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		return this._requireClient().createSession(config);
+		const remoteAuthority = this._requireRemoteAuthority();
+		return this._requireClient().createSession(config ? {
+			...config,
+			workingDirectories: config.workingDirectories?.map(directory => toRemoteAgentHostWorkingDirectory(directory, remoteAuthority)),
+		} : undefined);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		return this._requireClient().resolveSessionConfig(params);
+		return this._requireClient().resolveSessionConfig({
+			...params,
+			workingDirectory: params.workingDirectory
+				? toRemoteAgentHostWorkingDirectory(params.workingDirectory, this._requireRemoteAuthority())
+				: undefined,
+		});
 	}
 
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		return this._requireClient().sessionConfigCompletions(params);
+		return this._requireClient().sessionConfigCompletions({
+			...params,
+			workingDirectory: params.workingDirectory
+				? toRemoteAgentHostWorkingDirectory(params.workingDirectory, this._requireRemoteAuthority())
+				: undefined,
+		});
 	}
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {

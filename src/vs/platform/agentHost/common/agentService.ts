@@ -20,7 +20,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, SessionWorkingDirectoryAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -1648,6 +1648,9 @@ export interface IAgent {
 	 */
 	ensureSessionAdopted?(session: URI): Promise<boolean>;
 
+	/** Strictly persist the complete desired primary-first working-directory set. */
+	setDesiredWorkingDirectories?(session: URI, workingDirectories: readonly URI[]): Promise<void>;
+
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
@@ -2251,6 +2254,9 @@ export interface IAgentConnection {
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+
+	/** Dispatch a working-directory action and await its accepted or rejected echo. */
+	dispatchSessionWorkingDirectoryAction(channel: string, action: SessionWorkingDirectoryAction, token?: CancellationToken): Promise<ActionEnvelope>;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

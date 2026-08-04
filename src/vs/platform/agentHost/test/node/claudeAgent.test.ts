@@ -2416,6 +2416,129 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('changed secondary roots rebuild the pipeline before the next prompt', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/repo-a');
+		const originalSecondary = URI.file('/repo-b');
+		const replacementSecondary = URI.file('/repo-c');
+		const created = await agent.createSession({ workingDirectories: [primary, originalSecondary] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', [primary, originalSecondary], undefined, 'turn-1');
+
+		await agent.setDesiredWorkingDirectories(created.session, [primary, replacementSecondary]);
+		const persistedBeforeRebuild = JSON.parse((await database.getMetadata('claude.workingDirectories'))!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', [primary, replacementSecondary], undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			firstAdditionalDirectories: sdk.capturedStartupOptions[0]?.additionalDirectories,
+			rebuildAdditionalDirectories: sdk.capturedStartupOptions[1]?.additionalDirectories,
+			persistedBeforeRebuild,
+			persistedAfterRebuild: JSON.parse((await database.getMetadata('claude.workingDirectories'))!),
+		}, {
+			startupCallCount: 2,
+			firstAdditionalDirectories: [originalSecondary.fsPath],
+			rebuildAdditionalDirectories: [replacementSecondary.fsPath],
+			persistedBeforeRebuild: [primary.toString(), originalSecondary.toString()],
+			persistedAfterRebuild: [primary.toString(), replacementSecondary.toString()],
+		});
+	});
+
+	test('an unloaded single-root session accepts its first secondary root', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/repo-a');
+		const secondary = URI.file('/repo-b');
+		const created = await agent.createSession({ workingDirectories: [primary] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', [primary], undefined, 'turn-1');
+
+		sdk.sessionList = [{ sessionId, cwd: primary.fsPath, summary: '', lastModified: Date.now() }];
+		await agent.releaseSession(created.session);
+		await agent.setDesiredWorkingDirectories(created.session, [primary, secondary]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', [primary, secondary], undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			resume: sdk.capturedStartupOptions.at(-1)?.resume,
+			additionalDirectories: sdk.capturedStartupOptions.at(-1)?.additionalDirectories,
+		}, {
+			resume: sessionId,
+			additionalDirectories: [secondary.fsPath],
+		});
+	});
+
+	test('failed secondary-root rebuild blocks the prompt and retries on the next send', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/repo-a');
+		const originalSecondary = URI.file('/repo-b');
+		const replacementSecondary = URI.file('/repo-c');
+		const created = await agent.createSession({ workingDirectories: [primary, originalSecondary] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', [primary, originalSecondary], undefined, 'turn-1');
+		await agent.setDesiredWorkingDirectories(created.session, [primary, replacementSecondary]);
+		sdk.startupRejection = new Error('root rebuild failed');
+
+		await assert.rejects(
+			agent.chats.sendMessage(defaultChatUri(created.session), 'blocked', [primary, replacementSecondary], undefined, 'turn-2'),
+			/root rebuild failed/,
+		);
+		sdk.startupRejection = undefined;
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'retry', [primary, replacementSecondary], undefined, 'turn-3');
+
+		assert.deepStrictEqual({
+			startupCallCount: sdk.startupCallCount,
+			retryAdditionalDirectories: sdk.capturedStartupOptions.at(-1)?.additionalDirectories,
+		}, {
+			startupCallCount: 3,
+			retryAdditionalDirectories: [replacementSecondary.fsPath],
+		});
+	});
+
+	test('failed applied-root persistence disposes the rebuilt Claude query', async () => {
+		const database = new TestSessionDatabase();
+		const originalSetMetadata = database.setMetadata.bind(database);
+		let failWorkingDirectoryWrite = false;
+		database.setMetadata = async (key, value) => {
+			if (failWorkingDirectoryWrite && key === 'claude.workingDirectories') {
+				throw new Error('applied roots persist failed');
+			}
+			await originalSetMetadata(key, value);
+		};
+		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/repo-a');
+		const originalSecondary = URI.file('/repo-b');
+		const replacementSecondary = URI.file('/repo-c');
+		const created = await agent.createSession({ workingDirectories: [primary, originalSecondary] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', [primary, originalSecondary], undefined, 'turn-1');
+
+		await agent.setDesiredWorkingDirectories(created.session, [primary, replacementSecondary]);
+		failWorkingDirectoryWrite = true;
+		await assert.rejects(
+			agent.chats.sendMessage(defaultChatUri(created.session), 'blocked', [primary, replacementSecondary], undefined, 'turn-2'),
+			/applied roots persist failed/,
+		);
+
+		assert.deepStrictEqual({
+			rebuiltQueryDisposed: sdk.warmQueries[1]?.asyncDisposeCount,
+			persistedWorkingDirectories: JSON.parse((await database.getMetadata('claude.workingDirectories'))!),
+		}, {
+			rebuiltQueryDisposed: 1,
+			persistedWorkingDirectories: [primary.toString(), originalSecondary.toString()],
+		});
+	});
+
 	test('multi-root session discovers and retains customizations from an additional directory', async () => {
 		const { agent, sdk, fileService } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

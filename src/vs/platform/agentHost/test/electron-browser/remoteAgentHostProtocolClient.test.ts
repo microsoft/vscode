@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,6 +16,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { SessionActionAbandonedError, SessionActionRejectedError, SessionActionStateRebasedError } from '../../common/state/agentSubscription.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
@@ -1586,6 +1588,140 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('dispatchSessionWorkingDirectoryAction', () => {
+
+		function workingDirectorySetAction(directory: string) {
+			return { type: ActionType.SessionWorkingDirectorySet as const, directory };
+		}
+
+		/** Connect `client`, subscribe to `sessionUri`, and answer the `subscribe` request with an empty session snapshot. */
+		async function subscribeToSession(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport, sessionUri: URI): Promise<void> {
+			client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			let subscribeReq: JsonRpcRequest | undefined;
+			while (!subscribeReq) {
+				subscribeReq = transport.sentMessages.find(
+					(m): m is JsonRpcRequest => hasKey(m, { method: true, id: true }) && (m as JsonRpcRequest).method === 'subscribe',
+				);
+				if (!subscribeReq) {
+					await Promise.resolve();
+				}
+			}
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribeReq.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+		}
+
+		function findLastDispatchAction(transport: TestProtocolTransport): JsonRpcNotification {
+			const match = [...transport.sentMessages].reverse().find(
+				(m): m is JsonRpcNotification => hasKey(m, { method: true }) && (m as JsonRpcNotification).method === 'dispatchAction' && !('id' in m),
+			);
+			assert.ok(match, 'expected a dispatchAction notification to have been sent');
+			return match;
+		}
+
+		test('rejects (without sending) when no active session subscription exists for the channel', async () => {
+			const { client, transport } = createClient();
+			const sessionUri = URI.parse('copilot:/test-session');
+			const beforeCount = transport.sentMessages.length;
+			await assert.rejects(client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2')));
+			assert.strictEqual(transport.sentMessages.length, beforeCount);
+		});
+
+		test('resolves with the accepted envelope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			await subscribeToSession(client, transport, sessionUri);
+
+			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			const sent = findLastDispatchAction(transport);
+			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq } },
+			});
+
+			const envelope = await promise;
+			assert.strictEqual(envelope.origin?.clientSeq, clientSeq);
+		});
+
+		test('rejects with SessionActionRejectedError when the server rejects the action', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			await subscribeToSession(client, transport, sessionUri);
+
+			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			const sent = findLastDispatchAction(transport);
+			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq }, rejectionReason: 'denied' },
+			});
+
+			await assert.rejects(promise, (error: unknown) => {
+				assert.ok(error instanceof SessionActionRejectedError);
+				assert.strictEqual(error.rejectionReason, 'denied');
+				return true;
+			});
+		});
+
+		test('rejects with CancellationError when the token is cancelled before the echo arrives', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			await subscribeToSession(client, transport, sessionUri);
+
+			const cts = new CancellationTokenSource();
+			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'), cts.token);
+			cts.cancel();
+
+			await assert.rejects(promise, CancellationError);
+			cts.dispose();
+		});
+
+		test('rejects with CancellationError immediately when the token is already cancelled', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			await subscribeToSession(client, transport, sessionUri);
+
+			const cts = new CancellationTokenSource();
+			cts.cancel();
+			const beforeCount = transport.sentMessages.length;
+
+			await assert.rejects(
+				client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'), cts.token),
+				CancellationError,
+			);
+			// Already-cancelled dispatch must not even reach the wire.
+			assert.strictEqual(transport.sentMessages.length, beforeCount);
+			cts.dispose();
+		});
+
+		test('rejects pending and subsequent dispatches after permanent connection closure', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			await subscribeToSession(client, transport, sessionUri);
+
+			const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			client.dispose();
+			const afterDispose = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), workingDirectorySetAction('file:///ws3'));
+
+			await Promise.all([
+				assert.rejects(promise, ProtocolError),
+				assert.rejects(afterDispose, ProtocolError),
+			]);
+		});
+	});
+
 	suite('soft reconnect (transport factory)', () => {
 
 		function findRequest(transport: TestProtocolTransport, method: string): JsonRpcRequest | undefined {
@@ -2025,6 +2161,93 @@ suite('RemoteAgentHostProtocolClient', () => {
 				const root = client.rootState.value;
 				assert.ok(root && !(root instanceof Error), 'root state should be hydrated from snapshot');
 				assert.strictEqual(root.agents[0]?.provider, 'copilot');
+				client.dispose();
+			});
+		});
+
+		test('reconnect snapshot rebase rejects an outstanding dispatchSessionWorkingDirectoryAction waiter', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), {
+					type: ActionType.SessionWorkingDirectorySet,
+					directory: 'file:///ws2',
+				});
+
+				// Drop the transport before the server ever echoes the action back.
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Server reports the replay buffer no longer covers our gap, so it
+				// sends a fresh snapshot instead — rebasing confirmed state before
+				// the dispatched action's echo ever arrived.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: {
+						type: ReconnectResultType.Snapshot,
+						snapshots: [{ resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 9 }],
+					},
+				});
+				await flushMicrotasks();
+
+				await assert.rejects(promise, SessionActionStateRebasedError);
+
+				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('reconnect "missing" replay result rejects an outstanding dispatchSessionWorkingDirectoryAction waiter as abandoned', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				const promise = client.dispatchSessionWorkingDirectoryAction(sessionUri.toString(), {
+					type: ActionType.SessionWorkingDirectorySet,
+					directory: 'file:///ws2',
+				});
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Server replays with no actions but reports our session
+				// subscription as no-longer-resumable.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [sessionUri.toString()] },
+				});
+				await flushMicrotasks();
+
+				await assert.rejects(promise, SessionActionAbandonedError);
+
+				subRef.dispose();
 				client.dispose();
 			});
 		});

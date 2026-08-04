@@ -74,6 +74,7 @@ import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { computeDesiredWorkingDirectories, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -190,6 +191,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 interface IProvisionalGeneration {
 	readonly backendSession: URI;
 	readonly workingDirectory: URI | undefined;
+	readonly workingDirectories: readonly URI[] | undefined;
 }
 
 type ProvisionalOperationResult = URI | void;
@@ -212,12 +214,12 @@ interface IEntry {
 	 */
 	configVersion: number;
 	/**
-	 * Working directory the provisional backend session was created with. A
-	 * created session's cwd is immutable, so when the user picks a different
-	 * folder the entry is recreated; this lets a folder change no-op when the
-	 * cwd is unchanged.
+	 * Primary directory selected for this draft. A provisional generation is
+	 * recreated when this or its computed secondary root set changes.
 	 */
 	workingDirectory: URI | undefined;
+	/** Whether this draft was created against the complete folder set of a multi-root workspace. */
+	usesWorkspaceRootSet: boolean;
 	/**
 	 * Latest re-resolved config (schema + values) for this provisional, set
 	 * by {@link applyConfigChange} after each value change. Cleared when the
@@ -276,15 +278,24 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 		}));
 
-		// A session's working directory is fixed at creation time. When the user
-		// picks a different folder for a not-yet-started session that already has
-		// a provisional backend session (built up by config chips), recreate that
-		// provisional at the new cwd so chip schemas resolve against it. The
-		// service owns this reaction so concurrent chip instances don't race.
+		// Recreate a draft's provisional generation when its selected primary changes.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
 			if (folder && this._entries.has(sessionResource)) {
 				void this._changeWorkingDirectory(sessionResource, folder);
+			}
+		}));
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			for (const [sessionResource, entry] of this._entries) {
+				if (entry.disposed) {
+					continue;
+				}
+				if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
+					entry.usesWorkspaceRootSet = true;
+				}
+				if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
+					void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
+				}
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
@@ -300,6 +311,19 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
 		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
+	}
+
+	private _computeEntryWorkingDirectories(entry: IEntry): readonly URI[] | undefined {
+		const primary = entry.workingDirectory;
+		if (!primary || !entry.usesWorkspaceRootSet || !supportsMultipleWorkingDirectories(this._agentHostService.rootState.value, entry.provider)) {
+			return primary ? [primary] : undefined;
+		}
+		const current = entry.generation?.workingDirectories ?? [primary];
+		return computeDesiredWorkingDirectories(
+			primary,
+			current,
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+		);
 	}
 
 	getInitialSessionMetadata(): Record<string, unknown> | undefined {
@@ -387,6 +411,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			config,
 			configVersion,
 			workingDirectory,
+			usesWorkspaceRootSet: (this._computeWorkingDirectories(workingDirectory, provider)?.length ?? 0) > 1,
 			resolvedConfig,
 			disposed: false,
 		};
@@ -424,11 +449,23 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _generationMatchingDesiredState(entry: IEntry): IProvisionalGeneration | undefined {
 		const generation = entry.generation;
-		return generation && this._sameUri(generation.workingDirectory, entry.workingDirectory) ? generation : undefined;
+		const desired = this._computeEntryWorkingDirectories(entry);
+		return generation
+			&& this._sameUri(generation.workingDirectory, entry.workingDirectory)
+			&& this._sameWorkingDirectories(generation.workingDirectories, desired)
+			? generation
+			: undefined;
 	}
 
 	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
 		return first === undefined || second === undefined ? first === second : isEqual(first, second);
+	}
+
+	private _sameWorkingDirectories(first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
+		if (first === undefined || second === undefined) {
+			return first === second;
+		}
+		return first.length === second.length && first.every((directory, index) => isEqual(directory, second[index]));
 	}
 
 	private _newProvisionalUri(provider: string): URI {
@@ -447,6 +484,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const workingDirectory = entry.workingDirectory;
+			const workingDirectories = this._computeEntryWorkingDirectories(entry);
 			const configVersion = entry.configVersion;
 			const config = { ...entry.config };
 
@@ -463,7 +501,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					provider: entry.provider,
 					session: candidate,
 					_meta: this.getInitialSessionMetadata(),
-					workingDirectories: this._computeWorkingDirectories(workingDirectory, entry.provider),
+					workingDirectories,
 					config,
 					progressToken: generateUuid(),
 				});
@@ -474,13 +512,17 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				return undefined;
 			}
 
-			if (this._entries.get(sessionResource) !== entry || entry.disposed || entry.configVersion !== configVersion || !this._sameUri(entry.workingDirectory, workingDirectory)) {
+			if (this._entries.get(sessionResource) !== entry
+				|| entry.disposed
+				|| entry.configVersion !== configVersion
+				|| !this._sameUri(entry.workingDirectory, workingDirectory)
+				|| !this._sameWorkingDirectories(this._computeEntryWorkingDirectories(entry), workingDirectories)) {
 				await this._disposeBackend(created, 'obsolete provisional candidate');
 				continue;
 			}
 
 			const previous = entry.generation;
-			entry.generation = { backendSession: created, workingDirectory };
+			entry.generation = { backendSession: created, workingDirectory, workingDirectories };
 			this._publishActiveClient(entry);
 			this._onDidChange.fire(sessionResource);
 			if (previous) {
@@ -562,13 +604,16 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
 				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				const targetWorkingDirectories = oldEntry.usesWorkspaceRootSet
+					? this._computeEntryWorkingDirectories(oldEntry)
+					: this._computeWorkingDirectories(targetWorkingDirectory, provider);
 				let created: URI;
 				try {
 					created = await this._agentHostService.createSession({
 						provider,
 						session: newBackendSession,
 						_meta: this.getInitialSessionMetadata(),
-						workingDirectories: this._computeWorkingDirectories(targetWorkingDirectory, provider),
+						workingDirectories: targetWorkingDirectories,
 						config,
 						...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
 						progressToken: generateUuid(),
@@ -591,7 +636,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					}
 					return undefined;
 				}
-				if (oldEntry.configVersion !== configVersion || !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)) {
+				if (oldEntry.configVersion !== configVersion
+					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
+					|| !this._sameWorkingDirectories(this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
 						this._restoreImportedConversation(newSessionResource, imported);
@@ -603,7 +650,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const oldGeneration = oldEntry.generation;
 				// Publish the real mapping before retiring the untitled entry so consumers never observe a partial swap.
 				const newEntry = this._createEntry(provider, config, configVersion, targetWorkingDirectory, oldEntry.resolvedConfig);
-				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory };
+				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
+				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
 				this._entries.set(newSessionResource, newEntry);
 				this._publishActiveClient(newEntry);
 				this._entries.delete(oldSessionResource);
@@ -633,11 +681,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	/**
-	 * Recreate the provisional backend session for `sessionResource` at a new
-	 * working directory, preserving the user's config choices. A created
-	 * session's cwd is immutable, so the only way to honor a folder change is to
-	 * dispose and recreate. The replacement uses a fresh backend URI so existing
-	 * subscribers acquire an authoritative snapshot for the new incarnation.
+	 * Recreate the provisional backend session at a new primary while preserving config.
+	 * A fresh backend URI gives subscribers an authoritative replacement snapshot.
 	 */
 	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
 		const entry = this._entries.get(sessionResource);
@@ -645,6 +690,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return Promise.resolve();
 		}
 		entry.workingDirectory = newWorkingDirectory;
+		entry.usesWorkspaceRootSet = (this._computeWorkingDirectories(newWorkingDirectory, entry.provider)?.length ?? 0) > 1;
 		entry.configVersion++;
 		entry.resolvedConfig = undefined;
 		const work = this._queue(sessionResource, async () => {
