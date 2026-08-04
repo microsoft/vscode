@@ -62,7 +62,15 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			throw new Error('Model already exists');
 		}
 
-		this._references.set(key, { viewType, model, counter: 0 });
+		const trackedModel = model.then(undefined, error => {
+			// Model creation can fail (for example if the backing file does not exist).
+			// In that case, clear the cached entry so a subsequent open can retry model creation.
+			if (this._references.get(key)?.model === trackedModel) {
+				this._references.delete(key);
+			}
+			throw error;
+		});
+		this._references.set(key, { viewType, model: trackedModel, counter: 0 });
 		return this.tryRetain(resource, viewType)!;
 	}
 
