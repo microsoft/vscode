@@ -897,8 +897,8 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.GlobalState: return 5;
 			case SyncResource.Extensions: return 6;
 			case SyncResource.Prompts: return 7;
-			case SyncResource.Profiles: return 8;
-			case SyncResource.WorkspaceState: return 9;
+			case SyncResource.Profiles: return 10;
+			case SyncResource.WorkspaceState: return 11;
 		}
 	}
 }

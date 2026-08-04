@@ -39,6 +39,8 @@ export const enum ProfileResourceType {
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
 	Prompts = 'prompts',
+	Skills = 'skills',
+	Hooks = 'hooks',
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
@@ -66,6 +68,8 @@ export interface IUserDataProfile {
 	readonly tasksResource: URI;
 	readonly snippetsHome: URI;
 	readonly promptsHome: URI;
+	readonly skillsHome: URI;
+	readonly hooksHome: URI;
 	readonly extensionsResource: URI;
 	readonly mcpResource: URI;
 	readonly languageModelsResource: URI;
@@ -92,6 +96,8 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.tasksResource)
 		&& URI.isUri(candidate.snippetsHome)
 		&& URI.isUri(candidate.promptsHome)
+		&& URI.isUri(candidate.skillsHome)
+		&& URI.isUri(candidate.hooksHome)
 		&& URI.isUri(candidate.extensionsResource)
 		&& URI.isUri(candidate.mcpResource)
 		&& URI.isUri(candidate.languageModelsResource)
@@ -172,6 +178,8 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		tasksResource: URI.revive(profile.tasksResource).with({ scheme }),
 		snippetsHome: URI.revive(profile.snippetsHome).with({ scheme }),
 		promptsHome: URI.revive(profile.promptsHome).with({ scheme }),
+		skillsHome: URI.revive(profile.skillsHome).with({ scheme }),
+		hooksHome: URI.revive(profile.hooksHome).with({ scheme }),
 		extensionsResource: URI.revive(profile.extensionsResource).with({ scheme }),
 		mcpResource: URI.revive(profile.mcpResource).with({ scheme }),
 		languageModelsResource: URI.revive(profile.languageModelsResource).with({ scheme }),
@@ -199,6 +207,8 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		tasksResource: defaultProfile && options?.useDefaultFlags?.tasks ? defaultProfile.tasksResource : joinPath(location, 'tasks.json'),
 		snippetsHome: defaultProfile && options?.useDefaultFlags?.snippets ? defaultProfile.snippetsHome : joinPath(location, 'snippets'),
 		promptsHome: defaultProfile && options?.useDefaultFlags?.prompts ? defaultProfile.promptsHome : joinPath(location, 'prompts'),
+		skillsHome: defaultProfile && options?.useDefaultFlags?.skills ? defaultProfile.skillsHome : joinPath(location, 'skills'),
+		hooksHome: defaultProfile && options?.useDefaultFlags?.hooks ? defaultProfile.hooksHome : joinPath(location, 'hooks'),
 		extensionsResource: defaultProfile && options?.useDefaultFlags?.extensions ? defaultProfile.extensionsResource : joinPath(location, 'extensions.json'),
 		mcpResource: defaultProfile && options?.useDefaultFlags?.mcp ? defaultProfile.mcpResource : joinPath(location, 'mcp.json'),
 		languageModelsResource: defaultProfile && options?.useDefaultFlags?.languageModels ? defaultProfile.languageModelsResource : joinPath(location, 'chatLanguageModels.json'),
