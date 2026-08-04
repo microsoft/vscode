@@ -16,7 +16,6 @@ suite('Mic button menu actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const commandService = upcastPartial<ICommandService>({});
-	const configurationService = upcastPartial<IConfigurationService>({});
 	const keybindingService = upcastPartial<IKeybindingService>({});
 
 	test('groups and shortens Voice Mode actions', () => {
