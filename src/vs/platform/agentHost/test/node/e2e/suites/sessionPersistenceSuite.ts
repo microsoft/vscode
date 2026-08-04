@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -42,7 +41,10 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	}
 
 	function responsePartIds(turns: readonly { readonly responseParts: readonly object[] }[]): string[] {
-		return turns.flatMap(turn => turn.responseParts.flatMap(part => hasKey(part, 'id') && typeof part.id === 'string' ? [part.id] : []));
+		return turns.flatMap(turn => turn.responseParts.flatMap(part => {
+			const id: unknown = Reflect.get(part, 'id');
+			return typeof id === 'string' ? [id] : [];
+		}));
 	}
 
 	function durableTurnContent<T extends {
@@ -54,11 +56,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			message: { text: turn.message.text, origin: turn.message.origin.kind },
 			state: turn.state,
 			responseParts: turn.responseParts.map(part => {
-				if (hasKey(part, 'id')) {
-					const { id: _, ...rest } = part;
-					return rest;
-				}
-				return part;
+				const normalized = { ...part };
+				Reflect.deleteProperty(normalized, 'id');
+				return normalized;
 			}),
 		}));
 	}
