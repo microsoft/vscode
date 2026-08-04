@@ -3945,13 +3945,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const isActive = !!state.activeTurn;
 				if (parentInvocation.toolSpecificData?.kind === 'subagent') {
 					const timing = getSubagentTiming(state);
+					const lastResponsePart = state.activeTurn?.responseParts.at(-1);
+					const activity = lastResponsePart?.kind === ResponsePartKind.Markdown
+						? 'markdown'
+						: lastResponsePart?.kind === ResponsePartKind.Reasoning
+							? 'reasoning'
+							: undefined;
 					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
 					if (parentInvocation.toolSpecificData.isActive !== isActive
+						|| parentInvocation.toolSpecificData.activity !== activity
 						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
 						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
 						parentInvocation.toolSpecificData.isActive = isActive;
+						parentInvocation.toolSpecificData.activity = activity;
 						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
 						parentInvocation.toolSpecificData.duration = fallbackDuration;
 						parentInvocation.notifyToolSpecificDataChanged();

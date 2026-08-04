@@ -1117,6 +1117,7 @@ export interface IChatPullRequestContent {
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
 	isActive?: boolean;
+	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	agentName?: string;
 	prompt?: string;
