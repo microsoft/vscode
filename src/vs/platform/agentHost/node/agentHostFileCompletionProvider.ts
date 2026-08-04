@@ -10,7 +10,7 @@ import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resou
 import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { getMostSpecificWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
@@ -163,7 +163,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				if (seen.has(key)) {
 					continue;
 				}
-				const owner = getMostSpecificWorkingDirectory(uri, roots.logicalRoots);
+				const owner = findDeepestContainingWorkingDirectory(uri, roots.logicalRoots);
 				const ownerIndex = owner ? roots.logicalRoots.indexOf(owner) : -1;
 				if (!owner || ownerIndex < 0 || (!query.normalized && candidateCountByOwner[ownerIndex] >= MAX_RESULTS)) {
 					continue;

@@ -6,12 +6,15 @@
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
-export function getMostSpecificWorkingDirectory(resource: URI, workingDirectories: readonly URI[]): URI | undefined {
-	let result: URI | undefined;
+/**
+ * Finds the deepest working directory that contains `resource`.
+ */
+export function findDeepestContainingWorkingDirectory(resource: URI, workingDirectories: readonly URI[]): URI | undefined {
+	let deepestMatch: URI | undefined;
 	for (const workingDirectory of workingDirectories) {
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) && (!result || workingDirectory.path.length > result.path.length)) {
-			result = workingDirectory;
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) && (!deepestMatch || workingDirectory.path.length > deepestMatch.path.length)) {
+			deepestMatch = workingDirectory;
 		}
 	}
-	return result;
+	return deepestMatch;
 }

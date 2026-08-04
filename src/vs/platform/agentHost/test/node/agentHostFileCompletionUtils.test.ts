@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getMostSpecificWorkingDirectory } from '../../common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory } from '../../common/agentHostWorkingDirectories.js';
 import { getAgentHostFileCompletionRoots } from '../../node/agentHostFileCompletionUtils.js';
 
 suite('AgentHostFileCompletionUtils', () => {
@@ -57,7 +57,7 @@ suite('AgentHostFileCompletionUtils', () => {
 		assert.deepStrictEqual(toPaths(result.enumerationRoots), ['/project/a', '/project/b']);
 	});
 
-	test('attributes resources to the most specific logical root', () => {
+	test('attributes resources to the deepest containing logical root', () => {
 		const roots = [
 			URI.file('/project/a'),
 			URI.file('/project/a/sub'),
@@ -65,10 +65,10 @@ suite('AgentHostFileCompletionUtils', () => {
 		];
 
 		assert.deepStrictEqual({
-			nested: getMostSpecificWorkingDirectory(URI.file('/project/a/sub/file.ts'), roots)?.path,
-			parent: getMostSpecificWorkingDirectory(URI.file('/project/a/other.ts'), roots)?.path,
-			sibling: getMostSpecificWorkingDirectory(URI.file('/project/b/file.ts'), roots)?.path,
-			outside: getMostSpecificWorkingDirectory(URI.file('/project/c/file.ts'), roots)?.path,
+			nested: findDeepestContainingWorkingDirectory(URI.file('/project/a/sub/file.ts'), roots)?.path,
+			parent: findDeepestContainingWorkingDirectory(URI.file('/project/a/other.ts'), roots)?.path,
+			sibling: findDeepestContainingWorkingDirectory(URI.file('/project/b/file.ts'), roots)?.path,
+			outside: findDeepestContainingWorkingDirectory(URI.file('/project/c/file.ts'), roots)?.path,
 		}, {
 			nested: '/project/a/sub',
 			parent: '/project/a',

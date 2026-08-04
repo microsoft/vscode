@@ -28,7 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { getMostSpecificWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -5254,7 +5254,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!requestedDir || requestedDir.scheme !== 'file') {
 			return uri;
 		}
-		const owningRequestedDirectory = getMostSpecificWorkingDirectory(uri, requestedDirectories);
+		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(uri, requestedDirectories);
 		if (!owningRequestedDirectory || !extUriBiasedIgnorePathCase.isEqual(owningRequestedDirectory, requestedDir)) {
 			return uri;
 		}
