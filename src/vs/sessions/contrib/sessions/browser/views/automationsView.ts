@@ -74,7 +74,6 @@ export class AutomationsCardsWidget extends Disposable {
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
-		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(this.element));
 		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
@@ -86,7 +85,6 @@ export class AutomationsCardsWidget extends Disposable {
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
-			hasItemsContext.set(items.length > 0);
 			this.cardsSection.render(items);
 		}));
 
@@ -752,8 +750,14 @@ class AutomationsCustomViewContribution extends Disposable {
 		@ICustomViewService customViewService: ICustomViewService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAutomationService automationService: IAutomationService,
 	) {
 		super();
+
+		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			hasItemsContext.set(automationService.automations.read(reader).length > 0);
+		}));
 
 		this._register(customViewService.registerCustomView({
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
