@@ -617,7 +617,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get hasProgress(): boolean {
-		return !!this._progress;
+		return !!this._progress && !this._progress.state.done;
 	}
 
 	get progress(): INotificationViewItemProgress {
