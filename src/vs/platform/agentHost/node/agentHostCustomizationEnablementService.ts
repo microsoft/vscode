@@ -7,13 +7,13 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IReadableSet } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { CustomizationType, type ChildCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../common/state/protocol/channels-session/state.js';
+import { CustomizationType, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { applyPersistedCustomizationEnablementPolicy, customizationEnablementEquals, customizationPolicyKey, getPrimaryWorkingDirectory, resolveEnablement as resolvePersistedEnablement, resolveRootConfigMcpServerEnablement, updateCustomizationEnablementPolicy, type CustomizationEnablementPolicy } from './shared/mcpServerEnablement.js';
+import { applyPersistedCustomizationEnablementPolicy, customizationEnablementEquals, customizationPolicyKey, getPrimaryWorkingDirectory, resolveEnablement as resolvePersistedEnablement, resolveRootConfigMcpServerEnablement, updateCustomizationEnablementPolicy, type CustomizationEnablementPolicy, type CustomizationEnablementTarget } from './shared/mcpServerEnablement.js';
 
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 export const CustomizationEnablementStorageKey = 'customizationEnablement';
@@ -29,7 +29,7 @@ export interface ICustomizationEnablementChangeEvent {
 export interface IAgentHostCustomizationEnablementService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeEnablement: Event<ICustomizationEnablementChangeEvent>;
-	resolveEnablement(customization: Customization | ChildCustomization, workingDirectory: string | undefined, source?: string): Pick<McpServerCustomization, 'enabled' | 'enablement'>;
+	resolveEnablement(customization: CustomizationEnablementTarget, workingDirectory: string | undefined, source?: string): Pick<McpServerCustomization, 'enabled' | 'enablement'>;
 	applyEnablement(customizations: readonly Customization[], workingDirectory: string | undefined): readonly Customization[];
 	resolveRootMcpServerEnablement(name: string, workingDirectory: string | undefined): Pick<McpServerCustomization, 'enabled' | 'enablement'>;
 	handleToggle(session: string, id: string, enablement: readonly CustomizationEnablement[]): void;
@@ -48,7 +48,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		super();
 	}
 
-	resolveEnablement(customization: Customization | ChildCustomization, workingDirectory: string | undefined, source?: string): Pick<McpServerCustomization, 'enabled' | 'enablement'> {
+	resolveEnablement(customization: CustomizationEnablementTarget, workingDirectory: string | undefined, source?: string): Pick<McpServerCustomization, 'enabled' | 'enablement'> {
 		return resolvePersistedEnablement(customization, this._policy(), workingDirectory, source);
 	}
 
@@ -61,7 +61,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	handleToggle(session: string, id: string, enablement: readonly CustomizationEnablement[]): void {
-		const found = findMcpServerCustomization(this._stateManager.getSessionState(session)?.customizations, customization => customization.id === id);
+		const found = findCustomization(this._stateManager.getSessionState(session)?.customizations, customization => customization.id === id);
 		if (!found) {
 			return;
 		}
@@ -77,7 +77,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			if (targetSession === session) {
 				continue;
 			}
-			const target = findMcpServerCustomization(
+			const target = findCustomization(
 				this._stateManager.getSessionState(targetSession)?.customizations,
 				(customization, source) => customizationPolicyKey(customization, source) === policyKey,
 			);
@@ -131,14 +131,24 @@ interface IFoundMcpServerCustomization {
 	readonly source: string | undefined;
 }
 
-function findMcpServerCustomization(
+interface IFoundPluginCustomization {
+	readonly customization: PluginCustomization;
+	readonly source: undefined;
+}
+
+type IFoundCustomization = IFoundMcpServerCustomization | IFoundPluginCustomization;
+
+function findCustomization(
 	customizations: readonly Customization[] | undefined,
-	matches: (customization: McpServerCustomization, source: string | undefined) => boolean,
-): IFoundMcpServerCustomization | undefined {
+	matches: (customization: McpServerCustomization | PluginCustomization, source: string | undefined) => boolean,
+): IFoundCustomization | undefined {
 	for (const customization of customizations ?? []) {
 		if (customization.type === CustomizationType.McpServer) {
 			if (matches(customization, undefined)) { return { customization, source: undefined }; }
 			continue;
+		}
+		if (customization.type === CustomizationType.Plugin && matches(customization, undefined)) {
+			return { customization, source: undefined };
 		}
 		const source = customization.type === CustomizationType.Plugin ? customization.uri : undefined;
 		for (const child of customization.children ?? []) {

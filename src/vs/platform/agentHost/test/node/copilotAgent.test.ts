@@ -4773,6 +4773,32 @@ suite('CopilotAgent', () => {
 			};
 		}
 
+		function parsedPluginWithSlackMcp(source = pluginSource): ICopilotPluginInfo {
+			const id = `${source}/.mcp.json#slack`;
+			return {
+				format: PluginFormat.Copilot,
+				source,
+				pluginDir: URI.file('/plugins/workspace-plugin'),
+				hooks: [],
+				mcpServers: [{
+					name: 'slack',
+					uri: URI.parse(id),
+					configuration: { type: McpServerType.LOCAL, command: 'slack-mcp' },
+					customization: {
+						type: CustomizationType.McpServer,
+						id,
+						uri: id,
+						name: 'slack',
+						enabled: true,
+						state: { kind: McpServerStatus.Stopped },
+					},
+				}],
+				skills: [],
+				agents: [],
+				instructions: [],
+			};
+		}
+
 		function publishedMcpChildren(customizations: readonly Customization[]) {
 			return customizations
 				.flatMap(customization => customization.type === CustomizationType.Plugin ? customization.children ?? [] : [])
@@ -4915,6 +4941,67 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(await activeClient.snapshot(), {
 					tools: [],
 					plugins: [{ ...plugin, mcpServers: [] }],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('drops a disabled plugin and its plugin directory from the launch snapshot', async () => {
+			const { agent, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'disabled-plugin');
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [pluginSource]: false } });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const activeClient = getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: { getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> };
+				};
+				activeClient.pluginController.getAppliedPlugins = async () => [parsedPluginWithSlackMcp()];
+
+				assert.deepStrictEqual(await activeClient.snapshot(), {
+					tools: [],
+					plugins: [],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not launch a session-enabled child of a disabled plugin', async () => {
+			const { agent, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'disabled-plugin-session-child');
+			const plugin = pluginWithSlackMcp(`${pluginSource}/.mcp.json#slack`);
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [plugin.id]: false } });
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: [{
+						...plugin,
+						children: plugin.children?.map(child => ({
+							...child,
+							enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+						})),
+					}],
+				});
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const activeClient = getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: { getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> };
+				};
+				activeClient.pluginController.getAppliedPlugins = async () => [parsedPluginWithSlackMcp()];
+
+				assert.deepStrictEqual(await activeClient.snapshot(), {
+					tools: [],
+					plugins: [],
 					mcpServers: {},
 				});
 			} finally {

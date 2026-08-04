@@ -10,7 +10,7 @@ export interface CustomizationEnablementPolicy {
 	readonly global?: Record<string, boolean>;
 	readonly workingDirectories?: Record<string, Record<string, boolean>>;
 }
-import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type Customization, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 
 export const MCP_TOP_LEVEL_CUSTOMIZATION_ID_PREFIX = 'mcp-top-level:';
 
@@ -47,7 +47,7 @@ export function rootConfigMcpServerPolicyKey(name: string): string {
  * structural rather than a `Pick` over `Customization`: enablement applies to
  * child customizations (skills, agents, …) as well as top-level ones.
  */
-type CustomizationEnablementTarget = {
+export type CustomizationEnablementTarget = {
 	readonly id: string;
 	readonly type: CustomizationType;
 	readonly name?: string;
@@ -113,7 +113,10 @@ export function applyPersistedCustomizationEnablementPolicy(
 			// remaining branch is known to be a container that actually has `children`.
 			return appliesTo(customization) ? applyPersistedCustomizationEnablement(customization, policy, workingDirectory, undefined) : customization;
 		}
-		let changed = false;
+		const container = customization.type === CustomizationType.Plugin
+			? applyPersistedCustomizationEnablement(customization, policy, workingDirectory, undefined)
+			: customization;
+		let changed = container !== customization;
 		const children = customization.children?.map(child => {
 			const next = child.type === CustomizationType.McpServer && appliesTo(child)
 				? applyPersistedCustomizationEnablement(child, policy, workingDirectory, customizationSource(customization))
@@ -121,7 +124,7 @@ export function applyPersistedCustomizationEnablementPolicy(
 			changed ||= next !== child;
 			return next;
 		});
-		return changed ? { ...customization, children } : customization;
+		return changed ? { ...container, children } : container;
 	});
 }
 
@@ -187,17 +190,28 @@ export function updateCustomizationEnablementPolicy(
 	return next.global || next.workingDirectories ? next : undefined;
 }
 
-function applyPersistedCustomizationEnablement(
-	customization: McpServerCustomization,
+function applyPersistedCustomizationEnablement<T extends McpServerCustomization | PluginCustomization>(
+	customization: T,
 	policy: CustomizationEnablementPolicy | undefined,
 	workingDirectory: string | undefined,
 	source: string | undefined,
-): McpServerCustomization {
+): T {
 	const enablement = resolveEnablement(customization, policy, workingDirectory, source);
 	return customization.enabled === enablement.enabled
 		&& customizationEnablementEquals(customization.enablement, enablement.enablement)
 		? customization
-		: { ...customization, ...enablement };
+		: applyResolvedEnablement(customization, enablement);
+}
+
+function applyResolvedEnablement<T extends McpServerCustomization | PluginCustomization>(
+	customization: T,
+	resolved: Pick<McpServerCustomization, 'enabled' | 'enablement'>,
+): T {
+	const updated = { ...customization, ...resolved };
+	if (!resolved.enablement) {
+		delete updated.enablement;
+	}
+	return updated;
 }
 
 export function customizationEnablementEquals(a: readonly CustomizationEnablement[] | undefined, b: readonly CustomizationEnablement[] | undefined): boolean {

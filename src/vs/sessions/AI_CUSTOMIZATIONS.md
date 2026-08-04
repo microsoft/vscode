@@ -254,6 +254,14 @@ Launch-time filtering only reaches servers the agent host itself hands to the pr
 
 Persisted enablement is keyed by the identity of whatever contributed the server plus the server name -- for a plugin-provided server, the plugin's client-published **source** URI (`file:///path/to/plugin#mcp=slack`); for root-config and session-discovered servers, which have no contributing plugin, the name alone (`mcpServers#slack`). The key is deliberately *not* the customization id: a plugin-provided server's id embeds the materialized plugin path, which carries both the user-data directory and a content-derived nonce, so keying on it would silently orphan a user's decision whenever the plugin changed and let a disabled server quietly come back. The name-only fallback matches how the SDK identifies servers at runtime, at the cost of not distinguishing two same-named servers from different sourceless origins.
 
+### Container Enablement and the Cascade
+
+Plugins carry the same three scopes as MCP servers, keyed by the plugin's own id (already its stable client-published source URI). A container short-circuits its children: **when a plugin resolves to disabled, its children do not exist** -- they are never handed to the provider SDK, at any scope. A session-scoped enable on a child does not resurrect a child of a disabled plugin. When a plugin resolves to enabled, each child resolves independently under the ordinary rules above.
+
+The cascade is a *mask*, not an erase. A child of a disabled plugin keeps its own `enablement` provenance and continues to publish its own resolved `enabled` value, so re-enabling the plugin restores each child's prior decision rather than silently defaulting it back on. This also preserves the protocol invariant that `enablement[0]` is decisive for the customization it appears on: `enabled` always answers "what did this customization's own scopes decide", and the container gate is applied by consumers and by the host's launch filtering (`getEffectiveMcpServerCustomizations` already forces `enabled: false` on children of a disabled container for exactly this reason). Effective availability is therefore the child's own decision AND its container's.
+
+Dropping a disabled plugin wholesale at launch also closes the `pluginDirectories` gap described above: a plugin the host never passes cannot have its `.mcp.json` discovered by the SDK, so plugin-level disable does not depend on a provider-side API the way per-server disable currently does.
+
 ### Structured Detail Preview
 
 For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`, `.prompt.md`), the management editor opens a **structured preview** by default instead of showing the raw file immediately.

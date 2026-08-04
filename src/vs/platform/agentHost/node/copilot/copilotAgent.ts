@@ -4537,6 +4537,13 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _isEnabled(customization: Customization): boolean {
+		if (customization.type === CustomizationType.Plugin) {
+			// Resolved purely from host policy (plus any session decision): the host
+			// is the only source of plugin disablement, and every client publisher
+			// hardcodes `enabled: true`. If a client ever publishes a disabled
+			// plugin, that intent would be dropped here and must be folded in.
+			return this._applyMcpEnablement(customization, undefined).enabled !== false;
+		}
 		return this._desiredEnabled(customization) ?? customization.enabled !== false;
 	}
 
@@ -4544,15 +4551,18 @@ class SessionPluginController extends Disposable {
 		if (customization.type === CustomizationType.McpServer) {
 			return this._applyMcpEnablement(customization, undefined) as T;
 		}
-		const enabled = this._isEnabled(customization);
+		const container = customization.type === CustomizationType.Plugin
+			? this._applyMcpEnablement(customization, undefined)
+			: customization;
+		const enabled = container.type === CustomizationType.Plugin ? container.enabled : this._isEnabled(container);
 		const source = customization.type === CustomizationType.Plugin ? customization.uri : undefined;
-		let changed = customization.enabled !== enabled;
+		let changed = container !== customization || container.enabled !== enabled;
 		const children = customization.children?.map(child => {
 			const next = child.type === CustomizationType.McpServer ? this._applyMcpEnablement(child, source) : this._applyChildEnablement(child);
 			changed ||= next !== child;
 			return next;
 		});
-		return changed ? { ...customization, enabled, children } : customization;
+		return changed ? { ...container, enabled, children } : container;
 	}
 
 	private _applyChildEnablement<T extends ChildCustomization>(child: T): T {
@@ -4561,7 +4571,7 @@ class SessionPluginController extends Disposable {
 	}
 
 	/**
-	 * Resolves an MCP customization against the host's durable (global /
+	 * Resolves a customization against the host's durable (global /
 	 * workspace) enablement policy, layering on any session-scoped decision
 	 * carried by the reducer-backed session state. Unlike other customization
 	 * types, MCP enablement outlives the session, so the published value has to
@@ -4787,13 +4797,35 @@ class ActiveClient extends Disposable {
 	private async _getPlugins(): Promise<readonly ICopilotPluginInfo[]> {
 		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()));
 		const sessionEnabled = this._sessionEnabledMcpServerPolicyKeys();
-		return (await this.pluginController.getAppliedPlugins()).map(plugin => {
+		return (await this.pluginController.getAppliedPlugins()).flatMap(plugin => {
+			if (!this._isPluginEnabled(plugin, workingDirectory)) {
+				return [];
+			}
 			const mcpServers = plugin.mcpServers.filter(server =>
 				this._customizationEnablementService.resolveEnablement(server.customization, workingDirectory, plugin.source).enabled
 				|| sessionEnabled.has(customizationPolicyKey(server.customization, plugin.source))
 			);
-			return mcpServers.length === plugin.mcpServers.length ? plugin : { ...plugin, mcpServers };
+			return [mcpServers.length === plugin.mcpServers.length ? plugin : { ...plugin, mcpServers }];
 		});
+	}
+
+	/**
+	 * Whether this plugin survives the host's durable enablement policy.
+	 *
+	 * Session-discovered plugins have no stable source identity, so they carry no
+	 * policy and are always enabled. Otherwise the session's published
+	 * customization is preferred, since it also carries any session-scoped
+	 * decision; the fallback covers a launch that runs before the plugin has been
+	 * published, where only the policy key matters.
+	 */
+	private _isPluginEnabled(plugin: ICopilotPluginInfo, workingDirectory: string | undefined): boolean {
+		if (!plugin.source) {
+			return true;
+		}
+		const published = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations
+			?.find((candidate): candidate is PluginCustomization => candidate.type === CustomizationType.Plugin && candidate.id === plugin.source);
+		const target = published ?? { type: CustomizationType.Plugin, id: plugin.source };
+		return this._customizationEnablementService.resolveEnablement(target, workingDirectory).enabled;
 	}
 
 	private _sessionEnabledMcpServerPolicyKeys(): ReadonlySet<string> {

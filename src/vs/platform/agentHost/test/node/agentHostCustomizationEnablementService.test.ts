@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostCustomizationEnablementService, CustomizationEnablementStorageKey } from '../../node/agentHostCustomizationEnablementService.js';
@@ -90,6 +90,77 @@ suite('AgentHostCustomizationEnablementService', () => {
 			workingDirectories: { 'file:///primary': { 'mcpServers#search': false } },
 		});
 	});
+
+	test('persists workspace plugin enablement for a new session', () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const service = disposables.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
+		const source = AgentSession.uri('copilotcli', 'plugin-source').toString();
+		const target = AgentSession.uri('copilotcli', 'plugin-target').toString();
+		const workspace = 'file:///workspace';
+		const plugin = createPluginCustomization();
+
+		createSession(stateManager, source, [workspace]);
+		stateManager.dispatchServerAction(source, { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+		service.handleToggle(source, plugin.id, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: false }]);
+
+		createSession(stateManager, target, [workspace]);
+		assert.deepStrictEqual({
+			policy: storageService.get(CustomizationEnablementStorageKey),
+			resolved: service.applyEnablement([plugin], workspace),
+		}, {
+			policy: { workingDirectories: { [workspace]: { [plugin.id]: false } } },
+			resolved: [{
+				...plugin,
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: false }],
+			}],
+		});
+	});
+
+	test('masks plugin children without erasing their resolved enablement', () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const service = disposables.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
+		const plugin = createPluginCustomization();
+		const child = plugin.children![0] as McpServerCustomization;
+		const childPolicyKey = customizationPolicyKey(child, plugin.uri);
+
+		storageService.set(CustomizationEnablementStorageKey, {
+			global: { [plugin.id]: false, [childPolicyKey]: true },
+		});
+		const disabled = service.applyEnablement([plugin], undefined);
+		storageService.set(CustomizationEnablementStorageKey, {
+			global: { [childPolicyKey]: true },
+		});
+		const reenabled = service.applyEnablement(disabled, undefined);
+
+		assert.deepStrictEqual({ disabled, reenabled }, {
+			disabled: [{
+				...plugin,
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				children: [{
+					...child,
+					enabled: true,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				}],
+			}],
+			reenabled: [{
+				...plugin,
+				enabled: true,
+				children: [{
+					...child,
+					enabled: true,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				}],
+			}],
+		});
+	});
 });
 
 function createSession(stateManager: AgentHostStateManager, resource: string, workingDirectories?: string[]): void {
@@ -112,6 +183,17 @@ function createMcpCustomization(sessionId: string): McpServerCustomization {
 		name: 'search',
 		enabled: true,
 		state: { kind: McpServerStatus.Ready },
+	};
+}
+
+function createPluginCustomization(): PluginCustomization {
+	return {
+		type: CustomizationType.Plugin,
+		id: 'file:///plugins/demo',
+		uri: 'file:///plugins/demo',
+		name: 'demo',
+		enabled: true,
+		children: [createMcpCustomization('plugin-child')],
 	};
 }
 
