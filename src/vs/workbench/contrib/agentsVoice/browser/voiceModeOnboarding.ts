@@ -23,7 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
@@ -655,7 +655,7 @@ interface IVoiceElement {
  * afterwards. The leading icon carries that story: play before the click,
  * animating bars while it speaks, then a check once it is yours.
  */
-export class VoiceModeOnboardingBanner extends Disposable {
+export class VoiceModeOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
 
 	readonly domNode: HTMLElement;
 
@@ -685,7 +685,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -699,6 +698,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			container: options.container,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
+			ariaDescription: localize('voiceMode.onboarding.regionDescription', "Choose how your agent speaks to you. Adjust settings anytime."),
 			onEscape: () => {
 				this.logAction('escape');
 				this.options.onDismiss();
@@ -731,9 +731,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 				this.updateForLanguage();
 			}
 		}));
-
-		this.focusForScreenReader();
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.focusForScreenReader()));
 	}
 
 	/**
@@ -1046,11 +1043,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		});
 	}
 
-	private focusForScreenReader(): void {
-		if (this.accessibilityService.isScreenReaderOptimized()) {
-			this.domNode.tabIndex = -1;
-			this.domNode.focus();
-		}
+	announce(): void {
+		this.card.announce();
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
