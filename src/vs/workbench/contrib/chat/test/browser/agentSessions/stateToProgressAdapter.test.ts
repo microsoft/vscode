@@ -16,7 +16,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -97,6 +97,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
+		toModelDisplayName: raw => displayNames[raw],
 		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
@@ -545,21 +546,33 @@ suite('stateToProgressAdapter', () => {
 
 		test('maps turn usage to chat usage progress for restored history', () => {
 			const turn = createTurn({
-				usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' },
+				usage: {
+					inputTokens: 1200,
+					outputTokens: 300,
+					model: 'gpt-5',
+					_meta: {
+						turnTokenTotals: [{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
+				},
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Done' }],
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }));
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(
 				response.parts.map(part => part.kind === 'usage'
-					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens }
+					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens, modelTotals: part.modelTotals }
 					: { kind: part.kind }),
 				[
-					{ kind: 'usage', promptTokens: 1200, completionTokens: 300 },
+					{
+						kind: 'usage',
+						promptTokens: 1200,
+						completionTokens: 300,
+						modelTotals: [{ model: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
 					{ kind: 'markdownContent' },
 				],
 			);
@@ -2910,6 +2923,29 @@ suite('stateToProgressAdapter', () => {
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
 			});
+		});
+	});
+
+	suite('usageInfoToChatUsage', () => {
+		test('carries whole-turn per-model token totals and resolves display names', () => {
+			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
+
+			assert.deepStrictEqual(usageInfoToChatUsage(
+				{ inputTokens: 30, outputTokens: 40, _meta: { turnTokenTotals } },
+				model => model === 'claude-opus-4.8' ? 'Claude Opus 4.8' : undefined,
+			), {
+				kind: 'usage',
+				promptTokens: 30,
+				completionTokens: 40,
+				copilotCredits: undefined,
+				sessionCopilotCredits: undefined,
+				promptTokenDetails: undefined,
+				modelTotals: [{ ...turnTokenTotals[0], model: 'Claude Opus 4.8' }],
+			} satisfies IChatUsage);
+		});
+
+		test('reports no totals when the provider did not supply any', () => {
+			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
 		});
 	});
 });

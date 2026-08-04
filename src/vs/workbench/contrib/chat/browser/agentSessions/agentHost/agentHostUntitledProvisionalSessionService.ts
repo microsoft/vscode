@@ -302,7 +302,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const workspace = this._workspaceContextService.getWorkspace();
 		if (this._environmentService.isSessionsWindow
 			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
-			|| workspace.folders.length < 2
 			|| !URI.isUri(workspace.configuration)) {
 			return undefined;
 		}
