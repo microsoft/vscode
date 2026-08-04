@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery, scoreItemFuzzy } from '../../../base/common/fuzzyScorer.js';
 import { shorten } from '../../../base/common/labels.js';
-import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -198,10 +198,11 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				names.add(name);
 			}
 		}
-		const shortenedParentPaths = shorten(results.map(candidate => dirname(candidate.uri).path), '/');
+		const ownerLabels = this._getOwnerLabels(results);
 
-		return results.map((candidate, index): CompletionItem => {
+		return results.map((candidate): CompletionItem => {
 			const name = basename(candidate.uri);
+			const ownerLabel = ownerLabels.get(extUriBiasedIgnorePathCase.getComparisonKey(candidate.owner)) ?? candidate.owner.path;
 			return {
 				insertText: at.triggerChar + name,
 				rangeStart: at.rangeStart,
@@ -209,11 +210,35 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				attachment: {
 					type: MessageAttachmentKind.Resource,
 					uri: candidate.uri.toString(),
-					label: duplicateNames.has(name) ? `${shortenedParentPaths[index]}/${name}` : name,
+					label: duplicateNames.has(name) ? `${ownerLabel} \u2022 ${candidate.relativePath}` : name,
 					displayKind: 'document',
 				},
 			};
 		});
+	}
+
+	/**
+	 * Uses root basenames when unique and shortens only roots whose basenames collide.
+	 */
+	private _getOwnerLabels(candidates: readonly IFileCompletionCandidate[]): ReadonlyMap<string, string> {
+		const owners = new Map<string, URI>();
+		for (const candidate of candidates) {
+			owners.set(extUriBiasedIgnorePathCase.getComparisonKey(candidate.owner), candidate.owner);
+		}
+
+		const entries = [...owners.entries()];
+		const ownerNameCounts = new Map<string, number>();
+		for (const [, owner] of entries) {
+			const ownerName = basename(owner);
+			ownerNameCounts.set(ownerName, (ownerNameCounts.get(ownerName) ?? 0) + 1);
+		}
+
+		const shortenedOwnerPaths = shorten(entries.map(([, owner]) => owner.path), '/');
+		return new Map(entries.map(([key, owner], index) => {
+			const ownerName = basename(owner);
+			const label = ownerName && ownerNameCounts.get(ownerName) === 1 ? ownerName : shortenedOwnerPaths[index];
+			return [key, label];
+		}));
 	}
 
 	private async _enumerateRootFiles(roots: IAgentHostFileCompletionRoots, token: CancellationToken): Promise<readonly (readonly URI[])[]> {

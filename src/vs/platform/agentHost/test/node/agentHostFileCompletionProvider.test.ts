@@ -380,11 +380,35 @@ suite('AgentHostFileCompletionProvider', () => {
 				labelsAreDistinct: items[0].label !== items[1].label,
 			}, {
 				items: [
-					{ insertText: '@index.ts', label: '/a/\u2026/index.ts', uri: fileA.toString() },
-					{ insertText: '@index.ts', label: '/b/\u2026/index.ts', uri: fileB.toString() },
+					{ insertText: '@index.ts', label: '/a/\u2026 \u2022 index.ts', uri: fileA.toString() },
+					{ insertText: '@index.ts', label: '/b/\u2026 \u2022 index.ts', uri: fileB.toString() },
 				],
 				labelsAreDistinct: true,
 			});
+		});
+
+		test('formats duplicate names as root and relative path', async () => {
+			const copilotRoot = URI.file('/workspace/copilot-sdk');
+			const vscodeRoot = URI.file('/workspace/vscode');
+			const copilotFile = URI.joinPath(copilotRoot, 'nodejs/package.json');
+			const vscodeFile = URI.joinPath(vscodeRoot, 'test/package.json');
+			const { sessionUri, provider } = setup({
+				workingDirectories: [copilotRoot, vscodeRoot],
+				results: new Map([
+					[copilotRoot.path, [copilotFile]],
+					[vscodeRoot.path, [vscodeFile]],
+				]),
+			});
+
+			const completions = await provider.provideCompletionItems(
+				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@package', offset: 8 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(completions.map(item => item.attachment.label).sort(), [
+				'copilot-sdk \u2022 nodejs/package.json',
+				'vscode \u2022 test/package.json',
+			]);
 		});
 
 		test('globally ranks matches across roots', async () => {
