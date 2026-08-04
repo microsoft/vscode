@@ -27,7 +27,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
@@ -157,7 +157,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override readonly label = 'Test';
 	override readonly icon = Codicon.vm;
 	override readonly order: number = 0;
-	override readonly sessionTypes: readonly ISessionType[] = [{ id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
+	override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
 	override readonly onDidChangeSessionTypes = Event.None;
 	override readonly onDidChangeSessions = Event.None;
 	override readonly browseActions = [];
@@ -1061,8 +1061,8 @@ suite('SessionsManagementService', () => {
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
 			override readonly sessionTypes: readonly ISessionType[] = [
-				{ id: 'workspace-agent', label: 'Workspace Agent', icon: Codicon.vm },
-				{ id: 'quick-agent', label: 'Quick Agent', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'workspace-agent', label: 'Workspace Agent', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick-agent', label: 'Quick Agent', icon: Codicon.vm },
 			];
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace | undefined {
 				return extUriBiasedIgnorePathCase.isEqual(folderUri, availableFolder) ? { folderUri } as unknown as ISessionWorkspace : undefined;
@@ -1117,7 +1117,7 @@ suite('SessionsManagementService', () => {
 				return { folderUri: _folderUri } as unknown as ISessionWorkspace;
 			}
 			override getSessionTypes(): ISessionType[] {
-				return [{ id: 'test', label: 'Test', icon: Codicon.vm }];
+				return [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm }];
 			}
 		}(hiddenHarnessSession);
 		const { service } = createSessionsManagementService(hiddenHarnessSession, disposables, provider);
@@ -1162,9 +1162,9 @@ suite('SessionsManagementService', () => {
 		const agentHost = new class extends TestSessionsProvider {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 			override readonly order = -1;
-			override readonly sessionTypes: readonly ISessionType[] = [{ id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }];
+			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }];
 			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return { folderUri: _folderUri } as unknown as ISessionWorkspace; }
-			override getSessionTypes(): ISessionType[] { return [{ id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }]; }
+			override getSessionTypes(): ISessionType[] { return [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }]; }
 			override getSessions(): ISession[] { return []; }
 			override createNewSession(_folderUri: URI, sessionTypeId: string): ISession {
 				created.push({ providerId: this.id, sessionTypeId });
@@ -1648,7 +1648,7 @@ suite('SessionsManagementService', () => {
 		});
 		let sent = false;
 		const provider = new class extends TestSessionsProvider {
-			override readonly sessionTypes: readonly ISessionType[] = [{ id: 'test', label: 'Test', icon: Codicon.vm }];
+			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm }];
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
 			override setIsolationMode(): never { throw new Error('isolation should not be configured'); }
 			override setBranch(): never { throw new Error('branch should not be configured'); }
@@ -2408,7 +2408,7 @@ suite('SessionsManagementService', () => {
 				seed: ISession,
 				override readonly id: string = 'quick-provider',
 				override readonly order: number = 0,
-				override readonly sessionTypes: readonly ISessionType[] = [{ id: 'quick', label: 'Quick', icon: Codicon.vm }],
+				override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick', label: 'Quick', icon: Codicon.vm }],
 			) {
 				super(seed);
 			}
@@ -2484,8 +2484,8 @@ suite('SessionsManagementService', () => {
 
 		test('honours options.providerId and the requested session type', () => {
 			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
-				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
-				{ id: 'other', label: 'Other', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'other', label: 'Other', icon: Codicon.vm },
 			]);
 
 			const service = setupQuickChat([quick]);
@@ -2496,8 +2496,8 @@ suite('SessionsManagementService', () => {
 
 		test('honours an explicit sessionTypeId without a providerId', () => {
 			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
-				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
-				{ id: 'other', label: 'Other', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'other', label: 'Other', icon: Codicon.vm },
 			]);
 
 			const service = setupQuickChat([quick]);
@@ -2508,8 +2508,8 @@ suite('SessionsManagementService', () => {
 
 		test('defaults to the last-used session type on the next call', () => {
 			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
-				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
-				{ id: 'other', label: 'Other', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'other', label: 'Other', icon: Codicon.vm },
 			]);
 
 			const service = setupQuickChat([quick]);
@@ -2539,8 +2539,8 @@ suite('SessionsManagementService', () => {
 				override readonly order = 0;
 			}(stubSession({ sessionId: 'p1', providerId: 'plain' }));
 			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 1, [
-				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
-				{ id: 'other', label: 'Other', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'other', label: 'Other', icon: Codicon.vm },
 			]);
 
 			const service = setupQuickChat([plain, quick]);
@@ -2566,12 +2566,12 @@ function createOrderedTypesService(disposables: ReturnType<typeof ensureNoDispos
 	const copilotProvider = new class extends TestSessionsProvider {
 		override readonly id = 'default-copilot';
 		override readonly order = copilotOrder;
-		override readonly sessionTypes: readonly ISessionType[] = [{ id: 'copilot', label: 'Copilot', icon: Codicon.vm }];
+		override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'copilot', label: 'Copilot', icon: Codicon.vm }];
 	}(stubSession({ sessionId: 'c1', providerId: 'default-copilot' }));
 	const agentHostProvider = new class extends TestSessionsProvider {
 		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly order = agentHostOrder;
-		override readonly sessionTypes: readonly ISessionType[] = [{ id: 'agent-host', label: 'Agent Host', icon: Codicon.vm }];
+		override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'agent-host', label: 'Agent Host', icon: Codicon.vm }];
 	}(stubSession({ sessionId: 'a1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID }));
 
 	const instantiationService = disposables.add(new TestInstantiationService());

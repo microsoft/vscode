@@ -31,6 +31,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { join } from '../../../../base/common/path.js';
 import { isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -46,6 +47,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
@@ -1017,12 +1019,72 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('native transport: getProtectedResources omits the Copilot resource', () => {
+	test('native transport: getProtectedResources keeps the Copilot resource but marks it not required', () => {
+		// Native keeps advertising the Copilot resource with `required: false`
+		// (rather than dropping it) so the host can silently probe for a GitHub
+		// token when the user is already signed in, while the window gate still
+		// treats the type as usable without GitHub. See `getProtectedResources`.
 		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		assert.deepStrictEqual(
-			agent.getProtectedResources().map(r => r.resource),
-			['https://api.github.com/repos'],
+			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+			[
+				{ resource: 'https://api.github.com', required: false },
+				{ resource: 'https://api.github.com/repos', required: false },
+			],
 		);
+	});
+
+	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
+		// The fix for the startup catch-22: with the exp flag on and a local Claude
+		// setup present, a signed-OUT user resolves to native — which still
+		// advertises the Copilot resource as not-required so the host can probe. If
+		// the host then silently forwards a GitHub token (the user was signed in all
+		// along), `authenticate` re-resolves (rule 3: signed in ⇒ proxy) and flips
+		// the transport to proxy, starting the proxy. Real detection is used against
+		// a real `~/.claude/settings.json` credential under a temp home.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-probe-home-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, proxy } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+			// Signed out at startup ⇒ native, Copilot advertised as not-required.
+			const before = {
+				resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+				proxyStarts: proxy.startCalls.length,
+			};
+
+			// Host probe forwards a GitHub token (user was signed in) ⇒ flip to proxy.
+			await agent.authenticate('https://api.github.com', 'gh-token');
+			await tick();
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+					proxyStarts: proxy.startCalls.length,
+				},
+			}, {
+				before: {
+					resources: [
+						{ resource: 'https://api.github.com', required: false },
+						{ resource: 'https://api.github.com/repos', required: false },
+					],
+					proxyStarts: 0,
+				},
+				after: {
+					resources: [
+						{ resource: 'https://api.github.com', required: true },
+						{ resource: 'https://api.github.com/repos', required: false },
+					],
+					proxyStarts: 1,
+				},
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
 	});
 
 	test('coalesces concurrent refreshModels calls onto one CAPI models request', async () => {
@@ -1130,6 +1192,24 @@ suite('ClaudeAgent', () => {
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
+	});
+
+	test('unusable native (explicit proxy off, no setup) does not demand GitHub sign-in', async () => {
+		// The "unusable" case: explicit `claudeUseCopilotProxy=false` is a hard
+		// override to native even with no usable credentials. It must degrade to
+		// "no models" (NoModels), NOT a GitHub sign-in prompt — so the Copilot
+		// resource is advertised `required: false` and `createSession` resolves
+		// (native needs no proxy) instead of throwing `AHP_AUTH_REQUIRED` the way
+		// proxy mode does before authentication (cf. the AHP_AUTH_REQUIRED test).
+		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/workspace')] });
+		assert.deepStrictEqual({
+			copilotRequired: agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required,
+			createdWithoutAuthPrompt: created.provisional === true,
+		}, {
+			copilotRequired: false,
+			createdWithoutAuthPrompt: true,
+		});
 	});
 
 	test('transport flip native→proxy with no proxy handle emits auth/required once', () => {

@@ -5,6 +5,7 @@
 
 import './media/sessionsSetUp.css';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { IObservable, runOnChange } from '../../base/common/observable.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
 import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -26,6 +27,8 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { observeUsableWithoutGitHub } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -71,6 +74,10 @@ class SessionsSetUpWidget extends Disposable {
 	private readonly dialogRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
 	private _initialSetupFlow = true;
+	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
+	private _proceedingSignedOut = false;
+	/** Whether a signed-out user can work without GitHub right now. */
+	private readonly _usableWithoutGitHub: IObservable<boolean>;
 
 	// Non-service params must come before @-decorated service params
 	constructor(
@@ -91,8 +98,10 @@ class SessionsSetUpWidget extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+		this._usableWithoutGitHub = observeUsableWithoutGitHub(this.sessionsManagementService, this.configurationService);
 		this._start();
 	}
 
@@ -176,10 +185,23 @@ class SessionsSetUpWidget extends Disposable {
 		disposables.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
 			const nowSignedIn = account !== null;
 			if (signedIn && !nowSignedIn) {
+				// Signed out: drop the completion marker and re-consult the gate.
 				this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
-				this._showWelcome(false);
+				this._reevaluateSignedOut();
+			} else if (!signedIn && nowSignedIn) {
+				// Signed in while running signed-out: the window is already open.
+				this._proceedingSignedOut = false;
 			}
 			signedIn = nowSignedIn;
+		}));
+
+		// While signed out, a change to the set of session types usable without
+		// GitHub (or to the opt-in itself) can flip the last-resort gate, so
+		// re-drive the decision.
+		disposables.add(runOnChange(this._usableWithoutGitHub, () => {
+			if (!signedIn) {
+				this._reevaluateSignedOut();
+			}
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -194,6 +216,53 @@ class SessionsSetUpWidget extends Disposable {
 		}));
 
 		return disposables;
+	}
+
+	/**
+	 * Whether the Agents window must fall back to forcing GitHub sign-in. Every
+	 * caller is on a signed-out path, so this is simply the inverse of "can work
+	 * without GitHub" — always true while the opt-in is off, which is today's
+	 * mandatory-sign-in behavior.
+	 */
+	private _mustForceGitHubSignIn(): boolean {
+		return !this._usableWithoutGitHub.get();
+	}
+
+	/**
+	 * Re-run the signed-out decision after an input change: force GitHub sign-in
+	 * when the gate demands it, otherwise open the window without GitHub. A no-op
+	 * while a dialog is up — that dialog owns the next transition.
+	 */
+	private _reevaluateSignedOut(): void {
+		if (this.dialogRef.value) {
+			return;
+		}
+		if (this._mustForceGitHubSignIn()) {
+			this._proceedingSignedOut = false;
+			void this._showWelcome(false);
+		} else {
+			void this._proceedWithoutGitHub();
+		}
+	}
+
+	/**
+	 * Open the Agents window for a signed-out user because at least one session
+	 * type is usable without GitHub. Mirrors the signed-in completion path, but
+	 * keeps watching so a later change (a usable type disappears, or the user
+	 * signs in) re-drives the decision. Idempotent while already proceeding.
+	 */
+	private async _proceedWithoutGitHub(): Promise<void> {
+		if (this._proceedingSignedOut) {
+			return;
+		}
+		this._proceedingSignedOut = true;
+		this.logService.info('[sessions welcome] Proceeding without GitHub sign-in; a session type is usable while signed out');
+		await this._ensureAIFeaturesEnabled();
+		if (this._store.isDisposed) {
+			return;
+		}
+		this.onCompleted();
+		this.watcherRef.value = this._watchActiveState(false);
 	}
 
 	private async _ensureAIFeaturesEnabled(): Promise<void> {
@@ -248,6 +317,14 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 
+		// A non-first-launch _showWelcome means the user is signed out. Consult the
+		// last-resort GitHub gate before forcing sign-in: when a session type is
+		// usable without GitHub (and the opt-in is on), open the window instead.
+		if (!isFirstLaunch && !this._mustForceGitHubSignIn()) {
+			await this._proceedWithoutGitHub();
+			return;
+		}
+
 		this.watcherRef.clear();
 		this.dialogRef.value = new DisposableStore();
 
@@ -281,8 +358,13 @@ class SessionsSetUpWidget extends Disposable {
 				}
 
 				await this._showWelcomeDialog();
-			} else {
+			} else if (this._mustForceGitHubSignIn()) {
 				await this._showSignInDialog();
+			} else {
+				// Signed-out first launch, but a session type is usable without GitHub.
+				this.dialogRef.clear();
+				await this._proceedWithoutGitHub();
+				return;
 			}
 		} else {
 			await this._showSignInDialog();

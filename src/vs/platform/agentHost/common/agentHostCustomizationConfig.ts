@@ -30,6 +30,15 @@ export const enum AgentHostConfigKey {
 	 * the user's own credentials (BYO Anthropic — Phase 19).
 	 */
 	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	/**
+	 * Experimentation flag for conditional agent-window auth. When true, a
+	 * session type that is usable without GitHub (e.g. Claude in native mode with
+	 * an existing local setup) lets the agent window open for a signed-out user
+	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
+	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
+	 * feature is dark (today's always-proxy behavior).
+	 */
+	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
 	CodexUsageSource = 'codexUsageSource',
 	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
 	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
@@ -98,6 +107,12 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
 		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
 		default: true,
+	}),
+	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
+		default: false,
 	}),
 	[AgentHostConfigKey.CodexUsageSource]: schemaProperty<CodexUsageSource>({
 		type: 'string',
