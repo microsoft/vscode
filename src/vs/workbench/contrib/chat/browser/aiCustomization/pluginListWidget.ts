@@ -26,6 +26,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { CustomizationEnablementKind } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -363,18 +364,22 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 	};
 }
 
-const agentHostPluginEnablementActionIds: Readonly<Record<string, string>> = {
-	'agentPlugin.enable': 'plugin.agentHost.enable',
-	'agentPlugin.enableForWorkspace': 'plugin.agentHost.enableWorkspace',
-	'agentPlugin.disable': 'plugin.agentHost.disable',
-	'agentPlugin.disableForWorkspace': 'plugin.agentHost.disableWorkspace',
+/**
+ * The scoped decision each local enablement action expresses, keyed by the
+ * stable ids `createEnablementActions` mints. Deliberately a decision rather
+ * than a matching agent-host action id: the host only ever publishes the
+ * inverse action for a scope, so pairing by id silently skipped the host write
+ * whenever the two runtimes already disagreed.
+ */
+const agentHostPluginEnablementDecisions: Readonly<Record<string, { readonly kind: CustomizationEnablementKind; readonly enabled: boolean }>> = {
+	'agentPlugin.enable': { kind: CustomizationEnablementKind.Global, enabled: true },
+	'agentPlugin.enableForWorkspace': { kind: CustomizationEnablementKind.Workspace, enabled: true },
+	'agentPlugin.disable': { kind: CustomizationEnablementKind.Global, enabled: false },
+	'agentPlugin.disableForWorkspace': { kind: CustomizationEnablementKind.Workspace, enabled: false },
 };
 
-/**
- * Maps the stable ids created by createEnablementActions to the scoped agent-host actions.
- */
-function getAgentHostPluginEnablementActionId(action: IAction): string | undefined {
-	return agentHostPluginEnablementActionIds[action.id];
+function getAgentHostPluginEnablementDecision(action: IAction): { readonly kind: CustomizationEnablementKind; readonly enabled: boolean } | undefined {
+	return agentHostPluginEnablementDecisions[action.id];
 }
 
 function findAgentHostPluginCustomization(pluginUri: URI, pluginName: string, customizations: readonly ICustomizationItem[]): ICustomizationItem | undefined {
@@ -398,8 +403,9 @@ function toCustomizationItemAction(itemAction: ICustomizationItemAction): IActio
 	return action;
 }
 
-function withAgentHostPluginEnablement(action: IAction, agentHostAction: ICustomizationItemAction | undefined): IAction {
-	if (!agentHostAction) {
+function withAgentHostPluginEnablement(action: IAction, setEnablement: ((kind: CustomizationEnablementKind, enabled: boolean) => void) | undefined): IAction {
+	const decision = getAgentHostPluginEnablementDecision(action);
+	if (!setEnablement || !decision) {
 		return action;
 	}
 
@@ -407,7 +413,7 @@ function withAgentHostPluginEnablement(action: IAction, agentHostAction: ICustom
 		try {
 			await action.run();
 		} finally {
-			await agentHostAction.run();
+			setEnablement(decision.kind, decision.enabled);
 		}
 	});
 	wrapped.tooltip = action.tooltip;
@@ -422,11 +428,11 @@ export function mergeInstalledPluginEnablementActions(
 	agentHostCustomizations: readonly ICustomizationItem[],
 ): IAction[][] {
 	const agentHostCustomization = findAgentHostPluginCustomization(pluginUri, pluginName, agentHostCustomizations);
-	if (!agentHostCustomization?.actions) {
+	if (!agentHostCustomization) {
 		return actionGroups.map(group => [...group]);
 	}
 
-	const actionsById = new Map(agentHostCustomization.actions.map(action => [action.id, action]));
+	const actionsById = new Map((agentHostCustomization.actions ?? []).map(action => [action.id, action]));
 	// The host publishes only the inverse action for each scope, so presence of one
 	// specific id says nothing about whether the scope applies. Workspace scope is
 	// applicable when the host offers either variant; when it is not (a session with
@@ -437,17 +443,9 @@ export function mergeInstalledPluginEnablementActions(
 	let sessionActionAdded = false;
 	const mergedGroups = actionGroups.map(group => {
 		const mergedGroup = group
-			.filter(action => {
-				const agentHostActionId = getAgentHostPluginEnablementActionId(action);
-				return !agentHostActionId?.endsWith('Workspace') || hostSupportsWorkspace;
-			})
-			// A missing counterpart means the host is already in the state this action
-			// asks for, so the wrapper falls back to running the local write alone.
-			.map(action => withAgentHostPluginEnablement(
-				action,
-				actionsById.get(getAgentHostPluginEnablementActionId(action) ?? ''),
-			));
-		if (!sessionActionAdded && sessionAction && group.some(action => getAgentHostPluginEnablementActionId(action) !== undefined)) {
+			.filter(action => getAgentHostPluginEnablementDecision(action)?.kind !== CustomizationEnablementKind.Workspace || hostSupportsWorkspace)
+			.map(action => withAgentHostPluginEnablement(action, agentHostCustomization.setEnablement));
+		if (!sessionActionAdded && sessionAction && group.some(action => getAgentHostPluginEnablementDecision(action) !== undefined)) {
 			mergedGroup.push(toCustomizationItemAction(sessionAction));
 			sessionActionAdded = true;
 		}

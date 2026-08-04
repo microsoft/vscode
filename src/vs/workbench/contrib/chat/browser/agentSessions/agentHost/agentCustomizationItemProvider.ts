@@ -87,6 +87,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
+		const setEnablement = this._pluginEnablementSetter(sessionResource, customization.id);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -103,32 +104,37 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
+			setEnablement,
 			actions: [
-				...getPluginEnablementActions(
-					customization,
-					this._customAgentsService.getWorkingDirectories(sessionResource),
-					(kind, enabled) => {
-						const currentCustomization = this._customAgentsService.getCustomizations(sessionResource).find(candidate =>
-							candidate.type === CustomizationType.Plugin && candidate.id === customization.id);
-						if (!currentCustomization) {
-							return;
-						}
-						const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
-						this._customAgentsService.setCustomizationEnablement(
-							sessionResource,
-							customization.id,
-							withCustomizationEnablement(
-								currentCustomization.enablement,
-								kind,
-								kind === CustomizationEnablementKind.Workspace
-									? workingDirectories.map(uri => ({ kind, uri, enabled }))
-									: { kind, enabled },
-							),
-						);
-					},
-				),
+				...getPluginEnablementActions(customization, this._customAgentsService.getWorkingDirectories(sessionResource), setEnablement),
 				...(this._getItemActions?.(customization, clientId) ?? []),
 			],
+		};
+	}
+
+	/**
+	 * Applies a scoped enablement decision to a plugin customization, reading the
+	 * decisions in force at the time it runs rather than when the menu was built.
+	 */
+	private _pluginEnablementSetter(sessionResource: URI, customizationId: string): (kind: CustomizationEnablementKind, enabled: boolean) => void {
+		return (kind, enabled) => {
+			const current = this._customAgentsService.getCustomizations(sessionResource).find(candidate =>
+				candidate.type === CustomizationType.Plugin && candidate.id === customizationId);
+			if (!current) {
+				return;
+			}
+			const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+			this._customAgentsService.setCustomizationEnablement(
+				sessionResource,
+				customizationId,
+				withCustomizationEnablement(
+					current.enablement,
+					kind,
+					kind === CustomizationEnablementKind.Workspace
+						? workingDirectories.map(uri => ({ kind, uri, enabled }))
+						: { kind, enabled },
+				),
+			);
 		};
 	}
 

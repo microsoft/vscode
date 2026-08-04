@@ -8,6 +8,7 @@ import { derived, IObservable, ISettableObservable, observableValue } from '../.
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -171,6 +172,17 @@ export interface ICustomizationItem {
 	readonly userInvocable?: boolean;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
+	/**
+	 * Applies a scoped enablement decision to the agent-host customization behind
+	 * this item. Present only for items backed by an agent-host session.
+	 *
+	 * Unlike {@link actions}, which only ever offer the inverse of the current
+	 * state, this accepts any scope/value pair. Callers merging these decisions
+	 * with another runtime's enablement must use it rather than matching against
+	 * {@link actions}, or a decision the host already appears to hold would be
+	 * silently skipped when the two runtimes disagree.
+	 */
+	readonly setEnablement?: (kind: CustomizationEnablementKind, enabled: boolean) => void;
 }
 
 export interface ICustomizationAgentRef {

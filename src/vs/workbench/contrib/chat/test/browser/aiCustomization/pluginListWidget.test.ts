@@ -219,6 +219,10 @@ suite('pluginListWidget', () => {
 
 		await workspaceAction.run();
 
+		// The host is workspace-enabled and so publishes only "Disable (Workspace)".
+		// The merged action must still be offered AND must still write the decision
+		// its own label promises, rather than being skipped for lack of a matching
+		// host action.
 		assert.deepStrictEqual({
 			label: workspaceAction.label,
 			localWrites,
@@ -226,7 +230,13 @@ suite('pluginListWidget', () => {
 		}, {
 			label: 'Enable (Workspace)',
 			localWrites: ['workspace'],
-			hostWrites: [],
+			hostWrites: [{
+				rawId: 'file:///plugin-1',
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+			}],
 		});
 	});
 
