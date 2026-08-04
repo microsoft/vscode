@@ -373,6 +373,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: '',
 				scope: ConfigurationScope.APPLICATION,
 				included: false,
+				policy: {
+					name: 'ExtensionGalleryAuthProvider',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.133',
+					localization: {
+						description: {
+							key: 'extensions.gallery.authProvider',
+							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.gallery.authProvider.github',
+								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+							},
+							{
+								key: 'extensions.gallery.authProvider.microsoft',
+								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+							},
+						]
+					}
+				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
 				type: 'boolean',
