@@ -1332,7 +1332,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Idle: solid primary button background. */
-.action-item.chat-submit-button:not(.disabled) > .action-label {
+.monaco-workbench .action-item.menu-entry.chat-submit-button:not(.disabled) > .action-label.codicon[class*='codicon-'] {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
 	transition: background-color 120ms ease;
