@@ -709,6 +709,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 				e.preventDefault();
 				e.stopPropagation();
+			}
+		}));
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_UP, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
 				handler();
 			}
 		}));
