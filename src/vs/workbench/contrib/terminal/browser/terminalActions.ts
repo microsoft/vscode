@@ -1303,6 +1303,25 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.KillOthers,
+		title: localize2('workbench.action.terminal.killOthers', 'Kill Other Terminals'),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
+		run: async (c) => {
+			const activeInstance = c.service.activeInstance;
+			if (!activeInstance) {
+				return;
+			}
+			const disposePromises: Promise<void>[] = [];
+			for (const instance of c.service.instances) {
+				if (instance !== activeInstance) {
+					disposePromises.push(c.service.safeDisposeTerminal(instance));
+				}
+			}
+			await Promise.all(disposePromises);
+		}
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.KillEditor,
 		title: localize2('workbench.action.terminal.killEditor', 'Kill the Active Terminal in Editor Area'),
 		precondition: sharedWhenClause.terminalAvailable,
