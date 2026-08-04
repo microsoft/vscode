@@ -142,11 +142,58 @@ jobs:
           echo "allowed=false" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Allow OSS Security Bot action-pinning PRs
+        id: oss_security_bot_exception
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.bot_field_exception.outputs.allowed != 'true' && github.event.pull_request.user.login == 'OssSecurityBot' && github.event.pull_request.user.id == 301434949 }}
+        run: |
+          # The Microsoft OSS Security Bot (https://aka.ms/action-pinning) opens PRs that
+          # pin third-party actions to full-length commit SHAs. Allow it only when every
+          # engineering-system file it touched is a workflow file whose diff exclusively
+          # changes `uses:` lines — i.e. action reference pins and nothing else.
+          #
+          # Files outside the engineering-system glob (e.g. .github/dependabot.yml or
+          # .github/actions/**) are not restricted by this workflow, so they are not
+          # inspected here.
+
+          if jq -e 'any(test("^build\\/|package\\.json$"))' "$HOME/files.json" > /dev/null; then
+            echo "Bot touched build/ or a package.json — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files") || {
+            echo "Failed to fetch PR file list — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          # A file with no `patch` (too large, or binary) can't be inspected, so it can
+          # never be waived.
+          UNINSPECTABLE=$(echo "$CHANGED_FILES" | jq -r '[.[] | select(.filename | startswith(".github/workflows/")) | select(.patch == null) | .filename] | join(", ")')
+          if [[ -n "$UNINSPECTABLE" ]]; then
+            echo "No diff available for: $UNINSPECTABLE — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          WORKFLOW_PATCHES=$(echo "$CHANGED_FILES" | jq -r '.[] | select(.filename | startswith(".github/workflows/")) | .patch')
+          NON_PIN_LINES=$(echo "$WORKFLOW_PATCHES" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-][[:space:]]*(-[[:space:]]+)?uses:[[:space:]]' || true)
+
+          if [[ -n "$NON_PIN_LINES" ]]; then
+            echo "Workflow diff changes more than \`uses:\` lines — not allowed:"
+            echo "$NON_PIN_LINES"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Action-pinning-only workflow changes by OSS Security Bot — allowing"
+            echo "allowed=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Determine if engineering system changes are allowed
         id: allowed
         if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' }}
         run: |
-          if [[ "${{ steps.bot_field_exception.outputs.allowed }}" == "true" || "${{ steps.cherry_pick_exception.outputs.allowed }}" == "true" ]]; then
+          if [[ "${{ steps.bot_field_exception.outputs.allowed }}" == "true" || "${{ steps.cherry_pick_exception.outputs.allowed }}" == "true" || "${{ steps.oss_security_bot_exception.outputs.allowed }}" == "true" ]]; then
             echo "Engineering system changes are allowed by an exception"
             echo "blocked=false" >> $GITHUB_OUTPUT
           else
