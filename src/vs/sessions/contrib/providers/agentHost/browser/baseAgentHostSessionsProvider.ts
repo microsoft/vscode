@@ -712,7 +712,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 
-		this.gitHubInfo = derived<IGitHubInfo | undefined>(reader => {
+		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
 			if (!baseGitHubInfo?.pullRequest) {
 				return baseGitHubInfo;
@@ -735,7 +735,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = _options.loading;
-		this.description = derived(reader => {
+		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
 			const status = this.status.read(reader);
 			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
 				const activity = this._activity.read(reader);
