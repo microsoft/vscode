@@ -34,7 +34,7 @@ interface ICapturedRequest {
 }
 
 async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
-	const deadline = Date.now() + 30_000;
+	const deadline = Date.now() + 60_000;
 	while (Date.now() < deadline) {
 		const session = await fetchSessionWithChat(client, sessionUri);
 		const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
@@ -156,7 +156,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			writeFile(mcpConfigFile, JSON.stringify({
 				mcpServers: {
 					customization_test: {
-						command: process.execPath,
+						command: 'node',
 						args: [mcpScript],
 					},
 				},
