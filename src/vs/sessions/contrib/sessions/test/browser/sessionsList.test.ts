@@ -9,13 +9,14 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { canCreateSessionForSection, computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
+	canCreateSession?: boolean;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
@@ -31,6 +32,7 @@ function createSession(id: string, opts: {
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
+			canCreateSession: opts.canCreateSession,
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
@@ -129,6 +131,51 @@ suite('Sessions - SessionsList Helpers', () => {
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+		});
+
+		test('workspaces with the same final label merge into one section', () => {
+			const groups = groupByWorkspace([
+				createSession('1', { workspaceLabel: 'Shared Name (Workspace)', canCreateSession: false }),
+				createSession('2', { workspaceLabel: 'Shared Name (Workspace)', canCreateSession: false }),
+			]);
+
+			assert.deepStrictEqual(groups.map(group => ({
+				id: group.id,
+				label: group.label,
+				sessions: group.sessions.map(session => session.sessionId),
+				canCreateSession: group.canCreateSession,
+			})), [{
+				id: 'workspace:Shared Name (Workspace)',
+				label: 'Shared Name (Workspace)',
+				sessions: ['1', '2'],
+				canCreateSession: false,
+			}]);
+		});
+
+		test('workspace creation capability defaults to supported', () => {
+			const regular = groupByWorkspace([createSession('regular', { workspaceLabel: 'Repo' })])[0];
+			const nonCreatable = groupByWorkspace([createSession('multi', { workspaceLabel: 'Demo (Workspace)', canCreateSession: false })])[0];
+
+			assert.deepStrictEqual({
+				regular: canCreateSessionForSection(regular),
+				nonCreatable: canCreateSessionForSection(nonCreatable),
+			}, {
+				regular: true,
+				nonCreatable: false,
+			});
+		});
+
+		test('merged workspace creation capability is conservative regardless of order', () => {
+			const creatable = createSession('creatable', { workspaceLabel: 'Shared' });
+			const nonCreatable = createSession('non-creatable', { workspaceLabel: 'Shared', canCreateSession: false });
+
+			assert.deepStrictEqual({
+				creatableFirst: groupByWorkspace([creatable, nonCreatable])[0].canCreateSession,
+				nonCreatableFirst: groupByWorkspace([nonCreatable, creatable])[0].canCreateSession,
+			}, {
+				creatableFirst: false,
+				nonCreatableFirst: false,
+			});
 		});
 	});
 

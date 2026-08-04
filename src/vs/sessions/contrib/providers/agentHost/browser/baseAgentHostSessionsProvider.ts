@@ -12,7 +12,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -1309,7 +1309,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
-		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		const workspace = this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		const multiRoot = readSessionMultiRootMetadata(this._meta);
+		if (!workspace || !multiRoot) {
+			return workspace;
+		}
+
+		const name = multiRoot.name?.trim();
+		const fileName = basename(URI.parse(multiRoot.workspaceFile));
+		const workspaceName = name || fileName.replace(/\.code-workspace$/i, '');
+		const workspaceLabel = localize('multiRootWorkspaceLabel', "Workspace");
+		return {
+			...workspace,
+			label: `${workspaceName} (${workspaceLabel})`,
+			canCreateSession: false,
+		};
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
