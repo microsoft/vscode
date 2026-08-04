@@ -19,7 +19,7 @@ import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { Range } from '../core/range.js';
 import { ILanguageSelection } from '../languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, TextDirection } from '../model.js';
 import { isEditStackElement } from '../model/editStack.js';
 import { TextModel, createTextBuffer } from '../model/textModel.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
@@ -59,6 +59,7 @@ interface IRawEditorConfig {
 	creationOptions?: unknown;
 	largeFileOptimizations?: unknown;
 	bracketPairColorization?: unknown;
+	textDirection?: unknown;
 }
 
 interface IRawConfig {
@@ -168,6 +169,11 @@ export class ModelService extends Disposable implements IModelService {
 			};
 		}
 
+		let textDirection = EDITOR_MODEL_DEFAULTS.textDirection;
+		if (config.editor && typeof config.editor.textDirection !== 'undefined') {
+			textDirection = (config.editor.textDirection === 'ltr' ? TextDirection.LTR : TextDirection.RTL);
+		}
+
 		return {
 			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
@@ -177,7 +183,8 @@ export class ModelService extends Disposable implements IModelService {
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			largeFileOptimizations: largeFileOptimizations,
-			bracketPairColorizationOptions
+			bracketPairColorizationOptions,
+			textDirection,
 		};
 	}
 
