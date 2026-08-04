@@ -118,24 +118,40 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 		});
 	});
 
-	test('renders row actions before right-aligned change counts', () => {
+	test('renders row actions before aligned change count columns', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const container = document.createElement('div');
+		// Different digit lengths expose per-row sizing regressions.
 		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
 			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
+			{ ...emptySessionEntryDiff(URI.file('/other.md'), URI.file('/other.md')), added: 123, removed: 45 },
 		]);
 		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IEditorService),
 			accessor.get(IConfigurationService),
 		] as const);
 		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
-			getRowActions: () => [toAction({ id: 'preview', label: 'Preview' })],
+			getRowActions: () => [toAction({ id: 'preview', label: 'Preview', run: () => undefined })],
 		}));
 
-		const row = container.querySelector('.chat-summary-list-row-with-actions');
-		assert.deepStrictEqual(
-			Array.from(row?.children ?? []).map(element => element.classList.item(0)),
-			['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
-		);
+		const rows = Array.from(container.querySelectorAll('.chat-summary-list-row-with-actions'));
+		assert.deepStrictEqual({
+			rowOrder: rows.map(row => Array.from(row.children).map(element => element.classList.item(0))),
+			counts: rows.map(row => Array.from(row.querySelectorAll('.insertions, .deletions')).map(element => element.textContent)),
+			columnWidths: rows.map(row => Array.from(row.querySelectorAll<HTMLElement>('.insertions, .deletions')).map(element => element.style.width)),
+		}, {
+			rowOrder: [
+				['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
+				['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
+			],
+			counts: [
+				['+5', '-2'],
+				['+123', '-45'],
+			],
+			columnWidths: [
+				['4ch', '3ch'],
+				['4ch', '3ch'],
+			],
+		});
 	});
 });
