@@ -1860,6 +1860,8 @@ export interface IAgent {
 	/** Request a session MCP server stop by customization id. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
+	/** Reconciles persisted MCP server enablement with a running session. */
+
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
 

@@ -52,6 +52,7 @@ import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, Mess
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -6469,7 +6470,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		const staged = await agent.getSessionCustomizations(created.session);
 		const sessionId = AgentSession.id(created.session);
@@ -6481,7 +6482,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
 		});
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2');
@@ -6603,7 +6604,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(s1.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://shared'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const [projected1, projected2] = await Promise.all([
@@ -6670,7 +6671,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://a'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
@@ -6754,7 +6755,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://x'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, false);
 		assert.strictEqual(sdk.startupCallCount, startupsBefore, 'no rebind during the in-flight turn');

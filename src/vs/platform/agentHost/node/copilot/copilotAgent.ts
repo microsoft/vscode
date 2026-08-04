@@ -50,7 +50,7 @@ import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -58,7 +58,9 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applySessionMcpServerEnablement, findMcpChildId, getEffectiveMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { customizationEnablementEquals, customizationPolicyKey, getPrimaryWorkingDirectory, rootConfigMcpServerPolicyKey } from '../shared/mcpServerEnablement.js';
+import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 
 interface ICopilotRuntimeManagedSettingsSdk {
@@ -146,7 +148,15 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
-export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
+/**
+ * A parsed plugin plus where it lives for this session.
+ *
+ * `source` is the plugin's stable, client-published source URI (absent for
+ * session-discovered plugins, which have no durable identity). It is what MCP
+ * enablement policy keys off — deliberately not `pluginDir`, which embeds a
+ * content nonce and the user-data directory and therefore changes over time.
+ */
+export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI; readonly source?: string };
 
 /**
  * A session that has been requested by a client but has not yet been
@@ -441,6 +451,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
@@ -462,6 +473,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		this._register(this._customizationEnablementService.onDidChangeEnablement(event => {
+			for (const session of this._stateManager.getSessionUris()) {
+				const sessionUri = URI.parse(session);
+				if (AgentSession.provider(sessionUri) !== this.id || !event.affectsSession(session)) {
+					continue;
+				}
+				void this._reconcileMcpServerEnablement(sessionUri).catch(err => this._logService.error('[CopilotAgent] Failed to apply MCP server enablement policy', err));
+			}
+		}));
 		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
 			if (AgentSession.provider(session) === this.id) {
 				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
@@ -767,9 +787,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const entry = this._findAnySession(sessionId);
 		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
-		const customizations = [...fromPlugins, ...topLevelMcp];
+		const customizations = this._customizationEnablementService.applyEnablement(
+			[...fromPlugins, ...topLevelMcp],
+			this._primaryWorkingDirectory(session, anchors.directory),
+		);
 		const desired = this._stateManager.getSessionState(session.toString())?.customizations ?? [];
-		return applyMcpServerEnablement(customizations, desired);
+		return applySessionMcpServerEnablement(customizations, desired);
 	}
 
 	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -784,6 +807,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async startMcpServer(session: URI, id: string): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._findAnySession(sessionId)?.startMcpServer(id);
+	}
+
+	/**
+	 * The session's primary working directory, used to key workspace-scoped
+	 * customization enablement policy.
+	 *
+	 * `getEffectiveWorkingDirectories` reads the state manager, but the initial
+	 * customization set is seeded (see `AgentService.createSession`) *before*
+	 * the session is registered there. Without `fallback` that seeding would
+	 * resolve no workspace policy and publish a disabled server as enabled,
+	 * and nothing would revisit it. `fallback` is the session's customization
+	 * anchor, which tracks the same worktree the state manager later reports,
+	 * so both sources agree on the persisted key.
+	 */
+	private _primaryWorkingDirectory(session: URI, fallback: URI | undefined): string | undefined {
+		return getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(session.toString())) ?? fallback?.toString();
+	}
+
+	private async _reconcileMcpServerEnablement(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		const chats = [
+			...(entry?.defaultChat ? [entry.defaultChat] : []),
+			...(entry?.peerChatSessions() ?? []),
+		];
+		const results = await Promise.allSettled(chats.map(chat => chat.reconcileMcpServerEnablement()));
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				this._logService.error('[CopilotAgent] Failed to apply MCP server enablement policy', result.reason);
+			}
+		}
 	}
 
 	async stopMcpServer(session: URI, id: string): Promise<void> {
@@ -4176,7 +4230,9 @@ class SessionPluginController extends Disposable {
 		private _directory: URI | undefined,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
@@ -4308,9 +4364,9 @@ class SessionPluginController extends Disposable {
 
 		return [
 			...host.filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, source: item.customization.uri })),
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, source: item.customization.uri })),
 			...sessionPlugins,
 		];
 	}
@@ -4485,26 +4541,60 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
-		const enabled = this._isEnabled(customization);
 		if (customization.type === CustomizationType.McpServer) {
-			return customization.enabled === enabled ? customization : { ...customization, enabled };
+			return this._applyMcpEnablement(customization, undefined) as T;
 		}
+		const enabled = this._isEnabled(customization);
+		const source = customization.type === CustomizationType.Plugin ? customization.uri : undefined;
 		let changed = customization.enabled !== enabled;
 		const children = customization.children?.map(child => {
-			const desiredEnabled = this._desiredEnabled(child);
-			if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
-				return child;
-			}
-			changed = true;
-			return { ...child, enabled: desiredEnabled };
+			const next = child.type === CustomizationType.McpServer ? this._applyMcpEnablement(child, source) : this._applyChildEnablement(child);
+			changed ||= next !== child;
+			return next;
 		});
 		return changed ? { ...customization, enabled, children } : customization;
 	}
 
+	private _applyChildEnablement<T extends ChildCustomization>(child: T): T {
+		const desiredEnabled = this._desiredEnabled(child);
+		return desiredEnabled === undefined || desiredEnabled === child.enabled ? child : { ...child, enabled: desiredEnabled };
+	}
+
+	/**
+	 * Resolves an MCP customization against the host's durable (global /
+	 * workspace) enablement policy, layering on any session-scoped decision
+	 * carried by the reducer-backed session state. Unlike other customization
+	 * types, MCP enablement outlives the session, so the published value has to
+	 * be derived from the policy rather than from session state alone —
+	 * otherwise a freshly created session publishes the raw discovered value
+	 * and appears enabled despite a persisted workspace or global disable.
+	 *
+	 * @param source stable source URI of the containing plugin, which the
+	 * policy key is derived from. Must match what the toggle path persists.
+	 */
+	private _applyMcpEnablement<T extends Customization | ChildCustomization>(customization: T, source: string | undefined): T {
+		const desired = this._desiredCustomization(customization);
+		const resolved = this._customizationEnablementService.resolveEnablement(
+			desired?.enablement ? { ...customization, enablement: desired.enablement } : customization,
+			// Falls back to this controller's anchor directory: publishes can run
+			// before the session is registered with the state manager, and a
+			// missing working directory would silently resolve no workspace policy.
+			getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._session.toString())) ?? this._directory?.toString(),
+			source,
+		);
+		return customization.enabled === resolved.enabled && customizationEnablementEquals(customization.enablement, resolved.enablement)
+			? customization
+			: { ...customization, ...resolved };
+	}
+
 	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
+		return this._desiredCustomization(customization)?.enabled;
+	}
+
+	private _desiredCustomization(customization: Customization | ChildCustomization): Customization | ChildCustomization | undefined {
 		const exact = this._getDesiredCustomization(customization.id);
 		if (exact) {
-			return exact.enabled;
+			return exact;
 		}
 		if (!this._directory) {
 			return undefined;
@@ -4517,7 +4607,7 @@ class SessionPluginController extends Disposable {
 			const previousId = customizationId(previousUri.toString(), customization.range);
 			const previous = this._getDesiredCustomization(previousId);
 			if (previous) {
-				return previous.enabled;
+				return previous;
 			}
 		}
 		return undefined;
@@ -4647,6 +4737,8 @@ class ActiveClient extends Disposable {
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this.pluginController = this._register(pluginController);
@@ -4677,15 +4769,41 @@ class ActiveClient extends Disposable {
 	async snapshot(): Promise<IActiveClientSnapshot> {
 		return {
 			tools: this.toolSet.merged(),
-			plugins: await this.pluginController.getAppliedPlugins(),
+			plugins: await this._getPlugins(),
 			mcpServers: this._getMcpServers(),
 		};
 	}
 
 	private _getMcpServers(): AgentHostMcpServers {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
+		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()));
+		const sessionEnabled = this._sessionEnabledMcpServerPolicyKeys();
+		return structuredClone(Object.fromEntries(Object.entries(servers).filter(([name]) =>
+			this._customizationEnablementService.resolveRootMcpServerEnablement(name, workingDirectory).enabled
+			|| sessionEnabled.has(rootConfigMcpServerPolicyKey(name))
+		)));
+	}
 
-		return structuredClone(servers);
+	private async _getPlugins(): Promise<readonly ICopilotPluginInfo[]> {
+		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()));
+		const sessionEnabled = this._sessionEnabledMcpServerPolicyKeys();
+		return (await this.pluginController.getAppliedPlugins()).map(plugin => {
+			const mcpServers = plugin.mcpServers.filter(server =>
+				this._customizationEnablementService.resolveEnablement(server.customization, workingDirectory, plugin.source).enabled
+				|| sessionEnabled.has(customizationPolicyKey(server.customization, plugin.source))
+			);
+			return mcpServers.length === plugin.mcpServers.length ? plugin : { ...plugin, mcpServers };
+		});
+	}
+
+	private _sessionEnabledMcpServerPolicyKeys(): ReadonlySet<string> {
+		const keys = new Set<string>();
+		for (const { customization, source } of getEffectiveMcpServerCustomizations(this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [])) {
+			if (customization.enablement?.find(entry => entry.kind === CustomizationEnablementKind.Session)?.enabled === true) {
+				keys.add(customizationPolicyKey(customization, source));
+			}
+		}
+		return keys;
 	}
 
 	/**
@@ -4696,7 +4814,7 @@ class ActiveClient extends Disposable {
 	 * reflected live via {@link toolSet} and never requires a restart.
 	 */
 	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
-		const plugins = await this.pluginController.getAppliedPlugins();
+		const plugins = await this._getPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
 			return true;
 		}

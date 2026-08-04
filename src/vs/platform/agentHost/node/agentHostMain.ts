@@ -21,6 +21,7 @@ import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentMo
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -220,6 +221,7 @@ async function startAgentHost(): Promise<void> {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);

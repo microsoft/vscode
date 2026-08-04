@@ -17,6 +17,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -192,6 +193,7 @@ export class AgentSideEffects extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -1403,6 +1405,10 @@ export class AgentSideEffects extends Disposable {
 				this._publishAllSessionCustomizations();
 				break;
 			}
+			case ActionType.SessionCustomizationToggled: {
+				this._customizationEnablementService.handleToggle(sessionChannel, action.id, action.enablement);
+				break;
+			}
 			case ActionType.SessionMcpServerStartRequested: {
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.startMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
@@ -1881,6 +1887,7 @@ export class AgentSideEffects extends Disposable {
 		super.dispose();
 	}
 }
+
 
 /**
  * Builds the {@link ErrorInfo} for a failed `sendMessage` rejection. When the

@@ -35,7 +35,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
+import { applySessionMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServers } from '../shared/mcpCustomizationController.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -1108,7 +1108,7 @@ export class ClaudeAgentSession extends Disposable {
 		result.push(...discoveredCustomizations);
 		// Cache for the MCP-contributor signal enrichment (see
 		// {@link _enrichSignalWithMcpContributor}).
-		const projected = applyMcpServerEnablement(result, state);
+		const projected = applySessionMcpServerEnablement(result, state);
 		this._lastCustomizations = projected;
 		return projected;
 	}
@@ -1116,7 +1116,7 @@ export class ClaudeAgentSession extends Disposable {
 	private async _reconcileMcpServerEnablement(): Promise<void> {
 		const pipeline = this._requirePipeline();
 		const state = this._sessionCustomizations;
-		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(server => [server.name, server.enabled]));
+		const desired = new Map(getEffectiveMcpServers(state).map(server => [server.name, server.enabled]));
 		if (desired.size === 0) {
 			return;
 		}

@@ -10,7 +10,7 @@ import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -31,6 +31,7 @@ export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly enabled: boolean;
+	readonly enablement?: readonly CustomizationEnablement[];
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;
@@ -183,6 +184,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+	setMcpServerEnablement(sessionId: string, serverId: string, enablement: CustomizationEnablement[]): Promise<void>;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

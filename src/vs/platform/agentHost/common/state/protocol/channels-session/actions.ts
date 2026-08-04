@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -365,16 +365,19 @@ export interface SessionCustomizationsChangedAction {
  * only matters while its container is enabled. Is a no-op when no
  * customization has the given `id`.
  *
+ * The `enablement` array completely replaces all explicit decisions. A caller
+ * changing one scope must include every decision it intends to preserve.
+ *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
  */
 export interface SessionCustomizationToggledAction {
 	type: ActionType.SessionCustomizationToggled;
-	/** The id of the container or child to toggle. */
+	/** The id of the container or child to update. */
 	id: string;
-	/** Whether to enable or disable the targeted customization. */
-	enabled: boolean;
+	/** The complete set of explicit decisions, replacing any existing set. */
+	enablement: CustomizationEnablement[];
 }
 
 /**

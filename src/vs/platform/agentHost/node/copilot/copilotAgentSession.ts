@@ -66,7 +66,7 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
-import { getEffectiveMcpServerCustomizations, McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { getEffectiveMcpServers, McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -1769,6 +1769,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
+		// A server the user turned off can still be started by the SDK: servers discovered
+		// from `pluginDirectories` or the CLI's own config are not ours to withhold, and
+		// `mcp.disable` is rejected until the MCP host initializes. Declining here stops a
+		// disabled server from asking the user to authenticate in the window before the
+		// reconcile can stop it. Remove once the SDK accepts disabled server names at
+		// session creation: https://github.com/github/copilot-mcp-core/issues/2056
+		if (this._isMcpServerDisabledByPolicy(request.serverName)) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Declining MCP authentication for disabled server ${request.serverName}`);
+			return { kind: 'cancelled' };
+		}
 		const githubToken = request.reason === 'initial' && this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length === 0
 			? await this._initialGitHubMcpToken(request)
 			: undefined;
@@ -2078,7 +2088,7 @@ export class CopilotAgentSession extends Disposable {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
-		await this._reconcileMcpServerEnablement();
+		await this.reconcileMcpServerEnablement();
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -2227,7 +2237,7 @@ export class CopilotAgentSession extends Disposable {
 		this._steeringMessagesInFlight.add(steeringMessage.id);
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
-			await this._reconcileMcpServerEnablement();
+			await this.reconcileMcpServerEnablement();
 			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 			await this._wrapper.session.send({
 				prompt: steeringMessage.message.text,
@@ -2462,9 +2472,19 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _reconcileMcpServerEnablement(): Promise<void> {
+	/**
+	 * Whether the session's published customizations say this MCP server is off.
+	 * Reads the same effective state {@link reconcileMcpServerEnablement} acts on, so
+	 * the two cannot disagree about which servers are disabled.
+	 */
+	private _isMcpServerDisabledByPolicy(serverName: string): boolean {
+		const customizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
+		return getEffectiveMcpServers(customizations).some(server => server.name === serverName && !server.enabled);
+	}
+
+	async reconcileMcpServerEnablement(): Promise<void> {
 		const desiredCustomizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
-		const desiredServers = getEffectiveMcpServerCustomizations(desiredCustomizations);
+		const desiredServers = getEffectiveMcpServers(desiredCustomizations);
 		if (desiredServers.length === 0) {
 			return;
 		}

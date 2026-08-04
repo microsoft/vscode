@@ -33,21 +33,25 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { mcpServerPolicyKey } from '../../node/shared/mcpServerEnablement.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, CustomizationEnablementStorageKey } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
@@ -65,6 +69,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 import { injectSideChatContext } from '../../node/agentPeerChats.js';
+import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 
 /**
  * Test helpers for the single `_sessions` container. All chats (default + peers)
@@ -504,6 +509,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostCustomizationEnablementService customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -512,7 +518,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, customizationEnablementService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -537,6 +543,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostCustomizationEnablementService customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -545,7 +552,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, customizationEnablementService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -597,15 +604,19 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager; storageService: AgentHostStorageService; enablementService: AgentHostCustomizationEnablementService } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	const storageService = disposables.add(new AgentHostStorageService(logService));
+	const enablementService = disposables.add(new AgentHostCustomizationEnablementService(storageService, configService, stateManager));
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
+	services.set(IAgentHostStorageService, storageService);
+	services.set(IAgentHostCustomizationEnablementService, enablementService);
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
@@ -639,7 +650,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const agent = options?.copilotClient
 		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
 		: instantiationService.createInstance(CopilotAgent);
-	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
+	return { agent, instantiationService, configurationService: configService, fileService, stateManager, storageService, enablementService };
 }
 
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
@@ -2959,7 +2970,7 @@ suite('CopilotAgent', () => {
 				]);
 				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...firstInitial] });
 				stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...secondInitial] });
-				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: false });
+				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] });
 
 				const [first, second] = await Promise.all([
 					agent.getSessionCustomizations(firstSession),
@@ -4712,6 +4723,370 @@ suite('CopilotAgent', () => {
 					disposed: true,
 					tracked: false,
 					deleted: ['sdk-' + chatUri.toString()],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('MCP launch enablement', () => {
+		type TestActiveClient = {
+			snapshot(): Promise<IActiveClientSnapshot>;
+			requiresRestart(snapshot: IActiveClientSnapshot): Promise<boolean>;
+		};
+
+		function getActiveClient(agent: CopilotAgent, session: URI): TestActiveClient {
+			const activeClient = (agent as unknown as { _activeClients: Map<URI, TestActiveClient> })._activeClients.get(session);
+			assert.ok(activeClient, 'expected an ActiveClient to exist');
+			return activeClient;
+		}
+
+		function rootMcpServers() {
+			return {
+				slack: { type: McpServerType.LOCAL, command: 'slack-mcp' },
+			};
+		}
+
+		/**
+		 * The plugin's stable source URI. Policy keys derive from this rather than
+		 * from the MCP customization id, which embeds the materialized plugin path.
+		 */
+		const pluginSource = 'file:///workspace/.copilot/plugin';
+
+		function pluginWithSlackMcp(mcpId: string): ClientPluginCustomization {
+			const pluginUri = pluginSource;
+			return {
+				type: CustomizationType.Plugin,
+				id: pluginUri,
+				uri: pluginUri,
+				name: 'workspace-plugin',
+				enabled: true,
+				children: [{
+					type: CustomizationType.McpServer,
+					id: mcpId,
+					uri: mcpId,
+					name: 'slack',
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+			};
+		}
+
+		function publishedMcpChildren(customizations: readonly Customization[]) {
+			return customizations
+				.flatMap(customization => customization.type === CustomizationType.Plugin ? customization.children ?? [] : [])
+				.filter(child => child.type === CustomizationType.McpServer)
+				.map(child => ({ id: child.id, enabled: child.enabled, enablement: child.enablement }));
+		}
+
+		test('reconciles each affected materialized session after an enablement change', async () => {
+			const { agent, enablementService, stateManager } = createTestAgentContext(disposables);
+			const source = AgentSession.uri('copilotcli', 'enablement-source');
+			const propagated = AgentSession.uri('copilotcli', 'enablement-propagated');
+			const reconciled: string[] = [];
+			const sourceCustomization = {
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilotcli:enablement-source:slack',
+				uri: 'mcp-top-level:copilotcli:enablement-source:slack',
+				name: 'slack',
+				enabled: true,
+				state: { kind: McpServerStatus.Ready },
+			} as const;
+			const propagatedCustomization = {
+				...sourceCustomization,
+				id: 'mcp-top-level:copilotcli:enablement-propagated:slack',
+				uri: 'mcp-top-level:copilotcli:enablement-propagated:slack',
+			};
+			try {
+				for (const session of [source, propagated]) {
+					stateManager.createSession({
+						resource: session.toString(),
+						provider: 'copilotcli',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					});
+				}
+				setDefaultSessionStub(agent, 'enablement-source', {
+					reconcileMcpServerEnablement: async () => { reconciled.push('enablement-source'); },
+					dispose: () => { },
+				});
+				setPeerChatStub(agent, URI.parse(buildChatUri(source, 'enablement-peer')), {
+					reconcileMcpServerEnablement: async () => {
+						reconciled.push('enablement-peer');
+						throw new Error('peer reconciliation failed');
+					},
+					dispose: () => { },
+				});
+				setDefaultSessionStub(agent, 'enablement-propagated', {
+					reconcileMcpServerEnablement: async () => { reconciled.push('enablement-propagated'); },
+					dispose: () => { },
+				});
+				stateManager.dispatchServerAction(source.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [sourceCustomization] });
+				stateManager.dispatchServerAction(propagated.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [propagatedCustomization] });
+				stateManager.dispatchServerAction(source.toString(), {
+					type: ActionType.SessionCustomizationToggled,
+					id: sourceCustomization.id,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				});
+
+				enablementService.handleToggle(source.toString(), sourceCustomization.id, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+				await timeout(0);
+
+				assert.deepStrictEqual(reconciled.sort(), ['enablement-peer', 'enablement-propagated', 'enablement-source']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('excludes a globally disabled root MCP server from the launch snapshot', async () => {
+			const { agent, configurationService, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'disabled-root-mcp');
+			try {
+				configurationService.updateRootConfig({
+					[AgentHostMcpServersConfigKey]: rootMcpServers(),
+				});
+				storageService.set(CustomizationEnablementStorageKey, { global: { 'mcpServers#slack': false } });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+
+				assert.deepStrictEqual(await getActiveClient(agent, session).snapshot(), {
+					tools: [],
+					plugins: [],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('includes a root MCP server without a disabled policy in the launch snapshot', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'enabled-root-mcp');
+			try {
+				configurationService.updateRootConfig({ [AgentHostMcpServersConfigKey]: rootMcpServers() });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+
+				assert.deepStrictEqual(await getActiveClient(agent, session).snapshot(), {
+					tools: [],
+					plugins: [],
+					mcpServers: rootMcpServers(),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('excludes a globally disabled plugin MCP server from the launch snapshot', async () => {
+			const { agent, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'disabled-plugin-mcp');
+			const id = 'file:///plugin/.mcp.json#slack';
+			const source = 'file:///plugin-source';
+			const plugin: ICopilotPluginInfo = {
+				format: PluginFormat.Copilot,
+				source,
+				hooks: [],
+				mcpServers: [{
+					name: 'slack',
+					uri: URI.parse(id),
+					configuration: { type: McpServerType.LOCAL, command: 'slack-mcp' },
+					customization: {
+						type: CustomizationType.McpServer,
+						id,
+						uri: id,
+						name: 'slack',
+						enabled: true,
+						state: { kind: McpServerStatus.Stopped },
+					},
+				}],
+				skills: [],
+				agents: [],
+				instructions: [],
+			};
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [mcpServerPolicyKey(source, 'slack')]: false } });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const activeClient = getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: { getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> };
+				};
+				activeClient.pluginController.getAppliedPlugins = async () => [plugin];
+
+				assert.deepStrictEqual(await activeClient.snapshot(), {
+					tools: [],
+					plugins: [{ ...plugin, mcpServers: [] }],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('includes a globally disabled server when session-scoped enablement overrides it', async () => {
+			const { agent, configurationService, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'session-scoped-root-mcp');
+			try {
+				configurationService.updateRootConfig({
+					[AgentHostMcpServersConfigKey]: rootMcpServers(),
+				});
+				storageService.set(CustomizationEnablementStorageKey, { global: { 'mcpServers#slack': false } });
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: [{
+						type: CustomizationType.McpServer,
+						id: 'mcp-top-level:copilotcli:session-scoped-root-mcp:slack',
+						uri: 'mcp-top-level:copilotcli:session-scoped-root-mcp:slack',
+						name: 'slack',
+						enabled: true,
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+						state: { kind: McpServerStatus.Stopped },
+					}],
+				});
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const activeClient = getActiveClient(agent, session);
+				const snapshot = await activeClient.snapshot();
+
+				assert.deepStrictEqual({
+					snapshot,
+					requiresRestart: await activeClient.requiresRestart(snapshot),
+				}, {
+					snapshot: {
+						tools: [],
+						plugins: [],
+						mcpServers: rootMcpServers(),
+					},
+					requiresRestart: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		// Regression: a workspace-scoped disable persisted by an earlier session
+		// must be reflected in the customizations a NEW session *publishes*, not
+		// just in the ones it resolves on demand. Publishing the raw discovered
+		// value left the row looking enabled and defeated the auth-request guard,
+		// which reads the published `enabled`.
+		test('publishes a plugin MCP child disabled by a persisted workspace policy', async () => {
+			const { agent, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'workspace-disabled-plugin-mcp');
+			const workspace = URI.file('/workspace');
+			const mcpId = 'file:///workspace/.copilot/plugin/.mcp.json#mcp=slack';
+			try {
+				storageService.set(CustomizationEnablementStorageKey, {
+					workingDirectories: { [workspace.toString()]: { [mcpServerPolicyKey(pluginSource, 'slack')]: false } },
+				});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const pluginController = (getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: {
+						sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): unknown;
+						getCustomizations(): readonly Customization[];
+					};
+				}).pluginController;
+				pluginController.sync('client', [pluginWithSlackMcp(mcpId)], { quiet: true });
+
+				assert.deepStrictEqual(publishedMcpChildren(pluginController.getCustomizations()), [{
+					id: mcpId,
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+		// Regression: `AgentService.createSession` seeds the initial customization
+		// set via `getSessionCustomizations` BEFORE registering the session with
+		// the state manager, so the working directory cannot be read back from
+		// there yet. Resolving no workspace policy at that moment seeds an
+		// `enabled: true` snapshot that nothing revisits.
+		test('resolves workspace policy while seeding customizations before the session is in state', async () => {
+			const mcpId = 'file:///workspace/.copilot/plugin/.mcp.json#mcp=slack';
+			const pluginManager = new class extends TestAgentPluginManager {
+				override async syncCustomizations(): Promise<ISyncedCustomization[]> {
+					return [{ customization: pluginWithSlackMcp(mcpId) }];
+				}
+			}();
+			const { agent, stateManager, storageService } = createTestAgentContext(disposables, { pluginManager });
+			const session = AgentSession.uri('copilotcli', 'seeded-workspace-disabled-mcp');
+			const workspace = URI.file('/workspace');
+			try {
+				storageService.set(CustomizationEnablementStorageKey, {
+					workingDirectories: { [workspace.toString()]: { [mcpServerPolicyKey(pluginSource, 'slack')]: false } },
+				});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				assert.strictEqual(stateManager.getSessionState(session.toString())?.workingDirectories, undefined, 'precondition: session is not yet registered with working directories');
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				(getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: { sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): unknown };
+				}).pluginController.sync('client', [pluginWithSlackMcp(mcpId)], { quiet: true });
+
+				assert.deepStrictEqual(publishedMcpChildren(await agent.getSessionCustomizations(session)), [{
+					id: mcpId,
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		// The whole point of keying on plugin source + name: a plugin's materialized
+		// path carries a content nonce and the user-data dir, so re-materializing it
+		// (new nonce, new profile) must NOT orphan the user's disable.
+		test('keeps a disable applied after the plugin is re-materialized under a new path', async () => {
+			const { agent, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'rematerialized-plugin-mcp');
+			const workspace = URI.file('/workspace');
+			const before = 'file:///udd-a/agentPlugins/src/1111aaaa/.mcp.json#mcp=slack';
+			const after = 'file:///udd-b/agentPlugins/src/2222bbbb/.mcp.json#mcp=slack';
+			try {
+				storageService.set(CustomizationEnablementStorageKey, {
+					workingDirectories: { [workspace.toString()]: { [mcpServerPolicyKey(pluginSource, 'slack')]: false } },
+				});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const pluginController = (getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: {
+						sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): unknown;
+						getCustomizations(): readonly Customization[];
+					};
+				}).pluginController;
+
+				const enabledFor = (mcpId: string) => {
+					pluginController.sync('client', [pluginWithSlackMcp(mcpId)], { quiet: true });
+					return publishedMcpChildren(pluginController.getCustomizations()).map(child => ({ id: child.id, enabled: child.enabled }));
+				};
+
+				assert.deepStrictEqual({ before: enabledFor(before), after: enabledFor(after) }, {
+					before: [{ id: before, enabled: false }],
+					after: [{ id: after, enabled: false }],
 				});
 			} finally {
 				await disposeAgent(agent);

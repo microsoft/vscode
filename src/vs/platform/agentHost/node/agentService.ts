@@ -39,6 +39,8 @@ import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
@@ -232,6 +234,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Exposes the configuration service so agent providers can share root config plumbing. */
 	get configurationService(): IAgentConfigurationService { return this._configurationService; }
+	get customizationEnablementService(): IAgentHostCustomizationEnablementService { return this._customizationEnablementService; }
 
 	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
 	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
@@ -290,6 +293,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: AgentConfigurationService;
+	private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
@@ -418,6 +422,8 @@ export class AgentService extends Disposable implements IAgentService {
 		// via DI rather than being plumbed plain-class references.
 		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, providerConfigurations));
 		this._configurationService = configurationService;
+		const storageResource = this._rootConfigResource && joinPath(resourcesDirname(this._rootConfigResource), 'agent-host-storage.json');
+		const storageService = this._register(new AgentHostStorageService(this._logService, storageResource));
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
@@ -425,6 +431,7 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentService, this],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
+			[IAgentHostStorageService, storageService],
 			[IAgentHostStateManager, this._stateManager],
 			[IAgentHostFileMonitorService, fileMonitorService],
 			[IAgentHostGitService, this._gitService],
@@ -436,6 +443,8 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
+		services.set(IAgentHostCustomizationEnablementService, this._customizationEnablementService);
 		this._gitHubEndpointService = this._register(instantiationService.createInstance(AgentHostGitHubEndpointService));
 		services.set(IAgentHostGitHubEndpointService, this._gitHubEndpointService);
 		// A GitHub Enterprise URI change repoints every agent's GitHub resource

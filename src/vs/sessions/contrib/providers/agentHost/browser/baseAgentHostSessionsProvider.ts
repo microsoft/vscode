@@ -21,11 +21,12 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection,
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
+import { withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset, type CustomizationEnablement } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -3278,6 +3279,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
 				enabled: c.enabled,
+				enablement: c.enablement,
 				status: c.state.kind,
 				state: c.state,
 				setEnabled: (enabled: boolean) => {
@@ -3288,7 +3290,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					connection.dispatch(sessionUri.toString(), {
 						type: ActionType.SessionCustomizationToggled,
 						id: c.id,
-						enabled,
+						enablement: withCustomizationEnablement(c.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }),
 					});
 				},
 				start: async () => {
@@ -3312,6 +3314,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					});
 				},
 			}));
+	}
+
+	async setMcpServerEnablement(sessionId: string, serverId: string, enablement: CustomizationEnablement[]): Promise<void> {
+		const connection = this.connection;
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!connection || !cached) {
+			return;
+		}
+		const separator = serverId.indexOf('/');
+		connection.dispatch(cached.backendUri.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: separator >= 0 ? serverId.slice(separator + 1) : serverId,
+			enablement,
+		});
 	}
 
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {

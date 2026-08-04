@@ -118,12 +118,12 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	async startMcpServer(serverName: string): Promise<boolean> {
 		const query = await this._ensureQueryBound();
-		return this._applyMcpServerEnablement(query, serverName, true);
+		return this._applyEnablement(query, serverName, true);
 	}
 
 	async stopMcpServer(serverName: string): Promise<boolean> {
 		const query = await this._ensureQueryBound();
-		return this._applyMcpServerEnablement(query, serverName, false);
+		return this._applyEnablement(query, serverName, false);
 	}
 
 	async reconcileMcpServerEnablement(desired: ReadonlyMap<string, boolean>): Promise<boolean> {
@@ -140,14 +140,14 @@ export class ClaudeSdkPipeline extends Disposable {
 			if (current === undefined || current === enabled) {
 				continue;
 			}
-			if (!await this._applyMcpServerEnablement(query, serverName, enabled)) {
+			if (!await this._applyEnablement(query, serverName, enabled)) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	private async _applyMcpServerEnablement(query: Query, serverName: string, enabled: boolean): Promise<boolean> {
+	private async _applyEnablement(query: Query, serverName: string, enabled: boolean): Promise<boolean> {
 		if (!query.toggleMcpServer || (enabled && !query.reconnectMcpServer)) {
 			return false;
 		}

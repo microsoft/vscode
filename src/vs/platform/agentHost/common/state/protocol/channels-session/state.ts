@@ -627,6 +627,23 @@ export const enum CustomizationType {
 }
 
 /**
+ * Scope at which customization enablement is decided.
+ *
+ * @category Customization Types
+ */
+export const enum CustomizationEnablementKind {
+	Global = 'global',
+	Workspace = 'workspace',
+	Session = 'session',
+}
+
+/** A single explicit enablement decision. */
+export type CustomizationEnablement =
+	| { kind: CustomizationEnablementKind.Global; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Workspace; uri: URI; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Session; enabled: boolean };
+
+/**
  * Customization types that appear as children of a
  * {@link PluginCustomization} or {@link DirectoryCustomization}.
  *
@@ -664,6 +681,20 @@ interface CustomizationBase {
 	uri: URI;
 	/** Human-readable name. */
 	name: string;
+	/**
+	 * Explicit enablement decisions for this customization, one entry per scope
+	 * that has one. This is a wire contract: producers MUST publish entries
+	 * sorted by descending specificity (Session, Workspace, then Global).
+	 * The agent host emits at most one Workspace entry, for the session's primary
+	 * working directory. Consumers MAY treat
+	 * `enablement[0]` as the decisive decision and
+	 * `enablement?.[0]?.enabled ?? true` as the effective enabled value. An
+	 * absent or empty array means no explicit decision exists, so the
+	 * customization is enabled by default.
+	 *
+	 * Only the agent host publishes this; clients treat it as read-only provenance.
+	 */
+	enablement?: CustomizationEnablement[];
 	/** Icons for UI display. */
 	icons?: Icon[];
 	/**
@@ -1005,7 +1036,8 @@ export interface HookCustomization extends ChildCustomizationBase {
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
 	/**
-	 * Whether this MCP server is currently enabled.
+	 * Whether this MCP server is effectively enabled after resolving all scopes.
+	 * {@link CustomizationBase.enablement | `enablement`} records its inputs.
 	 */
 	enabled: boolean;
 	/**

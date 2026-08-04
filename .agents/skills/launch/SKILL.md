@@ -251,6 +251,28 @@ npx @playwright/cli -s=$PW_SESSION press Backspace
 
 If the keyboard shortcut cannot focus chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
 
+### Agent-host MCP servers only start after a turn
+
+An agent-host session (Copilot CLI, Claude, Codex) does **not** launch its MCP servers when the session is created. `AgentHostSessionHandler` calls `prepareMcpServersForTurn` immediately before `ChatTurnStarted`, so the servers only come up as part of a turn.
+
+Use the **real** agent host for this. Do not reach for a mock agent host to get MCP servers — the mock does not exercise the real MCP lifecycle, and standing one up costs far more time than sending a message.
+
+```
+create an agent-host session  →  send any message ("hi")  →  turn starts  →  MCP servers launch
+```
+
+Only after that will the MCP Servers list in the customizations UI show session-backed rows. If you open the list before sending a message, expect to see local/workspace/extension servers only, and no agent-host rows at all.
+
+This distinction matters when validating MCP UI, because the customizations list renders three different row types through three different code paths (`src/vs/workbench/contrib/chat/browser/aiCustomization/mcpListWidget.ts`):
+
+| Row type | When it appears | Render path |
+| --- | --- | --- |
+| `server-item` | Local/workspace configured server | `autorun` over `localServer.enablement` |
+| `builtin-item` | Extension-, plugin-, or built-in-provided server | `updateKnownServerStatus` |
+| `session-server-item` | Reported by the active agent-host session with **no** matching local entry | `updateActiveSessionStatus` |
+
+A local server row is *not* a substitute for a session-backed row when testing agent-host behavior. To force a `session-server-item`, give the agent-host server a name that does not collide with any local MCP server — otherwise `ActiveSessionMcpServerMatcher` pairs it with the local entry and it renders as a `server-item` instead.
+
 ### Screenshots (paper trail)
 
 ```bash

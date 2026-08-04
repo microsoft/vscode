@@ -43,6 +43,7 @@ import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -118,6 +119,13 @@ function createTestSideEffects(
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
+		[IAgentHostCustomizationEnablementService, {
+			onDidChangeEnablement: Event.None,
+			resolveEnablement: () => ({ enabled: true }),
+			applyEnablement: (customizations: readonly Customization[]) => customizations,
+			resolveRootMcpServerEnablement: () => ({ enabled: true }),
+			handleToggle: () => { },
+		}],
 	), /*strict*/ true));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,

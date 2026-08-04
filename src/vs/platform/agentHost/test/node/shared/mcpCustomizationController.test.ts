@@ -8,15 +8,22 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agentService.js';
+import { AgentHostCustomizationEnablementService, CustomizationEnablementStorageKey } from '../../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService } from '../../../node/agentHostStorageService.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerCustomization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { AgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { applySessionMcpServerEnablement, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { getPrimaryWorkingDirectory, mcpServerPolicyKey, resolveEnablement, updateCustomizationEnablementPolicy } from '../../../node/shared/mcpServerEnablement.js';
 
 function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean } = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+	const configurationService = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+	const storageService = store.add(new AgentHostStorageService(new NullLogService()));
+	const enablementService = store.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
 	const sessionUri = AgentSession.uri('copilot', 'session-1');
 	const session = sessionUri.toString();
 	stateManager.createSession({
@@ -36,6 +43,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 				uri: 'mcp-top-level:copilot:session-1:search',
 				name: 'search',
 				enabled: opts.desiredEnabled,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: opts.desiredEnabled }],
 				state: starting(),
 			}],
 		});
@@ -46,8 +54,8 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		sessionUri,
 		resolveChildId: name => findMcpChildId(opts.customizations ?? [], name),
 		emit: a => actions.push(a),
-	}, stateManager);
-	return { controller, actions };
+	}, stateManager, enablementService);
+	return { controller, actions, stateManager, configurationService, storageService, session };
 }
 
 function server(name: string, state: McpServerState): ISdkMcpServer {
@@ -104,6 +112,227 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(actions, []);
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
+	});
+
+	test('resolves per-scope MCP enablement in precedence order', () => {
+		const source = 'file:///plugin';
+		const key = mcpServerPolicyKey(source, 'search');
+		const customization: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'plugin.json#mcp=search',
+			uri: 'file:///plugin.json',
+			name: 'search',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			state: starting(),
+		};
+		const policy = {
+			global: { [key]: true },
+			workingDirectories: { 'file:///workspace': { [key]: false } },
+		};
+
+		assert.deepStrictEqual({
+			session: resolveEnablement(customization, policy, 'file:///workspace/', source),
+			workingDirectory: resolveEnablement({ ...customization, enablement: undefined }, policy, 'file:///workspace/', source),
+			primaryWorkingDirectory: resolveEnablement({ ...customization, enablement: undefined }, {
+				workingDirectories: {
+					'file:///workspace': { [key]: true },
+					'file:///disabled': { [key]: false },
+				},
+			}, getPrimaryWorkingDirectory(['file:///workspace', 'file:///disabled']), source),
+			global: resolveEnablement({ ...customization, enablement: undefined }, policy, 'file:///other', source),
+			default: resolveEnablement({ ...customization, enablement: undefined }, undefined, 'file:///other', source),
+		}, {
+			session: { enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace/', enabled: false }, { kind: CustomizationEnablementKind.Global, enabled: true }] },
+			workingDirectory: { enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace/', enabled: false }, { kind: CustomizationEnablementKind.Global, enabled: true }] },
+			primaryWorkingDirectory: { enabled: true, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: true }] },
+			global: { enabled: true, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+			default: { enabled: true },
+		});
+	});
+
+	test('uses only the primary working directory for persisted enablement', () => {
+		const source = 'file:///plugin';
+		const key = mcpServerPolicyKey(source, 'search');
+		const customization = {
+			type: CustomizationType.McpServer,
+			id: 'plugin.json#mcp=search',
+			uri: 'file:///plugin.json',
+			name: 'search',
+			enabled: true,
+			state: starting(),
+		};
+		const workingDirectories = ['file:///primary', 'file:///secondary'];
+
+		assert.deepStrictEqual({
+			secondaryDisabled: resolveEnablement(customization, {
+				workingDirectories: { 'file:///secondary': { [key]: false } },
+			}, getPrimaryWorkingDirectory(workingDirectories), source),
+			primaryDisabled: resolveEnablement(customization, {
+				workingDirectories: {
+					'file:///primary': { [key]: false },
+					'file:///secondary': { [key]: true },
+				},
+			}, getPrimaryWorkingDirectory(workingDirectories), source),
+		}, {
+			secondaryDisabled: { enabled: true },
+			primaryDisabled: {
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///primary', enabled: false }],
+			},
+		});
+	});
+
+	test('uses published session enablement as a session override', () => {
+		const source = 'file:///plugin';
+		const key = mcpServerPolicyKey(source, 'search');
+		const customization: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'plugin.json#mcp=search',
+			uri: 'file:///plugin.json',
+			name: 'search',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			state: starting(),
+		};
+
+		assert.deepStrictEqual(resolveEnablement(customization, {
+			global: { [key]: true },
+		}, 'file:///workspace', source), {
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Global, enabled: true }],
+		});
+	});
+
+	test('replaces MCP enablement policy entries by explicit scope decisions', () => {
+		const key = 'plugin.json#mcp=search';
+		const global = updateCustomizationEnablementPolicy(undefined, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }], undefined);
+		const workspace = updateCustomizationEnablementPolicy(global, key, [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace/', enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }], 'file:///workspace/');
+		const clearedWorkspace = updateCustomizationEnablementPolicy(workspace, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }], 'file:///workspace/');
+		const defaulted = updateCustomizationEnablementPolicy(clearedWorkspace, key, [], undefined);
+
+		assert.deepStrictEqual({ global, workspace, clearedWorkspace, defaulted }, {
+			global: { global: { [key]: false } },
+			workspace: {
+				global: { [key]: false },
+				workingDirectories: { 'file:///workspace': { [key]: true } },
+			},
+			clearedWorkspace: { global: { [key]: false } },
+			defaulted: undefined,
+		});
+	});
+
+	test('does not persist a decision that matches what would be inherited', () => {
+		const key = 'plugin.json#mcp=search';
+		// Re-enabling globally returns the server to the default, so the entry is
+		// dropped rather than stored as an explicit `true` that would accumulate.
+		const disabled = updateCustomizationEnablementPolicy(undefined, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }], undefined);
+		const reEnabled = updateCustomizationEnablementPolicy(disabled, key, [{ kind: CustomizationEnablementKind.Global, enabled: true }], undefined);
+		// A workspace decision matching global is redundant; one that differs is kept.
+		const redundantWorkspace = updateCustomizationEnablementPolicy(disabled, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: false }], 'file:///repo');
+		const meaningfulWorkspace = updateCustomizationEnablementPolicy(disabled, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true }], 'file:///repo');
+
+		assert.deepStrictEqual({ disabled, reEnabled, redundantWorkspace, meaningfulWorkspace }, {
+			disabled: { global: { [key]: false } },
+			reEnabled: undefined,
+			redundantWorkspace: { global: { [key]: false } },
+			meaningfulWorkspace: { global: { [key]: false }, workingDirectories: { 'file:///repo': { [key]: true } } },
+		});
+	});
+
+	test('persists workspace enablement only for the primary working directory', () => {
+		const key = 'plugin.json#mcp=search';
+		const policy = updateCustomizationEnablementPolicy(
+			undefined,
+			key,
+			[{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///secondary', enabled: false }],
+			getPrimaryWorkingDirectory(['file:///primary', 'file:///secondary']),
+		);
+
+		assert.deepStrictEqual(policy, {
+			workingDirectories: { 'file:///primary': { [key]: false } },
+		});
+	});
+
+	test('does not mutate the policy passed to MCP enablement updates', () => {
+		const key = 'plugin.json#mcp=search';
+		const policy = {
+			global: { [key]: false },
+			workingDirectories: { 'file:///workspace': { [key]: false } },
+		};
+
+		const next = updateCustomizationEnablementPolicy(policy, key, [{ kind: CustomizationEnablementKind.Global, enabled: false }], undefined);
+
+		assert.deepStrictEqual({ policy, next }, {
+			policy: {
+				global: { [key]: false },
+				workingDirectories: { 'file:///workspace': { [key]: false } },
+			},
+			next: {
+				global: { [key]: false },
+				workingDirectories: { 'file:///workspace': { [key]: false } },
+			},
+		});
+	});
+
+	test('session MCP enablement preserves the global policy', () => {
+		const { controller, stateManager, session, storageService } = harness(store);
+		store.add(controller);
+		const id = 'mcp-top-level:copilot:session-1:search';
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [{ type: CustomizationType.McpServer, id, uri: id, name: 'search', enabled: true, state: starting() }],
+		});
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationToggled,
+			id,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		storageService.set(CustomizationEnablementStorageKey, { global: { 'mcpServers#search': false } });
+		controller.applyOne(server('search', starting()));
+
+		assert.deepStrictEqual({
+			topLevel: controller.topLevelCustomizations().map(customization => ({
+				enabled: customization.enabled,
+				enablement: customization.enablement,
+			})),
+			projected: applySessionMcpServerEnablement([{
+				type: CustomizationType.McpServer,
+				id,
+				uri: id,
+				name: 'search',
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				state: starting(),
+			}], stateManager.getSessionState(session)?.customizations ?? []).map(customization => ({
+				enabled: customization.enabled,
+				enablement: customization.enablement,
+			})),
+		}, {
+			topLevel: [{
+				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
+			}],
+			projected: [{
+				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
+			}],
+		});
+	});
+
+	test('does not mistake an SDK enablement mismatch for a session override', () => {
+		const { controller, storageService } = harness(store);
+		store.add(controller);
+		storageService.set(CustomizationEnablementStorageKey, { global: { 'mcpServers#search': true } });
+		controller.applyOne({ name: 'search', state: starting(), enabled: false });
+
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => ({
+			enabled: customization.enabled,
+			enablement: customization.enablement,
+		})), [{
+			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		}]);
 	});
 
 	test('child-backed server: ready/error/ready transitions only update state+channel', () => {

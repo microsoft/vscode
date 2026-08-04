@@ -467,28 +467,31 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 
 		type ItemType = { action: 'toggleSession' | 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
 
-		const items: (ItemType | IQuickPickSeparator)[] = [
-			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
-		];
-		if (canStartAgentHostMcpServer(server)) {
-			items.push({
-				label: localize('mcp.start', 'Start Server'),
-				description: mcpServerStatusToLabel(server.status),
-				action: 'start',
-			});
-		} else if (canStopAgentHostMcpServer(server)) {
-			items.push({
-				label: localize('mcp.stop', 'Stop Server'),
-				description: mcpServerStatusToLabel(server.status),
-				action: 'stop',
-			});
-		}
-
 		const localServer = findLocalMcpServer(mcpService, server);
 		const durableEnablement = localServer
 			? localServer.enablement.get()
 			: agentHostCustomizations.getMcpServerEnablement(agentHostSession, server.name);
 		const durableDisabled = isContributionDisabled(durableEnablement);
+
+		const items: (ItemType | IQuickPickSeparator)[] = [
+			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
+		];
+		if (!durableDisabled) {
+			if (canStartAgentHostMcpServer(server)) {
+				items.push({
+					label: localize('mcp.start', 'Start Server'),
+					description: mcpServerStatusToLabel(server.status),
+					action: 'start',
+				});
+			} else if (canStopAgentHostMcpServer(server)) {
+				items.push({
+					label: localize('mcp.stop', 'Stop Server'),
+					description: mcpServerStatusToLabel(server.status),
+					action: 'stop',
+				});
+			}
+		}
+
 		const isEmptyWorkbench = aiCustomizationWorkspaceService.getActiveProjectRoot() === undefined;
 		items.push(
 			{ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') },

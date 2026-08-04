@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ChildCustomization, type McpServerCustomization, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -596,7 +596,6 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 
 		assert.deepStrictEqual(state.customizations, [customization]);
 	});
-
 	test('update: replaces the matching entry entirely', () => {
 		const initial = pluginA({ load: { kind: CustomizationLoadStatus.Loading }, children: [agentA] });
 		const seeded = sessionReducer(makeSession(), {
@@ -610,5 +609,94 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 		});
 
 		assert.deepStrictEqual(next.customizations, [updated]);
+	});
+});
+
+suite('sessionReducer – SessionCustomizationToggled', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function mcpServer(id: string): McpServerCustomization {
+		return {
+			type: CustomizationType.McpServer,
+			id,
+			uri: id,
+			name: id,
+			enabled: true,
+			state: { kind: McpServerStatus.Stopped },
+		};
+	}
+
+	function pluginCustomization(id: string, children?: ChildCustomization[]): Customization {
+		return {
+			type: CustomizationType.Plugin,
+			id,
+			uri: id,
+			name: id,
+			enabled: true,
+			...(children ? { children } : {}),
+		};
+	}
+
+	test('replaces a top-level customization enablement for every scope', () => {
+		for (const enablement of [
+			[{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			[{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }],
+			[{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		] as const) {
+			const state = sessionReducer({ ...makeSession(), customizations: [mcpServer('server')] }, {
+				type: ActionType.SessionCustomizationToggled,
+				id: 'server',
+				enablement: [...enablement],
+			});
+
+			assert.deepStrictEqual(state.customizations, [{
+				...mcpServer('server'),
+				enabled: false,
+				enablement,
+			}]);
+		}
+	});
+
+	test('replaces a customization child enablement for every scope', () => {
+		for (const enablement of [
+			[{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			[{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }],
+			[{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		] as const) {
+			const child = mcpServer('server');
+			const parent = pluginCustomization('plugin', [child]);
+			const state = sessionReducer({ ...makeSession(), customizations: [parent] }, {
+				type: ActionType.SessionCustomizationToggled,
+				id: 'server',
+				enablement: [...enablement],
+			});
+
+			assert.deepStrictEqual(state.customizations, [{
+				...parent,
+				children: [{ ...child, enabled: false, enablement }],
+			}]);
+		}
+
+		const nonMcp = pluginCustomization('other');
+		const state = sessionReducer({ ...makeSession(), customizations: [nonMcp] }, {
+			type: ActionType.SessionCustomizationToggled,
+			id: nonMcp.id,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		assert.deepStrictEqual(state.customizations, [{ ...nonMcp, enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }]);
+	});
+
+	test('clears enablement provenance and restores the default when the replacement is empty', () => {
+		const state = sessionReducer({
+			...makeSession(),
+			customizations: [{ ...mcpServer('server'), enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Global, enabled: false }] }],
+		}, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'server',
+			enablement: [],
+		});
+
+		assert.deepStrictEqual(state.customizations, [mcpServer('server')]);
 	});
 });

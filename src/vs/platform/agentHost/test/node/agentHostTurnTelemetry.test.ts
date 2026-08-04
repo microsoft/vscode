@@ -22,6 +22,8 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -169,11 +171,15 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const logService = new NullLogService();
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const enablementService = disposables.add(new AgentHostCustomizationEnablementService(storageService, configService, stateManager));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
 		const sessionDataService = createNullSessionDataService();
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
+			[IAgentHostStorageService, storageService],
+			[IAgentHostCustomizationEnablementService, enablementService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[ITelemetryService, telemetryService],

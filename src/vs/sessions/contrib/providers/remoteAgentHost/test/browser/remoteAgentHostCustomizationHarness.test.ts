@@ -169,7 +169,6 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return ContributionEnablementState.EnabledProfile;
 		},
 		setMcpServerEnablement() { },
-		prepareMcpServersForTurn() { },
 		async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>) {
 			await beforeShow?.();
 		},

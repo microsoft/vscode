@@ -9,59 +9,40 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService, ILoggerService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 
-/** A dispatched `setCustomizationEnabled(rawId, enabled)` call recorded by a {@link FakeTarget}. */
 interface IDispatchedToggle {
 	readonly rawId: string;
-	readonly enabled: boolean;
+	readonly enablement: CustomizationEnablement[];
 }
 
-/**
- * A minimal, mutable stand-in for {@link IAgentHostCustomizationTarget}. Mirrors how the real
- * agent-host targets behave: `setCustomizationEnabled` both records the call (so tests can assert
- * on it) and mutates the backing customization's `enabled` flag (so a subsequent `getMcpServers`
- * reflects the new live state), just like dispatching the protocol action does for the real
- * session state subscription.
- */
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly dispatched: IDispatchedToggle[] = [];
-	readonly workingDirectories?: readonly string[];
+	readonly workingDirectories = ['file:///repo'];
 
-	constructor(
-		readonly customizations: McpServerCustomization[],
-		readonly workingDirectory?: string,
-		workingDirectories?: readonly string[],
-	) {
-		// Mirror the real targets, which populate both the singular primary and the
-		// full ordered set from the same session state.
-		this.workingDirectories = workingDirectories ?? (workingDirectory !== undefined ? [workingDirectory] : undefined);
-	}
+	constructor(readonly customizations: McpServerCustomization[]) { }
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
-	setCustomizationEnabled(rawId: string, enabled: boolean): void {
-		this.dispatched.push({ rawId, enabled });
-		const server = this.customizations.find(c => c.id === rawId);
-		if (server) {
-			server.enabled = enabled;
-		}
+	setCustomizationEnabled(rawId: string, enablement: CustomizationEnablement[]): void {
+		this.dispatched.push({ rawId, enablement });
 	}
 	startMcpServer(): Promise<void> { return Promise.resolve(); }
 	stopMcpServer(): Promise<void> { return Promise.resolve(); }
-	setRootConfigValue(): void { /* no-op */ }
+	setRootConfigValue(): void { }
 }
 
-function mcpServer(id: string, name: string, enabled: boolean): McpServerCustomization {
+function mcpServer(id: string, name: string, enabled: boolean, enablement?: CustomizationEnablement): McpServerCustomization {
 	return {
 		type: CustomizationType.McpServer,
 		id,
 		uri: `file:///${id}`,
 		name,
 		enabled,
+		...(enablement ? { enablement: [enablement] } : {}),
 		state: { kind: McpServerStatus.Stopped },
 	};
 }
@@ -69,35 +50,24 @@ function mcpServer(id: string, name: string, enabled: boolean): McpServerCustomi
 class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _targets = new ResourceMap<FakeTarget>();
 
-	constructor(
-		instantiationService: TestInstantiationService,
-		logService: ILogService,
-		storageService: IStorageService,
-	) {
-		super(instantiationService, logService, storageService);
+	constructor(instantiationService: TestInstantiationService, logService: ILogService) {
+		super(instantiationService, logService);
 	}
 
 	setTarget(sessionResource: URI, target: FakeTarget): void {
 		this._targets.set(sessionResource, target);
 	}
 
-	/** Exposes the protected cleanup hook so tests can simulate a session going away. */
-	forgetSession(sessionResource: URI): void {
-		this._targets.delete(sessionResource);
-		this._clearMcpServerTracking(sessionResource);
-	}
-
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
 	}
-
 }
 
 suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
-
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const session = URI.from({ scheme: 'agent-host-copilotcli', authority: 'session-a', path: '/' });
 
-	function createSut() {
+	function createSut(): TestAgentHostCustomizationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
 		instantiationService.stub(IOutputService, {
@@ -105,265 +75,113 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 			getChannelDescriptor: () => undefined,
 			showChannel: async () => { },
 		});
-		const sut = store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService(), store.add(new InMemoryStorageService())));
-		return sut;
+		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
 
-	// Two sessions of the *same* host/provider (identical scheme, different authority -- i.e.
-	// different session ids). Durable policy must be shared across them.
-	const sessionA1 = URI.from({ scheme: 'agent-host-copilotcli', authority: 'session-a1', path: '/' });
-	const sessionA2 = URI.from({ scheme: 'agent-host-copilotcli', authority: 'session-a2', path: '/' });
-	// A session on a *different* host/provider (different scheme) that happens to expose a
-	// same-named server. Its durable policy must be independent.
-	const sessionB = URI.from({ scheme: 'remote-hostB-copilotcli', authority: 'session-b', path: '/' });
-
-	test('scopes durable enablement by host scheme + server name, never by session id', () => {
+	test('dispatches global enablement for profile state', () => {
 		const sut = createSut();
+		const target = new FakeTarget([mcpServer('github', 'GitHub', true)]);
+		sut.setTarget(session, target);
 
-		// No policy recorded yet: both sessions read the default, even though they're different
-		// sessions of the same host.
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA1, 'GitHub'), ContributionEnablementState.EnabledProfile);
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.EnabledProfile);
+		sut.setMcpServerEnablement(session, 'GitHub', ContributionEnablementState.DisabledProfile);
 
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-
-		// Same host (scheme), different session id: the policy carries over because the key never
-		// includes a per-session id.
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledProfile);
-
-		// Different host (scheme) with a server of the same name: unaffected.
-		assert.strictEqual(sut.getMcpServerEnablement(sessionB, 'GitHub'), ContributionEnablementState.EnabledProfile);
+		assert.deepStrictEqual(target.dispatched, [{ rawId: 'github', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }]);
 	});
 
-	test('scopes workspace enablement by working directory without scoping profile enablement', () => {
+	test('dispatches working-directory enablement for workspace state', () => {
 		const sut = createSut();
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a'));
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-b'));
+		const target = new FakeTarget([mcpServer('github', 'GitHub', true)]);
+		sut.setTarget(session, target);
 
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
-		assert.deepStrictEqual({
-			repoA: sut.getMcpServerEnablement(sessionA1, 'GitHub'),
-			repoB: sut.getMcpServerEnablement(sessionA2, 'GitHub'),
-		}, {
-			repoA: ContributionEnablementState.DisabledWorkspace,
-			repoB: ContributionEnablementState.EnabledProfile,
-		});
+		sut.setMcpServerEnablement(session, 'GitHub', ContributionEnablementState.EnabledWorkspace);
 
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-		assert.deepStrictEqual({
-			repoA: sut.getMcpServerEnablement(sessionA1, 'GitHub'),
-			repoB: sut.getMcpServerEnablement(sessionA2, 'GitHub'),
-		}, {
-			repoA: ContributionEnablementState.DisabledProfile,
-			repoB: ContributionEnablementState.DisabledProfile,
-		});
+		assert.deepStrictEqual(target.dispatched, [{ rawId: 'github', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true }] }]);
 	});
 
-	test('multi-root workspace enablement is keyed by the whole root set, order-independent', () => {
+	test('dispatches session enablement for direct server toggles', () => {
 		const sut = createSut();
-		// Same two roots, different primary order — must share the workspace preference.
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-b', ['file:///repo-b', 'file:///repo-a']));
+		const target = new FakeTarget([mcpServer('github', 'GitHub', true)]);
+		sut.setTarget(session, target);
 
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+		sut.getMcpServers(session)[0].setEnabled(false);
 
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+		assert.deepStrictEqual(target.dispatched, [{ rawId: 'github', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }]);
 	});
 
-	test('a superset of roots has an independent workspace preference from a single root', () => {
+	test('preserves enablement updates that occur after retrieving a server', () => {
 		const sut = createSut();
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
-
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
-
-		assert.deepStrictEqual({
-			singleRoot: sut.getMcpServerEnablement(sessionA1, 'GitHub'),
-			superset: sut.getMcpServerEnablement(sessionA2, 'GitHub'),
-		}, {
-			singleRoot: ContributionEnablementState.DisabledWorkspace,
-			superset: ContributionEnablementState.EnabledProfile,
-		});
-	});
-
-	test('collapses duplicate roots to a single-root workspace key', () => {
-		const sut = createSut();
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
-		// A duplicated root canonicalizes to one, so it must share the single-root key.
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a']));
-
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
-
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
-	});
-
-	test('canonicalizes case-variant entries within a set order-independently (case-insensitive scheme)', () => {
-		const sut = createSut();
-		// A set that lists the same root under two case spellings (`Repo-A`/`repo-a`) plus a
-		// distinct second root. Reversing the entries must not change the durable key: among
-		// spellings that share a comparison key, the representative is chosen deterministically
-		// (lexicographically smallest) rather than by first-seen order. Non-`file` schemes are
-		// case-insensitive on every platform, so this is stable across OSes.
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'vscode-remote://host/repo-a', ['vscode-remote://host/Repo-A', 'vscode-remote://host/repo-a', 'vscode-remote://host/repo-b']));
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'vscode-remote://host/repo-b', ['vscode-remote://host/repo-b', 'vscode-remote://host/repo-a', 'vscode-remote://host/Repo-A']));
-
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
-
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
-	});
-
-	test('a trailing-separator-only variant of a single root shares the single-root key', () => {
-		const sut = createSut();
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
-		// `/repo-a/` collapses to `/repo-a`, so the two-entry set is really one root.
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a/']));
-
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
-
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
-	});
-
-	test('getMcpServers is pure and prepare applies an explicit durable policy', () => {
-		const sut = createSut();
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
-
-		const [server] = sut.getMcpServers(sessionA1);
-		assert.strictEqual(server.enabled, true);
-		assert.deepStrictEqual(target.dispatched, []);
-
-		sut.prepareMcpServersForTurn(sessionA1);
-		assert.deepStrictEqual(target.dispatched, [{ rawId: 'gh-1', enabled: false }]);
-
-		const otherTarget = new FakeTarget([mcpServer('other-1', 'Other', true)]);
-		sut.setTarget(sessionA2, otherTarget);
-		sut.prepareMcpServersForTurn(sessionA2);
-		assert.deepStrictEqual(otherTarget.dispatched, []);
-	});
-
-	test('getMcpServers provides a stable diagnostics output channel id without creating a logger', () => {
-		const sut = createSut();
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)]));
-
-		const [first] = sut.getMcpServers(sessionA1);
-		const [second] = sut.getMcpServers(sessionA1);
-
-		assert.ok(first.logOutputChannelId);
-		assert.strictEqual(second.logOutputChannelId, first.logOutputChannelId);
-	});
-
-	test('does not reapply unchanged durable policy, preserving a later session-level toggle', () => {
-		const sut = createSut();
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
-
-		sut.prepareMcpServersForTurn(sessionA1);
-		const [server] = sut.getMcpServers(sessionA1);
-		assert.strictEqual(server.enabled, false);
+		const target = new FakeTarget([mcpServer('github', 'GitHub', true, { kind: CustomizationEnablementKind.Global, enabled: true })]);
+		sut.setTarget(session, target);
+		const [server] = sut.getMcpServers(session);
+		target.customizations[0] = {
+			...target.customizations[0],
+			enablement: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///disabled', enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		};
 
 		server.setEnabled(true);
-		assert.strictEqual(target.dispatched.length, 2);
-		assert.deepStrictEqual(target.dispatched[1], { rawId: 'gh-1', enabled: true });
 
-		sut.prepareMcpServersForTurn(sessionA1);
-		assert.strictEqual(target.customizations[0].enabled, true);
-		assert.strictEqual(target.dispatched.length, 2);
+		assert.deepStrictEqual(target.dispatched, [{
+			rawId: 'github',
+			enablement: [
+				{ kind: CustomizationEnablementKind.Session, enabled: true },
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///disabled', enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		}]);
 	});
 
-	test('shares prepare state across chats in the same backend session', () => {
+	test('reads host-published effective enablement', () => {
 		const sut = createSut();
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
+		sut.setTarget(session, new FakeTarget([
+			mcpServer('workspace', 'Workspace', false, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: false }),
+			mcpServer('session', 'Session', false, { kind: CustomizationEnablementKind.Session, enabled: false }),
+		]));
 
-		sut.prepareMcpServersForTurn(sessionA1);
-		const [server] = sut.getMcpServers(sessionA1);
-		server.setEnabled(true);
-		sut.prepareMcpServersForTurn(sessionA1.with({ fragment: 'peer-chat' }));
-
-		assert.deepStrictEqual(target.dispatched, [
-			{ rawId: 'gh-1', enabled: false },
-			{ rawId: 'gh-1', enabled: true },
-		]);
+		assert.deepStrictEqual({
+			workspace: sut.getMcpServerEnablement(session, 'Workspace'),
+			session: sut.getMcpServerEnablement(session, 'Session'),
+		}, {
+			workspace: ContributionEnablementState.DisabledWorkspace,
+			session: ContributionEnablementState.EnabledProfile,
+		});
 	});
 
-	test('applies changed durable policy independently before each session turn', () => {
+	test('uses the workspace veto when reporting multi-root durable enablement', () => {
 		const sut = createSut();
+		sut.setTarget(session, new FakeTarget([{
+			...mcpServer('workspace', 'Workspace', false),
+			enablement: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///disabled', enabled: false },
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///enabled', enabled: true },
+			],
+		}]));
 
-		const targetA1 = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		const targetA2 = new FakeTarget([mcpServer('gh-2', 'GitHub', true)]);
-		const targetB = new FakeTarget([mcpServer('gh-3', 'GitHub', true)]);
-		sut.setTarget(sessionA1, targetA1);
-		sut.setTarget(sessionA2, targetA2);
-		sut.setTarget(sessionB, targetB);
-
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-		assert.deepStrictEqual([targetA1.dispatched, targetA2.dispatched, targetB.dispatched], [[], [], []]);
-
-		sut.prepareMcpServersForTurn(sessionA1);
-		assert.deepStrictEqual(targetA1.dispatched, [{ rawId: 'gh-1', enabled: false }]);
-		assert.deepStrictEqual(targetA2.dispatched, []);
-
-		sut.prepareMcpServersForTurn(sessionA2);
-		assert.deepStrictEqual(targetA2.dispatched, [{ rawId: 'gh-2', enabled: false }]);
-
-		sut.prepareMcpServersForTurn(sessionB);
-		assert.deepStrictEqual(targetB.dispatched, []);
-		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledProfile);
+		assert.strictEqual(sut.getMcpServerEnablement(session, 'Workspace'), ContributionEnablementState.DisabledWorkspace);
 	});
 
-	test('applies a durable reset to EnabledProfile on the next turn', () => {
+	test('reports durable enablement when a session override disables a globally enabled server', () => {
 		const sut = createSut();
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
+		sut.setTarget(session, new FakeTarget([
+			{
+				...mcpServer('session', 'Session', false),
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Global, enabled: true }],
+			},
+		]));
 
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-		sut.prepareMcpServersForTurn(sessionA1);
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.EnabledProfile);
-		assert.deepStrictEqual(target.dispatched, [{ rawId: 'gh-1', enabled: false }]);
-
-		sut.prepareMcpServersForTurn(sessionA1);
-		assert.deepStrictEqual(target.dispatched, [
-			{ rawId: 'gh-1', enabled: false },
-			{ rawId: 'gh-1', enabled: true },
-		]);
+		assert.strictEqual(sut.getMcpServerEnablement(session, 'Session'), ContributionEnablementState.EnabledProfile);
 	});
 
-	test('prunes servers that disappear and reapplies policy if they return', () => {
-		const sut = createSut();
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
-		sut.prepareMcpServersForTurn(sessionA1);
-
-		target.customizations.splice(0);
-		sut.prepareMcpServersForTurn(sessionA1);
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-		assert.deepStrictEqual(target.dispatched, []);
-
-		target.customizations.push(mcpServer('gh-1', 'GitHub', true));
-		sut.prepareMcpServersForTurn(sessionA1);
-		assert.deepStrictEqual(target.dispatched, [{ rawId: 'gh-1', enabled: false }]);
-	});
-
-	test('forgetting a session resets its prepare state without clearing durable policy', () => {
-		const sut = createSut();
-		const target = new FakeTarget([mcpServer('gh-1', 'GitHub', true)]);
-		sut.setTarget(sessionA1, target);
-		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
-		sut.prepareMcpServersForTurn(sessionA1);
-
-		sut.forgetSession(sessionA1);
-		sut.setTarget(sessionA1, target);
-		target.customizations[0].enabled = true;
-		sut.prepareMcpServersForTurn(sessionA1);
-
-		assert.deepStrictEqual(target.dispatched, [
-			{ rawId: 'gh-1', enabled: false },
-			{ rawId: 'gh-1', enabled: false },
-		]);
+	test('session enablement upsert preserves the global decision', () => {
+		assert.deepStrictEqual(
+			withCustomizationEnablement(
+				[{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				CustomizationEnablementKind.Session,
+				{ kind: CustomizationEnablementKind.Session, enabled: true },
+			),
+			[{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
+		);
 	});
 });

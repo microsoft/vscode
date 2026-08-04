@@ -586,6 +586,8 @@ export const AgentHostMcpServersConfigKey = 'mcpServers';
  */
 export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
 
+
+
 /**
  * The VS Code setting ID for session sync. Defined here so the platform
  * layer (renderer-side forwarding) can reference it without importing from
@@ -686,6 +688,7 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 	},
 };
 
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
@@ -780,4 +783,5 @@ export const platformRootSchema = createSchema({
 		properties: mcpServersValueProperties,
 		default: {},
 	}),
+
 });

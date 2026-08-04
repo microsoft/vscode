@@ -4,27 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { compare } from '../../../../../../base/common/strings.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { NKeyMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { IReader } from '../../../../../../base/common/observable.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../../common/enablement.js';
+import { ContributionEnablementState, isContributionEnabled } from '../../../common/enablement.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -32,14 +30,6 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
-
-const MCP_SERVER_ENABLEMENT_STORAGE_KEY = 'chat.agentHost.mcpServerEnablement';
-
-interface IMcpServerTrackingEntry {
-	readonly rawId: string;
-	readonly serverName: string;
-	readonly durableState: ContributionEnablementState;
-}
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -86,14 +76,11 @@ export interface IAgentHostCustomizationService {
 	 */
 	authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean>;
 
-	/** Reads the durable profile/workspace policy shared by matching servers on the same agent host. */
+	/** Reads the host-published effective enablement for an MCP server. */
 	getMcpServerEnablement(sessionResource: URI, serverName: string, reader?: IReader): ContributionEnablementState;
 
-	/** Persists a durable policy that will apply before the session's next turn. */
+	/** Updates the host-owned global or working-directory enablement policy. */
 	setMcpServerEnablement(sessionResource: URI, serverName: string, state: ContributionEnablementState): void;
-
-	/** Applies durable MCP preferences that changed since this session's previous turn. */
-	prepareMcpServersForTurn(sessionResource: URI): void;
 
 	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
@@ -137,9 +124,6 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	setMcpServerEnablement(_sessionResource: URI, _serverName: string, _state: ContributionEnablementState): void {
 		// no-op
 	}
-	prepareMcpServersForTurn(_sessionResource: URI): void {
-		// no-op
-	}
 	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		await beforeShow?.();
 	}
@@ -151,7 +135,7 @@ export interface IAgentHostCustomizationTarget {
 	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
-	setCustomizationEnabled(rawId: string, enabled: boolean): void;
+	setCustomizationEnabled(rawId: string, enablement: CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
@@ -165,8 +149,6 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
 	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
 
-	private readonly _mcpEnablementModel: EnablementModel;
-	private readonly _mcpServerTracking = new NKeyMap<IMcpServerTrackingEntry, [string, string]>();
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
 	/**
 	 * Sessions whose MCP diagnostics we mirror into per-server Output channels.
@@ -175,16 +157,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
-
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
 		protected readonly _logService: ILogService,
-		storageService: IStorageService,
 	) {
 		super();
-		this._mcpEnablementModel = this._register(new EnablementModel(MCP_SERVER_ENABLEMENT_STORAGE_KEY, storageService));
 		this._mcpLogRegistry = this._register(this._instantiationService.createInstance(AgentHostMcpServerLogRegistry));
-		this._register(this.onDidChangeCustomizations(() => this._recordMcpDiagnostics()));
+		this._register(this.onDidChangeCustomizations(() => {
+			this._recordMcpDiagnostics();
+		}));
 	}
 
 	protected abstract _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined;
@@ -215,10 +196,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				id: this._scopedMcpServerId(sessionResource, c.id),
 				name: c.name,
 				enabled: c.enabled,
+				enablement: c.enablement,
 				status: c.state.kind,
 				state: c.state,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
-				setEnabled: (enabled: boolean) => target.setCustomizationEnabled(c.id, enabled),
+				setEnabled: (enabled: boolean) => {
+					const currentTarget = this._resolveTarget(sessionResource);
+					const currentCustomization = currentTarget && this._findMcpServer(currentTarget.customizations, c.id);
+					if (currentTarget && currentCustomization) {
+						currentTarget.setCustomizationEnabled(c.id, withCustomizationEnablement(currentCustomization.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }));
+					}
+				},
 				start: () => target.startMcpServer(c.id),
 				stop: () => target.stopMcpServer(c.id),
 			}));
@@ -313,132 +301,32 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		}
 	}
 
-	getMcpServerEnablement(sessionResource: URI, serverName: string, reader?: IReader): ContributionEnablementState {
-		return this._mcpEnablementModel.readEnabledWithWorkspaceKey(
-			this._mcpServerProfileEnablementKey(sessionResource, serverName),
-			this._mcpServerWorkspaceEnablementKey(sessionResource, serverName),
-			reader,
-		);
+	getMcpServerEnablement(sessionResource: URI, serverName: string, _reader?: IReader): ContributionEnablementState {
+		const server = this._flattenMcpServers(this._resolveTarget(sessionResource)?.customizations ?? []).find(server => server.name === serverName);
+		if (!server) {
+			return ContributionEnablementState.EnabledProfile;
+		}
+		const workspaces = server.enablement?.filter(entry => entry.kind === CustomizationEnablementKind.Workspace);
+		if (workspaces?.length) {
+			return workspaces.some(entry => !entry.enabled) ? ContributionEnablementState.DisabledWorkspace : ContributionEnablementState.EnabledWorkspace;
+		}
+		const global = server.enablement?.find(entry => entry.kind === CustomizationEnablementKind.Global);
+		return global?.enabled === false ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
 	}
 
 	setMcpServerEnablement(sessionResource: URI, serverName: string, state: ContributionEnablementState): void {
-		this._mcpEnablementModel.setEnabledWithWorkspaceKey(
-			this._mcpServerProfileEnablementKey(sessionResource, serverName),
-			this._mcpServerWorkspaceEnablementKey(sessionResource, serverName),
-			state,
-		);
-	}
-
-	prepareMcpServersForTurn(sessionResource: URI): void {
-		const trackingResource = this._mcpTrackingResource(sessionResource);
-		const target = this._resolveTarget(trackingResource);
-		if (!target) {
+		const target = this._resolveTarget(sessionResource);
+		const server = this.getMcpServers(sessionResource).find(server => server.name === serverName);
+		const customization = target && server ? this._findMcpServer(target.customizations, server.id) : undefined;
+		if (!target || !customization) {
 			return;
 		}
-		this._reconcileMcpServerTracking(trackingResource, this._flattenMcpServers(target.customizations), target);
-	}
-
-	/** Drops all durable-enablement tracking for a session that is no longer known. */
-	protected _clearMcpServerTracking(sessionResource: URI): void {
-		this._mcpServerTracking.deleteAll(this._mcpTrackingResource(sessionResource).toString());
-	}
-
-	private _reconcileMcpServerTracking(sessionResource: URI, servers: readonly McpServerCustomization[], target: IAgentHostCustomizationTarget): void {
-		const sessionKey = sessionResource.toString();
-		const currentRawIds = new Set(servers.map(server => server.id));
-		for (const entry of this._mcpServerTracking.getAll(sessionKey)) {
-			if (!currentRawIds.has(entry.rawId)) {
-				this._mcpServerTracking.delete(sessionKey, entry.rawId);
-			}
-		}
-
-		for (const server of servers) {
-			const durableState = this.getMcpServerEnablement(sessionResource, server.name);
-			const previous = this._mcpServerTracking.get(sessionKey, server.id);
-			if (previous?.serverName === server.name && previous.durableState === durableState) {
-				continue;
-			}
-			this._mcpServerTracking.set({ rawId: server.id, serverName: server.name, durableState }, sessionKey, server.id);
-			if (previous || durableState !== ContributionEnablementState.EnabledProfile) {
-				target.setCustomizationEnabled(server.id, isContributionEnabled(durableState));
-			}
-		}
-	}
-
-	private _mcpServerProfileEnablementKey(sessionResource: URI, serverName: string): string {
-		return JSON.stringify([sessionResource.scheme, serverName]);
-	}
-
-	private _mcpServerWorkspaceEnablementKey(sessionResource: URI, serverName: string): string | undefined {
-		const roots = this.getWorkingDirectories(sessionResource);
-		if (roots.length === 0) {
-			// No working directory (defensive): fall through to profile/default.
-			return undefined;
-		}
-		if (roots.length === 1) {
-			// Single-root (incl. workspace-less scratch cwd): exact legacy shape means
-			// byte-identical with pre-multi-root keys, so no migration is needed.
-			return JSON.stringify([sessionResource.scheme, roots[0], serverName]);
-		}
-		// Multi-root: canonicalize (dedup by URI identity) + sort so the key is
-		// order-independent (re-picking the primary keeps the same identity).
-		const canonical = this._canonicalWorkspaceRoots(roots);
-		if (canonical.length === 1) {
-			return JSON.stringify([sessionResource.scheme, canonical[0], serverName]);
-		}
-		// Versioned discriminator so a multi-root key can never be mistaken for a
-		// legacy 3-tuple. Never falls back to a single-primary key.
-		return JSON.stringify(['roots-v2', sessionResource.scheme, canonical, serverName]);
-	}
-
-	/**
-	 * De-duplicates working-directory roots by canonical URI identity (so
-	 * `file:///a` and `file:///a/` or case variants collapse to one root) and
-	 * returns a stable, order-independent list of representative strings.
-	 *
-	 * Order-independence requires that (a) a trailing path separator does not
-	 * change identity — {@link IExtUri.getComparisonKey} preserves it, so it is
-	 * stripped first — and (b) among case-variant spellings that share a
-	 * comparison key, a deterministic representative is chosen (the
-	 * lexicographically smallest) rather than the first one encountered.
-	 *
-	 * @example
-	 * // Distinct roots (any order) → same sorted list:
-	 * _canonicalWorkspaceRoots(['file:///b', 'file:///a']) // ['file:///a', 'file:///b']
-	 * _canonicalWorkspaceRoots(['file:///a', 'file:///b']) // ['file:///a', 'file:///b']
-	 *
-	 * // Trailing separator collapses (`/a/` === `/a`):
-	 * _canonicalWorkspaceRoots(['file:///a/', 'file:///a']) // ['file:///a']
-	 *
-	 * // Case-variant spellings of one root collapse to the smallest spelling,
-	 * // regardless of order (for case-insensitive schemes):
-	 * _canonicalWorkspaceRoots(['vscode-remote://h/Repo', 'vscode-remote://h/repo'])
-	 * _canonicalWorkspaceRoots(['vscode-remote://h/repo', 'vscode-remote://h/Repo'])
-	 * // both → ['vscode-remote://h/Repo']  ('R' (0x52) sorts before 'r' (0x72))
-	 */
-	private _canonicalWorkspaceRoots(roots: readonly string[]): string[] {
-		const byComparisonKey = new Map<string, string>();
-		for (const root of roots) {
-			let key: string;
-			let representative: string;
-			try {
-				const uri = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(URI.parse(root));
-				key = extUriBiasedIgnorePathCase.getComparisonKey(uri);
-				representative = uri.toString();
-			} catch {
-				key = root;
-				representative = root;
-			}
-			const existing = byComparisonKey.get(key);
-			if (existing === undefined || compare(representative, existing) < 0) {
-				byComparisonKey.set(key, representative);
-			}
-		}
-		return [...byComparisonKey.values()].sort(compare);
-	}
-
-	private _mcpTrackingResource(sessionResource: URI): URI {
-		return sessionResource.fragment ? sessionResource.with({ fragment: null }) : sessionResource;
+		const enabled = isContributionEnabled(state);
+		const workspace = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+		const enablement = workspace
+			? withCustomizationEnablement(customization.enablement, CustomizationEnablementKind.Workspace, target.workingDirectories?.map(uri => ({ kind: CustomizationEnablementKind.Workspace, uri, enabled })))
+			: withCustomizationEnablement(customization.enablement, CustomizationEnablementKind.Global, { kind: CustomizationEnablementKind.Global, enabled });
+		target.setCustomizationEnabled(customization.id, enablement);
 	}
 
 	protected _fireCustomAgentsChanged(): void {
@@ -484,9 +372,8 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IChatService private readonly _chatService: IChatService,
-		@IStorageService storageService: IStorageService,
 	) {
-		super(instantiationService, logService, storageService);
+		super(instantiationService, logService);
 
 		this._register(this._connectionsService.ambientConnection.onDidAction(envelope => {
 			switch (envelope.action.type) {
@@ -502,7 +389,6 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			const existing = this._sessionStateSubscriptions.get(sessionResource);
 			const currentBackend = this._provisionalSessionService.get(sessionResource);
 			if (existing && existing.backendSession.toString() !== currentBackend?.toString()) {
-				this._clearMcpServerTracking(sessionResource);
 				this._disposeMcpDiagnostics(sessionResource);
 			}
 			this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
@@ -512,7 +398,6 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
-				this._clearMcpServerTracking(sessionResource);
 				this._disposeMcpDiagnostics(sessionResource);
 			}
 			this._fireCustomizationsChanged();
@@ -534,11 +419,11 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			workingDirectories: sessionState?.workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			authenticate: request => target.connection.authenticate(request),
-			setCustomizationEnabled: (rawId, enabled) => {
+			setCustomizationEnabled: (rawId, enablement) => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,
 					id: rawId,
-					enabled,
+					enablement,
 				});
 			},
 			startMcpServer: rawId => {
