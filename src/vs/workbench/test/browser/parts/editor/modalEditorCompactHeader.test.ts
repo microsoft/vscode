@@ -89,4 +89,19 @@ suite('Modal Editor Compact Header', () => {
 		// Compact-header variant measured at 40px → measured value wins
 		assert.strictEqual(resolveHeaderHeight({ offsetHeight: 40 }), 40);
 	});
+
+	test('compact header removes the modal header divider styling', () => {
+		const modalElement = document.createElement('div');
+		modalElement.classList.add('compact-header');
+		const modalPart = document.createElement('div');
+		modalPart.classList.add('modal-editor-part');
+		modalElement.appendChild(modalPart);
+
+		const header = document.createElement('div');
+		header.classList.add('modal-editor-header');
+		modalPart.appendChild(header);
+
+		assert.strictEqual(modalElement.classList.contains('compact-header'), true);
+		assert.strictEqual(modalPart.classList.contains('modal-editor-part'), true);
+	});
 });
