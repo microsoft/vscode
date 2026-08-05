@@ -13,6 +13,7 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 
 const primaryMenu = MenuId.for('sessions.fixture.editorHeaderPrimary');
 const secondaryMenu = MenuId.for('sessions.fixture.editorHeaderSecondary');
+const layoutMenu = MenuId.for('sessions.fixture.editorHeaderLayout');
 const emptyMenu = MenuId.for('sessions.fixture.editorHeaderEmpty');
 const primaryAction = {
 	id: 'sessions.fixture.editorHeaderAction',
@@ -29,9 +30,21 @@ const secondaryOverflowAction = {
 	title: localize2('sessions.fixture.editorHeaderSecondaryOverflowAction', "Tree View"),
 	icon: Codicon.listTree,
 };
+const hideEditorAction = {
+	id: 'sessions.fixture.editorHeaderHideEditorAction',
+	title: localize2('sessions.fixture.editorHeaderHideEditorAction', "Hide Editor"),
+	icon: Codicon.chevronRight,
+};
+const toggleDetailsAction = {
+	id: 'sessions.fixture.editorHeaderToggleDetailsAction',
+	title: localize2('sessions.fixture.editorHeaderToggleDetailsAction', "Toggle Details"),
+	icon: Codicon.layoutSidebarRight,
+};
 MenuRegistry.addCommand(primaryAction);
 MenuRegistry.addCommand(secondaryAction);
 MenuRegistry.addCommand(secondaryOverflowAction);
+MenuRegistry.addCommand(hideEditorAction);
+MenuRegistry.addCommand(toggleDetailsAction);
 MenuRegistry.appendMenuItem(primaryMenu, {
 	command: primaryAction,
 	group: 'navigation',
@@ -44,8 +57,18 @@ MenuRegistry.appendMenuItem(secondaryMenu, {
 	command: secondaryOverflowAction,
 	group: 'secondary/2_viewMode',
 });
+MenuRegistry.appendMenuItem(layoutMenu, {
+	command: hideEditorAction,
+	group: 'navigation',
+	order: 10,
+});
+MenuRegistry.appendMenuItem(layoutMenu, {
+	command: toggleDetailsAction,
+	group: 'navigation',
+	order: 20,
+});
 
-function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false): void {
+function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	renderEditorTabBarFixture(ctx, {
@@ -55,14 +78,17 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 		headerMenuIds: {
 			headerPrimary: primaryAction ? primaryMenu : emptyMenu,
 			headerSecondary: secondaryAction ? secondaryMenu : emptyMenu,
+			headerLayout: layoutActions ? layoutMenu : emptyMenu,
 		},
 	});
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true) }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),
 	PrimaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, true) }),
 	SecondaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, true) }),
+	LayoutActionsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, false, true) }),
 });
