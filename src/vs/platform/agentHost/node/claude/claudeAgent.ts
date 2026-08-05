@@ -837,6 +837,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private async _refreshModelsSingle(): Promise<void> {
 		const proxyAtStart = this._isProxyEnabled();
 		const tokenAtStart = this._githubToken;
+		const enabledAtStart = this._perSessionProviderEnabled;
 		if (proxyAtStart && !tokenAtStart) {
 			this._models.set([], undefined);
 			return;
@@ -866,10 +867,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			} else {
 				filtered = await this._fetchNativeModels();
 			}
-			// Stale-write guard: bail if the transport flipped, or (proxy) the
-			// token rotated, while we were awaiting — a newer refresh already
-			// published the right list.
-			if (this._isProxyEnabled() !== proxyAtStart || (proxyAtStart && this._githubToken !== tokenAtStart)) {
+			// Stale-write guard: bail if the transport flipped, the (proxy) token
+			// rotated, or the per-session provider flag toggled while we were
+			// awaiting — a newer refresh (single or merged) already published the
+			// right list, and a stale write here would clobber it.
+			if (this._isProxyEnabled() !== proxyAtStart || (proxyAtStart && this._githubToken !== tokenAtStart) || this._perSessionProviderEnabled !== enabledAtStart) {
 				return;
 			}
 			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}, ${filtered.map(m => m.name).join(', ')}`);
@@ -896,14 +898,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private async _refreshModelsMerged(): Promise<void> {
 		const tokenAtStart = this._githubToken;
+		const enabledAtStart = this._perSessionProviderEnabled;
 		const hasNativeSetup = detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
 		const [proxyOutcome, nativeOutcome] = await Promise.allSettled([
 			tokenAtStart ? this._fetchProxyModels(tokenAtStart) : Promise.resolve<readonly IAgentModelInfo[]>([]),
 			hasNativeSetup ? this._fetchNativeModels() : Promise.resolve<readonly IAgentModelInfo[]>([]),
 		]);
-		// Stale-write guard: a newer refresh (token rotation / sign-in / sign-out)
-		// superseded the proxy half while we were awaiting.
-		if (this._githubToken !== tokenAtStart) {
+		// Stale-write guard: a newer refresh superseded this one while we were
+		// awaiting — the proxy token rotated (sign-in / sign-out), or the
+		// per-session provider flag toggled off so a single-transport refresh now
+		// owns the catalog. Either way a merged write here would clobber it.
+		if (this._githubToken !== tokenAtStart || this._perSessionProviderEnabled !== enabledAtStart) {
 			return;
 		}
 		const attempted = (tokenAtStart ? 1 : 0) + (hasNativeSetup ? 1 : 0);

@@ -277,6 +277,15 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	supportedModelsCallCount = 0;
 	readonly supportedModelsOptions: Options[] = [];
 
+	/**
+	 * Optional gate awaited by {@link FakeQuery.supportedModels} before it
+	 * resolves. Lets a test park the native half of a merged refresh mid-flight
+	 * (the call is counted before the await, so `supportedModelsCallCount`-based
+	 * waits still fire) to stage a refresh race. Resolves immediately when
+	 * undefined.
+	 */
+	supportedModelsGate: Promise<void> | undefined;
+
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
 
@@ -626,7 +635,8 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	supportedModels(): Promise<ModelInfo[]> {
 		this._sdk.supportedModelsCallCount++;
-		return Promise.resolve(this._sdk.supportedModelsResult);
+		const gate = this._sdk.supportedModelsGate;
+		return gate ? gate.then(() => this._sdk.supportedModelsResult) : Promise.resolve(this._sdk.supportedModelsResult);
 	}
 	supportedAgents(): never {
 		if (this._sdk.supportedAgentsResult === undefined) { throw new Error('FakeQuery: supportedAgents not modeled'); }
@@ -2820,6 +2830,41 @@ suite('ClaudeAgent', () => {
 			sdk.capturedStartupOptions.map(options => options.additionalDirectories),
 			[[repoB.fsPath], [repoC.fsPath]],
 		);
+	});
+
+	test('flag off: a forked peer chat inherits its never-materialized parent\'s explicit model', async () => {
+		// The model inheritance in `_resolveParentSession` (`provisionalModel ??
+		// overlay.model`) is deliberately NOT gated on the per-session provider flag:
+		// even with the flag off, a peer chat forked from a parent that only ever held
+		// its picked model in `provisionalModel` (never materialized, so the overlay is
+		// empty) must still run that model. Reading the overlay alone would silently
+		// drop it and fall back to the host default. Bare id, proxy default transport.
+		const { agent, sdk, proxy } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')], model: { id: 'claude-opus-4.6' } });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
+
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.chats.sendMessage(chatUri, 'hi', undefined, undefined, 'turn-1');
+
+		// Materialized over the proxy transport (flag-off default) resuming the fork,
+		// carrying the parent's model normalized to its bare SDK id.
+		assert.deepStrictEqual({
+			model: sdk.capturedStartupOptions[0]?.model,
+			resume: sdk.capturedStartupOptions[0]?.resume,
+			proxyStarts: proxy.startCalls.length,
+		}, {
+			model: 'claude-opus-4-6',
+			resume: 'forked-1',
+			proxyStarts: 1,
+		});
 	});
 
 	test('materializing in a worktree reanchors customization discovery', async () => {
@@ -5576,6 +5621,54 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		const ok = await agent.authenticate('https://api.github.com', 'tok');
 
 		assert.deepStrictEqual({ ok, proxyStartAttempts: proxy.startCalls.length }, { ok: true, proxyStartAttempts: 1 });
+	});
+
+	test('a flag toggle mid-refresh: the superseded merged refresh does not clobber the single catalog', async () => {
+		// Regression (guard completeness): `_startModelRefresh` supersedes an
+		// in-flight refresh as the coalescing target but does NOT cancel it, so a
+		// false-flip of the flag mid-merge leaves the merged refresh running. When it
+		// finally settles it must observe the flag moved and bail, or its stale
+		// provider-qualified write would clobber the bare single-transport catalog the
+		// (now flag-off) refresh already published. The native half is parked on a
+		// gate so the merged refresh is guaranteed still in-flight when the flag flips.
+		await withNativeSetup(async userHome => {
+			const { agent, api, sdk, configService } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true },
+				userHome,
+			});
+			api.models = async () => [CLAUDE_OPUS];
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+			];
+			await agent.authenticate('https://api.github.com', 'tok');
+			await agent.refreshModels();
+			await tick();
+
+			// Park the native half, then start the merged refresh it belongs to.
+			const nativeGate = new DeferredPromise<void>();
+			sdk.supportedModelsGate = nativeGate.p;
+			const straggler = agent.refreshModels();
+			await tick();
+
+			// Flip the flag off: a single-transport (proxy default) refresh runs and
+			// publishes the bare catalog while the merged refresh is still parked.
+			configService.updateRootConfig({ [AgentHostConfigKey.ClaudePerSessionProvider]: false });
+			for (let i = 0; i < 100 && agent.models.get().length !== 1; i++) {
+				await tick();
+			}
+			const afterToggle = agent.models.get().map(m => m.id);
+
+			// Release the merged refresh: its stale-write guard must drop the result.
+			nativeGate.complete();
+			await straggler;
+			await tick();
+			const afterRelease = agent.models.get().map(m => m.id);
+
+			assert.deepStrictEqual({ afterToggle, afterRelease }, {
+				afterToggle: ['claude-opus-4.6'],
+				afterRelease: ['claude-opus-4.6'],
+			});
+		});
 	});
 });
 
