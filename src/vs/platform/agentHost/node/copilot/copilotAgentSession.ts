@@ -806,6 +806,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
+	/** Secondary filesystem roots successfully applied by the launch transaction. */
+	private readonly _appliedAdditionalDirectories: readonly URI[];
 	/**
 	 * Live owning-client identity, read at tool-call stamp time so a window
 	 * reload that re-pushes identical tools with a new `clientId` stamps
@@ -924,6 +926,7 @@ export class CopilotAgentSession extends Disposable {
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
+		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
 		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
 		// Capability decisions use the family-aliased selection so an aliased
@@ -1493,6 +1496,14 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get appliedSnapshot(): IActiveClientSnapshot {
 		return this._appliedSnapshot;
+	}
+
+	/**
+	 * Secondary roots granted when this live SDK session was created or resumed.
+	 * The primary process root is immutable and therefore excluded.
+	 */
+	get appliedAdditionalDirectories(): readonly URI[] {
+		return this._appliedAdditionalDirectories;
 	}
 
 	get customizationDirectory(): URI | undefined {

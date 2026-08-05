@@ -459,7 +459,7 @@ export class ChangesActionsBar extends Disposable {
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -475,8 +475,8 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Registers the Changes editor-header action view items keyed by the editor-header menu ids. */
-class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchContribution {
+/** Registers custom Changes action view items. */
+class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.changesEditorHeader';
 
@@ -504,10 +504,17 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
+		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+		}, onDidRegister.event));
+
 		onDidRegister.fire();
 	}
 }
-registerWorkbenchContribution2(ChangesEditorHeaderContribution.ID, ChangesEditorHeaderContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChangesActionViewItemsContribution.ID, ChangesActionViewItemsContribution, WorkbenchPhase.BlockRestore);
 
 // --- View Pane
 

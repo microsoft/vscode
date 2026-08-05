@@ -1586,6 +1586,87 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('ordinary working-directory dispatch', () => {
+
+		function workingDirectorySetAction(directory: string) {
+			return { type: ActionType.SessionWorkingDirectorySet as const, directory };
+		}
+
+		/** Connect `client`, subscribe to `sessionUri`, and answer the `subscribe` request with an empty session snapshot. */
+		async function subscribeToSession(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport, sessionUri: URI): Promise<void> {
+			client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			let subscribeReq: JsonRpcRequest | undefined;
+			while (!subscribeReq) {
+				subscribeReq = transport.sentMessages.find(
+					(m): m is JsonRpcRequest => hasKey(m, { method: true, id: true }) && (m as JsonRpcRequest).method === 'subscribe',
+				);
+				if (!subscribeReq) {
+					await Promise.resolve();
+				}
+			}
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribeReq.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+		}
+
+		function findLastDispatchAction(transport: TestProtocolTransport): JsonRpcNotification {
+			const match = [...transport.sentMessages].reverse().find(
+				(m): m is JsonRpcNotification => hasKey(m, { method: true }) && (m as JsonRpcNotification).method === 'dispatchAction' && !('id' in m),
+			);
+			assert.ok(match, 'expected a dispatchAction notification to have been sent');
+			return match;
+		}
+
+		test('optimistically applies and confirms an accepted action', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			const sub = client.getSubscription<{ workingDirectories?: readonly string[] }>(StateComponents.Session, sessionUri, 'test');
+			await subscribeToSession(client, transport, sessionUri);
+
+			client.dispatch(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			const sent = findLastDispatchAction(transport);
+			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+			assert.deepStrictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq } },
+			});
+
+			assert.deepStrictEqual(sub.object.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.object.value, sub.object.verifiedValue);
+			sub.dispose();
+		});
+
+		test('rolls optimistic state back when the server rejects an action', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const sessionUri = URI.parse('copilot:/test-session');
+			const sub = client.getSubscription<{ workingDirectories?: readonly string[] }>(StateComponents.Session, sessionUri, 'test');
+			await subscribeToSession(client, transport, sessionUri);
+
+			client.dispatch(sessionUri.toString(), workingDirectorySetAction('file:///ws2'));
+			const sent = findLastDispatchAction(transport);
+			const { clientSeq, action } = sent.params as { clientSeq: number; action: ReturnType<typeof workingDirectorySetAction> };
+			assert.deepStrictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, ['file:///ws2']);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { channel: sessionUri.toString(), action, serverSeq: 6, origin: { clientId: client.clientId, clientSeq }, rejectionReason: 'denied' },
+			});
+
+			assert.strictEqual(sub.object.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.object.value as { workingDirectories?: readonly string[] }).workingDirectories, undefined);
+			sub.dispose();
+		});
+	});
+
 	suite('soft reconnect (transport factory)', () => {
 
 		function findRequest(transport: TestProtocolTransport, method: string): JsonRpcRequest | undefined {
@@ -2025,6 +2106,98 @@ suite('RemoteAgentHostProtocolClient', () => {
 				const root = client.rootState.value;
 				assert.ok(root && !(root instanceof Error), 'root state should be hydrated from snapshot');
 				assert.strictEqual(root.agents[0]?.provider, 'copilot');
+				client.dispose();
+			});
+		});
+
+		test('reconnect snapshot replaces pending optimistic working-directory state', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await flushMicrotasks();
+
+				client.dispatch(sessionUri.toString(), {
+					type: ActionType.SessionWorkingDirectorySet,
+					directory: 'file:///ws2',
+				});
+				assert.deepStrictEqual((subRef.object.value as { workingDirectories?: string[] }).workingDirectories, ['file:///ws2']);
+
+				// Drop the transport before the server ever echoes the action back.
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Server reports the replay buffer no longer covers our gap, so it
+				// sends a fresh snapshot instead — rebasing confirmed state before
+				// the dispatched action's echo ever arrived.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: {
+						type: ReconnectResultType.Snapshot,
+						snapshots: [{ resource: sessionUri.toString(), state: { turns: [], workingDirectories: ['file:///fresh'] }, fromSeq: 9 }],
+					},
+				});
+				await flushMicrotasks();
+
+				assert.deepStrictEqual((subRef.object.value as { workingDirectories?: string[] }).workingDirectories, ['file:///fresh']);
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionWorkingDirectorySet), undefined,
+					'action cleared by a fresh snapshot must not be replayed');
+
+				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('reconnect missing result clears pending optimistic working-directory state', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const sessionUri = URI.parse('copilot:/test-session');
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: subscribeReq.id,
+					result: { snapshot: { resource: sessionUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+				});
+				await Promise.resolve();
+
+				client.dispatch(sessionUri.toString(), {
+					type: ActionType.SessionWorkingDirectorySet,
+					directory: 'file:///ws2',
+				});
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				// Server replays with no actions but reports our session
+				// subscription as no-longer-resumable.
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [sessionUri.toString()] },
+				});
+				await flushMicrotasks();
+
+				assert.ok(subRef.object.value instanceof Error);
+				assert.strictEqual(findDispatchAction(reconnectTransport, ActionType.SessionWorkingDirectorySet), undefined,
+					'action for a missing subscription must not be replayed');
+
+				subRef.dispose();
 				client.dispose();
 			});
 		});

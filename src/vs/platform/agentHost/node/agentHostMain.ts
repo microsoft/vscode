@@ -395,7 +395,7 @@ async function startAgentHost(): Promise<void> {
 			server.registerChannel(AgentHostIpcChannels.Protocol, messagePortProtocolServer);
 			if (localEndpoint) {
 				try {
-					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, localEndpoint.metadata);
+					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, localEndpoint.metadata, logService);
 					localDataPlaneDisposables.add(toDisposable(() => {
 						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, localEndpoint.metadata, logService);
 					}));
@@ -551,7 +551,7 @@ async function startLocalAgentHostEndpoint(
 		}
 		server = await WebSocketProtocolServer.create(
 			{
-				socketPath: endpointMetadata.endpointPath,
+				socketPath: endpointMetadata.endpoint.path,
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
@@ -579,12 +579,12 @@ function cleanupLocalAgentHostEndpoint(
 	logService: ILogService,
 ): void {
 	try {
-		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata);
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata, logService);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol metadata', error);
 	}
 	try {
-		cleanupLocalAgentHostEndpointSocketSync(metadata.endpointPath);
+		cleanupLocalAgentHostEndpointSocketSync(metadata.endpoint.path);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol socket', error);
 	}
