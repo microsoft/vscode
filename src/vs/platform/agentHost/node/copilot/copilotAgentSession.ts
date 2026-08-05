@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, PermissionResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { raceCancellation, RunOnceScheduler, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -48,7 +48,6 @@ import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type Mes
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
@@ -60,9 +59,9 @@ import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
-import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -78,19 +77,15 @@ import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/pr
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 
-/**
- * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
- * same three modes (`interactive` / `plan` / `autopilot`) on its `mode` axis,
- * so the Copilot agent maps between the two views directly in
- * {@link CopilotAgentSession.send} and the `session.mode_changed` listener.
- */
-export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
 type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
+interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
+	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
+}
 
 interface IPendingMcpAuthRequest {
 	readonly serverName: string;
@@ -219,13 +214,6 @@ function getPlanActionDescription(actionId: string): { label: string; descriptio
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
-type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
-type ElicitationContext = Parameters<ElicitationHandler>[0];
-type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
-type ElicitationSchema = NonNullable<ElicitationContext['requestedSchema']>;
-type ElicitationSchemaField = ElicitationSchema['properties'][string];
-type ElicitationFieldValue = NonNullable<ElicitationResult['content']>[string];
-type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
@@ -705,12 +693,12 @@ export class CopilotAgentSession extends Disposable {
 	 * Pending plan-review requests originating from the CLI's
 	 * `exitPlanMode.request` RPC. Tracked separately from
 	 * {@link _pendingUserInputs} so the completion handler can resolve the
-	 * RPC with a structured {@link IExitPlanModeResponse} (which the CLI
+	 * RPC with a structured {@link CopilotExitPlanModeResponse} (which the CLI
 	 * forwards to `session.respondToExitPlanMode`) rather than feeding it
 	 * back through the SDK's `ask_user` callback.
 	 */
 	private readonly _pendingPlanReviews = new PendingRequestRegistry<
-		IExitPlanModeResponse,
+		CopilotExitPlanModeResponse,
 		{
 			readonly actions: readonly string[];
 			readonly recommendedAction: string;
@@ -1815,7 +1803,7 @@ export class CopilotAgentSession extends Disposable {
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
 			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), { kind: 'reject' } satisfies PermissionRequestResult, 'permission'),
-			handleExitPlanModeRequest: this._guarded((request, invocation) => this._handleExitPlanModeRequest(request, invocation), { approved: false } satisfies IExitPlanModeResponse, 'exit-plan-mode'),
+			handleExitPlanModeRequest: this._guarded((request, invocation) => this._handleExitPlanModeRequest(request, invocation), { approved: false } satisfies CopilotExitPlanModeResponse, 'exit-plan-mode'),
 			handleUserInputRequest: this._guarded((request, invocation) => this._handleUserInputRequest(request, invocation), { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input'),
 			handleElicitationRequest: this._guarded(context => this._handleElicitationRequest(context), { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
 			handleMcpAuthRequest: this._guarded(request => this._handleMcpAuthRequest(request), { kind: 'cancelled' } satisfies McpAuthResult, 'mcp-auth'),
@@ -2665,7 +2653,7 @@ export class CopilotAgentSession extends Disposable {
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
 	 */
 	private async _handlePermissionRequest(
-		request: ITypedPermissionRequest,
+		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
 		try {
 			const toolCallId = request.toolCallId;
@@ -2680,11 +2668,14 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const managedApprovalRequired = request.managedApprovalRequired === true;
+			const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
+				? request.requestSandboxBypass
+				: undefined;
 			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
-			if (recommendation === 'approve' && !request.requestSandboxBypass) {
+			if (recommendation === 'approve' && !requestSandboxBypass) {
 				if (request.kind === 'custom-tool'
 					&& typeof request.toolName === 'string'
 					&& this._clientToolNames.has(this._clientToolName(request.toolName))
@@ -2813,7 +2804,7 @@ export class CopilotAgentSession extends Disposable {
 			// fall through to the normal confirmation flow — otherwise enabling
 			// `sandbox.allowBypass` would let the model escape the sandbox with no
 			// prompt at all.
-			if (!managedApprovalRequired && isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
+			if (!managedApprovalRequired && isShellRequest && !requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
@@ -2844,7 +2835,9 @@ export class CopilotAgentSession extends Disposable {
 			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile);
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
-			const toolName = request.toolName ?? request.kind;
+			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
+				? request.toolName ?? request.kind
+				: request.kind;
 			// Forward the tool's parentToolCallId (if any) so the host can
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
@@ -2877,7 +2870,7 @@ export class CopilotAgentSession extends Disposable {
 				permissionKind,
 				permissionPath,
 				managedApprovalRequired,
-				requestSandboxBypass: request.requestSandboxBypass,
+				requestSandboxBypass,
 				shellLanguage,
 				parentToolCallId,
 			});
@@ -2894,7 +2887,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _getInternalSessionResourcePath(request: ITypedPermissionRequest): string | undefined {
+	private _getInternalSessionResourcePath(request: PermissionRequest): string | undefined {
 		let permissionPath: string | undefined;
 		if (request.kind === 'read') {
 			permissionPath = typeof request.path === 'string' ? request.path : undefined;
@@ -2972,7 +2965,7 @@ export class CopilotAgentSession extends Disposable {
 	 * containment) or when the host sandbox config evaluates to disabled
 	 * (including on Windows, where the sandbox is not supported).
 	 */
-	private _computeSdkSandboxConfig(): ISdkSandboxConfig | undefined {
+	private _computeSdkSandboxConfig(): CopilotSandboxConfig | undefined {
 		if (this._isCustomTerminalToolEnabled()) {
 			return undefined;
 		}
@@ -3091,7 +3084,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
 		const base = buildSandboxConfigForSdk(this._platform, sandbox);
-		const sandboxConfig: ISdkSandboxConfig | { enabled: false } = (base && !this._isBypassApprovals()) ? base : { enabled: false };
+		const sandboxConfig: CopilotSandboxConfig | { enabled: false } = (base && !this._isBypassApprovals()) ? base : { enabled: false };
 		try {
 			await this._wrapper.session.rpc.options.update({ sandboxConfig });
 		} catch (err) {
@@ -3112,7 +3105,7 @@ export class CopilotAgentSession extends Disposable {
 	 * the in-memory write completes (e.g. the session was aborted), the
 	 * just-written entry is deleted so it cannot leak.
 	 */
-	private async _buildEditsForPermission(request: ITypedPermissionRequest, toolCallId: string): Promise<{ items: FileEdit[] } | undefined> {
+	private async _buildEditsForPermission(request: PermissionRequest, toolCallId: string): Promise<{ items: FileEdit[] } | undefined> {
 		if (request.kind !== 'write') {
 			return undefined;
 		}
@@ -3409,7 +3402,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Maps an `exit_plan_mode` input response back to an
-	 * {@link IExitPlanModeResponse} that the CLI can feed into
+	 * {@link CopilotExitPlanModeResponse} that the CLI can feed into
 	 * `session.respondToExitPlanMode`. Mapping rules:
 	 *
 	 *  - Decline / Cancel / no answer → `{ approved: false }` (model gets a
@@ -3428,7 +3421,7 @@ export class CopilotAgentSession extends Disposable {
 		pending: { actions: readonly string[]; recommendedAction: string; questionId: string },
 		response: ChatInputResponseKind,
 		answers?: Record<string, ChatInputAnswer>,
-	): IExitPlanModeResponse {
+	): CopilotExitPlanModeResponse {
 		if (response !== ChatInputResponseKind.Accept) {
 			return { approved: false };
 		}
@@ -4861,12 +4854,12 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Handles the CLI's `exitPlanMode.request` RPC by surfacing it as a
 	 * {@link ChatInputRequest} and awaiting the client's response. The
-	 * resolved {@link IExitPlanModeResponse} flows back to the CLI, which
+	 * resolved {@link CopilotExitPlanModeResponse} flows back to the CLI, which
 	 * calls `session.respondToExitPlanMode` internally — that resumes the
 	 * paused `exit_plan_mode` tool call and (on accept) updates the SDK's
 	 * `currentMode` so the model can continue with implementation.
 	 */
-	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
+	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<CopilotExitPlanModeResponse> {
 		const turnId = this._currentTurn?.id;
 		if (!turnId) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting plan review request without an active turn`);
