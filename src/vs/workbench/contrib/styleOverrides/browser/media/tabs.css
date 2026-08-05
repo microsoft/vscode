@@ -171,8 +171,14 @@
 	display: block;
 	position: absolute;
 	inset: 0 var(--vscode-spacing-size20);
+	z-index: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	pointer-events: none;
+}
+
+.style-override .part.editor .tabs-container > .tab > .tab-label {
+	position: relative;
+	z-index: 1;
 }
 
 .style-override .part.editor .tabs-container > .tab:hover > .tab-fill {
