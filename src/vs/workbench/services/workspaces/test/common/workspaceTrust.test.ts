@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { promiseWithResolvers } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -305,6 +306,35 @@ suite('Workspace Trust', () => {
 
 			assert.strictEqual(true, reloaded.isWorkspaceTrusted());
 			assert.strictEqual(true, (await reloaded.getUriTrustInfo(folder)).trusted);
+		});
+
+		test('workspace trust initialization waits for the --trust-folder transition', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-transition');
+			environmentService.trustedFolders = [folder.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+			workspaceService.setWorkspace(testWorkspace(folder));
+
+			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+			const { promise: transitionStarted, resolve: markTransitionStarted } = promiseWithResolvers<void>();
+			const { promise: continueTransition, resolve: releaseTransition } = promiseWithResolvers<void>();
+			store.add(testObject.addWorkspaceTrustTransitionParticipant({
+				async participate(): Promise<void> {
+					markTransitionStarted();
+					await continueTransition;
+				}
+			}));
+
+			let initialized = false;
+			testObject.workspaceTrustInitialized.then(() => initialized = true);
+			try {
+				await transitionStarted;
+				assert.strictEqual(initialized, false);
+			} finally {
+				releaseTransition();
+				await testObject.workspaceTrustInitialized;
+			}
 		});
 
 		test('an empty --trust-folder list trusts nothing', async () => {
