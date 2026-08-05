@@ -151,6 +151,10 @@
 	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
 }
 
+.style-override .part.editor .title.two-tab-bars > .tabs-and-actions-container.tabs-border-bottom.wrapping:not(:first-child) {
+	padding-top: 0;
+}
+
 /* Move the bottom gutter into the scrollable element so the horizontal
  * scrollbar sits below the tab pills without increasing total height. */
 .style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
