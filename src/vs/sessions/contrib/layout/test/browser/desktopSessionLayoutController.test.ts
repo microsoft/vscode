@@ -96,9 +96,10 @@ suite('LayoutController (desktop)', () => {
 		return Object.create(MultiDiffEditorInput.prototype) as MultiDiffEditorInput;
 	}
 
-	function makeWebviewEditor(viewType: string): WebviewInput {
+	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
 		const editor = Object.create(WebviewInput.prototype) as WebviewInput;
 		Object.defineProperty(editor, 'viewType', { value: viewType });
+		Object.defineProperty(editor, 'providerId', { value: providerId });
 		return editor;
 	}
 
@@ -520,9 +521,13 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		const openedContainers: (string | undefined)[] = [];
-		for (const viewType of ['markdown.preview', 'vscode.markdown.editor', 'vscode.markdown.preview.editor']) {
+		for (const [viewType, providerId] of [
+			['mainThreadWebview-markdown.preview', 'markdown.preview'],
+			['vscode.markdown.editor', undefined],
+			['vscode.markdown.preview.editor', undefined],
+		] as const) {
 			harness.openedViewContainers = [];
-			harness.activeEditorInput = makeWebviewEditor(viewType);
+			harness.activeEditorInput = makeWebviewEditor(viewType, providerId);
 			harness.onDidActiveEditorChange.fire();
 			await timeout(0);
 			openedContainers.push(harness.openedViewContainers[harness.openedViewContainers.length - 1]);

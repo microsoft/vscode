@@ -242,8 +242,9 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _isFileEditor(editor: EditorInput): boolean {
-		return editor instanceof EmptyFileEditorInput
-			|| editor instanceof FileEditorInput
-			|| editor instanceof WebviewInput && MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType);
+		if (editor instanceof WebviewInput) {
+			return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType) || MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '');
+		}
+		return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput;
 	}
 }
