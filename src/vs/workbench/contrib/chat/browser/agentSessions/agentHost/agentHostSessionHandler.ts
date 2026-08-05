@@ -10,7 +10,7 @@ import { getErrorCode, isCancellationError } from '../../../../../../base/common
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -831,7 +831,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
-	private readonly _workingDirectoryRegistrations = new Map<string, IDisposable>();
+	/**
+	 * Working-directory synchronizer registrations, keyed by session URI. Each
+	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
+	 */
+	private readonly _workingDirectoryRegistrations = this._register(new DisposableMap<string>());
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -5682,8 +5686,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref?.object.value instanceof Error) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
-			this._workingDirectoryRegistrations.get(sessionUri)?.dispose();
-			this._workingDirectoryRegistrations.delete(sessionUri);
+			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
@@ -5756,8 +5759,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
-			this._workingDirectoryRegistrations.get(sessionUri)?.dispose();
-			this._workingDirectoryRegistrations.delete(sessionUri);
+			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {
@@ -5917,10 +5919,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref.dispose();
 		}
 		this._sessionSubscriptions.clear();
-		for (const registration of this._workingDirectoryRegistrations.values()) {
-			registration.dispose();
-		}
-		this._workingDirectoryRegistrations.clear();
 		for (const ref of this._defaultChatSubscriptions.values()) {
 			ref.dispose();
 		}
