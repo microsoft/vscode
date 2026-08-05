@@ -11,6 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { MessageKind, ResponsePartKind, TurnState, type ResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns } from '../../node/copilot/buildSessionEvents.js';
+import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 
 suite('Copilot SDK - imported sessions', function () {
 
@@ -29,6 +30,7 @@ suite('Copilot SDK - imported sessions', function () {
 			baseDirectory: root,
 			useLoggedInUser: false,
 			logLevel: 'error',
+			env: createCopilotCliEnvironment(),
 		});
 		await client.start();
 	});

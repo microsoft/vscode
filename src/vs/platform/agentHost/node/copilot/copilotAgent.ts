@@ -24,7 +24,6 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
 import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
-import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -75,6 +74,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
+import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
@@ -1445,32 +1445,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
-			const env: Record<string, string | undefined> = Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' });
-			delete env['NODE_OPTIONS'];
-			delete env['VSCODE_INSPECTOR_OPTIONS'];
-			delete env['VSCODE_ESM_ENTRYPOINT'];
-			delete env['VSCODE_HANDLES_UNCAUGHT_ERRORS'];
-			for (const key of Object.keys(env)) {
-				if (key === 'ELECTRON_RUN_AS_NODE') {
-					continue;
-				}
-				if (key === 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE') {
-					// used for running the CLI in a test harness against a mock CAPI server
-					continue;
-				}
-				if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
-					delete env[key];
-				}
-			}
-			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
-			env['USE_BUILTIN_RIPGREP'] = 'false';
-			env['COPILOT_MCP_APPS'] = 'true';
-			// Attribute the CLI and everything it spawns (`gh`, …) back to
-			// VS Code. Already inherited via `process.env` (the strip loop only
-			// removes `VSCODE_*`/`ELECTRON_*`); set here as defense in depth.
-			env[AiAgentEnvVar] = AiAgentEnvValue;
-			// Required by the currently bundled SDK to enable its experimental auto-approval judge.
-			env['AUTO_APPROVAL'] = 'true';
+			const env = createCopilotCliEnvironment();
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
