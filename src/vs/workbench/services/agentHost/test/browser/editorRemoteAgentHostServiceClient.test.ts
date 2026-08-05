@@ -8,16 +8,13 @@ import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { ActionType, type SessionAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -27,7 +24,6 @@ import type { PersistentConnectionEvent } from '../../../../../platform/remote/c
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
-import { fromRemoteAgentHostWorkingDirectory, toRemoteAgentHostWorkingDirectory } from '../../common/agentHostWorkingDirectoryUri.js';
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 	readonly remoteAuthority = 'ssh-remote+test';
@@ -131,110 +127,5 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
 		});
-	});
-
-	test('maps Editor remote working directories at the window Agent Host boundary', async () => {
-		const channel: IChannel = {
-			call: <T>() => Promise.resolve(undefined as T),
-			listen: () => Event.None,
-		};
-		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
-		let createdWorkingDirectories: readonly URI[] | undefined;
-		const dispatchedActions: { channel: string; action: SessionAction }[] = [];
-		const protocolClient = {
-			clientId: 'test-client',
-			connect: async () => { },
-			onDidClose: Event.None,
-			onDidNotification: Event.None,
-			onDidAction: Event.None,
-			onMcpNotification: Event.None,
-			initializeResult: constObservable(undefined),
-			rootState: {
-				value: undefined,
-				verifiedValue: undefined,
-				onDidChange: Event.None,
-				onDidError: Event.None,
-				onWillApplyAction: Event.None,
-				onDidApplyAction: Event.None,
-			},
-			createSession: async (config: { workingDirectories?: readonly URI[] }) => {
-				createdWorkingDirectories = config.workingDirectories;
-				return URI.parse('copilot:/session');
-			},
-			dispatch: (channel: string, action: SessionAction) => {
-				dispatchedActions.push({ channel, action });
-			},
-			listSessions: async () => [{
-				session: URI.parse('copilot:/session'),
-				startTime: 1,
-				modifiedTime: 2,
-				workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
-			}],
-			dispose: () => { },
-		};
-		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
-			[IRemoteAgentService, remoteAgentService],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) }],
-			[ILogService, new NullLogService()],
-			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
-		)));
-		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
-		instantiationService.set(IInstantiationService, instantiationService);
-		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
-		remoteAgentService.environmentReady.complete(null);
-		const remoteOne = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test', path: '/workspace/one' });
-		const remoteTwo = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test', path: '/workspace/two' });
-
-		await service.createSession({ provider: 'copilot', workingDirectories: [remoteOne, remoteTwo] });
-		service.dispatch('copilot:/session', {
-			type: ActionType.SessionWorkingDirectorySet,
-			directory: remoteTwo.toString(),
-		});
-		service.dispatch('copilot:/session', {
-			type: ActionType.SessionWorkingDirectoryRemoved,
-			directory: remoteOne.toString(),
-		});
-		const unrelatedAction = { type: ActionType.SessionTitleChanged, title: 'Unchanged' } as const;
-		service.dispatch('copilot:/session', unrelatedAction);
-		const listed = await service.listSessions();
-
-		assert.deepStrictEqual({
-			created: createdWorkingDirectories?.map(directory => directory.toString()),
-			listed: listed[0].workingDirectories?.map(directory => directory.toString()),
-			dispatched: dispatchedActions,
-			roundTrip: fromRemoteAgentHostWorkingDirectory(
-				toRemoteAgentHostWorkingDirectory(remoteOne, 'ssh-remote+test'),
-				'ssh-remote+test',
-			).toString(),
-		}, {
-			created: [URI.file('/workspace/one').toString(), URI.file('/workspace/two').toString()],
-			listed: [remoteOne.toString(), remoteTwo.toString()],
-			dispatched: [
-				{
-					channel: 'copilot:/session',
-					action: {
-						type: ActionType.SessionWorkingDirectorySet,
-						directory: URI.file('/workspace/two').toString(),
-					},
-				},
-				{
-					channel: 'copilot:/session',
-					action: {
-						type: ActionType.SessionWorkingDirectoryRemoved,
-						directory: URI.file('/workspace/one').toString(),
-					},
-				},
-				{ channel: 'copilot:/session', action: unrelatedAction },
-			],
-			roundTrip: remoteOne.toString(),
-		});
-		assert.strictEqual(dispatchedActions[2].action, unrelatedAction, 'unrelated action should be forwarded unchanged');
-		assert.throws(
-			() => service.dispatch('copilot:/session', {
-				type: ActionType.SessionWorkingDirectorySet,
-				directory: remoteOne.with({ authority: 'ssh-remote+other' }).toString(),
-			}),
-			/does not belong to remote authority/,
-		);
 	});
 });

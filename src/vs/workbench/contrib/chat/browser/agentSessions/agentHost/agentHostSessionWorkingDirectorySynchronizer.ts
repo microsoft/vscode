@@ -74,7 +74,6 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { fromRemoteAgentHostWorkingDirectory } from '../../../../../services/agentHost/common/agentHostWorkingDirectoryUri.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { computeDesiredWorkingDirectories, hasImmutablePrimaryWorkingDirectory } from './agentHostNewSessionFolderService.js';
 
@@ -287,7 +286,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return;
 		}
 
-		const current = state.workingDirectories?.map(directory => this._toEditorWorkingDirectory(URI.parse(directory))) ?? [];
+		const current = state.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (current.length === 0) {
 			return;
 		}
@@ -372,16 +371,6 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return false;
 		}
 		return hasImmutablePrimaryWorkingDirectory(registration.connection.rootState.value, registration.provider);
-	}
-
-	/**
-	 * Maps a host-side directory back to its Editor form. On a Remote window the
-	 * host reports plain `file:` paths, while workspace folders are
-	 * `vscode-remote:`, so both sides must be compared in Editor form.
-	 */
-	private _toEditorWorkingDirectory(directory: URI): URI {
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		return remoteAuthority ? fromRemoteAgentHostWorkingDirectory(directory, remoteAuthority) : directory;
 	}
 
 	/** Returns an error for the first untrusted folder, or `undefined` if all are trusted. */
