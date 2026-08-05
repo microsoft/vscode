@@ -11,8 +11,8 @@
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
  * the inner layout stays in sync with this CSS. The margin and the 1px border
- * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
- * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
+ * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
+ * inset used there. The outermost card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
  * Colors come from the generic `surface.*` tokens (shared with the agent
  * sessions window).
  *
