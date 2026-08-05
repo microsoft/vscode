@@ -121,6 +121,27 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
 const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
 
 /**
+ * Handshake timeout for a connect that can never show UI (a background
+ * reconnect). Nothing blocks on a human, so a server that accepts TCP but
+ * stalls the handshake should be abandoned promptly.
+ */
+const HANDSHAKE_TIMEOUT_MS = 30_000;
+
+/**
+ * Handshake timeout for a user-initiated connect, which may suspend the
+ * handshake on a host key confirmation or a password prompt.
+ *
+ * ssh2's `readyTimeout` covers the whole handshake and keeps running while
+ * `hostVerifier` awaits a verdict, so the 30s used elsewhere would kill the
+ * connection out from under a user who is doing exactly what the host key
+ * dialog asks — going to check a fingerprint against another source. Waiting
+ * longer is safe here precisely because these prompts only happen *after* the
+ * server has proven it is responsive (we are holding its host key), so this
+ * window is not what protects us from an unreachable host.
+ */
+const INTERACTIVE_HANDSHAKE_TIMEOUT_MS = 300_000;
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
@@ -1305,11 +1326,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		connectionKey?: string,
 	): Promise<SSHClient> {
 		const port = config.port ?? 22;
+		// A background reconnect never prompts (the host key policy declines
+		// unknown keys outright rather than raising UI), so only a
+		// user-initiated connect needs the interaction-sized window.
+		const canPrompt = config.userInitiated ?? true;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port,
 			username: config.username,
-			readyTimeout: 30_000,
+			readyTimeout: canPrompt ? INTERACTIVE_HANDSHAKE_TIMEOUT_MS : HANDSHAKE_TIMEOUT_MS,
 			keepaliveInterval: 15_000,
 		};
 

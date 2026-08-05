@@ -34,6 +34,8 @@ class HostKeyMockSSHClient {
 	/** The verdict `hostVerifier` produced, once it settles. */
 	verdict: boolean | undefined;
 	verdictCount = 0;
+	/** The `readyTimeout` ssh2 was configured with for this attempt. */
+	readyTimeout: number | undefined;
 	/**
 	 * When set, the connection is not driven to ready/error by the verdict, so
 	 * a test can control what happens while verification is still pending.
@@ -60,6 +62,7 @@ class HostKeyMockSSHClient {
 	}
 
 	connect(config: ConnectConfig): void {
+		this.readyTimeout = config.readyTimeout;
 		const hostVerifier = config.hostVerifier as ((key: Buffer, verify: (permitted: boolean) => void) => void) | undefined;
 		assert.ok(hostVerifier, 'hostVerifier must be installed — without it ssh2 accepts any host key');
 		hostVerifier(HOST_KEY, permitted => {
@@ -212,6 +215,27 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 		const service = createService();
 		const { requests } = await connectAnswering(service, false, makeConfig({ userInitiated: false }));
 		assert.strictEqual(requests[0]?.userInitiated, false);
+	});
+
+	test('allows time for a human to answer, but only when a prompt is possible', async () => {
+		// ssh2's readyTimeout keeps running while hostVerifier awaits a
+		// verdict, so a short window would kill the connection out from under
+		// a user who is doing exactly what the dialog asks — going to check
+		// the fingerprint somewhere else.
+		const interactive = createService();
+		await connectAnswering(interactive, true, makeConfig({ userInitiated: true }));
+
+		const background = createService();
+		await connectAnswering(background, true, makeConfig({ userInitiated: false }));
+
+		assert.deepStrictEqual(
+			{
+				interactive: interactive.client.readyTimeout,
+				// A background reconnect never prompts, so it keeps the short
+				// window and abandons a stalled handshake promptly.
+				background: background.client.readyTimeout,
+			},
+			{ interactive: 300_000, background: 30_000 });
 	});
 
 	test('fails closed when gathering evidence throws', async () => {
