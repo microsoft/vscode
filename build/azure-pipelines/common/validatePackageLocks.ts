@@ -44,6 +44,103 @@ export function createLockfileRegenerationSeed(base: IPackageLock | undefined, s
 	return seed;
 }
 
+const VERSION_PATTERN = /^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+
+interface ISemanticVersion {
+	readonly release: readonly number[];
+	readonly prerelease: readonly (string | number)[];
+}
+
+function isRecord(value: JsonValue | undefined): value is { [key: string]: JsonValue } {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseVersion(value: JsonValue | undefined): ISemanticVersion | undefined {
+	const groups = typeof value === 'string' ? VERSION_PATTERN.exec(value)?.groups : undefined;
+	if (!groups) {
+		return undefined;
+	}
+	return {
+		release: [Number(groups.major), Number(groups.minor), Number(groups.patch)],
+		prerelease: groups.prerelease ? groups.prerelease.split('.').map(identifier => /^\d+$/.test(identifier) ? Number(identifier) : identifier) : []
+	};
+}
+
+function comparePrerelease(first: readonly (string | number)[], second: readonly (string | number)[]): number {
+	if (first.length === 0 || second.length === 0) {
+		// A version without prerelease identifiers outranks one that has them.
+		return first.length === second.length ? 0 : first.length === 0 ? 1 : -1;
+	}
+	for (let index = 0; index < Math.max(first.length, second.length); index++) {
+		const firstIdentifier = first[index];
+		const secondIdentifier = second[index];
+		if (firstIdentifier === undefined || secondIdentifier === undefined) {
+			return firstIdentifier === undefined ? -1 : 1;
+		}
+		if (firstIdentifier === secondIdentifier) {
+			continue;
+		}
+		if (typeof firstIdentifier === 'number' && typeof secondIdentifier === 'number') {
+			return firstIdentifier < secondIdentifier ? -1 : 1;
+		}
+		// Numeric identifiers always rank below alphanumeric ones, so 1.0.79-2 is older than 1.0.79-canary.1.
+		if (typeof firstIdentifier === 'number' || typeof secondIdentifier === 'number') {
+			return typeof firstIdentifier === 'number' ? -1 : 1;
+		}
+		return firstIdentifier < secondIdentifier ? -1 : 1;
+	}
+	return 0;
+}
+
+export function compareVersions(first: JsonValue | undefined, second: JsonValue | undefined): number | undefined {
+	const firstVersion = parseVersion(first);
+	const secondVersion = parseVersion(second);
+	if (!firstVersion || !secondVersion) {
+		return undefined;
+	}
+	for (let index = 0; index < firstVersion.release.length; index++) {
+		if (firstVersion.release[index] !== secondVersion.release[index]) {
+			return firstVersion.release[index] < secondVersion.release[index] ? -1 : 1;
+		}
+	}
+	return comparePrerelease(firstVersion.prerelease, secondVersion.prerelease);
+}
+
+function withoutPackages(lock: IPackageLock, shouldExclude: (packageKey: string) => boolean): IPackageLock {
+	return { ...lock, packages: Object.fromEntries(Object.entries(lock.packages ?? {}).filter(([packageKey]) => !shouldExclude(packageKey))) };
+}
+
+export interface ILockfileComparison {
+	readonly expected: IPackageLock;
+	readonly submitted: IPackageLock;
+	readonly drift: string[];
+}
+
+/**
+ * Splits off package records where npm merely resolved a newer version than the one committed.
+ * Those records describe a release published after the lockfile was generated, so they say nothing
+ * about whether the lockfile was produced correctly and must not fail validation.
+ */
+export function excludeRegistryDrift(expected: IPackageLock, submitted: IPackageLock): ILockfileComparison {
+	const expectedPackages = expected.packages ?? {};
+	const submittedPackages = submitted.packages ?? {};
+	const driftedKeys: string[] = [];
+	const drift: string[] = [];
+
+	for (const packageKey of Object.keys(submittedPackages)) {
+		const expectedEntry = expectedPackages[packageKey];
+		const submittedEntry = submittedPackages[packageKey];
+		if (isRecord(expectedEntry) && isRecord(submittedEntry) && compareVersions(expectedEntry.version, submittedEntry.version) === 1) {
+			driftedKeys.push(packageKey);
+			drift.push(`${packageKey}: committed ${formatValue(submittedEntry.version)}, registry now offers ${formatValue(expectedEntry.version)}`);
+		}
+	}
+
+	// Nested records belong to the drifted package's own tree, so they move with it.
+	const shouldExclude = (packageKey: string) => driftedKeys.some(driftedKey => packageKey === driftedKey || packageKey.startsWith(`${driftedKey}/node_modules/`));
+	return { expected: withoutPackages(expected, shouldExclude), submitted: withoutPackages(submitted, shouldExclude), drift };
+}
+
 function normalizeForComparison(value: JsonValue, key?: string): JsonValue {
 	if (key === 'resolved' && typeof value === 'string') {
 		const tarballPathIndex = value.indexOf('/-/');
@@ -151,7 +248,15 @@ function main(): void {
 		const submitted = readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
 		const seed = createLockfileRegenerationSeed(getBaseLockfile(baseRef, relativeLockPath), submitted);
 		const expected = regenerateLockfile(lockPath, seed);
-		const differences = findLockfileDifferences(expected, submitted);
+		const comparison = excludeRegistryDrift(expected, submitted);
+		const differences = findLockfileDifferences(comparison.expected, comparison.submitted);
+
+		if (comparison.drift.length > 0) {
+			console.log(`\n${relativeLockPath} pins versions that are no longer the newest match for package.json, which is expected when a dependency publishes after the lockfile is generated:`);
+			for (const entry of comparison.drift) {
+				console.log(`  - ${entry}`);
+			}
+		}
 
 		if (differences.length === 0) {
 			console.log(`Verified ${relativeLockPath}.`);
