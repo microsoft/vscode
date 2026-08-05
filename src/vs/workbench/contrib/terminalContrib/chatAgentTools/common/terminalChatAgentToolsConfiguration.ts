@@ -309,16 +309,20 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
+			// - These patterns are conservative: a literal `;e ` or `{e ` inside a replacement
+			//   string also matches, which asks for confirmation rather than auto-approving.
 			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-			// Quoted positional script whose first command is e/r/R/w/W (optional address)
-			'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'"])/': false,
-			// Same dangerous commands after `;` or `{` inside a quoted script
-			'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"][^\'"]*[;{](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'";}])/': false,
-			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`)
-			'/^sed\\b(?:\\s+-\\S+)*\\s+(?:(?:\\d+|\\$)(?:,(?:\\d+|\\$))?)?[erRwW]\\s/': false,
+			// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+			// captured so the closing quote must match it, and whitespace and `!` are allowed
+			// around the optional address since sed ignores them.
+			'/^sed\\b(?:\\s+-\\S+)*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+			// Same dangerous commands after a `;` or `{` separator inside a quoted script
+			'/^sed\\b(?:\\s+-\\S+)*\\s+([\'"])(?:(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+			'/^sed\\b(?:\\s+-\\S+)*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW]\\s/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are

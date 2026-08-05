@@ -109,7 +109,15 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('auto-approves benign substitutions', async () => {
-			strictEqual(await isAutoApproved('sed "s/foo/bar/g" file.txt'), true);
+			const commands = [
+				'sed "s/foo/bar/g" file.txt',
+				'sed -n "1,10p" file.txt',
+				'sed "/err/d" file.txt',
+				'sed "y/abc/xyz/" file.txt',
+				'sed "s/a/b/;s/c/d/" file.txt',
+				'sed "/w/d" file.txt',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => true));
 		});
 
 		test('denies dangerous script forms', async () => {
@@ -127,6 +135,12 @@ suite('CommandLineAutoApprover', () => {
 				'sed "/pat/e id"',
 				'sed -n "1e id" file.txt',
 				'sed 1e id',
+				'sed "s/a/b/; e id"',
+				'sed "s/a/\'/;e id"',
+				'sed /pat/e input.txt',
+				'sed "1 e id"',
+				'sed "1!e id"',
+				'sed "1, 3 w /tmp/x" input.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
