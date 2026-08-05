@@ -256,21 +256,11 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		return this._requireClient().resolveSessionConfig({
-			...params,
-			workingDirectory: params.workingDirectory
-				? toRemoteAgentHostWorkingDirectory(params.workingDirectory, this._requireRemoteAuthority())
-				: undefined,
-		});
+		return this._requireClient().resolveSessionConfig(params);
 	}
 
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		return this._requireClient().sessionConfigCompletions({
-			...params,
-			workingDirectory: params.workingDirectory
-				? toRemoteAgentHostWorkingDirectory(params.workingDirectory, this._requireRemoteAuthority())
-				: undefined,
-		});
+		return this._requireClient().sessionConfigCompletions(params);
 	}
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
