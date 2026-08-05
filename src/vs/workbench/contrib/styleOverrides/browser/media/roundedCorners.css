@@ -29,7 +29,8 @@
 
 /* Text inputs and find inputs */
 .style-override .monaco-inputbox,
-.style-override .monaco-findInput {
+.style-override .monaco-findInput,
+.style-override .monaco-findInput .monaco-inputbox {
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
