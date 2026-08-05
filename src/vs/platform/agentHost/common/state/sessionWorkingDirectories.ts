@@ -33,12 +33,14 @@ export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, se
 /**
  * Validates and canonicalizes a working-directory delta against the session's
  * current host-side URI identities. The returned spelling is safe for the
- * exact-string session reducer.
+ * exact-string session reducer. `hasImmutablePrimary` carries the same meaning
+ * as in {@link areWorkingDirectoriesEqual}: the first entry of
+ * `workingDirectories` is a fixed process root that cannot be removed.
  */
 export function resolveSessionWorkingDirectoryAction(
 	action: SessionWorkingDirectoryAction,
 	workingDirectories: readonly string[],
-	immutablePrimary: boolean,
+	hasImmutablePrimary: boolean,
 ): SessionWorkingDirectoryAction {
 	const directory = URI.parse(action.directory, true);
 	if (directory.scheme !== Schemas.file) {
@@ -47,7 +49,7 @@ export function resolveSessionWorkingDirectoryAction(
 
 	const current = workingDirectories.map(value => URI.parse(value, true));
 	const index = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, directory));
-	if (immutablePrimary && action.type === ActionType.SessionWorkingDirectoryRemoved && index === 0) {
+	if (hasImmutablePrimary && action.type === ActionType.SessionWorkingDirectoryRemoved && index === 0) {
 		throw new Error('The primary working directory cannot be removed.');
 	}
 
