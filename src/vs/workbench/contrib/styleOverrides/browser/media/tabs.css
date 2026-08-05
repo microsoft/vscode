@@ -477,6 +477,11 @@
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
+/* The stroke lives on the fill, so suppress the tab's own outline to avoid a second, full-height ring. */
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab {
+	outline: none !important;
+}
+
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):not(:focus) > .tab-fill {
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder) !important;
 }
