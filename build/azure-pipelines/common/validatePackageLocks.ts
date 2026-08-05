@@ -29,116 +29,69 @@ function lockEntryEquals(first: JsonValue | undefined, second: JsonValue | undef
 
 export function createLockfileRegenerationSeed(base: IPackageLock | undefined, submitted: IPackageLock): IPackageLock {
 	const seed = structuredClone(base ?? submitted);
-	const basePackages = base?.packages ?? {};
-	const submittedPackages = submitted.packages ?? {};
 	const seedPackages = seed.packages ?? {};
-	const packageKeys = new Set([...Object.keys(basePackages), ...Object.keys(submittedPackages)]);
 
-	for (const packageKey of packageKeys) {
-		if (packageKey !== '' && !lockEntryEquals(basePackages[packageKey], submittedPackages[packageKey])) {
-			delete seedPackages[packageKey];
-		}
+	for (const packageKey of findChangedPackageKeys(base, submitted)) {
+		delete seedPackages[packageKey];
 	}
 
 	seed.packages = seedPackages;
 	return seed;
 }
 
-const VERSION_PATTERN = /^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+/**
+ * Package records the pull request touched. Deleting these from the seed is what forces npm to
+ * refetch their manifests; npm reports "up to date" and reuses whatever the lockfile already says
+ * for records it leaves in place, which is how stripped `libc`/`os`/`cpu` metadata survives.
+ */
+export function findChangedPackageKeys(base: IPackageLock | undefined, submitted: IPackageLock): string[] {
+	const basePackages = base?.packages ?? {};
+	const submittedPackages = submitted.packages ?? {};
+	const packageKeys = new Set([...Object.keys(basePackages), ...Object.keys(submittedPackages)]);
 
-interface ISemanticVersion {
-	readonly release: readonly number[];
-	readonly prerelease: readonly (string | number)[];
+	return [...packageKeys].filter(packageKey => packageKey !== '' && !lockEntryEquals(basePackages[packageKey], submittedPackages[packageKey]));
 }
 
 function isRecord(value: JsonValue | undefined): value is { [key: string]: JsonValue } {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function parseVersion(value: JsonValue | undefined): ISemanticVersion | undefined {
-	const groups = typeof value === 'string' ? VERSION_PATTERN.exec(value)?.groups : undefined;
-	if (!groups) {
-		return undefined;
-	}
-	return {
-		release: [Number(groups.major), Number(groups.minor), Number(groups.patch)],
-		prerelease: groups.prerelease ? groups.prerelease.split('.').map(identifier => /^\d+$/.test(identifier) ? Number(identifier) : identifier) : []
-	};
-}
-
-function comparePrerelease(first: readonly (string | number)[], second: readonly (string | number)[]): number {
-	if (first.length === 0 || second.length === 0) {
-		// A version without prerelease identifiers outranks one that has them.
-		return first.length === second.length ? 0 : first.length === 0 ? 1 : -1;
-	}
-	for (let index = 0; index < Math.max(first.length, second.length); index++) {
-		const firstIdentifier = first[index];
-		const secondIdentifier = second[index];
-		if (firstIdentifier === undefined || secondIdentifier === undefined) {
-			return firstIdentifier === undefined ? -1 : 1;
-		}
-		if (firstIdentifier === secondIdentifier) {
-			continue;
-		}
-		if (typeof firstIdentifier === 'number' && typeof secondIdentifier === 'number') {
-			return firstIdentifier < secondIdentifier ? -1 : 1;
-		}
-		// Numeric identifiers always rank below alphanumeric ones, so 1.0.79-2 is older than 1.0.79-canary.1.
-		if (typeof firstIdentifier === 'number' || typeof secondIdentifier === 'number') {
-			return typeof firstIdentifier === 'number' ? -1 : 1;
-		}
-		return firstIdentifier < secondIdentifier ? -1 : 1;
-	}
-	return 0;
-}
-
-export function compareVersions(first: JsonValue | undefined, second: JsonValue | undefined): number | undefined {
-	const firstVersion = parseVersion(first);
-	const secondVersion = parseVersion(second);
-	if (!firstVersion || !secondVersion) {
-		return undefined;
-	}
-	for (let index = 0; index < firstVersion.release.length; index++) {
-		if (firstVersion.release[index] !== secondVersion.release[index]) {
-			return firstVersion.release[index] < secondVersion.release[index] ? -1 : 1;
-		}
-	}
-	return comparePrerelease(firstVersion.prerelease, secondVersion.prerelease);
-}
-
-function withoutPackages(lock: IPackageLock, shouldExclude: (packageKey: string) => boolean): IPackageLock {
-	return { ...lock, packages: Object.fromEntries(Object.entries(lock.packages ?? {}).filter(([packageKey]) => !shouldExclude(packageKey))) };
-}
-
-export interface ILockfileComparison {
-	readonly expected: IPackageLock;
-	readonly submitted: IPackageLock;
-	readonly drift: string[];
-}
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
 
 /**
- * Splits off package records where npm merely resolved a newer version than the one committed.
- * Those records describe a release published after the lockfile was generated, so they say nothing
- * about whether the lockfile was produced correctly and must not fail validation.
+ * Rewrites the declared range of every changed dependency to the exact version the lockfile commits,
+ * so regeneration resolves what the pull request submitted instead of whatever the registry has
+ * published since. npm rejects `overrides` for direct dependencies (EOVERRIDE), so the range itself
+ * has to carry the pin.
  */
-export function excludeRegistryDrift(expected: IPackageLock, submitted: IPackageLock): ILockfileComparison {
-	const expectedPackages = expected.packages ?? {};
-	const submittedPackages = submitted.packages ?? {};
-	const driftedKeys: string[] = [];
-	const drift: string[] = [];
+export function pinChangedPackages(packageJson: JsonValue, changedKeys: readonly string[], submitted: IPackageLock): JsonValue {
+	if (!isRecord(packageJson)) {
+		return packageJson;
+	}
 
-	for (const packageKey of Object.keys(submittedPackages)) {
-		const expectedEntry = expectedPackages[packageKey];
-		const submittedEntry = submittedPackages[packageKey];
-		if (isRecord(expectedEntry) && isRecord(submittedEntry) && compareVersions(expectedEntry.version, submittedEntry.version) === 1) {
-			driftedKeys.push(packageKey);
-			drift.push(`${packageKey}: committed ${formatValue(submittedEntry.version)}, registry now offers ${formatValue(expectedEntry.version)}`);
+	const submittedPackages = submitted.packages ?? {};
+	const pinnedVersions = new Map<string, string>();
+	for (const packageKey of changedKeys) {
+		const record = submittedPackages[packageKey];
+		const name = packageKey.slice(packageKey.lastIndexOf('node_modules/') + 'node_modules/'.length);
+		if (isRecord(record) && typeof record.version === 'string' && record.link !== true && name) {
+			pinnedVersions.set(name, record.version);
 		}
 	}
 
-	// Nested records belong to the drifted package's own tree, so they move with it.
-	const shouldExclude = (packageKey: string) => driftedKeys.some(driftedKey => packageKey === driftedKey || packageKey.startsWith(`${driftedKey}/node_modules/`));
-	return { expected: withoutPackages(expected, shouldExclude), submitted: withoutPackages(submitted, shouldExclude), drift };
+	const pinned = structuredClone(packageJson);
+	for (const field of DEPENDENCY_FIELDS) {
+		const declared = pinned[field];
+		if (!isRecord(declared)) {
+			continue;
+		}
+		for (const [name, version] of pinnedVersions) {
+			if (typeof declared[name] === 'string') {
+				declared[name] = version;
+			}
+		}
+	}
+	return pinned;
 }
 
 function normalizeForComparison(value: JsonValue, key?: string): JsonValue {
@@ -206,10 +159,13 @@ function getBaseLockfile(baseRef: string, relativeLockPath: string): IPackageLoc
 	}
 }
 
-function regenerateLockfile(lockPath: string, seed: IPackageLock): IPackageLock {
-	const submittedContents = fs.readFileSync(lockPath, 'utf8');
+function regenerateLockfile(lockPath: string, seed: IPackageLock, pinnedPackageJson: JsonValue): IPackageLock {
+	const packageJsonPath = path.join(path.dirname(lockPath), 'package.json');
+	const submittedLock = fs.readFileSync(lockPath, 'utf8');
+	const submittedPackageJson = fs.readFileSync(packageJsonPath, 'utf8');
 	try {
 		fs.writeFileSync(lockPath, `${JSON.stringify(seed, null, 2)}\n`);
+		fs.writeFileSync(packageJsonPath, `${JSON.stringify(pinnedPackageJson, null, 2)}\n`);
 		execFileSync(NPM, ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], {
 			cwd: path.dirname(lockPath),
 			stdio: 'inherit',
@@ -217,7 +173,8 @@ function regenerateLockfile(lockPath: string, seed: IPackageLock): IPackageLock 
 		});
 		return readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
 	} finally {
-		fs.writeFileSync(lockPath, submittedContents);
+		fs.writeFileSync(lockPath, submittedLock);
+		fs.writeFileSync(packageJsonPath, submittedPackageJson);
 	}
 }
 
@@ -246,17 +203,13 @@ function main(): void {
 
 		console.log(`Regenerating ${relativeLockPath} with npm ${process.env.npm_config_user_agent ?? ''}...`);
 		const submitted = readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
-		const seed = createLockfileRegenerationSeed(getBaseLockfile(baseRef, relativeLockPath), submitted);
-		const expected = regenerateLockfile(lockPath, seed);
-		const comparison = excludeRegistryDrift(expected, submitted);
-		const differences = findLockfileDifferences(comparison.expected, comparison.submitted);
-
-		if (comparison.drift.length > 0) {
-			console.log(`\n${relativeLockPath} pins versions that are no longer the newest match for package.json, which is expected when a dependency publishes after the lockfile is generated:`);
-			for (const entry of comparison.drift) {
-				console.log(`  - ${entry}`);
-			}
-		}
+		const base = getBaseLockfile(baseRef, relativeLockPath);
+		const changedKeys = findChangedPackageKeys(base, submitted);
+		const seed = createLockfileRegenerationSeed(base, submitted);
+		const packageJsonPath = path.join(path.dirname(lockPath), 'package.json');
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as JsonValue;
+		const expected = regenerateLockfile(lockPath, seed, pinChangedPackages(packageJson, changedKeys, submitted));
+		const differences = findLockfileDifferences(expected, submitted);
 
 		if (differences.length === 0) {
 			console.log(`Verified ${relativeLockPath}.`);

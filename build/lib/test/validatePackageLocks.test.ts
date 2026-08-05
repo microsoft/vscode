@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { createLockfileRegenerationSeed, excludeRegistryDrift, findLockfileDifferences } from '../../azure-pipelines/common/validatePackageLocks.ts';
+import { createLockfileRegenerationSeed, findChangedPackageKeys, findLockfileDifferences, pinChangedPackages } from '../../azure-pipelines/common/validatePackageLocks.ts';
 
 suite('validatePackageLocks', () => {
 	test('forces npm to regenerate every package record changed by the PR', () => {
@@ -56,33 +56,44 @@ suite('validatePackageLocks', () => {
 	});
 
 	test('ignores packages whose only difference is a release published after the lockfile was generated', () => {
-		const expected = {
+		const base = {
 			packages: {
-				'node_modules/canary': { version: '1.0.79-canary.32.g8e26f23', resolved: 'https://registry.npmjs.org/canary/-/canary-1.0.79-canary.32.g8e26f23.tgz', optionalDependencies: { 'canary-darwin-arm64': '1.0.79-canary.32.g8e26f23' } },
-				'node_modules/canary/node_modules/nested': { version: '2.0.1' },
-				'node_modules/downgraded': { version: '1.0.0' },
-				'node_modules/stale-metadata': { version: '1.0.0', libc: ['musl'] },
+				'': { dependencies: { canary: '^1.0.79-2', unchanged: '^3.0.0' } },
+				'node_modules/canary': { version: '1.0.78' },
+				'node_modules/unchanged': { version: '3.0.0' },
 			}
 		};
 		const submitted = {
 			packages: {
-				'node_modules/canary': { version: '1.0.79-2', resolved: 'https://registry.npmjs.org/canary/-/canary-1.0.79-2.tgz', optionalDependencies: { 'canary-darwin-arm64': '1.0.79-2' } },
-				'node_modules/canary/node_modules/nested': { version: '2.0.0' },
-				'node_modules/downgraded': { version: '9.9.9' },
-				'node_modules/stale-metadata': { version: '1.0.0' },
+				'': { dependencies: { canary: '^1.0.79-2', unchanged: '^3.0.0' } },
+				'node_modules/canary': { version: '1.0.79-2' },
+				'node_modules/unchanged': { version: '3.0.0' },
 			}
 		};
-		const comparison = excludeRegistryDrift(expected, submitted);
+		const packageJson = { dependencies: { canary: '^1.0.79-2', unchanged: '^3.0.0' } };
 
-		assert.deepStrictEqual({ drift: comparison.drift, differences: findLockfileDifferences(comparison.expected, comparison.submitted) }, {
-			drift: [
-				'node_modules/canary: committed "1.0.79-2", registry now offers "1.0.79-canary.32.g8e26f23"',
-				'node_modules/canary/node_modules/nested: committed "2.0.0", registry now offers "2.0.1"',
-			],
-			differences: [
-				'packages.node_modules/downgraded.version: expected "1.0.0", submitted "9.9.9"',
-				'packages.node_modules/stale-metadata.libc: expected ["musl"], submitted <missing>',
-			]
+		// The changed dependency is pinned to the committed version, so regeneration cannot drift to a
+		// newer release; the untouched dependency keeps its declared range.
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			dependencies: { canary: '1.0.79-2', unchanged: '^3.0.0' }
+		});
+	});
+
+	test('pins changed transitive and dev dependencies without inventing new entries', () => {
+		const base = { packages: { '': {}, 'node_modules/tool': { version: '2.0.0' } } };
+		const submitted = {
+			packages: {
+				'': {},
+				'node_modules/tool': { version: '2.1.0' },
+				'node_modules/tool/node_modules/nested': { version: '5.0.0' },
+				'node_modules/workspace-link': { link: true, resolved: 'packages/thing' },
+			}
+		};
+		const packageJson = { devDependencies: { tool: '^2.0.0' }, dependencies: { unrelated: '^1.0.0' } };
+
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			devDependencies: { tool: '2.1.0' },
+			dependencies: { unrelated: '^1.0.0' }
 		});
 	});
 });
