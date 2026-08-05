@@ -17,8 +17,10 @@ export const CODEX_SDK_ROOT = resolveCodexSdkRoot();
 export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Codex',
 	provider: 'codex',
+	modelProviders: ['copilot'],
 	scheme: 'codex',
 	shellToolName: 'shell',
+	fileOperationStrategy: 'shell',
 	subagentToolNames: [],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: !!CODEX_SDK_ROOT,
@@ -30,11 +32,5 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: false,
 	supportsChatFork: false,
 	supportsChatForkE2E: false,
-	// Codex exposes only `exec_command`; it has no file tools, so prompts that
-	// steer away from the shell cannot be satisfied. See KNOWN_ISSUES.md.
-	supportsFileTools: false,
-	// Codex drives every file scenario through its shell; several of them on one
-	// shared server replay inconsistently. See KNOWN_ISSUES.md.
-	stableSharedServerFileScenarios: false,
 	shellToolReplayUnstableOnLinux: true,
 };

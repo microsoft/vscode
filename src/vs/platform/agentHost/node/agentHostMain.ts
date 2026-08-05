@@ -287,7 +287,7 @@ async function startAgentHost(): Promise<void> {
 	// lifetime, rather than inside `AgentHostService`: a service that arms a
 	// recurring timer in its constructor is one that no faked-timer unit test
 	// can ever drain.
-	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
@@ -416,7 +416,7 @@ async function startAgentHost(): Promise<void> {
 					logService,
 				));
 				try {
-					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata);
+					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
 					localDataPlaneDisposables.add(toDisposable(() => {
 						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
 					}));
@@ -569,7 +569,7 @@ async function startLocalAgentHostEndpoint(
 		}
 		server = await WebSocketProtocolServer.create(
 			{
-				socketPath: endpointMetadata.endpointPath,
+				socketPath: endpointMetadata.endpoint.path,
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
@@ -597,12 +597,12 @@ function cleanupLocalAgentHostEndpoint(
 	logService: ILogService,
 ): void {
 	try {
-		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata);
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata, logService);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol metadata', error);
 	}
 	try {
-		cleanupLocalAgentHostEndpointSocketSync(metadata.endpointPath);
+		cleanupLocalAgentHostEndpointSocketSync(metadata.endpoint.path);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol socket', error);
 	}

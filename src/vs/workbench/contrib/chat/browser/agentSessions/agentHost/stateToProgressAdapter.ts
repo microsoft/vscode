@@ -7,7 +7,8 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
-import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
+import { type Tokens } from '../../../../../../base/common/marked/marked.js';
+import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -481,6 +482,8 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Returns the registered display name for a raw AHP model id. */
+	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
@@ -546,12 +549,13 @@ function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | 
 	return model.name;
 }
 
-export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
+export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined): IChatUsage | undefined {
 	// Shared with the host's restore path, so "this turn has usage worth
 	// showing" cannot drift between the two.
 	if (!hasReportedUsage(usage)) {
 		return undefined;
 	}
+	const turnTokenTotals = readUsageInfoMeta(usage).turnTokenTotals;
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -559,6 +563,10 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		copilotCredits: getCopilotCredits(usage),
 		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
+		modelTotals: turnTokenTotals?.map(total => ({
+			...total,
+			model: modelDisplayNameResolver?.(total.model) ?? total.model,
+		})),
 	};
 }
 
@@ -840,7 +848,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		if (autoModeResolution) {
 			parts.push(autoModeResolution);
 		}
-		const usage = usageInfoToChatUsage(turn.usage);
+		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName);
 		if (usage) {
 			parts.push(usage);
 		}
@@ -1181,9 +1189,9 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup): IChatProgress[] {
 	const parts: IChatProgress[] = [];
-	const usage = usageInfoToChatUsage(activeTurn.usage);
+	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
 		parts.push(usage);
 	}
@@ -1805,41 +1813,9 @@ const EXTERNAL_LINK_SCHEMES: ReadonlySet<string> = new Set([
  * with no nested link tokens).
  */
 export function rewriteMarkdownLinks(markdown: string, connectionAuthority: string): string {
-	let tokens: TokensList;
-	try {
-		tokens = marked.lexer(markdown);
-	} catch {
-		return markdown;
-	}
-
-	const edits: { raw: string; replacement: string }[] = [];
-	marked.walkTokens(tokens, token => {
-		if (token.type !== 'link' && token.type !== 'image') {
-			return;
-		}
-		const replacement = rewriteLinkTokenRaw(token as Tokens.Link | Tokens.Image, connectionAuthority);
-		if (replacement !== undefined) {
-			edits.push({ raw: (token as Token & { raw: string }).raw, replacement });
-		}
+	return rewriteMarkdownSource(markdown, {
+		rewriteLink: token => rewriteLinkTokenRaw(token, connectionAuthority),
 	});
-
-	if (edits.length === 0) {
-		return markdown;
-	}
-
-	// Apply edits sequentially against the original markdown. walkTokens
-	// visits tokens in document order so a forward scan is sufficient.
-	let out = '';
-	let pos = 0;
-	for (const { raw, replacement } of edits) {
-		const idx = markdown.indexOf(raw, pos);
-		if (idx < 0) {
-			continue;
-		}
-		out += markdown.substring(pos, idx) + replacement;
-		pos = idx + raw.length;
-	}
-	return out + markdown.substring(pos);
 }
 
 /**
