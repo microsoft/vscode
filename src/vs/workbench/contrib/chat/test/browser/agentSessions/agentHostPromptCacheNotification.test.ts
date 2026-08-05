@@ -47,7 +47,7 @@ suite('AgentHostPromptCacheNotification', () => {
 			autoDismissOnMessage: notification.autoDismissOnMessage,
 			sessionResources: notification.sessionResources?.map(resource => resource.toString()),
 		})), [{
-			message: 'Your next prompt will cost more',
+			message: 'Your next prompt may cost more',
 			description: 'This chat\'s cost-saving cache expired after a period of inactivity. Start a new chat to reduce the cost. [Learn more](https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters)',
 			actions: ['Start New Chat'],
 			muteCommandId: 'workbench.action.chat.disablePromptCacheExpirationNotification',
