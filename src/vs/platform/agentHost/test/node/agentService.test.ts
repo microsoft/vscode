@@ -755,22 +755,26 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		class DynamicWorkingDirectoryAgent extends MockAgent {
+			constructor(id: string, private readonly immutablePrimary = true) {
+				super(id);
+			}
+
 			override getDescriptor(): IAgentDescriptor {
 				return {
 					provider: this.id,
 					displayName: this.id,
 					description: this.id,
 					capabilities: {
-						multipleWorkingDirectories: { immutablePrimary: true },
+						multipleWorkingDirectories: { immutablePrimary: this.immutablePrimary },
 						multipleChats: { fork: true, sideChat: true },
 					},
 				};
 			}
 		}
 
-		async function createDynamicWorkingDirectorySession(): Promise<{ svc: AgentService; session: URI; primary: URI; secondary: URI }> {
+		async function createDynamicWorkingDirectorySession(immutablePrimary = true): Promise<{ svc: AgentService; session: URI; primary: URI; secondary: URI }> {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = new DynamicWorkingDirectoryAgent('dynamic');
+			const agent = new DynamicWorkingDirectoryAgent('dynamic', immutablePrimary);
 			disposables.add(toDisposable(() => agent.dispose()));
 			svc.registerProvider(agent);
 			const primary = URI.file('/workspace/primary');
@@ -941,6 +945,25 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				rejected: true,
 				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('allows removal of index zero for equal-peer working directories', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession(false);
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: primary.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejected: false,
+				confirmed: [secondary.toString()],
 			});
 		});
 

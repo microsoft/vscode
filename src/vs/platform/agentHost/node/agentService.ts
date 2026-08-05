@@ -2622,11 +2622,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionUri = URI.parse(session);
 		const provider = this._findProviderForSession(sessionUri);
 		const capability = provider?.getDescriptor().capabilities?.multipleWorkingDirectories;
-		if (!provider || capability?.immutablePrimary !== true) {
+		if (!provider || !capability) {
 			throw new Error(`Provider does not support dynamic working-directory changes: ${AgentSession.provider(sessionUri) ?? '(unknown)'}`);
 		}
 
-		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories);
+		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, capability.immutablePrimary === true);
 	}
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType: AgentHostClientType): void {

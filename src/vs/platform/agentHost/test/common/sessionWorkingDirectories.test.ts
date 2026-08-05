@@ -40,10 +40,12 @@ suite('Session working directories', () => {
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: encodedEquivalent },
 				[primary, secondary],
+				true,
 			),
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: encodedEquivalent },
 				[primary, secondary],
+				true,
 			),
 		], [
 			{ type: ActionType.SessionWorkingDirectorySet, directory: secondary },
@@ -56,10 +58,12 @@ suite('Session working directories', () => {
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace/%61dded' },
 				[primary, secondary],
+				true,
 			),
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///workspace/%61bsent' },
 				[primary, secondary],
+				true,
 			),
 		], [
 			{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace/added' },
@@ -72,8 +76,20 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///workspace/%70rimary' },
 				[primary, secondary],
+				true,
 			),
 			/The primary working directory cannot be removed/,
+		);
+	});
+
+	test('allows removal of index zero when the provider has no immutable primary', () => {
+		assert.deepStrictEqual(
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
+				[primary, secondary],
+				false,
+			),
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
 		);
 	});
 
@@ -82,6 +98,7 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'not a URI' },
 				[primary],
+				true,
 			),
 			/Scheme is missing/,
 		);
@@ -89,6 +106,7 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'vscode-remote://ssh-remote+host/workspace' },
 				[primary],
+				true,
 			),
 			/Working directory must be a file URI/,
 		);

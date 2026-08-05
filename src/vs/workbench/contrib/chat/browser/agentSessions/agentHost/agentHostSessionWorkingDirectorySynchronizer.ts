@@ -24,7 +24,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { fromRemoteAgentHostWorkingDirectory } from '../../../../../services/agentHost/common/agentHostWorkingDirectoryUri.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { computeDesiredWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { computeDesiredWorkingDirectories, hasImmutablePrimaryWorkingDirectory } from './agentHostNewSessionFolderService.js';
 
 export const IAgentHostSessionWorkingDirectorySynchronizer = createDecorator<IAgentHostSessionWorkingDirectorySynchronizer>('agentHostSessionWorkingDirectorySynchronizer');
 
@@ -224,11 +224,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		if (!multiRoot || !URI.isUri(workspace.configuration) || !this._uriIdentityService.extUri.isEqual(URI.parse(multiRoot.workspaceFile), workspace.configuration)) {
 			return false;
 		}
-		const rootState = registration.connection.rootState.value;
-		const agent = rootState && !(rootState instanceof Error)
-			? rootState.agents.find(candidate => candidate.provider === registration.provider)
-			: undefined;
-		return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+		return hasImmutablePrimaryWorkingDirectory(registration.connection.rootState.value, registration.provider);
 	}
 
 	private _toEditorWorkingDirectory(directory: URI): URI {

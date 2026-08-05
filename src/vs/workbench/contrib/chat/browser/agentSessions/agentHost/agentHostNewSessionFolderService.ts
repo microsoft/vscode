@@ -43,6 +43,11 @@ export function supportsMultipleWorkingDirectories(rootState: RootState | Error 
 	return !!agent?.capabilities?.multipleWorkingDirectories;
 }
 
+export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
 /**
  * Computes a primary-first root set while treating secondary roots as an identity set.
  * Retained secondaries keep their existing order; newly added folders follow workspace order.

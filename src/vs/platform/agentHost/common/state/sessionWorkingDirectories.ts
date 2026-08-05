@@ -31,6 +31,7 @@ export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, se
 export function resolveSessionWorkingDirectoryAction(
 	action: SessionWorkingDirectoryAction,
 	workingDirectories: readonly string[],
+	immutablePrimary: boolean,
 ): SessionWorkingDirectoryAction {
 	const directory = URI.parse(action.directory, true);
 	if (directory.scheme !== Schemas.file) {
@@ -39,7 +40,7 @@ export function resolveSessionWorkingDirectoryAction(
 
 	const current = workingDirectories.map(value => URI.parse(value, true));
 	const index = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, directory));
-	if (action.type === ActionType.SessionWorkingDirectoryRemoved && index === 0) {
+	if (immutablePrimary && action.type === ActionType.SessionWorkingDirectoryRemoved && index === 0) {
 		throw new Error('The primary working directory cannot be removed.');
 	}
 
