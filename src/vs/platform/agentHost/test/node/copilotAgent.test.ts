@@ -1310,8 +1310,9 @@ suite('CopilotAgent', () => {
 				stopCount: 1,
 				requestCount: 2,
 				errorEvents: [{
-					eventName: 'agentHost.copilotConnectionClosed',
+					eventName: 'agentHost.copilotClientFailure',
 					data: {
+						failureKind: 'connectionClosed',
 						operation: 'modelRefresh',
 						activeTurnCount: 0,
 						recoveryStarted: true,
@@ -1405,15 +1406,17 @@ suite('CopilotAgent', () => {
 				remainingSessions: 0,
 				remainingSdkSessions: 0,
 				errorEvents: [{
-					eventName: 'agentHost.copilotConnectionClosed',
+					eventName: 'agentHost.copilotClientFailure',
 					data: {
+						failureKind: 'connectionClosed',
 						operation: 'abort',
 						activeTurnCount: 1,
 						recoveryStarted: true,
 					},
 				}, {
-					eventName: 'agentHost.copilotConnectionClosed',
+					eventName: 'agentHost.copilotClientFailure',
 					data: {
+						failureKind: 'connectionClosed',
 						operation: 'modelRefresh',
 						activeTurnCount: 0,
 						recoveryStarted: false,

@@ -95,20 +95,23 @@ const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
 const COPILOT_CONNECTION_CLOSED_ERROR_MESSAGE = 'Connection is closed.';
 
-type CopilotClosedConnectionOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage';
+type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage';
+type CopilotClientFailureKind = 'connectionClosed';
 
-type CopilotConnectionClosedEvent = {
-	operation: CopilotClosedConnectionOperation;
+type CopilotClientFailureEvent = {
+	failureKind: CopilotClientFailureKind;
+	operation: CopilotClientFailureOperation;
 	activeTurnCount: number;
 	recoveryStarted: boolean;
 };
 
-type CopilotConnectionClosedClassification = {
-	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the closed SDK connection.' };
-	activeTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of Copilot chats with an active turn when the closed SDK connection was detected.' };
-	recoveryStarted: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this detection started recovery instead of joining recovery already in progress.' };
+type CopilotClientFailureClassification = {
+	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
+	activeTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of Copilot chats with an active turn when the client failure was detected.' };
+	recoveryStarted: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this detection started client recovery instead of joining recovery already in progress.' };
 	owner: 'roblourens';
-	comment: 'Tracks detection and recovery of an unexpectedly closed Copilot SDK connection.';
+	comment: 'Tracks detected Copilot client failures and whether recovery was started.';
 };
 
 interface ICopilotClosedConnectionRecoveryResult {
@@ -908,13 +911,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _recoverFromClosedConnection(error: unknown, operation: CopilotClosedConnectionOperation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
+	private async _recoverFromClosedConnection(error: unknown, operation: CopilotClientFailureOperation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
 		if (!isCopilotConnectionClosedError(error)) {
 			return undefined;
 		}
 
 		const recoveryStarted = !this._shutdownPromise && this._closedConnectionRecovery === undefined;
-		this._telemetryService.publicLogError2<CopilotConnectionClosedEvent, CopilotConnectionClosedClassification>('agentHost.copilotConnectionClosed', {
+		this._telemetryService.publicLogError2<CopilotClientFailureEvent, CopilotClientFailureClassification>('agentHost.copilotClientFailure', {
+			failureKind: 'connectionClosed',
 			operation,
 			activeTurnCount: this._chatsWithActiveTurn(),
 			recoveryStarted,
@@ -966,7 +970,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { failedTurnIds };
 	}
 
-	private async _retryAfterClosedConnection<T>(operation: CopilotClosedConnectionOperation, task: () => Promise<T>): Promise<T> {
+	private async _retryAfterClosedConnection<T>(operation: CopilotClientFailureOperation, task: () => Promise<T>): Promise<T> {
 		try {
 			return await task();
 		} catch (error) {
