@@ -294,11 +294,7 @@
 	background: var(--vscode-agentsPanel-border);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-}
-
-.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 }
