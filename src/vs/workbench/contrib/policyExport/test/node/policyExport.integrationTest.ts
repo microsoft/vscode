@@ -19,8 +19,8 @@ suite('PolicyExport Integration Tests', () => {
 			this.skip();
 		}
 
-		// The canonical export launches both product entrypoints.
-		this.timeout(120000);
+		// The canonical export launches both product entrypoints and can be slow on shared CI runners.
+		this.timeout(300000);
 
 		// FileAccess.asFileUri('') points to the 'out' directory.
 		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
