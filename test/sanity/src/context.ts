@@ -28,6 +28,61 @@ interface ITargetMetadata {
 }
 
 /**
+ * Maps a sanity test target to the build pipeline artifact that carries it, for `--artifacts-dir`
+ * runs against builds that were never published. An unmapped target fails loudly rather than
+ * silently falling back to the update service.
+ */
+const targetArtifacts: Readonly<Record<string, string>> = {
+	'cli-alpine-arm64': 'vscode_cli_alpine_arm64_cli',
+	'cli-alpine-x64': 'vscode_cli_alpine_x64_cli',
+	'cli-darwin-arm64': 'vscode_cli_darwin_arm64_cli',
+	'cli-darwin-x64': 'vscode_cli_darwin_x64_cli',
+	'cli-linux-arm64': 'vscode_cli_linux_arm64_cli',
+	'cli-linux-armhf': 'vscode_cli_linux_armhf_cli',
+	'cli-linux-x64': 'vscode_cli_linux_x64_cli',
+	'cli-win32-arm64': 'vscode_cli_win32_arm64_cli',
+	'cli-win32-x64': 'vscode_cli_win32_x64_cli',
+	'darwin': 'vscode_client_darwin_x64_archive',
+	'darwin-arm64': 'vscode_client_darwin_arm64_archive',
+	'darwin-arm64-dmg': 'vscode_client_darwin_arm64_dmg',
+	'darwin-universal': 'vscode_client_darwin_universal_archive',
+	'darwin-universal-dmg': 'vscode_client_darwin_universal_dmg',
+	'darwin-x64-dmg': 'vscode_client_darwin_x64_dmg',
+	'linux-arm64': 'vscode_client_linux_arm64_archive-unsigned',
+	'linux-armhf': 'vscode_client_linux_armhf_archive-unsigned',
+	'linux-deb-arm64': 'vscode_client_linux_arm64_deb-package',
+	'linux-deb-armhf': 'vscode_client_linux_armhf_deb-package',
+	'linux-deb-x64': 'vscode_client_linux_x64_deb-package',
+	'linux-rpm-arm64': 'vscode_client_linux_arm64_rpm-package',
+	'linux-rpm-armhf': 'vscode_client_linux_armhf_rpm-package',
+	'linux-rpm-x64': 'vscode_client_linux_x64_rpm-package',
+	'linux-snap-x64': 'vscode_client_linux_x64_snap',
+	'linux-x64': 'vscode_client_linux_x64_archive-unsigned',
+	'server-alpine-arm64': 'vscode_server_alpine_arm64_archive-unsigned',
+	'server-alpine-arm64-web': 'vscode_web_alpine_arm64_archive-unsigned',
+	'server-darwin': 'vscode_server_darwin_x64_archive',
+	'server-darwin-arm64': 'vscode_server_darwin_arm64_archive',
+	'server-darwin-arm64-web': 'vscode_web_darwin_arm64_archive',
+	'server-darwin-web': 'vscode_web_darwin_x64_archive',
+	'server-linux-alpine': 'vscode_server_linux_alpine_archive-unsigned',
+	'server-linux-alpine-web': 'vscode_web_linux_alpine_archive-unsigned',
+	'server-linux-arm64': 'vscode_server_linux_arm64_archive-unsigned',
+	'server-linux-arm64-web': 'vscode_web_linux_arm64_archive-unsigned',
+	'server-linux-x64': 'vscode_server_linux_x64_archive-unsigned',
+	'server-linux-x64-web': 'vscode_web_linux_x64_archive-unsigned',
+	'server-win32-arm64': 'vscode_server_win32_arm64_archive',
+	'server-win32-arm64-web': 'vscode_web_win32_arm64_archive',
+	'server-win32-x64': 'vscode_server_win32_x64_archive',
+	'server-win32-x64-web': 'vscode_web_win32_x64_archive',
+	'win32-arm64': 'vscode_client_win32_arm64_setup',
+	'win32-arm64-archive': 'vscode_client_win32_arm64_archive',
+	'win32-arm64-user': 'vscode_client_win32_arm64_user-setup',
+	'win32-x64': 'vscode_client_win32_x64_setup',
+	'win32-x64-archive': 'vscode_client_win32_x64_archive',
+	'win32-x64-user': 'vscode_client_win32_x64_user-setup',
+};
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
@@ -57,6 +112,7 @@ export class TestContext {
 		downloadOnly: boolean;
 		screenshotsDir: string | undefined;
 		crashDumpsDir: string | undefined;
+		artifactsDir: string | undefined;
 	}>) {
 	}
 
@@ -356,6 +412,10 @@ export class TestContext {
 	 * @returns The path to the downloaded file.
 	 */
 	public async downloadTarget(target: string): Promise<string> {
+		if (this.options.artifactsDir) {
+			return this.resolveArtifact(target);
+		}
+
 		const { url, sha256hash } = await this.fetchMetadata(target);
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
@@ -365,6 +425,51 @@ export class TestContext {
 
 		this.validateSha256Hash(filePath, sha256hash);
 		return filePath;
+	}
+
+	/**
+	 * Resolves a target from a directory of downloaded build pipeline artifacts, laid out as
+	 * `<artifacts-dir>/<artifact-name>/<file>`. There is no update service metadata for these
+	 * builds, so the SHA-256 check is skipped.
+	 * @param target The target platform (e.g., 'cli-linux-x64').
+	 * @returns The path to the artifact file.
+	 */
+	private resolveArtifact(target: string): string {
+		const artifact = targetArtifacts[target];
+		if (!artifact) {
+			this.error(`No pipeline artifact is mapped for target ${target}. Add it to 'targetArtifacts', or exclude the test from this run.`);
+		}
+
+		const artifactDir = path.join(this.options.artifactsDir!, artifact);
+		if (!fs.existsSync(artifactDir)) {
+			this.error(`Artifact ${artifact} for target ${target} was not downloaded to ${artifactDir}`);
+		}
+
+		const files: string[] = [];
+		this.collectFiles(artifactDir, files);
+		if (files.length !== 1) {
+			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
+		}
+
+		this.log(`Resolved target ${target} to ${files[0]} from artifact ${artifact}`);
+		return files[0];
+	}
+
+	/**
+	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
+	 * that 1ES injects into every published artifact.
+	 */
+	private collectFiles(dir: string, files: string[]): void {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name !== '_manifest') {
+					this.collectFiles(filePath, files);
+				}
+			} else {
+				files.push(filePath);
+			}
+		}
 	}
 
 	/**
