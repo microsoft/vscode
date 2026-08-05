@@ -982,9 +982,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * The gated additional (non-primary) customization roots for a session: the
-	 * tail of the ordered working-directory set when multi-root is enabled, else
-	 * empty (so single-root / flag-off is byte-identical).
+	 * The gated additional (non-primary) roots for a session: the tail of the
+	 * ordered working-directory set when multi-root is enabled, else empty (so
+	 * single-root / flag-off is byte-identical). Used both to anchor
+	 * customization discovery and to populate the launch plan's
+	 * `additionalDirectories`, keeping the SDK's granted roots and discovery in
+	 * lockstep — so a session created while multi-root was enabled falls back to
+	 * a single root when resumed after the flag is turned off.
 	 */
 	private _additionalCustomizationDirectories(workingDirectories: readonly URI[] | undefined): readonly URI[] {
 		if (!this._isMultiRootEnabled() || !workingDirectories || workingDirectories.length <= 1) {
@@ -2096,7 +2100,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 
 				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, sessionConfig.workingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), workingDirectory, project, true);
+				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, sessionConfig.workingDirectories ?? ([workingDirectory]), workingDirectory, project, true);
 				if (sessionConfig.agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, sessionConfig.agent);
 				}
@@ -2218,7 +2222,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Persist metadata before resume so `_resumeSession` can resolve the
 			// working directory and model.
 			const project = await projectPromise;
-			await this._storeSessionMetadata(sessionUri, model, workingDirectory, sessionConfig.workingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), workingDirectory, project);
+			await this._storeSessionMetadata(sessionUri, model, workingDirectory, sessionConfig.workingDirectories ?? ([workingDirectory]), workingDirectory, project);
 			if (sessionConfig.agent !== undefined) {
 				await this._storeSessionAgentMetadata(sessionUri, sessionConfig.agent);
 			}
@@ -2291,7 +2295,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				client,
 				sessionId,
 				workingDirectory,
-				additionalDirectories: resolvedWorkingDirectories?.slice(1),
+				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				activeClientToolSet: activeClient.toolSet,
@@ -2315,7 +2319,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The resolved root set (index 0 = process root, e.g. a worktree).
 		// Shared by the persisted metadata, the baseline checkpoint and the
 		// materialize receipt so all three agree on the same directories.
-		const materializedWorkingDirectories = resolvedWorkingDirectories ?? (workingDirectory ? [workingDirectory] : undefined);
+		const materializedWorkingDirectories = resolvedWorkingDirectories ?? ([workingDirectory]);
 
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
@@ -3624,7 +3628,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			client,
 			sessionId,
 			workingDirectory: resolvedWorkingDirectory,
-			additionalDirectories: storedMetadata.workingDirectories?.slice(1),
+			additionalDirectories: this._additionalCustomizationDirectories(storedMetadata.workingDirectories),
 			resolvedAgentName,
 			snapshot,
 			activeClientToolSet: activeClient.toolSet,

@@ -590,6 +590,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			workspaceless: plan.workspaceless === true,
 			toolSearchActive,
 		};
+		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
@@ -622,6 +623,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			agent: plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
+			additionalDirectories,
 			systemMessage,
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
