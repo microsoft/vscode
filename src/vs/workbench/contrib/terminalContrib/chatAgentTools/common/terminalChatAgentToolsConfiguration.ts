@@ -301,18 +301,31 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
+			// - standalone `e`: Execute a shell command from the sed script
+			// - standalone `r`/`R`: Read arbitrary files into the stream
+			// - standalone `w`/`W`: Write pattern space to arbitrary files
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
-			// - `;W` Write first line of pattern space to file
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
+			// - These patterns are conservative: a literal `;e ` or `{e ` inside a replacement
+			//   string also matches, which asks for confirmation rather than auto-approving.
+			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-			'/^sed\\b.*;W/': false,
+			// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+			// captured so the closing quote must match it, and whitespace and `!` are allowed
+			// around the optional address since sed ignores them. The option prefix also skips
+			// the separate operand consumed by -l/--line-length.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+			// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+			// Escaped characters are consumed before testing for the matching closing quote.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 
 			...sortAutoApproveRules,
 
