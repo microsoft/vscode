@@ -172,7 +172,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled);
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -196,10 +196,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getLearnMore(): IAction {
-		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
+		const learnMoreUrl = 'https://aka.ms/vscode-concept-harnesses';
 		return {
 			id: 'workbench.action.chat.agentOverview.learnMore',
-			label: localize('chat.learnMoreAgentTypes', "Learn about agent types..."),
+			label: localize('chat.learnMoreAgentTypes', "Learn about harnesses..."),
 			tooltip: learnMoreUrl,
 			class: undefined,
 			enabled: true,
@@ -270,7 +270,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get()) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {

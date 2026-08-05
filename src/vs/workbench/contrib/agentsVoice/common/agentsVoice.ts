@@ -18,6 +18,10 @@ export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceCon
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
+export const enum AgentsVoiceSettingId {
+	ShowButton = 'agents.voice.showButton',
+}
+
 /**
  * Default dimensions for the Agents Voice floating window.
  */
@@ -32,6 +36,12 @@ export const enum AgentsVoiceStorageKeys {
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	/**
+	 * First-run introduction shown above the chat input. Distinct from
+	 * {@link OnboardingCompleted}, which tracks the Voice Mode window's own
+	 * onboarding.
+	 */
+	IntroBannerShown = 'agentsVoice.introBannerShown',
 	MicrophoneDevice = 'agentsVoice.microphoneDevice',
 }
 

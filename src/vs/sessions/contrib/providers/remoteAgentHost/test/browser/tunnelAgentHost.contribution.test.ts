@@ -20,6 +20,7 @@ import {
 	ICachedTunnel,
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
+	type ITunnelInfo,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -73,6 +74,9 @@ class StubTunnelService extends Disposable {
 	private _cached: ICachedTunnel[] = [];
 	private readonly _suppressed = new Set<string>();
 
+	/** Records every `connect()` call for assertions on the `userInitiated` threading. */
+	readonly connectCalls: Array<{ tunnel: ITunnelInfo; authProvider: string | undefined; options: { readonly userInitiated?: boolean } | undefined }> = [];
+
 	setCached(tunnels: ICachedTunnel[]): void {
 		this._cached = tunnels;
 		this._onDidChangeTunnels.fire();
@@ -82,6 +86,12 @@ class StubTunnelService extends Disposable {
 	isAutoConnectSuppressed(id: string): boolean { return this._suppressed.has(id); }
 	suppressAutoConnect(id: string): void { this._suppressed.add(id); }
 	clearAutoConnectSuppression(id: string): void { this._suppressed.delete(id); }
+
+	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
+		this.connectCalls.push({ tunnel, authProvider, options });
+	}
+
+	async disconnect(_address: string): Promise<void> { /* noop */ }
 }
 
 class StubRemoteAgentHostService extends Disposable {
@@ -203,5 +213,49 @@ suite('TunnelAgentHostContribution', () => {
 		});
 
 		assert.deepStrictEqual(providersService.getProviders(), []);
+	});
+
+	test('background auto-connect threads userInitiated: false through to tunnelService.connect, while explicit connects thread userInitiated: true', async () => {
+		// Focused regression test for the userInitiated/silent policy:
+		// background/auto-connect must never be treated as user-initiated
+		// (so a v6 gateway selection never prompts or picks an editor
+		// entry), while an explicit connect must retain userInitiated: true.
+		const tunnelService = store.add(new StubTunnelService());
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+
+		const tunnelId = 'tunnel-bg';
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Background Tunnel' }]);
+
+		// Access the private connect-orchestration method via a typed seam —
+		// it's the only place `tunnelService.connect()` is invoked, so this
+		// exercises the exact threading the fix introduces without needing
+		// to drive the full `connectOnDemand`/reconnect-timer machinery.
+		const testable = contribution as unknown as {
+			_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
+		};
+
+		await testable._connectTunnel(address, { userInitiated: false });
+		assert.strictEqual(tunnelService.connectCalls.length, 1);
+		assert.strictEqual(tunnelService.connectCalls[0].options?.userInitiated, false, 'background connect must pass userInitiated: false');
+
+		await testable._connectTunnel(address, { userInitiated: true });
+		assert.strictEqual(tunnelService.connectCalls.length, 2);
+		assert.strictEqual(tunnelService.connectCalls[1].options?.userInitiated, true, 'explicit/user-initiated connect must pass userInitiated: true');
 	});
 });

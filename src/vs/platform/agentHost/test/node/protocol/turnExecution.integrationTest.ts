@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
@@ -19,8 +20,14 @@ import {
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
+
+function isTurnComplete(notification: Parameters<typeof isActionNotification>[0], turnId: string): boolean {
+	return isActionNotification(notification, 'chat/turnComplete')
+		&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId;
+}
 
 suite('Protocol WebSocket — Turn Execution', function () {
 
@@ -32,12 +39,13 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -47,7 +55,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('send message and receive responsePart + turnComplete', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-send-message');
 		dispatchTurnStarted(client, sessionUri, 'turn-1', 'hello', 1);
@@ -61,7 +69,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('tool invocation: toolCallStart → toolCallComplete → responsePart → turnComplete', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
 		dispatchTurnStarted(client, sessionUri, 'turn-tool', 'use-tool', 1);
@@ -78,7 +86,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('error prompt triggers chat/error', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-error');
 		dispatchTurnStarted(client, sessionUri, 'turn-err', 'error', 1);
@@ -91,7 +99,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('cancel turn stops in-progress processing', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-cancel');
 		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
@@ -110,16 +118,15 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('multiple sequential turns accumulate in history', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-multi-turns');
 
 		dispatchTurnStarted(client, sessionUri, 'turn-m1', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-m1'));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-m2', 'hello', 2);
-		await new Promise(resolve => setTimeout(resolve, 200));
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-m2'));
 
 		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
@@ -128,16 +135,15 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('fetchTurns acknowledges completed turn history loading', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns');
 
 		dispatchTurnStarted(client, sessionUri, 'turn-ft-1', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-ft-1'));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-ft-2', 'hello', 2);
-		await new Promise(resolve => setTimeout(resolve, 200));
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-ft-2'));
 
 		const loadedPromise = client.waitForNotification(n => isActionNotification(n, 'chat/turnsLoaded'));
 		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: defaultChatChannel(sessionUri) });
@@ -149,11 +155,15 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('fetchTurns rejects an unknown chat', async function () {
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 60_000));
+
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fetchTurns-missing' });
 		await assert.rejects(() => client.call('fetchTurns', { channel: 'ahp-chat:/missing-session/missing-chat' }), /session not found/i);
 	});
 
 	test('fetchTurns rejects an unrecognized cursor', async function () {
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 60_000));
+
 		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns-cursor');
 		await assert.rejects(() => client.call('fetchTurns', {
 			channel: defaultChatChannel(sessionUri),
@@ -162,7 +172,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('usage info is captured on completed turn', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-usage');
 		dispatchTurnStarted(client, sessionUri, 'turn-usage', 'with-usage', 1);
@@ -185,14 +195,14 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('modifiedAt updates on turn completion', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
 		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const initialModifiedAt = Date.parse((initialSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(50);
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
@@ -203,7 +213,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('subagent: inner tool calls land in child session, not parent', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-subagent');
 		dispatchTurnStarted(client, sessionUri, 'turn-sa', 'subagent', 1);
@@ -233,7 +243,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	});
 
 	test('subagent: child sessions never appear in listSessions', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-subagent-list');
 		dispatchTurnStarted(client, sessionUri, 'turn-sa-list', 'subagent', 1);
@@ -247,7 +257,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
 		assert.ok(childSnapshot.snapshot, 'subagent child session should be live');
 
-		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 		assert.deepStrictEqual(
 			{
 				subagentSessions: result.items.filter(s => isSubagentSession(s.resource)).map(s => s.resource),

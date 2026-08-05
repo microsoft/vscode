@@ -476,6 +476,10 @@ suite('AccountPolicyService', () => {
 
 		constructor(public managedSettings: ManagedSettingsData = {}) { }
 
+		async initialize(): Promise<ManagedSettingsData> {
+			return this.managedSettings;
+		}
+
 		async updatePolicyDefinitions(policyDefinitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
 			this.registeredManagedSettings = {};
 			for (const policyName in policyDefinitions) {
@@ -501,6 +505,8 @@ suite('AccountPolicyService', () => {
 
 	class FakeFileManagedSettingsService implements IFileManagedSettingsService {
 		readonly _serviceBrand: undefined;
+		readonly rawManagedSettings = {};
+		readonly onDidChangeRawManagedSettings = Event.None;
 		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
 		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 

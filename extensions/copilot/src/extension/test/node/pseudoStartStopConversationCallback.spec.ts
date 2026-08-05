@@ -206,6 +206,46 @@ suite('Tool stream throttling', () => {
 		assert.strictEqual(updateCalls[0].toolCallId, 'tool1');
 	});
 
+	test('hidden local tools do not create or update tool cards', async () => {
+		const responseSource = new AsyncIterableSource<IResponsePart>();
+		const beginCalls: { toolCallId: string; toolName: string }[] = [];
+		const hiddenStream = new ChatResponseStreamImpl(
+			() => { },
+			() => { },
+			undefined,
+			(toolCallId, toolName) => beginCalls.push({ toolCallId, toolName }),
+			(toolCallId, streamData) => updateCalls.push({ toolCallId, streamData }),
+		);
+		const processor = new PseudoStopStartResponseProcessor([], undefined, {
+			hiddenToolNames: new Set(['report_voice_progress']),
+		});
+
+		responseSource.emitOne({
+			delta: {
+				text: '',
+				beginToolCalls: [
+					{ id: 'hidden', name: 'report_voice_progress' },
+					{ id: 'visible', name: 'visible_tool' },
+				],
+				copilotToolCallStreamUpdates: [
+					{ id: 'hidden', name: 'report_voice_progress', arguments: '{"stage":"editing"}' },
+					{ id: 'visible', name: 'visible_tool', arguments: '{"value":1}' },
+				],
+			},
+		});
+		responseSource.resolve();
+
+		await processor.doProcessResponse(responseSource.asyncIterable, hiddenStream, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			beginCalls,
+			updateCalls: updateCalls.map(call => call.toolCallId),
+		}, {
+			beginCalls: [{ toolCallId: 'visible', toolName: 'visible_tool' }],
+			updateCalls: ['visible'],
+		});
+	});
+
 	test('rapid updates within throttle window are throttled', async () => {
 		const responseSource = new AsyncIterableSource<IResponsePart>();
 		const processor = new PseudoStopStartResponseProcessor([], undefined);

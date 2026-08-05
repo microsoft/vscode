@@ -22,25 +22,28 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -186,6 +189,72 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('aggregates managed-settings diagnostics from capable providers', async () => {
+			const provider: IAgent = copilotAgent;
+			provider.getManagedSettingsDiagnostics = async () => ({
+				source: 'device',
+				serverManaged: false,
+				deviceManaged: true,
+				failClosed: false,
+				bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'],
+				settings: { permissions: { allow: ['Shell(echo *)'] } },
+			});
+			const unsupportedProvider = new MockAgent('other');
+			disposables.add(toDisposable(() => unsupportedProvider.dispose()));
+			const failingProvider = new MockAgent('failing');
+			disposables.add(toDisposable(() => failingProvider.dispose()));
+			const failingProviderContract: IAgent = failingProvider;
+			failingProviderContract.getManagedSettingsDiagnostics = async () => { throw new Error('unavailable'); };
+			service.registerProvider(provider);
+			service.registerProvider(unsupportedProvider);
+			service.registerProvider(failingProvider);
+
+			const diagnostics = await service.getManagedSettingsDiagnostics();
+
+			assert.deepStrictEqual(diagnostics, [
+				{
+					provider: 'copilot',
+					snapshot: {
+						source: 'device',
+						serverManaged: false,
+						deviceManaged: true,
+						failClosed: false,
+						bypassPermissionsDisabled: false,
+						managedKeys: ['permissions'],
+						settings: { permissions: { allow: ['Shell(echo *)'] } },
+					},
+				},
+				{ provider: 'failing', error: 'unavailable' },
+			]);
+		});
+
+		test('forwards managed-settings diagnostics through the local management service', async () => {
+			const provider: IAgent = copilotAgent;
+			provider.getManagedSettingsDiagnostics = async () => ({
+				source: 'device',
+				serverManaged: false,
+				deviceManaged: true,
+				failClosed: false,
+				bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'],
+			});
+			service.registerProvider(provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService);
+
+			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
+				provider: 'copilot',
+				snapshot: {
+					source: 'device',
+					serverManaged: false,
+					deviceManaged: true,
+					failClosed: false,
+					bypassPermissionsDisabled: false,
+					managedKeys: ['permissions'],
+				},
+			}]);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -310,6 +379,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'selected',
 			},
 		});
@@ -326,6 +396,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'completion',
 			},
 			property: 'providerSetting',
@@ -345,6 +416,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				providerSetting: selected.values.providerSetting,
 			},
 			folder: {
@@ -360,7 +432,7 @@ suite('AgentService (node dispatcher)', () => {
 			],
 			providerCompletionConfigs: [{ providerSetting: 'completion' }],
 			initial: { isolation: 'worktree', branchDefault: 'main', branch: 'main', providerSetting: 'initial' },
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
 		});
 	});
@@ -402,15 +474,16 @@ suite('AgentService (node dispatcher)', () => {
 		await localService.createSession({
 			provider: 'codex',
 			session,
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
 		});
+
 		const failedSession = AgentSession.uri('codex', 'failed-before-create');
 		failCreate = true;
 		await assert.rejects(localService.createSession({
 			provider: 'codex',
 			session: failedSession,
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
 		}), /create failed/);
 
@@ -424,6 +497,109 @@ suite('AgentService (node dispatcher)', () => {
 			providerCreateConfigs: [{}, {}],
 			pendingAfterCreate: true,
 			pendingAfterFailure: false,
+		});
+	});
+
+	test('createSession validates, exposes, persists, and inherits multi-root metadata', async () => {
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const multiRoot = {
+			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+		};
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
+			_meta: { multiRoot, ignored: 'client value' },
+		});
+		const sourceChat = buildDefaultChatUri(session.toString());
+		localService.dispatchAction(sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		}, 'test-client', 1);
+		localService.dispatchAction(sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-turn',
+			duration: 0,
+		}, 'test-client', 2);
+		const inherited = await localService.createSession({
+			provider: agent.id,
+			_meta: { multiRoot: { workspaceFile: 'relative.code-workspace' } },
+			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+		});
+		const override = {
+			workspaceFile: 'file:///work/override.code-workspace',
+		};
+		const overridden = await localService.createSession({
+			provider: agent.id,
+			_meta: { multiRoot: override },
+			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+		});
+
+		assert.deepStrictEqual({
+			state: localService.stateManager.getSessionState(session.toString())?._meta,
+			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
+			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
+		}, {
+			state: { multiRoot },
+			persisted: JSON.stringify(override),
+			inherited: multiRoot,
+			overridden: override,
+		});
+	});
+
+	test('provisional materialization preserves and persists multi-root metadata', async () => {
+		class ProvisionalAgent extends MockAgent {
+			private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
+			readonly onDidMaterializeSession = this._onDidMaterialize.event;
+
+			override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				return { ...await super.createSession(config), provisional: true };
+			}
+
+			materialize(session: URI, workingDirectories: readonly URI[]): void {
+				this._onDidMaterialize.fire({ session, workingDirectories, project: undefined });
+			}
+
+			override dispose(): void {
+				this._onDidMaterialize.dispose();
+				super.dispose();
+			}
+		}
+
+		const db = new TestSessionDatabase();
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new ProvisionalAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const multiRoot = {
+			workspaceFile: 'file:///work/demo.code-workspace',
+		};
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
+			_meta: { multiRoot },
+		});
+		const before = readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta);
+		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+
+		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
+
+		assert.deepStrictEqual({
+			before,
+			persistedBefore,
+			after: readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta),
+			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+		}, {
+			before: multiRoot,
+			persistedBefore: undefined,
+			after: multiRoot,
+			persistedAfter: JSON.stringify(multiRoot),
 		});
 	});
 
@@ -455,12 +631,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		const creatingSession = await localService.createSession({
 			provider: 'codex',
-			workingDirectory: URI.file('/workspace/repo'),
+			workingDirectories: [URI.file('/workspace/repo')],
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		});
 		const readySession = await localService.createSession({
 			provider: 'copilot',
-			workingDirectory: URI.file('/workspace/repo'),
+			workingDirectories: [URI.file('/workspace/repo')],
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		});
 		const creatingInitially = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
@@ -561,7 +737,6 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDataService,
 				{ _serviceBrand: undefined } as IProductService,
 				createNoopGitService(),
-				NULL_CHECKPOINT_SERVICE,
 				undefined,
 				undefined,
 				undefined,
@@ -579,6 +754,219 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, db };
 		}
 
+		class DynamicWorkingDirectoryAgent extends MockAgent {
+			constructor(id: string, private readonly immutablePrimary = true) {
+				super(id);
+			}
+
+			override getDescriptor(): IAgentDescriptor {
+				return {
+					provider: this.id,
+					displayName: this.id,
+					description: this.id,
+					capabilities: {
+						multipleWorkingDirectories: { immutablePrimary: this.immutablePrimary },
+						multipleChats: { fork: true, sideChat: true },
+					},
+				};
+			}
+		}
+
+		async function createDynamicWorkingDirectorySession(immutablePrimary = true): Promise<{ svc: AgentService; session: URI; primary: URI; secondary: URI }> {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new DynamicWorkingDirectoryAgent('dynamic', immutablePrimary);
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const session = await svc.createSession({
+				provider: agent.id,
+				workingDirectories: [primary, secondary],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/demo.code-workspace').toString() }),
+			});
+			return { svc, session, primary, secondary };
+		}
+
+		test('rejects working-directory mutations from non-Editor clients', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejectionReason: 'Session working-directory actions require an Editor Window client.',
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('accepts a working-directory mutation synchronously', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const added = URI.file('/workspace/added');
+			let envelope: ActionEnvelope | undefined;
+			const listener = svc.onDidAction(candidate => {
+				if (candidate.origin?.clientSeq === 1) {
+					envelope = candidate;
+				}
+			});
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: added.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual({
+				envelope: envelope?.action,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				envelope: { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+				confirmed: [primary.toString(), secondary.toString(), added.toString()],
+			});
+			listener.dispose();
+		});
+
+		test('queues a working-directory mutation behind an earlier attachment rewrite from the same client', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/source.txt' });
+			await fileService.writeFile(source, VSBuffer.fromString('contents'));
+			const readStarted = new DeferredPromise<void>();
+			const readGate = new DeferredPromise<void>();
+			const originalReadFile = fileService.readFile.bind(fileService);
+			fileService.readFile = async resource => {
+				if (resource.toString() === source.toString()) {
+					readStarted.complete();
+					await readGate.p;
+				}
+				return originalReadFile(resource);
+			};
+			disposables.add(toDisposable(() => fileService.readFile = originalReadFile));
+			const observed: ActionType[] = [];
+			const listener = svc.onDidAction(envelope => observed.push(envelope.action.type));
+			const clientId = 'ordered-client';
+			const chat = buildDefaultChatUri(session.toString());
+
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'hello',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: source.toString(),
+						label: 'source.txt',
+						displayKind: 'document',
+					}],
+				},
+			}, clientId, 1, AgentHostClientType.EditorWindow);
+			await readStarted.p;
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, clientId, 2, AgentHostClientType.EditorWindow);
+			await timeout(0);
+
+			assert.deepStrictEqual(
+				svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+				[primary.toString(), secondary.toString()],
+				'working-directory action must not overtake the pending rewrite',
+			);
+
+			readGate.complete();
+			await waitForCondition(() => observed.includes(ActionType.SessionWorkingDirectorySet), 'working-directory action should dispatch after the rewrite');
+			assert.ok(
+				observed.indexOf(ActionType.ChatTurnStarted) < observed.indexOf(ActionType.SessionWorkingDirectorySet),
+				`expected turn action before working-directory action, got ${observed.join(', ')}`,
+			);
+			listener.dispose();
+		});
+
+		test('reduces working-directory mutations synchronously in dispatch order', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const added = URI.file('/workspace/added');
+
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: secondary.toString() }, 'test-client', 2, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual({
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				confirmed: [primary.toString(), added.toString()],
+			});
+		});
+
+		test('canonicalizes equivalent and absent idempotent working-directory actions', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const envelopes: ActionEnvelope[] = [];
+			const listener = svc.onDidAction(envelope => envelopes.push(envelope));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: 'file:///workspace/%73econdary',
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: 'file:///workspace/%61bsent',
+			}, 'test-client', 2, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual({
+				actions: envelopes.map(envelope => envelope.action),
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				actions: [
+					{ type: ActionType.SessionWorkingDirectorySet, directory: secondary.toString() },
+					{ type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///workspace/absent' },
+				],
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+			listener.dispose();
+		});
+
+		test('rejects removal of the immutable primary', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: primary.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejected: true,
+				confirmed: [primary.toString(), secondary.toString()],
+			});
+		});
+
+		test('allows removal of index zero for equal-peer working directories', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession(false);
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory: primary.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejected: !!envelope.rejectionReason,
+				confirmed: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+			}, {
+				rejected: false,
+				confirmed: [secondary.toString()],
+			});
+		});
+
 		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			// Use a local DisposableStore so that svc can be explicitly disposed
@@ -588,7 +976,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localDisposables = new DisposableStore();
 			try {
 				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
-				const svc = localDisposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
+				const svc = localDisposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
 				const agent = new MockAgent('copilot');
 				localDisposables.add(toDisposable(() => agent.dispose()));
 				svc.registerProvider(agent);
@@ -1026,6 +1414,69 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
 		});
 
+		test('accepts customization updates while creating a provisional session', async () => {
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			class ProvisionalCustomizationAgent extends MockAgent {
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					return { ...await super.createSession(config), provisional: true };
+				}
+
+				override getSessionCustomizations = async (session: URI) => {
+					this.fireProgress({
+						kind: 'action',
+						resource: session,
+						action: { type: ActionType.SessionCustomizationUpdated, customization },
+					});
+					return [];
+				};
+			}
+
+			const agent = new ProvisionalCustomizationAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+
+			const session = await service.createSession({ provider: agent.id });
+
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.customizations, [customization]);
+		});
+
+		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {
+			class CapturingAgent extends MockAgent {
+				lastConfig: IAgentCreateSessionConfig | undefined;
+				constructor(id: string, private readonly _caps: import('../../common/agentService.js').IAgentCapabilities | undefined) {
+					super(id);
+				}
+				override getDescriptor() {
+					return { ...super.getDescriptor(), capabilities: this._caps };
+				}
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					this.lastConfig = config;
+					return super.createSession(config);
+				}
+			}
+
+			const single = new CapturingAgent('single', undefined);
+			const multi = new CapturingAgent('multi', { multipleWorkingDirectories: { immutablePrimary: true } });
+			disposables.add(toDisposable(() => single.dispose()));
+			disposables.add(toDisposable(() => multi.dispose()));
+			service.registerProvider(single);
+			service.registerProvider(multi);
+
+			const dirs = [URI.file('/repoA'), URI.file('/repoB'), URI.file('/repoC')];
+			await service.createSession({ provider: 'single', workingDirectories: dirs });
+			await service.createSession({ provider: 'multi', workingDirectories: dirs });
+
+			// A provider that does not advertise the capability keeps only the
+			// primary (index 0); one that advertises it receives the full set.
+			assert.deepStrictEqual({
+				single: single.lastConfig?.workingDirectories?.map(d => d.toString()),
+				multi: multi.lastConfig?.workingDirectories?.map(d => d.toString()),
+			}, {
+				single: [dirs[0].toString()],
+				multi: dirs.map(d => d.toString()),
+			});
+		});
+
 		test('honors requested session URI', async () => {
 			service.registerProvider(copilotAgent);
 
@@ -1055,7 +1506,18 @@ suite('AgentService (node dispatcher)', () => {
 			service.registerProvider(copilotAgent);
 
 			const session = await service.createSession();
-			assert.strictEqual(AgentSession.provider(session), 'copilot');
+			// A create with no config at all is still workspace-less: the agent
+			// infers that from the absent working directory and assigns a
+			// scratch cwd, so the service must tag it to match — otherwise the
+			// session comes back looking workspace-bound, rooted at that scratch
+			// dir.
+			assert.deepStrictEqual({
+				provider: AgentSession.provider(session),
+				meta: service.stateManager.getSessionState(session.toString())?._meta,
+			}, {
+				provider: 'copilot',
+				meta: { workspaceless: true },
+			});
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -1082,6 +1544,28 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Should not throw
 			await service.disposeSession(unknownSession);
+		});
+
+		test('deletes session data before removing the worktree', async () => {
+			// Subscribers of the will-delete event drop this session's git refs,
+			// which requires resolving the repository from the working directory.
+			// For a worktree-isolated session that directory *is* the worktree, so
+			// removing it first would strand the refs in the main repository.
+			const order: string[] = [];
+			const sessionDataService: ISessionDataService = {
+				...nullSessionDataService,
+				deleteSessionData: async () => { order.push('deleteSessionData'); },
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.setWorktreeIsolation({
+				removeCreatedWorktree: async () => { order.push('removeCreatedWorktree'); },
+			} as unknown as WorktreeIsolation);
+
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual(order, ['deleteSessionData', 'removeCreatedWorktree']);
 		});
 	});
 
@@ -1171,6 +1655,9 @@ suite('AgentService (node dispatcher)', () => {
 			// The agent returns the session with NO `_meta.workspaceless` of its own.
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
+			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -1179,6 +1666,83 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
+		});
+
+		test('listSessions restores persisted multi-root metadata', async () => {
+			const db = new TestSessionDatabase();
+			const multiRoot = {
+				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+			};
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
+			const sessionId = 'test-session-multi-root';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
+		});
+
+		test('listSessions strips provider multi-root metadata when no session database exists', async () => {
+			const sessionId = 'test-session-provider-multi-root';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.strictEqual(readSessionMultiRootMetadata(sessions[0]._meta), undefined);
+		});
+
+		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-linked-worktree';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				workingDirectories: [sessionWorktree],
+				project: { uri: linkedCheckout, displayName: 'parent' },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			const resolvedFrom: URI[] = [];
+			gitService.getWorktreeRoots = async workingDirectory => {
+				resolvedFrom.push(workingDirectory);
+				return [primaryRoot, linkedCheckout, sessionWorktree];
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
+				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				resolvedFrom: [linkedCheckout.toString()],
+				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
+				persistedRepositoryRoot: primaryRoot.toString(),
+			});
 		});
 
 		test('listSessions uses SDK title when no custom title exists', async () => {
@@ -1331,7 +1895,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				modifiedTime: listed?.modifiedTime,
 				project: listed?.project && { uri: listed.project.uri.path, displayName: listed.project.displayName },
-				workingDirectory: listed?.workingDirectory?.path,
+				workingDirectory: listed?.workingDirectories?.[0]?.path,
 			}, {
 				modifiedTime: 2000,
 				project: { uri: '/project', displayName: 'project' },
@@ -1677,6 +2241,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
@@ -1712,12 +2278,12 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
+			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 			localService.registerProvider(agent);
 
 			// A normal session passes an input workingDirectory, so it is not
 			// inferred workspace-less; `_meta` carries only the git overlay.
-			const session = await localService.createSession({ provider: 'copilot', workingDirectory });
+			const session = await localService.createSession({ provider: 'copilot', workingDirectories: workingDirectory ? [workingDirectory] : undefined });
 
 			// _attachGitState is fire-and-forget; drain microtasks until the
 			// git service's promise has resolved and setSessionMeta has run.
@@ -1759,7 +2325,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
+			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 			localService.registerProvider(agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -1781,6 +2347,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
@@ -1840,7 +2408,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
+			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 			localService.registerProvider(agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -1871,7 +2439,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
+			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 			localService.registerProvider(agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -1905,7 +2473,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
+			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 			localService.registerProvider(agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -1950,7 +2518,7 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = new MockAgent('copilot');
 				disposables.add(toDisposable(() => agent.dispose()));
 				agent.resolvedWorkingDirectory = workingDirectory;
-				agent.sessionMetadataOverrides = { workingDirectory };
+				agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 				localService.registerProvider(agent);
 
 				// Seed a session and clear its _meta so subscribe must lazily
@@ -2112,6 +2680,50 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('accepts an already handled MCP token after retrying session handlers', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => ++handlerCalls === 1;
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['write', 'read'], token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-1' });
+			const replacement = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-2' });
+
+			assert.deepStrictEqual({ first, duplicate, replacement, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: true },
+				replacement: { authenticated: false },
+				handlerCalls: 3,
+			});
+		});
+
+		test('does not hide a session handler rejection with an accepted token', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => {
+				handlerCalls++;
+				if (handlerCalls === 1) {
+					return true;
+				}
+				throw new Error('failed');
+			};
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+
+			assert.deepStrictEqual({ first, duplicate, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: false },
+				handlerCalls: 2,
+			});
+		});
+
 		test('fans out to every provider that owns the resource', async () => {
 			// Two providers share the same protected resource (the real
 			// motivating example: both Copilot CLI and Claude consume the
@@ -2134,6 +2746,21 @@ suite('AgentService (node dispatcher)', () => {
 				copilotCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
 				claudeCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
 			});
+		});
+
+		test('replays stored authentication to a provider registered later', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+			const lateAgent = new MockAgent('codex');
+			lateAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			disposables.add(toDisposable(() => lateAgent.dispose()));
+
+			service.registerProvider(lateAgent);
+			for (let attempt = 0; attempt < 20 && lateAgent.authenticateCalls.length === 0; attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 5));
+			}
+
+			assert.deepStrictEqual(lateAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok' }]);
 		});
 
 		test('isolates a provider that throws — others still authenticate', async () => {
@@ -2224,6 +2851,26 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(localService.stateManager.getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
 		});
 
+		test('restores persisted multi-root metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			copilotAgent.sessionMetadataOverrides = {
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
+			};
+			const multiRoot = {
+				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
+			};
+			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(readSessionMultiRootMetadata(localService.stateManager.getSessionState(sessionResource.toString())?._meta), multiRoot);
+		});
+
 		test('restores a session with message history', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
@@ -2246,6 +2893,64 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+		});
+
+		test('re-attaches persisted turn usage on restore', async () => {
+			// Providers don't durably record token/credit usage (the Copilot
+			// SDK's `assistant.usage` event is explicitly ephemeral), so without
+			// the host-side overlay a reloaded session comes back with no
+			// context-usage gauge and a session cost of 0.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+			];
+			await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'gpt-5' }));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
+				[{ inputTokens: 100, outputTokens: 20, model: 'gpt-5' }],
+			);
+		});
+
+		test('re-attaches usage over an Auto-model stub, preserving the routing metadata', async () => {
+			// A turn that ran on Copilot Auto is restored with a token-less stub
+			// (`{ model, _meta: { autoModeResolved } }`, see mapSessionEvents)
+			// because the routing decision IS persisted while the usage event is
+			// not. Treating that stub as "already has usage" would skip exactly
+			// the turns needing re-attachment — and Auto is the default model.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const autoModeResolved = { chosenModel: 'claude-opus-4.8', predictedLabel: 'needs_reasoning', confidence: 0.93 };
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.turnUsageOverride = { model: 'claude-opus-4.8', _meta: { autoModeResolved } };
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+			];
+			await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'claude-opus-4.8', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } }));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
+				[{
+					inputTokens: 100,
+					outputTokens: 20,
+					model: 'claude-opus-4.8',
+					// The stub's routing metadata survives alongside the persisted usage.
+					_meta: { autoModeResolved, copilotUsage: { totalNanoAiu: 5_000_000_000 } },
+				}],
+			);
 		});
 
 		test('interleaves persisted host-injected local turns after their anchor on restore', async () => {
@@ -3196,6 +3901,332 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('createChat side chats', () => {
+
+		class SideChatAgent extends MockAgent {
+			lastCreateOptions: IAgentCreateChatOptions | undefined;
+			readonly chatMessages = new Map<string, readonly Turn[]>();
+			materializeCalls = 0;
+			override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+				this.lastCreateOptions = options;
+			}
+			async materializeChat(): Promise<void> {
+				this.materializeCalls++;
+			}
+			override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+				return this.chatMessages.get(chat.toString()) ?? super.getSessionMessages(chat);
+			}
+		}
+
+		function completedTurn(id: string, userText = 'user text', assistantText = 'assistant text'): Turn {
+			return {
+				id,
+				state: TurnState.Complete,
+				message: { text: userText, origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: `${id}-md`, content: assistantText }],
+				usage: undefined,
+			};
+		}
+
+		test('rejects a side chat whose source turn does not exist', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri, { sideChat: { source: session, turnId: 'missing' } }),
+				/side chat source turn/,
+			);
+		});
+
+		test('rejects an empty side-chat selection snapshot', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection: { text: ' \n ' } } }),
+				/selection text must be non-empty/,
+			);
+		});
+
+		test('rejects a side chat whose source chat is in a different session', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const sessionA = await service.createSession({ provider: 'copilot' });
+			const sessionB = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(sessionB.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(sessionA, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(sessionA, chatUri, { sideChat: { source: sessionB, turnId: 't1' } }),
+				/does not belong to session/,
+			);
+		});
+
+		test('creates a fresh peer with a SideChat origin and no copied source turns', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1'), completedTurn('t2')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+			const defaultChatUri = buildDefaultChatUri(session);
+			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
+
+			await service.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
+			const state = service.stateManager.getChatState(chatUri.toString());
+
+			assert.deepStrictEqual({
+				origin: state?.origin,
+				copiedTurns: state?.turns.length,
+				forkForwarded: agent.lastCreateOptions?.fork,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat,
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				copiedTurns: 0,
+				forkForwarded: undefined,
+				sideChatForwarded: { source: URI.parse(defaultChatUri), turnId: 't1', selection },
+			});
+		});
+
+		test('creates a side chat from a completed local turn without losing its stable source turn identity', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'real-1', content: 'first question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'real-1-a', content: 'first answer', toolRequests: [] },
+			];
+			const localTurn: Turn = {
+				id: 'local-1',
+				state: TurnState.Complete,
+				message: { text: '!command', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			};
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await localService.restoreSession(sessionResource);
+			const chatUri = URI.parse(buildChatUri(sessionResource, 'side-local'));
+
+			await localService.createChat(sessionResource, chatUri, { sideChat: { source: URI.parse(defaultChatUri), turnId: 'local-1' } });
+
+			assert.deepStrictEqual({
+				origin: localService.stateManager.getChatState(chatUri.toString())?.origin,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat && {
+					source: agent.lastCreateOptions.sideChat.source.toString(),
+					turnId: agent.lastCreateOptions.sideChat.turnId,
+					providerAnchorTurnId: agent.lastCreateOptions.sideChat.providerAnchorTurnId,
+					sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+				},
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'local-1' },
+				sideChatForwarded: {
+					source: defaultChatUri,
+					turnId: 'local-1',
+					providerAnchorTurnId: 'real-1',
+					sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\n!command',
+				},
+			});
+		});
+
+		test('creates a side chat from the current active turn', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			service.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'still running', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			service.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'active-turn',
+				part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-active'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
+
+			assert.deepStrictEqual({
+				sourceActiveTurn: service.stateManager.getChatState(sourceChat)?.activeTurn?.id,
+				origin: service.stateManager.getChatState(chatUri.toString())?.origin,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat
+					? {
+						source: agent.lastCreateOptions.sideChat.source.toString(),
+						turnId: agent.lastCreateOptions.sideChat.turnId,
+						sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+						partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+					}
+					: undefined,
+			}, {
+				sourceActiveTurn: 'active-turn',
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
+				sideChatForwarded: { source: sourceChat, turnId: 'active-turn', sourceContext: 'User request:\nstill running', partialResponse: 'partial answer' },
+			});
+		});
+
+		test('creates a side chat from a later active turn without losing the current user question', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1', 'first question', 'first answer')]);
+			service.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'second question', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			service.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'active-turn',
+				part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-active-later'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
+
+			assert.deepStrictEqual(agent.lastCreateOptions?.sideChat && {
+				source: agent.lastCreateOptions.sideChat.source.toString(),
+				turnId: agent.lastCreateOptions.sideChat.turnId,
+				sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+				partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+			}, {
+				source: sourceChat,
+				turnId: 'active-turn',
+				sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\nsecond question',
+				partialResponse: 'partial answer',
+			});
+		});
+
+		test('persists and restores the SideChat origin', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			localService.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+			const defaultChatUri = buildDefaultChatUri(session);
+			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
+			await localService.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
+
+			let persistedOrigin: unknown;
+			for (let i = 0; i < 50; i++) {
+				const raw = await db.getMetadata('peerChats');
+				if (raw !== undefined) {
+					const parsed = JSON.parse(raw) as { uri: string; origin?: unknown }[];
+					persistedOrigin = parsed.find(entry => entry.uri === chatUri.toString())?.origin;
+					if (persistedOrigin) {
+						break;
+					}
+				}
+				await timeout(1);
+			}
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persistedOrigin,
+				restoredOrigin: localService.stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === chatUri.toString())?.origin,
+				restoredChatState: localService.stateManager.getChatState(chatUri.toString()),
+			}, {
+				persistedOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				restoredOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				restoredChatState: undefined,
+			});
+		});
+
+		test('resolves a restored peer side-chat source without resolving the target chat', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const source = URI.parse(buildChatUri(session, 'peer-source'));
+			const target = URI.parse(buildChatUri(session, 'peer-side'));
+			agent.chatMessages.set(source.toString(), [completedTurn('source-turn')]);
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: source.toString(), providerData: 'source-blob' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const resolvedChats: string[] = [];
+			const resolveChatState = localService.stateManager.resolveChatState.bind(localService.stateManager);
+			localService.stateManager.resolveChatState = async chat => {
+				resolvedChats.push(chat);
+				return resolveChatState(chat);
+			};
+			await localService.createChat(session, target, { sideChat: { source, turnId: 'source-turn' } });
+
+			assert.deepStrictEqual({
+				materializeCalls: agent.materializeCalls,
+				resolvedChats,
+				sideChatSource: agent.lastCreateOptions?.sideChat?.source.toString(),
+				sourceResolved: !!localService.stateManager.getChatState(source.toString()),
+			}, {
+				materializeCalls: 1,
+				resolvedChats: [source.toString()],
+				sideChatSource: source.toString(),
+				sourceResolved: true,
+			});
+		});
+
+		test('hydrates a missing peer chat when resolving a generic Chat attachment', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerChat);
+			for (let i = 0; i < 50 && await db.getMetadata('peerChats') === undefined; i++) {
+				await timeout(1);
+			}
+			agent.chatMessages.set(peerChat.toString(), [completedTurn('peer-turn', 'Remember X', 'Remembered')]);
+			localService.stateManager.removeChat(session.toString(), peerChat.toString());
+
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			localService.dispatchAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'What was remembered?',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: peerChat.toString(),
+						endTurn: 'peer-turn',
+						label: 'Earlier chat',
+					}],
+				},
+			}, 'client-1', 1);
+			await sent;
+
+			const attachment = agent.sendMessageCalls[0].attachments?.[0];
+			assert.deepStrictEqual({
+				peerHydrated: !!localService.stateManager.getChatState(peerChat.toString()),
+				type: attachment?.type,
+				hasTranscript: attachment?.type === MessageAttachmentKind.Simple && attachment.modelRepresentation?.includes('User: Remember X'),
+			}, {
+				peerHydrated: true,
+				type: MessageAttachmentKind.Simple,
+				hasTranscript: true,
+			});
+		});
+
+	});
+
 	// ---- chat surface routing (G-C1) ----------------------------
 
 	suite('chat surface routing', () => {
@@ -3698,18 +4729,15 @@ suite('AgentService (node dispatcher)', () => {
 			return [];
 		}
 
-		test('createChat persists providerData; restore re-materializes from the orchestrator catalog before reading history', async () => {
-			const materializeOrder: { call: string; uri: string; providerData?: string }[] = [];
+		test('restore registers peer-chat metadata in catalog order and loads history on first access', async () => {
+			const calls: { call: string; uri: string; providerData?: string }[] = [];
 			class MultiChatAgent extends MockAgent {
-				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
-					return { providerData: 'blob-1' };
-				}
 				async materializeChat(chat: URI, providerData: string | undefined): Promise<void> {
-					materializeOrder.push({ call: 'materialize', uri: chat.toString(), providerData });
+					calls.push({ call: 'materialize', uri: chat.toString(), providerData });
 				}
 				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-					if (session.scheme === 'ahp-chat') {
-						materializeOrder.push({ call: 'getMessages', uri: session.toString() });
+					if (parseChatUri(session)?.chatId === 'peer-1') {
+						calls.push({ call: 'getMessages', uri: session.toString() });
 						return [{
 							id: 'peer-turn-1',
 							state: TurnState.Complete,
@@ -3728,37 +4756,403 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await localService.createChat(session, peerUri);
-			await readCatalog(db);
+			const peerOrigin = { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'source-turn' };
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1', origin: peerOrigin }]));
+			await db.setMetadata(`customChatTitle:${peerUri.toString()}`, 'Persisted Peer Title');
+			await db.setChatDraft(peerUri, { text: 'Persisted draft', origin: { kind: MessageKind.User } });
 
 			localService.stateManager.deleteSession(session.toString());
 			await localService.restoreSession(session);
 
 			const state = localService.stateManager.getSessionState(session.toString());
-			const peerChatState = localService.stateManager.getChatState(peerUri.toString());
+			const restored = {
+				calls: [...calls],
+				chatIds: (state?.chats ?? []).map(chat => parseChatUri(chat.resource)?.chatId),
+				summary: (() => {
+					const summary = state?.chats.find(chat => chat.resource.toString() === peerUri.toString());
+					return summary && { title: summary.title, origin: summary.origin };
+				})(),
+				chatState: localService.stateManager.getChatState(peerUri.toString()),
+			};
+			await localService.subscribe(peerUri, 'first-peer-reader');
+			const hydrated = localService.stateManager.getChatState(peerUri.toString());
+
 			assert.deepStrictEqual({
-				order: materializeOrder.map(o => o.call),
-				materializedWith: materializeOrder.find(o => o.call === 'materialize')?.providerData,
-				inCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri.toString()),
-				restoredProviderData: localService.stateManager.getChatProviderData(peerUri.toString()),
-				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
+				restored,
+				firstAccessCalls: calls,
+				hydrated: hydrated && {
+					title: hydrated.title,
+					draft: hydrated.draft?.text,
+					origin: hydrated.origin,
+					turns: hydrated.turns.map(turn => turn.id),
+				},
 			}, {
-				// The default chat is read first; peer materialize must precede
-				// the peer history read on restore.
-				order: ['getMessages', 'materialize', 'getMessages'],
-				materializedWith: 'blob-1',
-				inCatalog: true,
-				restoredProviderData: 'blob-1',
-				peerTurnIds: ['peer-turn-1'],
+				restored: {
+					calls: [],
+					chatIds: ['default', 'peer-1'],
+					summary: {
+						title: 'Persisted Peer Title',
+						origin: peerOrigin,
+					},
+					chatState: undefined,
+				},
+				firstAccessCalls: [
+					{ call: 'materialize', uri: peerUri.toString(), providerData: 'blob-1' },
+					{ call: 'getMessages', uri: peerUri.toString() },
+				],
+				hydrated: {
+					title: 'Persisted Peer Title',
+					draft: 'Persisted draft',
+					origin: peerOrigin,
+					turns: ['peer-turn-1'],
+				},
+			});
+		});
+
+		test('coalesces concurrent first access for one restored peer chat', async () => {
+			const materialization = new DeferredPromise<void>();
+			let materializeCalls = 0;
+			let historyCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+					await materialization.p;
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (parseChatUri(session)?.chatId === 'peer-1') {
+						historyCalls++;
+					}
+					return [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const first = localService.subscribe(peerUri, 'first-reader');
+			const second = localService.subscribe(peerUri, 'second-reader');
+			await timeout(0);
+			const stateWhileBlocked = localService.stateManager.getChatState(peerUri.toString());
+			const snapshotWhileBlocked = localService.stateManager.getSnapshot(peerUri.toString());
+			materialization.complete();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				materializeCalls,
+				historyCalls,
+				stateWhileBlocked,
+				snapshotWhileBlocked,
+				stateAfterResolve: !!localService.stateManager.getChatState(peerUri.toString()),
+			}, {
+				materializeCalls: 1,
+				historyCalls: 1,
+				stateWhileBlocked: undefined,
+				snapshotWhileBlocked: undefined,
+				stateAfterResolve: true,
+			});
+		});
+
+		test('get_session_context resolves a restored peer chat before reading its transcript', async () => {
+			let materializeCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+				}
+				override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+					if (parseChatUri(chat)?.chatId === 'peer-1') {
+						return [{
+							id: 'peer-turn-1',
+							state: TurnState.Complete,
+							message: { text: 'Remember this', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response-1', content: 'Remembered' }],
+							usage: undefined,
+						}];
+					}
+					return [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const beforeContext = localService.stateManager.getChatState(peerUri.toString());
+			const result = await agent.serverToolHost!.executeTool(
+				buildDefaultChatUri(session),
+				SessionServerToolName.GetSessionContext,
+				{ session: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-1` },
+			);
+
+			assert.deepStrictEqual({
+				beforeContext,
+				materializeCalls,
+				transcript: JSON.parse(result).transcript,
+			}, {
+				beforeContext: undefined,
+				materializeCalls: 1,
+				transcript: [{ turn: 1, state: 'complete', user: 'Remember this', assistant: 'Remembered' }],
+			});
+		});
+
+		test('createChat resolves a restored peer fork source before creating the fork', async () => {
+			let materializeCalls = 0;
+			let providerForkTurnId: string | undefined;
+			let providerForkSource: string | undefined;
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+				}
+				override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+					providerForkTurnId = options?.fork?.turnId;
+					providerForkSource = options?.fork?.source.toString();
+				}
+				override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+					return parseChatUri(chat)?.chatId === 'peer-source'
+						? [{
+							id: 'source-turn',
+							state: TurnState.Complete,
+							message: { text: 'Remember this', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'source-response-1', content: 'Remembered' }],
+							usage: undefined,
+						}]
+						: [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const source = URI.parse(buildChatUri(session, 'peer-source'));
+			const target = URI.parse(buildChatUri(session, 'peer-fork'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: source.toString(), providerData: 'source-blob' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const resolvedChats: string[] = [];
+			const resolveChatState = localService.stateManager.resolveChatState.bind(localService.stateManager);
+			localService.stateManager.resolveChatState = async chat => {
+				resolvedChats.push(chat);
+				return resolveChatState(chat);
+			};
+			await localService.createChat(session, target, { fork: { source, turnId: 'source-turn' } });
+
+			assert.deepStrictEqual({
+				materializeCalls,
+				resolvedChats,
+				providerForkTurnId,
+				providerForkSource,
+				sourceResolved: !!localService.stateManager.getChatState(source.toString()),
+				forkedTurnCount: localService.stateManager.getChatState(target.toString())?.turns.length,
+			}, {
+				materializeCalls: 1,
+				resolvedChats: [source.toString()],
+				providerForkTurnId: 'source-turn',
+				providerForkSource: source.toString(),
+				sourceResolved: true,
+				forkedTurnCount: 1,
+			});
+		});
+
+		test('materializes distinct restored peer chats in parallel', async () => {
+			const started = new Set<string>();
+			const gates = new Map<string, DeferredPromise<void>>();
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(chat: URI): Promise<void> {
+					started.add(chat.toString());
+					await gates.get(chat.toString())!.p;
+				}
+				override async getSessionMessages(): Promise<readonly Turn[]> { return []; }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const firstPeer = URI.parse(buildChatUri(session, 'peer-1'));
+			const secondPeer = URI.parse(buildChatUri(session, 'peer-2'));
+			gates.set(firstPeer.toString(), new DeferredPromise<void>());
+			gates.set(secondPeer.toString(), new DeferredPromise<void>());
+			await db.setMetadata('peerChats', JSON.stringify([
+				{ uri: firstPeer.toString(), providerData: 'blob-1' },
+				{ uri: secondPeer.toString(), providerData: 'blob-2' },
+			]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const first = localService.subscribe(firstPeer, 'first-reader');
+			const second = localService.subscribe(secondPeer, 'second-reader');
+			for (let i = 0; i < 50 && started.size < 2; i++) {
+				await timeout(0);
+			}
+			const startedBeforeCompletion = [...started].sort();
+			gates.get(firstPeer.toString())!.complete();
+			gates.get(secondPeer.toString())!.complete();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual(startedBeforeCompletion, [firstPeer.toString(), secondPeer.toString()].sort());
+		});
+
+		test('keeps a peer chat visible and retries after failed materialization', async () => {
+			let materializeCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+					if (materializeCalls === 1) {
+						throw new Error('first materialization failed');
+					}
+				}
+				override async getSessionMessages(): Promise<readonly Turn[]> { return []; }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			await assert.rejects(() => localService.subscribe(peerUri, 'first-reader'), /first materialization failed/);
+			const visibleAfterFailure = !!localService.stateManager.getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peerUri.toString());
+			const stateAfterFailure = localService.stateManager.getChatState(peerUri.toString());
+			await localService.subscribe(peerUri, 'second-reader');
+
+			assert.deepStrictEqual({
+				materializeCalls,
+				visibleAfterFailure,
+				stateAfterFailure,
+				stateAfterRetry: !!localService.stateManager.getChatState(peerUri.toString()),
+			}, {
+				materializeCalls: 2,
+				visibleAfterFailure: true,
+				stateAfterFailure: undefined,
+				stateAfterRetry: true,
+			});
+		});
+
+		test('resolves a restored peer chat before applying a dispatched action', async () => {
+			const materialization = new DeferredPromise<void>();
+			let materializeCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+					await materialization.p;
+				}
+				override async getSessionMessages(): Promise<readonly Turn[]> { return []; }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			localService.dispatchAction(peerUri.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Hello', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+			for (let i = 0; i < 50 && materializeCalls === 0; i++) {
+				await timeout(0);
+			}
+			const stateWhileBlocked = localService.stateManager.getChatState(peerUri.toString());
+			materialization.complete();
+			for (let i = 0; i < 50 && localService.stateManager.getChatState(peerUri.toString())?.activeTurn?.id !== 'turn-1'; i++) {
+				await timeout(0);
+			}
+			const stateAfterResolution = localService.stateManager.getChatState(peerUri.toString());
+
+			assert.deepStrictEqual({
+				materializeCalls,
+				stateWhileBlocked,
+				activeTurnAfterResolution: stateAfterResolution?.activeTurn?.id,
+			}, {
+				materializeCalls: 1,
+				stateWhileBlocked: undefined,
+				activeTurnAfterResolution: 'turn-1',
+			});
+		});
+
+		test('invalidates a restored peer resolver when its parent session is disposed', async () => {
+			const firstMaterialization = new DeferredPromise<void>();
+			let materializeCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				async materializeChat(): Promise<void> {
+					materializeCalls++;
+					if (materializeCalls === 1) {
+						await firstMaterialization.p;
+					}
+				}
+				override async getSessionMessages(): Promise<readonly Turn[]> { return []; }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = AgentSession.uri('copilot', 'reused-session');
+			await localService.createSession({ provider: 'copilot', session });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const firstSubscribe = localService.subscribe(peerUri, 'first-reader');
+			for (let i = 0; i < 50 && materializeCalls === 0; i++) {
+				await timeout(0);
+			}
+			const dispose = localService.disposeSession(session);
+			firstMaterialization.complete();
+			await dispose;
+			await assert.rejects(() => firstSubscribe, /invalidated/);
+			const stateAfterStaleResolution = localService.stateManager.getChatState(peerUri.toString());
+
+			await localService.createSession({ provider: 'copilot', session });
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			await localService.subscribe(peerUri, 'second-reader');
+
+			assert.deepStrictEqual({
+				materializeCalls,
+				stateAfterStaleResolution,
+				recreatedPeerState: !!localService.stateManager.getChatState(peerUri.toString()),
+			}, {
+				materializeCalls: 2,
+				stateAfterStaleResolution: undefined,
+				recreatedPeerState: true,
 			});
 		});
 
 		test('onDidChangeChatData re-persists the updated providerData blob', async () => {
 			const onDidChangeChatData = disposables.add(new Emitter<IAgentChatDataChange>());
+			const materializedProviderData: Array<string | undefined> = [];
 			class MultiChatAgent extends MockAgent {
 				readonly onDidChangeChatData = onDidChangeChatData.event;
 				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
 					return { providerData: 'v1' };
+				}
+				async materializeChat(_chat: URI, providerData: string | undefined): Promise<void> {
+					materializedProviderData.push(providerData);
 				}
 			}
 			const db = new TestSessionDatabase();
@@ -3770,6 +5164,9 @@ suite('AgentService (node dispatcher)', () => {
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await localService.createChat(session, peerUri);
 			const afterCreate = await readCatalog(db);
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			await localService.subscribe(peerUri, 'peer-reader');
 
 			onDidChangeChatData.fire({ chat: peerUri, providerData: 'v2' });
 			// Wait for the re-persist write to flush.
@@ -3781,13 +5178,20 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				await timeout(0);
 			}
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			await localService.subscribe(peerUri, 'restored-peer-reader');
 
 			assert.deepStrictEqual({
 				afterCreate: afterCreate.find(e => e.uri === peerUri.toString())?.providerData,
 				afterChange: updated.find(e => e.uri === peerUri.toString())?.providerData,
+				hydrated: !!localService.stateManager.getChatState(peerUri.toString()),
+				materializedProviderData,
 			}, {
 				afterCreate: 'v1',
 				afterChange: 'v2',
+				hydrated: true,
+				materializedProviderData: ['v1', 'v2'],
 			});
 		});
 
@@ -3860,8 +5264,8 @@ suite('AgentService (node dispatcher)', () => {
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
-			// Seed a persisted title for one legacy chat so we can assert
-			// history + title are restored.
+			// Seed a persisted title for one legacy chat so we can assert the
+			// migration restores catalog metadata without loading history.
 			const legacyAUri = URI.parse(buildChatUri(session, 'legacy-a'));
 			const legacyBUri = URI.parse(buildChatUri(session, 'legacy-b'));
 			await db.setMetadata(`customChatTitle:${legacyAUri.toString()}`, 'Legacy A Title');
@@ -3875,16 +5279,13 @@ suite('AgentService (node dispatcher)', () => {
 			localService.stateManager.deleteSession(session.toString());
 			await localService.restoreSession(session);
 
-			const stateA = localService.stateManager.getChatState(legacyAUri.toString());
-			const stateB = localService.stateManager.getChatState(legacyBUri.toString());
+			const restoredState = localService.stateManager.getSessionState(session.toString());
 			assert.deepStrictEqual({
 				legacyCalls: agent.listLegacyCallCount,
 				catalog: catalogAfterFirst.map(e => ({ uri: e.uri, providerData: e.providerData })),
-				aTitle: stateA?.title,
-				aTurns: stateA?.turns.map(t => t.id) ?? [],
-				aProviderData: localService.stateManager.getChatProviderData(legacyAUri.toString()),
-				bTurns: stateB?.turns.map(t => t.id) ?? [],
-				bProviderData: localService.stateManager.getChatProviderData(legacyBUri.toString()),
+				aTitle: restoredState?.chats.find(chat => chat.resource === legacyAUri.toString())?.title,
+				aState: localService.stateManager.getChatState(legacyAUri.toString()),
+				bState: localService.stateManager.getChatState(legacyBUri.toString()),
 			}, {
 				legacyCalls: 1,
 				catalog: [
@@ -3892,10 +5293,8 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: legacyBUri.toString(), providerData: 'lp-b' },
 				],
 				aTitle: 'Legacy A Title',
-				aTurns: ['legacy-a-turn'],
-				aProviderData: 'lp-a',
-				bTurns: ['legacy-b-turn'],
-				bProviderData: 'lp-b',
+				aState: undefined,
+				bState: undefined,
 			});
 		});
 
@@ -4052,6 +5451,23 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('subscriber refcount eviction', () => {
 
+		class DelayedReleaseMockAgent extends MockAgent {
+			readonly release = new DeferredPromise<void>();
+			readonly events: string[] = [];
+
+			override async releaseSession(session: URI): Promise<void> {
+				this.events.push('release:start');
+				await super.releaseSession(session);
+				await this.release.p;
+				this.events.push('release:end');
+			}
+
+			override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+				this.events.push('metadata');
+				return super.getSessionMetadata(session);
+			}
+		}
+
 		test('an empty session created in this lifetime stays observable until GC fires', async () => {
 			service.registerProvider(copilotAgent);
 			const sessionResource = await service.createSession({ provider: 'copilot' });
@@ -4166,6 +5582,31 @@ suite('AgentService (node dispatcher)', () => {
 				const normalizeTurns = (turns: ISessionWithDefaultChat['turns']) =>
 					turns.map(turn => ({ ...turn, responseParts: turn.responseParts.map(part => ({ ...part, id: undefined })) }));
 				assert.deepStrictEqual(normalizeTurns(after.turns), normalizeTurns(before.turns), 'restored turns match the pre-eviction state');
+			});
+		});
+
+		test('restore waits for provider release to finish', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new DelayedReleaseMockAgent('copilot');
+				service.registerProvider(agent);
+				const { session } = await agent.createSession();
+				const sessions = await agent.listSessions();
+				const sessionResource = sessions[0].session;
+
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+				];
+				await service.restoreSession(sessionResource);
+				agent.events.length = 0;
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				const restore = service.subscribe(sessionResource, 'client-2');
+				await agent.release.complete();
+				await restore;
+				assert.deepStrictEqual(agent.events, ['release:start', 'release:end', 'metadata']);
 			});
 		});
 
@@ -4295,7 +5736,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('addSubscriber for <session>/changeset/uncommitted triggers the first git diff refresh', async () => {
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
-			copilotAgent.sessionMetadataOverrides = { workingDirectory };
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
 			// Recording git service: a call to `computeSessionFileDiffs`
 			// with `baseBranch=undefined` is the signature of the uncommitted
@@ -4339,7 +5780,7 @@ suite('AgentService (node dispatcher)', () => {
 			// URI from any other client must also fire its own refresh.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh-2' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
-			copilotAgent.sessionMetadataOverrides = { workingDirectory };
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
 			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
@@ -4380,7 +5821,7 @@ suite('AgentService (node dispatcher)', () => {
 			//    from disk, and MUST drain the pending refresh.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-restore-drain' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
-			copilotAgent.sessionMetadataOverrides = { workingDirectory };
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
 			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
@@ -4532,6 +5973,79 @@ suite('AgentService (node dispatcher)', () => {
 				// cancelled by createSession, dispose would have fired.
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+			});
+		});
+
+		test('a restored session that loaded zero turns is never GC-disposed', () => {
+			// Regression: GC used to key purely off "0 turns", but a restored
+			// session can present as empty because its history FAILED to load.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				await copilotAgent.createSession();
+				const sessions = await copilotAgent.listSessions();
+				const sessionResource = sessions[0].session;
+
+				// No messages => restores with zero turns, exactly as a failed
+				// history load would look.
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					disposed: copilotAgent.disposeSessionCalls.map(u => u.toString()),
+					released: copilotAgent.releaseSessionCalls.map(u => u.toString()),
+				}, {
+					// Nothing destroyed, but the non-destructive idle release still happens.
+					disposed: [],
+					released: [sessionResource.toString()],
+				});
+			});
+		});
+
+		test('a session restored during the grace window is not GC-disposed', () => {
+			// The rehydrated session is deliberately still empty, so that the
+			// turns check cannot be what saves it — only draft status can.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.stateManager.deleteSession(sessionResource.toString());
+				copilotAgent.sessionMessages = [];
+				await service.restoreSession(sessionResource);
+				assert.strictEqual(service.stateManager.isUnusedDraft(sessionResource.toString()), false, 'precondition: session is now durable state');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a session restored mid-grace must not be GC-disposed');
+			});
+		});
+
+		test('a session truncated back to zero turns is not GC-disposed', () => {
+			// A session created in this process that has been used is durable
+			// data — its worktree holds real work — even though a truncate
+			// (checkpoint restore / first-message edit) empties its turns.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const chatUri = buildDefaultChatUri(sessionResource.toString());
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } }, 'client-1', 1);
+				service.dispatchAction(chatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 }, 'client-1', 2);
+
+				// Truncate every turn away, then drop the last subscriber.
+				service.dispatchAction(chatUri, { type: ActionType.ChatTruncated }, 'client-1', 3);
+				assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString())?.turns.length, 0, 'precondition: session now looks empty');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'a used session must not be GC-disposed after truncation');
 			});
 		});
 	});
@@ -4795,7 +6309,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.registerProvider(copilotAgent);
 
 			const sourceDir = URI.file('/source/repo');
-			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+			const session = await service.createSession({ provider: 'copilot', workingDirectories: [sourceDir] });
 
 			// The state manager should have the worktree path, not the source path
 			const state = service.stateManager.getSessionState(session.toString());
@@ -4808,7 +6322,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.registerProvider(copilotAgent);
 
 			const sourceDir = URI.file('/source/repo');
-			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+			const session = await service.createSession({ provider: 'copilot', workingDirectories: [sourceDir] });
 
 			const state = service.stateManager.getSessionState(session.toString());
 			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
@@ -4817,7 +6331,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restoreSession uses agent working directory in state', async () => {
 			// Agent returns the worktree path through listSessions
 			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
-			copilotAgent.sessionMetadataOverrides = { workingDirectory: worktreeDir };
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: worktreeDir ? [worktreeDir] : undefined };
 			service.registerProvider(copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
@@ -4832,6 +6346,241 @@ suite('AgentService (node dispatcher)', () => {
 			const state = service.stateManager.getSessionState(session.toString());
 			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
+
+		test('_resolveWorkingDirectoryBeforeSend returns the full set (index 0 + tail), or undefined when unset', async () => {
+			const resolver = service as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (p: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			const resolve = (resource: string) => resolver._resolveWorkingDirectoryBeforeSend({ session: resource, chat: `${resource}/chat`, turnId: 't', prompt: 'hi' });
+			const inject = (resource: string, dirs?: readonly URI[]) => service.stateManager.restoreSession({
+				resource,
+				provider: 'copilot',
+				title: 't',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: dirs?.map(d => d.toString()),
+			}, []);
+
+			const a = URI.file('/roots/a');
+			const b = URI.file('/roots/b');
+			const c = URI.file('/roots/c');
+			const multi = URI.from({ scheme: 'copilot', path: '/multi' }).toString();
+			const single = URI.from({ scheme: 'copilot', path: '/single' }).toString();
+			const none = URI.from({ scheme: 'copilot', path: '/none' }).toString();
+			inject(multi, [a, b, c]);
+			inject(single, [a]);
+			inject(none, undefined);
+
+			// No worktree isolation is configured, so index 0 resolves to itself and
+			// the additional roots are preserved as-is; a session with no roots
+			// resolves to `undefined` (the agent runs in its own scratch dir).
+			const toStrings = (r: readonly URI[] | undefined) => r?.map(d => d.toString());
+			assert.deepStrictEqual(
+				[toStrings(await resolve(multi)), toStrings(await resolve(single)), toStrings(await resolve(none))],
+				[[a, b, c].map(d => d.toString()), [a.toString()], undefined],
+			);
+		});
+
+		test('first-send worktree failure warns and falls back to the original folder', async () => {
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-failure-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const database = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.addWorktree = async () => {
+				throw new Error('git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found');
+			};
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/failure' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-failure');
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.stateManager.restoreSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: 'Worktree failure',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: [sourceDir.toString()],
+			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			localService.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'test', origin: { kind: MessageKind.User } },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const resolver = localService as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			const resolved = await resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' });
+			const chatState = localService.stateManager.getChatState(chat);
+
+			assert.deepStrictEqual({
+				resolved: resolved?.map(uri => uri.toString()),
+				activity: chatState?.activity,
+				responseParts: chatState?.activeTurn?.responseParts,
+				persistedFailure: JSON.parse((await database.getMetadata('copilot.worktree.creationFailure'))!),
+			}, {
+				resolved: [sourceDir.toString()],
+				activity: undefined,
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found`',
+					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+				}],
+				persistedFailure: {
+					sessionId: 'worktree-failure',
+					diagnostic: 'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
+				},
+			});
+		});
+
+		test('first-send worktree fallback warns when no repository root is resolved', async () => {
+			const sourceDir = URI.file('/source/repo');
+			const database = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => undefined;
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/fallback' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-fallback');
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.stateManager.restoreSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: 'Worktree fallback',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: [sourceDir.toString()],
+			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			localService.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'test', origin: { kind: MessageKind.User } },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const resolver = localService as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			const resolved = await resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' });
+
+			assert.deepStrictEqual({
+				resolved: resolved?.map(uri => uri.toString()),
+				responseParts: localService.stateManager.getChatState(chat)?.activeTurn?.responseParts,
+				persistedFailure: JSON.parse((await database.getMetadata('copilot.worktree.creationFailure'))!),
+			}, {
+				resolved: [sourceDir.toString()],
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.',
+					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
+				}],
+				persistedFailure: { sessionId: 'worktree-fallback' },
+			});
+		});
+	});
+
+	test('provisional workspace session advertises Uncommitted Changes before materialization', async () => {
+		class ProvisionalMockAgent extends MockAgent {
+			override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				const result = await super.createSession(config);
+				return { ...result, provisional: true };
+			}
+		}
+
+		const workingDirectory = URI.file('/workspace');
+		const gitCalls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.getSessionGitState = async resource => {
+			gitCalls.push(resource.toString());
+			return {
+				hasGitHubRemote: false,
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 1,
+			};
+		};
+		gitService.computeSessionFileDiffs = async () => [];
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const provisionalAgent = new ProvisionalMockAgent('provisional');
+		disposables.add(toDisposable(() => provisionalAgent.dispose()));
+		localService.registerProvider(provisionalAgent);
+
+		const workspaceSession = await localService.createSession({
+			provider: provisionalAgent.id,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+		});
+		const uncommittedUri = buildUncommittedChangesetUri(workspaceSession.toString());
+		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
+		for (let i = 0; i < 100; i++) {
+			if (localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit')) {
+				break;
+			}
+			await timeout(2);
+		}
+
+		const workspaceState = localService.stateManager.getSessionState(workspaceSession.toString());
+		assert.deepStrictEqual({
+			lifecycle: workspaceState?.lifecycle,
+			changesets: workspaceState?.changesets?.map(changeset => changeset.changeKind),
+			gitCalls,
+			hasCommit: localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit'),
+		}, {
+			lifecycle: SessionLifecycle.Creating,
+			changesets: ['uncommitted'],
+			gitCalls: [workingDirectory.toString()],
+			hasCommit: true,
+		});
+		localService.unsubscribe(URI.parse(uncommittedUri), 'client-1');
+
+		const workspaceLessSession = await localService.createSession({ provider: provisionalAgent.id });
+		assert.deepStrictEqual(
+			localService.stateManager.getSessionState(workspaceLessSession.toString())?.changesets ?? [],
+			[],
+		);
 	});
 
 	// ---- Item-2 regression: initial changeset seeding happens at create time --
@@ -4933,14 +6682,14 @@ suite('AgentService (node dispatcher)', () => {
 			// "session created in-memory now, persisted on first sendMessage"
 			// flow that Copilot CLI / Claude actually use in production.
 			class ProvisionalMockAgent extends MockAgent {
-				private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectory: URI | undefined; project: { uri: URI; displayName: string } | undefined }>();
+				private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
 				readonly onDidMaterializeSession = this._onDidMaterialize.event;
 				override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<import('../../common/agentService.js').IAgentCreateSessionResult> {
 					const result = await super.createSession(config);
 					return { ...result, provisional: true };
 				}
 				materialize(session: URI, workingDirectory?: URI): void {
-					this._onDidMaterialize.fire({ session, workingDirectory, project: undefined });
+					this._onDidMaterialize.fire({ session, workingDirectories: workingDirectory ? [workingDirectory] : undefined, project: undefined });
 				}
 			}
 

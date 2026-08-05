@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { CodexSessionConfigKey, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowCodexPermissionsPreset, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, presetForResolvedPermissions, resolveCodexPermissions, resolveCodexPermissionsPreset } from '../../../node/codex/codexSessionConfigKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -17,15 +20,22 @@ import { IAgentConfigurationService } from '../../../node/agentConfigurationServ
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
-	instantiationService.stub(IAgentConfigurationService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentConfigurationService, {
+		_serviceBrand: undefined,
+		onDidRootConfigChange: Event.None,
+		getRootValue: () => undefined,
+	});
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
+	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, new NullLogService());
 	return disposables.add(instantiationService.createInstance(CodexAgent));
 }

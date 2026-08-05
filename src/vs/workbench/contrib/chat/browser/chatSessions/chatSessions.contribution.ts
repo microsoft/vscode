@@ -464,6 +464,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		controller.setChatSessionItemArchived(sessionResource, archived);
 	}
 
+	canSetChatSessionItemRead(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemRead === 'function';
+	}
+
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemRead) {
+			throw new Error(`Session ${sessionResource.toString()} does not own read state`);
+		}
+		controller.setChatSessionItemRead(sessionResource, isRead);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];
@@ -918,7 +930,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		// registers the in-place "New {0} Session" action for them. Without
 		// this, types like `agent-host-copilotcli` (registered by the local
 		// agent host) have no `openNewChatSessionInPlace.<type>` command.
-		this._contributionDisposables.set(contribution.type, new DisposableStore());
+		const disposables = new DisposableStore();
+		this._contributionDisposables.set(contribution.type, disposables);
+		// A programmatic contribution can derive its availability (e.g. a functional
+		// `requiresCopilotSignIn`) and signal when it changes; re-fire the aggregate
+		// availability event so consumers re-evaluate. Generic — no per-provider
+		// knowledge lives here.
+		if (contribution.onDidChangeRequiresCopilotSignIn) {
+			disposables.add(contribution.onDidChangeRequiresCopilotSignIn(() => this._onDidChangeAvailability.fire()));
+		}
 		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 
@@ -1438,7 +1458,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
-		return !!contribution?.requiresCopilotSignIn;
+		if (!contribution) {
+			return false;
+		}
+		// The requirement may be a static boolean or, for programmatically-registered
+		// types (e.g. agent host), a function the contribution owns that derives it
+		// dynamically — for instance from the agent's currently-advertised protected
+		// resources, so a session type usable without GitHub (Claude native, Codex on
+		// OpenAI) reports `false` while it is. Re-evaluated whenever the contribution's
+		// availability notifier fires.
+		const requires = contribution.requiresCopilotSignIn;
+		return typeof requires === 'function' ? requires() : !!requires;
 	}
 
 	public sessionSupportsFork(sessionResource: URI): boolean {

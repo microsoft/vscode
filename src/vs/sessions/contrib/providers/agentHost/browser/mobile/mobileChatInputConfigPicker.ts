@@ -252,7 +252,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// Sheet's mode row writes through `setSessionConfigValue`, so
 		// disable the button while a resolve is in flight.
 		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
-		this._slotElement.classList.toggle('disabled', isResolving);
+		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 

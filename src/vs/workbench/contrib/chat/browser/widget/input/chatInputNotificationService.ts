@@ -8,6 +8,8 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
@@ -60,7 +62,7 @@ export interface IChatInputNotification {
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
-	readonly description: string | undefined;
+	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
@@ -71,6 +73,8 @@ export interface IChatInputNotification {
 	 * list will render it.
 	 */
 	readonly sessionTypes?: readonly string[];
+	/** Optional allow-list of concrete chat session resources that should display this notification. */
+	readonly sessionResources?: readonly URI[];
 	/**
 	 * Optional "mute" affordance rendered as a bell-slash icon button next to
 	 * the dismiss (X) button. Use for a "stop showing this entirely" action
@@ -84,7 +88,18 @@ export function isChatInputNotificationApplicableToSessionType(notification: ICh
 	return !notification.sessionTypes?.length || (!!sessionType && notification.sessionTypes.includes(sessionType));
 }
 
+export function isChatInputNotificationApplicableToSession(notification: IChatInputNotification, sessionType: string | undefined, sessionResource: URI | undefined): boolean {
+	return isChatInputNotificationApplicableToSessionType(notification, sessionType)
+		&& (!notification.sessionResources?.length || (!!sessionResource && notification.sessionResources.some(resource => isEqual(resource, sessionResource))));
+}
+
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
+
+/** Identifies the chat session a message was sent in. */
+export interface IChatInputNotificationSessionContext {
+	readonly sessionType: string | undefined;
+	readonly sessionResource: URI | undefined;
+}
 
 export interface IChatInputNotificationService {
 	readonly _serviceBrand: undefined;
@@ -120,10 +135,13 @@ export interface IChatInputNotificationService {
 	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
 	/**
-	 * Called when the user sends a chat message. Auto-dismisses all notifications
-	 * that have {@link IChatInputNotification.autoDismissOnMessage} set.
+	 * Called when the user sends a chat message. Auto-dismisses the notifications
+	 * that have {@link IChatInputNotification.autoDismissOnMessage} set and that
+	 * apply to the session the message was sent in, so a message in one session
+	 * doesn't hide session-scoped notifications belonging to another. When no
+	 * context is given, all such notifications are dismissed.
 	 */
-	handleMessageSent(): void;
+	handleMessageSent(context?: IChatInputNotificationSessionContext): void;
 
 	/**
 	 * Announce a notification that a chat input is about to render to screen
@@ -211,13 +229,17 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		return best;
 	}
 
-	handleMessageSent(): void {
+	handleMessageSent(context?: IChatInputNotificationSessionContext): void {
 		let changed = false;
 		for (const notification of this._notifications.values()) {
-			if (notification.autoDismissOnMessage && !this._dismissed.has(notification.id)) {
-				this._dismissed.add(notification.id);
-				changed = true;
+			if (!notification.autoDismissOnMessage || this._dismissed.has(notification.id)) {
+				continue;
 			}
+			if (context && !isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
+				continue;
+			}
+			this._dismissed.add(notification.id);
+			changed = true;
 		}
 		if (changed) {
 			this._fireDidChange();
@@ -238,7 +260,8 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			return;
 		}
 		const rawMessage = typeof notification.message === 'string' ? notification.message : notification.message.value;
-		const signature = `${notification.id}\u0000${rawMessage}\u0000${notification.description ?? ''}`;
+		const rawDescription = typeof notification.description === 'string' ? notification.description : notification.description?.value ?? '';
+		const signature = `${notification.id}\u0000${rawMessage}\u0000${rawDescription}`;
 		if (this._announcedById.get(notification.id) === signature) {
 			return;
 		}
@@ -247,7 +270,8 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		// targets, etc. verbatim. Done after the de-dupe check so we don't pay
 		// the parse cost on unrelated re-renders.
 		const message = renderAsPlaintext(notification.message);
-		const text = notification.description ? `${message}. ${notification.description}` : message;
+		const description = notification.description ? renderAsPlaintext(notification.description) : '';
+		const text = description ? `${message}. ${description}` : message;
 		status(text);
 	}
 }

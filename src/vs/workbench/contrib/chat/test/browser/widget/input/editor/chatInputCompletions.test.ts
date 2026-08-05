@@ -15,16 +15,24 @@ import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
+import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
+import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
-import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../../../../common/chatSessionsService.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
+import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
+import { IChatWidget } from '../../../../../browser/chat.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 
 class TestChatSessionsService extends MockChatSessionsService {
 	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
 		return {
 			items: [{
 				insertText: '#roadmap.md',
+				start: { lineNumber: 1, column: 1 },
+				end: { lineNumber: 1, column: 2 },
 				attachment: {
 					kind: 'resource',
 					uri: URI.file('/workspace/roadmap.md'),
@@ -34,7 +42,36 @@ class TestChatSessionsService extends MockChatSessionsService {
 	}
 }
 
+class OrderedTestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [
+				{
+					insertText: '#z-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/long/workspace/src/index.ts') },
+				},
+				{
+					insertText: '#a-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/src/index.ts') },
+				},
+			],
+		};
+	}
+}
+
 class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> {
+	constructor(
+		languageFeaturesService: LanguageFeaturesService,
+		chatSessionsService: IChatSessionsService,
+		private readonly _completionKind = CompletionItemKind.File,
+	) {
+		super(languageFeaturesService, chatSessionsService);
+	}
+
 	register(): IDisposable {
 		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', ['#'], undefined);
 	}
@@ -48,7 +85,7 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 			label: item.insertText,
 			insertText: item.insertText,
 			range: Range.fromPositions(position),
-			kind: CompletionItemKind.File,
+			kind: this._completionKind,
 		};
 	}
 }
@@ -73,10 +110,106 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				filterText: '#',
+				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.File,
 			}],
 			incomplete: true,
+		});
+	});
+
+	test('marks non-file results incomplete so the host can fuzzy match them', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService(), CompletionItemKind.Text));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				filterText: '#',
+				sortText: '000000',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.Text,
+			}],
+			incomplete: true,
+		});
+	});
+
+	test('uses a common current-token filter score to preserve host order', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#src/index', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 11), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.suggestions.map(item => ({
+			label: item.label,
+			filterText: item.filterText,
+			sortText: item.sortText,
+		})), [
+			{ label: '#z-index.ts', filterText: '#src/index', sortText: '000000' },
+			{ label: '#a-index.ts', filterText: '#src/index', sortText: '000001' },
+		]);
+	});
+});
+
+/**
+ * Test double exposing the protected {@link AgentHostInputCompletions._buildItem}
+ * so the accepted-range invariant can be asserted directly.
+ */
+class TestableAgentHostInputCompletions extends AgentHostInputCompletions {
+	buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem | undefined {
+		return this._buildItem(position, item, widget);
+	}
+}
+
+suite('AgentHostInputCompletions #chat references', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepting a multi-word #chat reference registers a range covering the whole token', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const widget = upcastPartial<IChatWidget>({});
+		// The completion carries the opaque backend chat URI, stored verbatim on
+		// the accepted reference entry.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
+
+		// The host inserts `#chat:<title> ` (trailing space) spanning columns 1..19.
+		const built = completions.buildItem(new Position(1, 19), {
+			insertText: '#chat:Design chat ',
+			start: { lineNumber: 1, column: 1 },
+			end: { lineNumber: 1, column: 19 },
+			attachment: {
+				kind: 'chat',
+				uri: chatResource,
+				endTurn: 'turn-5',
+				title: 'Design chat',
+			},
+		}, widget);
+
+		const argument = built?.command?.arguments?.[0] as { id: string; range: Range } | undefined;
+		assert.deepStrictEqual({ id: argument?.id, range: argument?.range }, {
+			// Stable dynamic-variable id, so the parser treats the reference as one part.
+			id: createChatReferenceVariableEntry(chatResource, 'turn-5', 'Design chat').id,
+			// Covers `#chat:Design chat` (columns 1..18, end-exclusive) — the whole
+			// token minus the trailing space, never a partial slice.
+			range: new Range(1, 1, 1, 18),
 		});
 	});
 });

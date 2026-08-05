@@ -8,6 +8,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -15,23 +16,34 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
-// it the F1 "Dictate: Select Microphone" command stays discoverable.
+// it the F1 "Select Microphone" command stays discoverable.
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
-/** True while the on-device model is downloading/loading (the mic shows a spinner instead). */
+/** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
+const ChatSpeechToTextMaiBackend = ContextKeyExpr.equals('config.dictation.model', 'mai');
+/**
+ * True unless the user has hidden the chat-input dictation microphone button via
+ * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
+ * Cmd/Ctrl+I dictation shortcut stays available so dictation can still be
+ * launched when the button is hidden.
+ */
+const ChatSpeechToTextButtonShown = ContextKeyExpr.notEquals(`config.${DictationSettingId.ShowButton}`, false);
 
 /** Releases shorter than this are treated as an accidental tap and discarded. */
 const HOLD_TO_TALK_THRESHOLD_MS = 500;
@@ -41,6 +53,20 @@ export interface IDictationShortcutContext {
 	readonly speechService: IChatSpeechToTextService;
 	readonly keybindingService: IKeybindingService;
 	readonly logService: ILogService;
+	/**
+	 * Supplied by chat inputs only. The first dictation started from one shows
+	 * its introduction alongside recording; editor and terminal dictation have
+	 * nowhere to dock the card.
+	 */
+	readonly onboardingService?: IDictationOnboardingService;
+}
+
+/** Resolves a toggle invocation against the current dictation lifecycle. */
+export function getDictationShortcutOperation(dictating: boolean, state: ChatSpeechToTextState, preparingModel: boolean): 'start' | 'stop' | 'cancel' | undefined {
+	if (dictating) {
+		return preparingModel ? 'cancel' : 'stop';
+	}
+	return state === ChatSpeechToTextState.Idle ? 'start' : undefined;
 }
 
 /**
@@ -53,27 +79,41 @@ export interface IDictationShortcutContext {
  * returns `undefined` when not invoked through a held key (e.g. the toolbar mic
  * or the command palette), collapsing the behavior to a plain toggle.
  */
-export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
+export async function runDictationShortcut(
+	context: IDictationShortcutContext,
+	commandId: string,
+	editor: ICodeEditor,
+	startDictationFn: typeof startDictation = startDictation,
+): Promise<void> {
 	const { speechService, keybindingService, logService } = context;
 
-	// A second invocation while dictating always stops (toggles off). This is the
-	// tap-again-to-stop path and also how the toolbar stop button behaves.
-	if (isDictating()) {
-		await stopDictation();
-		return;
-	}
-
-	if (speechService.state !== ChatSpeechToTextState.Idle) {
-		return;
+	switch (getDictationShortcutOperation(isDictating(), speechService.state, speechService.isPreparingModel)) {
+		case 'cancel':
+			cancelDictation();
+			return;
+		case 'stop':
+			await stopDictation();
+			return;
+		case undefined:
+			return;
 	}
 
 	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();
+
+	// The first-run card is informational and must not delay recording.
+	context.onboardingService?.showIfNeeded();
 
 	// Attempt to detect a held keybinding. Returns `undefined` when not invoked
 	// through a held key (e.g. the toolbar mic or the command palette), which
 	// collapses the behavior to a plain toggle.
 	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
-	await startDictation(speechService, editor, window, logService);
+	await startDictationFn(speechService, editor, window, logService);
+	if (speechService.state === ChatSpeechToTextState.Recording) {
+		context.onboardingService?.refreshMicrophones(
+			speechService.analyserNode,
+			deviceId => speechService.switchMicrophone(window, deviceId),
+		);
+	}
 	if (!holdMode) {
 		return;
 	}
@@ -111,7 +151,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 			keybinding: {
@@ -124,6 +164,8 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatSpeechToTextConfigured,
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.focus.negate(),
+					NOTEBOOK_EDITOR_FOCUSED.negate(),
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 			},
@@ -143,13 +185,13 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			speechService: accessor.get(IChatSpeechToTextService),
 			keybindingService: accessor.get(IKeybindingService),
 			logService: accessor.get(ILogService),
+			onboardingService: accessor.get(IDictationOnboardingService),
 		}, ToggleChatSpeechToTextAction.ID, widget.inputEditor);
 	}
 }
 
 /**
- * Shown in place of the mic button while the on-device model is downloading/loading.
- * Renders a cloud-download affordance; clicking it cancels an in-flight dictation (if any).
+ * Shown in place of the mic button while the on-device model downloads or loads.
  */
 export class ChatSpeechToTextPreparingAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.speechToTextPreparing';
@@ -160,12 +202,40 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			title: localize2('chat.speechToText.preparing', "Preparing Speech to Text Model…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: Codicon.cloudDownload,
+			icon: Codicon.micDownloadCompact,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				group: 'navigation',
+			}],
+		});
+	}
+
+	async run(): Promise<void> {
+		if (isDictating()) {
+			cancelDictation();
+		}
+	}
+}
+
+/** Shown in place of the mic button while cloud dictation connects. */
+export class ChatSpeechToTextConnectingAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.speechToTextConnecting';
+
+	constructor() {
+		super({
+			id: ChatSpeechToTextConnectingAction.ID,
+			title: localize2('chat.speechToText.connecting', "Connecting to Speech to Text…"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			icon: Codicon.loadingCompact,
+			precondition: ChatSpeechToTextPreparing,
+			menu: [{
+				id: MenuId.ChatExecute,
+				order: -11,
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 		});
@@ -229,10 +299,12 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 	constructor() {
 		super({
 			id: SelectSpeechToTextMicrophoneAction.ID,
-			title: localize2('chat.speechToText.selectMicrophone', "Dictate: Select Microphone"),
+			title: localize2('chat.speechToText.selectMicrophone', "Select Microphone"),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ChatSpeechToTextConfigured,
+			// Shared by dictation and Voice Mode (both persist to the same
+			// device), so stay available whenever either feature is enabled.
+			precondition: ContextKeyExpr.or(ChatSpeechToTextConfigured, ContextKeyExpr.equals('config.agents.voice.enabled', true)),
 		});
 	}
 
@@ -242,21 +314,7 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
 
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
+		if (!devices.some(device => device.kind === 'audioinput')) {
 			quickInputService.pick([{ label: localize('chatStt.noMicrophones', "No microphones found") }]);
 			return;
 		}
@@ -265,19 +323,11 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
 
 		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [{
-			label: localize('chatStt.systemDefault', "System Default"),
-			description: currentDeviceId === '' ? localize('chatStt.current', "(current)") : undefined,
-			deviceId: '',
-		}];
-		for (const d of audioInputs) {
-			const label = d.label || localize('chatStt.unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
+		const items: DevicePickItem[] = buildMicrophoneOptions(devices).map(device => ({
+			label: device.label,
+			description: device.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
+			deviceId: device.deviceId,
+		}));
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: localize('chatStt.selectMic', "Select a microphone for dictation"),
@@ -291,6 +341,47 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 				storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
 			}
 		}
+	}
+}
+
+class ShowChatSpeechToTextIntroductionAction extends Action2 {
+	static readonly ID = SHOW_DICTATION_ONBOARDING_COMMAND;
+
+	constructor() {
+		super({
+			id: ShowChatSpeechToTextIntroductionAction.ID,
+			title: localize2('chat.speechToText.showIntroduction', "Dictate: Show Introduction"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const onboardingService = accessor.get(IDictationOnboardingService);
+		if (onboardingService.show()) {
+			return;
+		}
+
+		// The card docks to a chat input, so there is nothing to show it in when
+		// no chat is open. Say so rather than appearing to do nothing.
+		accessor.get(INotificationService).info(localize('chatStt.introductionNeedsChat', "Open a chat to see the dictation introduction."));
+	}
+}
+
+class ResetChatSpeechToTextIntroductionAction extends Action2 {
+	constructor() {
+		super({
+			id: RESET_DICTATION_ONBOARDING_COMMAND,
+			title: localize2('chat.speechToText.resetIntroduction', "Dictate: Reset Onboarding"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IDictationOnboardingService).reset();
 	}
 }
 
@@ -328,8 +419,11 @@ export function registerChatSpeechToTextActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(ToggleChatSpeechToTextAction));
 	store.add(registerAction2(ChatSpeechToTextPreparingAction));
+	store.add(registerAction2(ChatSpeechToTextConnectingAction));
 	store.add(registerAction2(HoldToSpeechToTextAction));
 	store.add(registerAction2(CancelChatSpeechToTextAction));
+	store.add(registerAction2(ShowChatSpeechToTextIntroductionAction));
+	store.add(registerAction2(ResetChatSpeechToTextIntroductionAction));
 	store.add(registerAction2(SelectSpeechToTextMicrophoneAction));
 	return store;
 }

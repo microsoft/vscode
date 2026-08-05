@@ -5,6 +5,7 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -50,6 +51,7 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	isJsonRpcResponse,
+	ProtocolError,
 	type AhpNotification,
 	type JsonRpcNotification,
 	type JsonRpcRequest,
@@ -58,13 +60,23 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { recordAhpSurface } from './ahpSurfaceCoverage.js';
+import { isCI, isWindows } from '../../../../base/common/platform.js';
+
+const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
 interface IPendingCall {
 	resolve: (result: unknown) => void;
 	reject: (err: Error) => void;
+}
+
+function getProtocolOperationTimeout(): number {
+	if (AGENT_HOST_E2E_COVERAGE) {
+		return 30_000;
+	}
+	return isWindows ? 8_000 : 5_000;
 }
 
 type ReverseRequestMethod =
@@ -105,6 +117,13 @@ type ReverseRequestResultByMethod = {
 	resourceCopy: ResourceCopyResult;
 };
 
+/** A reverse request the host sent to the client, as observed on the wire. */
+export interface IServedReverseRequest {
+	readonly method: ReverseRequestMethod;
+	/** The resource the request targets, or `undefined` if it carries none. */
+	readonly uri: string | undefined;
+}
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
@@ -113,6 +132,15 @@ export class TestProtocolClient {
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 	private _nextWatchId = 1;
+	private _closed = false;
+	/**
+	 * Reverse requests this client has served, in arrival order. Lets a test
+	 * assert that the host actually reached back to the client for filesystem
+	 * access rather than resolving a path locally. `uri` is absent when the
+	 * request carries no resource (rather than being recorded as an empty
+	 * string, which would be indistinguishable from a real one).
+	 */
+	private readonly _servedReverseRequests: IServedReverseRequest[] = [];
 
 	constructor(
 		port: number,
@@ -144,15 +172,21 @@ export class TestProtocolClient {
 				this._pendingCalls.delete(msg.id);
 				const errResp = msg as JsonRpcErrorResponse;
 				if (errResp.error) {
-					pending.reject(new Error(errResp.error.message));
+					pending.reject(new ProtocolError(errResp.error.code, errResp.error.message, errResp.error.data));
 				} else {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
 		} else if (isJsonRpcRequest(msg)) {
+			recordAhpSurface('command', msg.method);
 			void this._handleServerRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
+			recordAhpSurface('notification', notif.method);
+			if (notif.method === 'action') {
+				const envelope = notif.params as unknown as ActionEnvelope | undefined;
+				recordAhpSurface('action', envelope?.action?.type ?? '');
+			}
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -163,6 +197,8 @@ export class TestProtocolClient {
 			if (!this._isReverseRequestMethod(msg.method)) {
 				throw new Error(`Unsupported reverse request method: ${msg.method}`);
 			}
+			const params = msg.params as { uri?: string; source?: string } | undefined;
+			this._servedReverseRequests.push({ method: msg.method, uri: params?.uri ?? params?.source });
 			const result = await this._handleServerRequestMethod(msg.method, msg.params as ReverseRequestParamsByMethod[ReverseRequestMethod]);
 			const response: JsonRpcSuccessResponse = { jsonrpc: '2.0', id: msg.id, result };
 			this._ahpSnapshot.record('c2s', response);
@@ -392,6 +428,11 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
+		recordAhpSurface('command', method);
+		if (method === 'dispatchAction') {
+			const dispatched = params as DispatchActionParams | undefined;
+			recordAhpSurface('action', dispatched?.action?.type ?? '');
+		}
 		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
 		this._ahpSnapshot.record('c2s', message);
 		this._ws.send(JSON.stringify(message));
@@ -411,11 +452,11 @@ export class TestProtocolClient {
 	}
 
 	/** Send a JSON-RPC request and await the response. */
-	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
+	call<T>(method: string, params?: unknown, timeoutMs = getProtocolOperationTimeout()): Promise<T> {
+		recordAhpSurface('command', method);
 		const id = this._nextId++;
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._ahpSnapshot.record('c2s', message);
-		this._ws.send(JSON.stringify(message));
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this._pendingCalls.delete(id);
@@ -426,11 +467,18 @@ export class TestProtocolClient {
 				resolve: result => { clearTimeout(timer); resolve(result as T); },
 				reject: err => { clearTimeout(timer); reject(err); },
 			});
+			try {
+				this._ws.send(JSON.stringify(message));
+			} catch (error) {
+				this._pendingCalls.delete(id);
+				clearTimeout(timer);
+				reject(error);
+			}
 		});
 	}
 
 	/** Wait for a server notification matching a predicate. */
-	waitForNotification(predicate: (n: AhpNotification) => boolean, timeoutMs = 5000): Promise<AhpNotification> {
+	waitForNotification(predicate: (n: AhpNotification) => boolean, timeoutMs = getProtocolOperationTimeout()): Promise<AhpNotification> {
 		const existing = this._notifications.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
@@ -486,7 +534,7 @@ export class TestProtocolClient {
 	}
 
 	/** Wait for the next raw message from the server. */
-	waitForRawMessage(timeoutMs = 5000): Promise<unknown> {
+	waitForRawMessage(timeoutMs = getProtocolOperationTimeout()): Promise<unknown> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				cleanup();
@@ -506,6 +554,10 @@ export class TestProtocolClient {
 	}
 
 	close(): void {
+		if (this._closed) {
+			return;
+		}
+		this._closed = true;
 		for (const w of this._notifWaiters) {
 			w.dispose();
 			w.reject(new Error('Client closed'));
@@ -520,6 +572,19 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
+	}
+
+	/**
+	 * Reverse requests the host has sent to this client, in arrival order.
+	 * Separate from {@link clearReceived} so resetting notifications does not
+	 * silently discard this history.
+	 */
+	get servedReverseRequests(): readonly IServedReverseRequest[] {
+		return this._servedReverseRequests;
+	}
+
+	clearServedReverseRequests(): void {
+		this._servedReverseRequests.length = 0;
 	}
 
 	clearAhpSnapshot(): void {
@@ -562,6 +627,41 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
+const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+
+/** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
+export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+
+	const serverExit = new Promise<void>(resolve => {
+		const onExit = () => resolve();
+		serverProcess.once('exit', onExit);
+		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+			serverProcess.removeListener('exit', onExit);
+			resolve();
+		}
+	});
+	serverProcess.stdin?.end();
+	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+		try {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				const killed = serverProcess.kill('SIGKILL');
+				if (!killed && serverProcess.exitCode === null && serverProcess.signalCode === null) {
+					throw new Error('Failed to terminate Agent Host test server');
+				}
+			}
+		} catch (error) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				throw error;
+			}
+		}
+		await serverExit;
+	}
+}
+
 interface IMockLlmServerHandle {
 	readonly url: string;
 	requestCount(): number;
@@ -584,10 +684,8 @@ export interface IMockScenario {
 	readonly definition: unknown;
 }
 
-const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
-
-export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, coverageTimeoutMs: number): number {
-	return AGENT_HOST_E2E_COVERAGE ? coverageTimeoutMs : normalTimeoutMs;
+export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTimeoutMs: number): number {
+	return AGENT_HOST_E2E_COVERAGE || isCI || isWindows ? extendedTimeoutMs : normalTimeoutMs;
 }
 
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -681,18 +779,23 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
 	const realCapture = options?.capiReplay?.real === true;
 	const mockLlmServer = (options?.mockLlm || (options?.capiReplay && !realCapture)) ? await startMockLlmServer(options?.mockScenarios) : undefined;
-	let capiReplayProxy: CapiReplayProxy | undefined;
-	if (options?.capiReplay) {
+	let capiReplayProxy = options?.existingCapiReplay;
+	if (capiReplayProxy && !options?.capiReplay) {
+		throw new Error('Reusing a CAPI replay proxy requires its replay configuration');
+	}
+	if (options?.capiReplay && !capiReplayProxy) {
 		capiReplayProxy = new CapiReplayProxy(realCapture ? {
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
 			workDir: options.capiReplay.workDir,
+			allowPosixCommands: options.capiReplay.allowPosixCommands,
+			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			// Real hosts (consumer defaults); override for Enterprise/Business accounts.
@@ -702,6 +805,8 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
 			workDir: options.capiReplay.workDir,
+			allowPosixCommands: options.capiReplay.allowPosixCommands,
+			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			upstreamUrl: mockLlmServer!.url,
@@ -721,6 +826,9 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		if (options?.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
+		}
+		if (options?.logLevel) {
+			args.push('--log', options.logLevel);
 		}
 		const childEnv = withAgentHostCoverage({
 			...process.env,
@@ -742,7 +850,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			} : {}),
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
-			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
 			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {
