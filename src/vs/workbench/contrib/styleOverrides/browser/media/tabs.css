@@ -49,7 +49,8 @@
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
+	margin-right: var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size40) !important;
 	--tab-border-top-color: transparent !important;
 }
 
@@ -59,11 +60,24 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	border-bottom: none;
-	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
-	row-gap: 0;
+	row-gap: var(--vscode-spacing-size40);
+}
+
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab > .tab-fill {
+	display: block;
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	pointer-events: none;
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab > .tab-label {
+	position: relative;
+	z-index: 1;
 }
 
 .style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
@@ -134,15 +148,7 @@
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
-}
-
-.style-override:is(.hc-black, .hc-light) .part.editor .tabs-and-actions-container {
-	padding-top: var(--vscode-spacing-size40);
-}
-
-.style-override .part.editor .title.two-tab-bars > .tabs-and-actions-container {
-	padding-top: 0;
+	padding: 4px 0 0 4px;
 }
 
 /* Move the bottom gutter into the scrollable element so the horizontal
@@ -151,59 +157,33 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-/* Grow the hit area around the fixed-height pill without overriding the base
- * tab height. Transparent block borders become clickable gutter while keeping
- * the label, action, and indicator geometry tied to the pill height. */
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) {
-	padding-top: 0;
-}
-
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
-	padding-bottom: 0;
-}
-
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
-	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
-}
-
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
-	border-block: var(--vscode-spacing-size40) solid transparent;
-}
-
-.style-override.monaco-workbench .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
-	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
-	border-block: var(--vscode-spacing-size20) solid transparent;
-}
-
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab > .tab-fill {
-	display: block;
-	position: absolute;
-	inset: 0 var(--vscode-spacing-size20);
-	z-index: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	pointer-events: none;
-}
-
-.style-override .part.editor .tabs-container > .tab > .tab-label {
-	position: relative;
-	z-index: 1;
-}
-
-.style-override .part.editor .tabs-container > .tab:hover > .tab-fill {
-	background-color: var(--modern-ui-tab-hover-background);
-}
-
-.style-override .part.editor .tabs-container > .tab.selected > .tab-fill {
-	background-color: var(--vscode-tab-selectedBackground);
-}
-
-.style-override .part.editor .tabs-container > .tab.active > .tab-fill {
-	background-color: var(--modern-ui-tab-active-background);
+.style-override .part.editor .tabs-container > .tab.active {
+	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground) !important;
+}
+
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:is(.active, .selected),
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:not(.active):not(.selected):hover {
+	background-color: transparent !important;
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:hover > .tab-fill {
+	background-color: var(--modern-ui-tab-hover-background);
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab.selected > .tab-fill {
+	background-color: var(--vscode-tab-selectedBackground);
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab.active > .tab-fill {
+	background-color: var(--modern-ui-tab-active-background);
 }
 
 .style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
@@ -227,6 +207,10 @@
 
 .style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
 	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover {
+	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
@@ -258,7 +242,7 @@
 	top: 0;
 	right: 0;
 	bottom: 0;
-	margin: 0 var(--vscode-spacing-size20);
+	margin: 0;
 	width: 24px;
 	overflow: visible;
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
@@ -346,6 +330,11 @@
 	font-family: var(--vscode-icon-pinned-font-family);
 }
 
+/* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	background-color: transparent !important;
+}
+
 .style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .sticky-tabs-background {
 	position: absolute;
 	top: 0;
@@ -357,12 +346,16 @@
 	pointer-events: none;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element > .sticky-tabs-background {
-	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
-}
-
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 11;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.active {
+	background-color: var(--modern-ui-tab-active-background) !important;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):not(.selected):hover {
+	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container {
@@ -495,10 +488,6 @@
 	background-color: transparent !important;
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
 	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
-}
-
-:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:is(.selected:not(.active), .active.multi-selected) > .tab-border-top-container {
-	display: none !important;
 }
 
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):focus:hover {
