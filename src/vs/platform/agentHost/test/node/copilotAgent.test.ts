@@ -2129,6 +2129,26 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('models keep an open-ended, message-only promotion', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				// No `endsAt` and a zero discount: the promo must survive normalization.
+				billing: { multiplier: 1, promo: { id: 'featured', discountPercent: 0, message: 'Now available' } },
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models[0]._meta?.promo, { id: 'featured', discountPercent: 0, message: 'Now available' });
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('configSchema emits a thinkingLevel property when the model advertises reasoning efforts', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{

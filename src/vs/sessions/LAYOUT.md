@@ -111,10 +111,10 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 | Section | Menu ID | Content |
 |---------|---------|---------|
 | Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment), agent host filter |
-| Center | `Menus.CommandCenter` | Session picker widget (plus `Menus.TitleBarSessionMenu` for active-session actions) |
-| Right | `Menus.TitleBarRightLayout` | Remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
+| Center | `Menus.CommandCenter` | Session picker widget |
+| Right | `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout` | Active-session actions (including Create Pull Request), remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
 
-No menubar, no editor actions, no `WindowTitle` dependency.
+No menubar or `WindowTitle` dependency. Editor-specific actions remain in the editor header, while session-level actions are placed on the right of the title bar.
 
 The account widget shows overlapping provider identities only for accounts that are currently verified as signed in. Its panel keeps provider and status groups in a stable order: Copilot, ChatGPT (or its sign-in action), then contributed account status such as Codebase Semantic Index, with dividers between groups. Subscription usage uses a two-row metric layout with the plan and percentage first, followed by reset timing and the usage label.
 
