@@ -45,7 +45,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -60,6 +60,11 @@ import {
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+
+function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
+	return isProUser(chatEntitlementService.entitlement)
+		&& (chatEntitlementService.entitlement !== ChatEntitlement.Enterprise || chatEntitlementService.isInternal);
+}
 
 /** One buffered audio chunk of a deferred response. */
 interface IDeferredChunk {
@@ -788,7 +793,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		super();
 
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			if (!isProUser(this.chatEntitlementService.entitlement)) {
+			if (!isVoiceEntitled(this.chatEntitlementService)) {
 				this.disconnect();
 			}
 		}));
@@ -983,8 +988,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
-		if (!isProUser(this.chatEntitlementService.entitlement)) {
-			this.notificationService.warn(localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
+		if (!isVoiceEntitled(this.chatEntitlementService)) {
+			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('voiceMode.enterpriseUnavailable', "Voice Mode is not available for GitHub Copilot Enterprise accounts.")
+				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
 			return;
 		}
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;

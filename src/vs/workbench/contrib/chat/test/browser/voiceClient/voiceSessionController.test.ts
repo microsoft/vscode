@@ -226,6 +226,7 @@ class VoiceTestNotificationService extends TestNotificationService {
 }
 
 class MutableTestChatEntitlementService extends TestChatEntitlementService {
+	override readonly isInternal: boolean = false;
 	private readonly _onDidChangeEntitlement = new Emitter<void>();
 	override readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
 
@@ -233,6 +234,10 @@ class MutableTestChatEntitlementService extends TestChatEntitlementService {
 		this.entitlement = entitlement;
 		this._onDidChangeEntitlement.fire();
 	}
+}
+
+class InternalTestChatEntitlementService extends MutableTestChatEntitlementService {
+	override readonly isInternal = true;
 }
 
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
@@ -488,7 +493,7 @@ suite('VoiceSessionController', () => {
 		}(),
 		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
 		notificationService: INotificationService = new VoiceTestNotificationService(),
-		chatEntitlementService: TestChatEntitlementService = Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Pro }),
+		chatEntitlementService: IChatEntitlementService = Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Pro }),
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -590,6 +595,57 @@ suite('VoiceSessionController', () => {
 		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
 
 		assert.strictEqual(controller.isConnected.get(), false);
+	});
+
+	test('restricts Voice Mode for external Enterprise users but allows internal staff', async () => {
+		const externalNotifications = new VoiceTestNotificationService();
+		const externalEntitlement = new MutableTestChatEntitlementService();
+		externalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const externalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			externalNotifications,
+			externalEntitlement,
+		);
+
+		const internalNotifications = new VoiceTestNotificationService();
+		const internalEntitlement = new InternalTestChatEntitlementService();
+		internalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const internalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			internalNotifications,
+			internalEntitlement,
+		);
+
+		await externalController.connect(mainWindow);
+		await internalController.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			externalConnecting: externalController.isConnecting.get(),
+			externalNotifications: externalNotifications.notifications.map(notification => notification.message),
+			internalConnecting: internalController.isConnecting.get(),
+			internalNotifications: internalNotifications.notifications.map(notification => notification.message),
+		}, {
+			externalConnecting: false,
+			externalNotifications: ['Voice Mode is not available for GitHub Copilot Enterprise accounts.'],
+			internalConnecting: true,
+			internalNotifications: [],
+		});
 	});
 
 	test('includes response errors in the summary sent to the voice backend', () => {

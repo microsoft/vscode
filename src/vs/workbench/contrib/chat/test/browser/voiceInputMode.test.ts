@@ -11,6 +11,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 suite('VoiceInputModeService', () => {
 
@@ -31,6 +32,8 @@ suite('VoiceInputModeService', () => {
 		configurationService.setUserConfiguration('agents.voice.showButton', options.voiceButtonShown ?? true);
 		configurationService.setUserConfiguration('dictation.showButton', options.dictationButtonShown ?? true);
 		const contextKeyService = new MockContextKeyService();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		ChatContextKeys.Entitlement.planPro.bindTo(contextKeyService).set(true);
 		const dictationService = createDictationService(options.dictationConfigured ?? false);
 		const service = store.add(new VoiceInputModeService(storageService, configurationService, contextKeyService, dictationService));
 		return { service, contextKeyService };

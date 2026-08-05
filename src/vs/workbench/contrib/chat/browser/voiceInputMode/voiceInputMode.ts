@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -11,7 +12,8 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 
 /**
@@ -137,8 +139,10 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		this.selectedMode = this._selectedMode;
 
 		this.voiceAvailable = observableFromEvent(this,
-			configurationService.onDidChangeConfiguration,
+			Event.any(configurationService.onDidChangeConfiguration, contextKeyService.onDidChangeContext),
 			() => configurationService.getValue<boolean>('agents.voice.enabled') === true
+				&& ChatContextKeys.enabled.getValue(contextKeyService) === true
+				&& AGENTS_VOICE_ENTITLED.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) })
 				&& configurationService.getValue<boolean>(AgentsVoiceSettingId.ShowButton) !== false);
 
 		// The dictation segment drives built-in on-device dictation

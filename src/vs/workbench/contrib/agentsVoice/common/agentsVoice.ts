@@ -19,12 +19,16 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
-const AGENTS_VOICE_ENTITLED = ContextKeyExpr.or(
+export const AGENTS_VOICE_ENTITLED = ContextKeyExpr.or(
 	ChatEntitlementContextKeys.Entitlement.planEdu,
 	ChatEntitlementContextKeys.Entitlement.planPro,
 	ChatEntitlementContextKeys.Entitlement.planProPlus,
 	ChatEntitlementContextKeys.Entitlement.planMax,
 	ChatEntitlementContextKeys.Entitlement.planBusiness,
+	ContextKeyExpr.and(
+		ChatEntitlementContextKeys.Entitlement.planEnterprise,
+		ChatEntitlementContextKeys.Entitlement.internal,
+	),
 )!;
 export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
