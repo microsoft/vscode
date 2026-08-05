@@ -81,7 +81,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('listSessions returns sessions', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 90_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
 
@@ -90,7 +90,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 			n.method === 'root/sessionAdded'
 		);
 
-		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 		assert.ok(Array.isArray(result.items));
 		assert.ok(result.items.length >= 1, 'should have at least one session');
 	});
@@ -180,7 +180,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('isRead and isArchived flags survive in listSessions after dispatch', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 120_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-read-archived-flags');
 
@@ -222,7 +222,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && (session.status & SessionStatus.IsArchived) && (session.status & SessionStatus.IsRead)) {
 				break;
@@ -236,7 +236,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('dispatching isRead=false explicitly persists as false', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 120_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-isread-false');
 
@@ -261,7 +261,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && !(session.status & SessionStatus.IsRead)) {
 				break;

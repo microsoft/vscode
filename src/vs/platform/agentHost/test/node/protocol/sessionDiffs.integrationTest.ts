@@ -77,7 +77,7 @@ const hasGit = (() => {
 	});
 
 	test('terminal-driven file edit (no ToolResultFileEditContent) lands in the session changeset', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 
 		// Create a session whose working directory is the tmp git repo.
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });

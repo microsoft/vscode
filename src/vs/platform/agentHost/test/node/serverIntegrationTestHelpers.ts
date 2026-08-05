@@ -73,7 +73,7 @@ interface IPendingCall {
 }
 
 function getProtocolOperationTimeout(): number {
-	if (isCI || AGENT_HOST_E2E_COVERAGE) {
+	if (AGENT_HOST_E2E_COVERAGE) {
 		return 30_000;
 	}
 	return isWindows ? 8_000 : 5_000;
