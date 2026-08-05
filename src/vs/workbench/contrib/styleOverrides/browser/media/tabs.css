@@ -17,15 +17,15 @@
  */
 
 .style-override.monaco-workbench {
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
 }
 
 .style-override.monaco-workbench.vs {
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 }
@@ -49,8 +49,7 @@
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
-	margin-right: var(--vscode-spacing-size40) !important;
-	padding: 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
 	--tab-border-top-color: transparent !important;
 }
 
@@ -59,23 +58,24 @@
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
-	border-bottom: none;
+	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
+	border-block: var(--vscode-spacing-size20) solid transparent;
 }
 
 .style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
-	row-gap: var(--vscode-spacing-size40);
+	row-gap: 0;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab > .tab-fill {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab > .tab-fill {
 	display: block;
 	position: absolute;
-	inset: 0;
+	inset: 0 var(--vscode-spacing-size20);
 	z-index: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	pointer-events: none;
 }
 
-.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab > .tab-label {
+.style-override .part.editor .tabs-container > .tab > .tab-label {
 	position: relative;
 	z-index: 1;
 }
@@ -148,7 +148,7 @@
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px 0 0 4px;
+	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
 }
 
 /* Move the bottom gutter into the scrollable element so the horizontal
@@ -157,32 +157,38 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-.style-override .part.editor .tabs-container > .tab.active {
-	background-color: var(--modern-ui-tab-active-background) !important;
+/* Grow the contiguous tab boxes around the fixed-height fills. Their transparent
+ * borders create visual gaps without introducing dead space between hit targets. */
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) {
+	padding-top: 0;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
+	padding-bottom: 0;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
+}
+
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+	border-block: var(--vscode-spacing-size40) solid transparent;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
-	background-color: var(--vscode-tab-selectedBackground) !important;
-}
-
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:is(.active, .selected),
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:not(.active):not(.selected):hover {
-	background-color: transparent !important;
-}
-
-.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:hover > .tab-fill {
+.style-override .part.editor .tabs-container > .tab:hover > .tab-fill {
 	background-color: var(--modern-ui-tab-hover-background);
 }
 
-.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab.selected > .tab-fill {
+.style-override .part.editor .tabs-container > .tab.selected > .tab-fill {
 	background-color: var(--vscode-tab-selectedBackground);
 }
 
-.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab.active > .tab-fill {
+.style-override .part.editor .tabs-container > .tab.active > .tab-fill {
 	background-color: var(--modern-ui-tab-active-background);
 }
 
@@ -207,10 +213,6 @@
 
 .style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
 	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
-}
-
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover {
-	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
@@ -242,7 +244,7 @@
 	top: 0;
 	right: 0;
 	bottom: 0;
-	margin: 0;
+	margin: 0 var(--vscode-spacing-size20);
 	width: 24px;
 	overflow: visible;
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
@@ -348,14 +350,6 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 11;
-}
-
-.style-override .part.editor .tabs-container > .tab.sticky-compact.active {
-	background-color: var(--modern-ui-tab-active-background) !important;
-}
-
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):not(.selected):hover {
-	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container {
