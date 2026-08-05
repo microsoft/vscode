@@ -34,6 +34,7 @@ import {
 	buildSubagentChatUri,
 	chatStorageUri,
 	getToolFileEdits,
+	getInlineToolInput,
 	isAhpChatChannel,
 	isDefaultChatUri,
 	isSubagentChatUri,
@@ -1234,7 +1235,7 @@ export class AgentSideEffects extends Disposable {
 			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
-			toolInput: e.state.toolInput,
+			toolInput: getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
 		};
