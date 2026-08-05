@@ -270,8 +270,9 @@
 	display: none;
 }
 
+/* Intentionally low specificity so the Modern UI style override, which renders this as a pill background, wins without !important. */
 .tabs-container > .tab > .tab-fill {
-	display: none; /* only rendered as a pill background by the Modern UI style override */
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left .tab-fade-hider,

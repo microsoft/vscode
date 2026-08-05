@@ -17,15 +17,16 @@
  */
 
 .style-override.monaco-workbench {
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
+	/* Translucent so they blend with whatever surface they overlay (e.g. the composite bar). */
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
 }
 
 .style-override.monaco-workbench.vs {
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 }
@@ -194,16 +195,17 @@
 	display: none !important;
 }
 
-.style-override .part.editor .tabs-container > .tab:hover > .tab-fill {
-	background-color: var(--modern-ui-tab-hover-background);
+/* The fill shares the tab action button's opaque background so the two blend seamlessly. */
+.style-override .part.editor .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
 }
 
-.style-override .part.editor .tabs-container > .tab.selected > .tab-fill {
+.style-override .part.editor .tabs-container > .tab.selected:not(.active) > .tab-fill {
 	background-color: var(--vscode-tab-selectedBackground);
 }
 
 .style-override .part.editor .tabs-container > .tab.active > .tab-fill {
-	background-color: var(--modern-ui-tab-active-background);
+	background-color: var(--modern-ui-editor-tab-action-active-background);
 }
 
 .style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
