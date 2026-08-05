@@ -976,6 +976,11 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 			assert.strictEqual(connection.resourceReadUris.length, 0);
 
+			IChatToolInvocation.confirmWith(
+				toolsService.begunToolCalls.find(invocation => invocation.toolCallId === 'tool-call-1'),
+				{ type: ToolConfirmKind.UserAction },
+			);
+			await timeout(0);
 			connection.resourceReadData = '{"task":"confirmed"}';
 			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
 				toolCallId: 'tool-call-1',
@@ -1528,10 +1533,6 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as ChatAction);
-			// No `confirmed` and no auto-approve metadata: the protocol call
-			// stays `PendingConfirmation`. Under the single-watcher model the
-			// client never drives a local confirmation gate, so nothing runs
-			// until the host surfaces a running client-execution record.
 			connection.applySessionAction(chatURI, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
@@ -1547,7 +1548,71 @@ suite('AgentHostClientTools', () => {
 			return chatURI;
 		}
 
-		test('confirms and completes a client tool once the agent host surfaces it as running, preserving the reason', async () => {
+		test('confirms a pending client tool before executing it exactly once', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'confirmation-tool-call-1',
+					kind: SessionInputRequestKind.ToolConfirmation,
+					chat: chatURI.toString(),
+					turnId: 'turn-1',
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'tool-call-1',
+						toolName: 'runTask',
+						displayName: 'Run Task',
+						invocationMessage: 'Run Task',
+						toolInput: '{"task":"build"}',
+						confirmationTitle: 'Run Task',
+					},
+				},
+			});
+			await timeout(0);
+
+			const invocation = toolsService.begunToolCalls.find(invocation => invocation.toolCallId === 'tool-call-1');
+			const stateBeforeApproval = invocation?.state.get().type;
+			const confirmationAccepted = IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await timeout(0);
+			const invocationsBeforeClientExecution = toolsService.invokedToolCalls.length;
+
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.UserAction,
+			});
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				stateBeforeApproval,
+				confirmationAccepted,
+				invocationsBeforeClientExecution,
+				invocationsAfterClientExecution: toolsService.invokedToolCalls.length,
+				actions: connection.dispatchedActions
+					.filter(entry => isChatAction(entry.action)
+						&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
+						&& entry.action.toolCallId === 'tool-call-1')
+					.map(entry => entry.action.type === ActionType.ChatToolCallConfirmed
+						? { type: entry.action.type, approved: entry.action.approved, confirmed: entry.action.approved ? entry.action.confirmed : undefined }
+						: { type: entry.action.type, success: entry.action.result.success }),
+			}, {
+				stateBeforeApproval: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				confirmationAccepted: true,
+				invocationsBeforeClientExecution: 0,
+				invocationsAfterClientExecution: 1,
+				actions: [
+					{ type: ActionType.ChatToolCallConfirmed, approved: true, confirmed: ToolCallConfirmationReason.UserAction },
+					{ type: ActionType.ChatToolCallComplete, success: true },
+				],
+			});
+		});
+
+		test('preserves the client tool confirmation reason through execution', async () => {
 			const reasons = [
 				ToolCallConfirmationReason.NotNeeded,
 				ToolCallConfirmationReason.Setting,
@@ -1557,12 +1622,19 @@ suite('AgentHostClientTools', () => {
 			const results: unknown[] = [];
 			for (const reason of reasons) {
 				const local = disposables.add(new DisposableStore());
-				const { handler, connection } = createHandlerWithMocks(local, [testRunTaskTool], { requireConfirmation: true });
+				const { handler, connection, toolsService } = createHandlerWithMocks(local, [testRunTaskTool], { requireConfirmation: true });
 				const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+				const confirmedReason = reason === ToolCallConfirmationReason.NotNeeded
+					? { type: ToolConfirmKind.ConfirmationNotNeeded as const }
+					: reason === ToolCallConfirmationReason.Setting
+						? { type: ToolConfirmKind.Setting as const, id: 'test-setting' }
+						: { type: ToolConfirmKind.UserAction as const };
 
-				// The agent host confirms the call by surfacing it as a running
-				// client execution with the resolved reason; the watcher then
-				// runs it pre-approved, so it never re-prompts locally.
+				IChatToolInvocation.confirmWith(
+					toolsService.begunToolCalls.find(invocation => invocation.toolCallId === 'tool-call-1'),
+					confirmedReason,
+				);
+				await timeout(0);
 				applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
 					toolCallId: 'tool-call-1',
 					toolName: 'runTask',
