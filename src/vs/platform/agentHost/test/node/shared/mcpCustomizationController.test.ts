@@ -18,7 +18,7 @@ import { AgentConfigurationService } from '../../../node/agentConfigurationServi
 import { applySessionMcpServerEnablement, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 import { getPrimaryWorkingDirectory, mcpServerPolicyKey, resolveEnablement, updateCustomizationEnablementPolicy } from '../../../node/shared/mcpServerEnablement.js';
 
-function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean } = {}) {
+function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean; resolveChildId?: (name: string) => string | undefined } = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 	const configurationService = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
@@ -52,7 +52,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		providerId: 'copilot',
 		sessionId: 'session-1',
 		sessionUri,
-		resolveChildId: name => findMcpChildId(opts.customizations ?? [], name),
+		resolveChildId: opts.resolveChildId ?? (name => findMcpChildId(opts.customizations ?? [], name)),
 		emit: a => actions.push(a),
 	}, stateManager, enablementService);
 	return { controller, actions, stateManager, configurationService, storageService, session };
@@ -364,6 +364,55 @@ suite('McpCustomizationController', () => {
 			},
 		]);
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
+	});
+
+	test('drops a server that was previously resolved as a plugin child when its child disappears', () => {
+		let childId: string | undefined = 'mcp-child:demo:fs';
+		const { controller, actions } = harness(store, {
+			resolveChildId: name => name === 'fs' ? childId : undefined,
+		});
+		store.add(controller);
+
+		controller.applyOne(server('fs', ready()));
+		childId = undefined;
+		controller.applyOne(server('fs', stopped()));
+
+		assert.deepStrictEqual({
+			actions,
+			runtimeStates: controller.runtimeStates.get(),
+			topLevelCustomizations: controller.topLevelCustomizations(),
+		}, {
+			actions: [{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Ready },
+				channel: 'mcp://copilot/session-1/fs',
+			}, {
+				type: ActionType.SessionCustomizationRemoved,
+				id: 'mcp-child:demo:fs',
+			}],
+			runtimeStates: new Map(),
+			topLevelCustomizations: [],
+		});
+	});
+
+	test('mints a top-level customization for a server never resolved as a plugin child', () => {
+		const { controller, actions } = harness(store, {
+			resolveChildId: () => undefined,
+		});
+		store.add(controller);
+
+		controller.applyOne(server('search', starting()));
+
+		assert.deepStrictEqual(actions.map(action => ({
+			type: action.type,
+			id: action.type === ActionType.SessionCustomizationUpdated ? action.customization.id : undefined,
+			enabled: action.type === ActionType.SessionCustomizationUpdated ? action.customization.enabled : undefined,
+		})), [{
+			type: ActionType.SessionCustomizationUpdated,
+			id: 'mcp-top-level:copilot:session-1:search',
+			enabled: true,
+		}]);
 	});
 
 	test('bare server (no child match) is surfaced as a full top-level customization', () => {

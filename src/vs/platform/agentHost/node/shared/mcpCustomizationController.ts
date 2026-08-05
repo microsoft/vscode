@@ -56,8 +56,8 @@ export { DEFAULT_MCP_APP_CAPABILITIES, DEFAULT_MCP_APP };
  * we resolve them by name at action-dispatch time rather than trying to
  * reconstruct the id.
  *
- * Returns `undefined` when no existing entry matches — in that case the
- * controller surfaces a bare top-level customization for the server.
+ * Returns `undefined` when no existing entry matches. The controller surfaces
+ * a bare top-level customization only when the server was never a child.
  */
 export type IMcpChildIdResolver = (serverName: string) => string | undefined;
 
@@ -128,6 +128,9 @@ export class McpCustomizationController extends Disposable {
 
 	/** Per-server live entries, keyed by server name. */
 	private readonly _live = observableValue<ReadonlyMap<string, ILiveEntry>>(this, new Map());
+
+	/** Child ids resolved during this controller's lifetime, keyed by server name. */
+	private readonly _knownChildIds = new Map<string, string>();
 
 	/**
 	 * Snapshot of every live server's runtime {@link IMcpServerRuntimeState},
@@ -291,6 +294,7 @@ export class McpCustomizationController extends Disposable {
 		if (topLevelId === undefined) {
 			const childId = this._options.resolveChildId(server.name);
 			if (childId !== undefined) {
+				this._knownChildIds.set(server.name, childId);
 				this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
 				this._options.emit({
 					type: ActionType.SessionMcpServerStateChanged,
@@ -298,6 +302,10 @@ export class McpCustomizationController extends Disposable {
 					state,
 					channel: this._buildChannel(server.name, state),
 				});
+				return;
+			}
+			if (this._knownChildIds.has(server.name)) {
+				this._remove(server.name, tx);
 				return;
 			}
 			topLevelId = this._mintTopLevelId(server.name);
@@ -317,9 +325,8 @@ export class McpCustomizationController extends Disposable {
 	 * inventory.
 	 *
 	 * For child entries we emit a final {@link ActionType.SessionMcpServerStateChanged}
-	 * carrying {@link McpServerStatus.Stopped} so the UI sees the
-	 * server settle into a terminal state; the plugin layer owns the
-	 * actual removal of the child container.
+	 * carrying {@link McpServerStatus.Stopped}. If its plugin has already
+	 * removed the child, we remove the last published child customization instead.
 	 */
 	remove(serverName: string): void {
 		transaction(tx => this._remove(serverName, tx));
@@ -339,13 +346,21 @@ export class McpCustomizationController extends Disposable {
 			return;
 		}
 		const childId = this._options.resolveChildId(serverName);
-		if (childId === undefined) {
+		if (childId !== undefined) {
+			this._options.emit({
+				type: ActionType.SessionMcpServerStateChanged,
+				id: childId,
+				state: { kind: McpServerStatus.Stopped },
+			});
+			return;
+		}
+		const knownChildId = this._knownChildIds.get(serverName);
+		if (knownChildId === undefined) {
 			return;
 		}
 		this._options.emit({
-			type: ActionType.SessionMcpServerStateChanged,
-			id: childId,
-			state: { kind: McpServerStatus.Stopped },
+			type: ActionType.SessionCustomizationRemoved,
+			id: knownChildId,
 		});
 	}
 
