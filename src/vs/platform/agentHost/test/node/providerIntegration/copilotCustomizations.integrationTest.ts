@@ -348,7 +348,10 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	const builtInCustomizations = (customization: { type: CustomizationType; contents?: CustomizationType; uri: string }): boolean => {
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && customization.uri.endsWith('/builtin/customize-cloud-agent'));
+		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
+		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
+		// the workspace/user customizations under test.
+		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {

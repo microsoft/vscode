@@ -351,7 +351,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -399,7 +399,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -429,6 +429,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getLanguageModelIds: () => options?.languageModelIds ?? [],
 		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
 		hasResolvedVendor: () => true,
+		isModelHidden: (modelId: string) => options?.hiddenLanguageModelIds?.has(modelId) ?? false,
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: options?.languageModelVisibilityChanges ?? Event.None,
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -1416,7 +1419,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
 			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
@@ -1625,6 +1627,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
 		});
+	});
+
+	test('getModelsSnapshot excludes hidden models and announces visibility changes', () => {
+		const matchingModel = { ...createTestLanguageModel('matching'), targetChatSessionType: 'agent-host-copilotcli' };
+		const hiddenLanguageModelIds = new Set(['matching']);
+		const visibilityChanges = disposables.add(new Emitter<void>());
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['matching'],
+			lookupLanguageModel: id => id === 'matching' ? matchingModel : undefined,
+			hiddenLanguageModelIds,
+			languageModelVisibilityChanges: visibilityChanges.event,
+		});
+		fireSessionAdded(agentHost, 'hidden-model-catalog', { title: 'Hidden Model Catalog Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Hidden Model Catalog Session');
+		assert.ok(session);
+
+		let changes = 0;
+		disposables.add(provider.onDidChangeModels(() => changes++));
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models, []);
+
+		hiddenLanguageModelIds.delete('matching');
+		visibilityChanges.fire();
+		assert.strictEqual(changes, 1);
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
 	});
 
 	test('getModelsSnapshot canonicalizes a matching logical-session model identifier', () => {
@@ -4816,16 +4842,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+			_meta: {
+				github: {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequestUrls: [
+						'https://github.com/owner/repo/pull/42',
+						'https://github.com/owner/repo/pull/41',
+					]
+				}
+			},
 		});
 
 		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
 		const sub = autorun(reader => { gitHubInfoObs.read(reader); });
 		await timeout(0);
 
-		const pullRequest = gitHubInfoObs.get()?.pullRequest;
-		assert.strictEqual(pullRequest?.number, 42, 'PR is detected from the GitHub state URL');
-		assert.deepStrictEqual(pullRequest?.icon, computePullRequestIcon(GitHubPullRequestState.Open), 'a default open-PR icon is shown immediately while the live model is empty');
+		const gitHubInfo = gitHubInfoObs.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => ({
+				number: pullRequest.number,
+				uri: pullRequest.uri.toString(),
+				icon: pullRequest.icon,
+			}))
+		}, {
+			activePullRequest: {
+				number: 42,
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			pullRequests: [
+				{
+					number: 42,
+					uri: 'https://github.com/owner/repo/pull/42',
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				},
+				{
+					number: 41,
+					uri: 'https://github.com/owner/repo/pull/41',
+					icon: undefined,
+				},
+			]
+		});
 		sub.dispose();
 	}));
 

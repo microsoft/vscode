@@ -52,6 +52,14 @@ function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
 	readonly name: string;
+	/**
+	 * Stable preference key for this host (see
+	 * {@link IAgentHostSessionsProvider.remoteLocationPreferenceKey}), when
+	 * it differs from {@link address} — e.g. an SSH host's
+	 * `computeSSHConnectionKey()` result versus its live forwarded address.
+	 * Defaults to {@link address} when omitted.
+	 */
+	readonly preferenceKey?: string;
 	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
@@ -102,6 +110,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	readonly remoteLocationPreferenceKey: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
@@ -180,6 +189,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
+		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 
 		this.browseActions = [{

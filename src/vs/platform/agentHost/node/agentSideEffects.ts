@@ -74,6 +74,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
@@ -93,6 +94,12 @@ export interface IAgentSideEffectsOptions {
 	readonly localTurns: AgentHostLocalTurns;
 	/** Get the GitHub token used for Copilot utility title generation. */
 	readonly getGitHubCopilotToken?: () => string | undefined;
+	/** Get the GitHub repository token used to fetch issue and pull request context. */
+	readonly getGitHubToken?: () => string | undefined;
+	/** Get the configured GitHub host used to validate issue and pull request URLs. */
+	readonly getGitHubHost?: () => string | undefined;
+	/** GitHub REST client used to fetch issue and pull request context. */
+	readonly octoKitService?: IAgentHostOctoKitService;
 	/** CAPI service used for Copilot utility title generation. */
 	readonly copilotApiService?: ICopilotApiService;
 	/**
@@ -238,6 +245,9 @@ export class AgentSideEffects extends Disposable {
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			getGitHubToken: this._options.getGitHubToken,
+			getGitHubHost: this._options.getGitHubHost,
+			octoKitService: this._options.octoKitService,
 			copilotApiService: this._options.copilotApiService,
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {

@@ -71,10 +71,8 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	//    Windows, so the terminal resource this test subscribes to never appears,
 	//    even though the tool call itself completes.
 	//
-	// Worktree *resolution* is still asserted on Windows by the `sessionAdded`
-	// working-directory check earlier in this test's non-shell half. Re-enabling
-	// the shell half needs both output assertions reworked against real-path
-	// normalization, and the missing terminal resource understood first.
+	// Re-enabling on Windows needs both output assertions reworked against
+	// real-path normalization, and the missing terminal resource understood.
 	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 

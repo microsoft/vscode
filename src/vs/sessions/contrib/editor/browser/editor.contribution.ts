@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/editorTabs.css';
+import './media/editorBreadcrumbs.css';
+import './media/editorHeader.css';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
@@ -58,7 +60,7 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 // the editor-title actions and their separator — mirroring the classic layout.
 // The detail-panel toggle is conditional (hidden for tab types with no detail,
 // e.g. browser and search — see `singlePaneLayoutToggleDetailsOrder` in
-// `singlePaneResponsiveSidebarStrategy.ts`) and keeps its trailing position after
+// `singlePaneDetailsStrategy.ts`) and keeps its trailing position after
 // the hide chevron and maximize/restore.
 const singlePaneLayoutHideEditorOrder = 10;
 const singlePaneLayoutMaximizeOrder = 20;
