@@ -198,7 +198,7 @@ export interface ISessionServerToolAccessor {
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => Promise<void>;
 	readonly deleteSession: (session: URI) => Promise<void>;
 	/** Reads a point-in-time snapshot of a session's chat conversation (default chat, or a specific chat by id). */
-	readonly getChatContext: (session: URI, chatId?: string) => IChatContextSnapshot | undefined;
+	readonly getChatContext: (session: URI, chatId?: string) => Promise<IChatContextSnapshot | undefined>;
 	/** The spawn depth of a session (0 for a user/top-level session, N for one created N levels deep by `create_session`). */
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
@@ -227,6 +227,7 @@ interface ISerializedGitState {
 interface ISerializedGitHubState {
 	readonly owner?: string;
 	readonly repo?: string;
+	/** Most recent pull request in this compact tool-facing session summary. */
 	readonly pullRequestUrl?: string;
 }
 
@@ -490,7 +491,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrl) {
+		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrls?.length) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -531,7 +532,7 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	const result: Mutable<ISerializedGitHubState> = {};
 	if (github.owner !== undefined) { result.owner = github.owner; }
 	if (github.repo !== undefined) { result.repo = github.repo; }
-	if (github.pullRequestUrl !== undefined) { result.pullRequestUrl = github.pullRequestUrl; }
+	if (github.pullRequestUrls?.[0] !== undefined) { result.pullRequestUrl = github.pullRequestUrls[0]; }
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
@@ -903,7 +904,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
-	const snapshot = accessor.getChatContext(session, chatId);
+	const snapshot = await accessor.getChatContext(session, chatId);
 	if (!snapshot) {
 		// No live conversation state (e.g. a cold/unsubscribed session): return the
 		// identity + an empty transcript. Metadata is available via list_sessions.

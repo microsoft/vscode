@@ -24,7 +24,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
@@ -501,6 +501,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
+	readonly providerIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly modelStatusIcon: HTMLElement;
 	readonly deprecationLinkContainer: HTMLElement;
@@ -525,6 +526,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const elementDisposables = new DisposableStore();
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
+		const providerIcon = DOM.append(nameContainer, $('.model-provider-icon'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
 		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
 		deprecationLinkContainer.style.display = 'none';
@@ -533,6 +535,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		return {
 			container,
 			statusIcon,
+			providerIcon,
 			nameLabel,
 			modelStatusIcon,
 			deprecationLinkContainer,
@@ -544,6 +547,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.modelStatusIcon);
+		templateData.providerIcon.className = 'model-provider-icon';
+		templateData.providerIcon.style.display = 'none';
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
@@ -551,6 +556,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
+		if (entry.chatgptSubscription) {
+			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+			templateData.providerIcon.style.display = '';
+		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
 		if (deprecationLink) {
@@ -1072,7 +1081,9 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = '';
+		templateData.providerElement.textContent = entry.chatgptSubscription
+			? localize('models.chatgptSubscriptionProvider', "Models provided by your ChatGPT subscription")
+			: '';
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IProviderColumnTemplateData): void {
@@ -1080,7 +1091,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.model.provider.vendor.displayName;
+		templateData.providerElement.textContent = getManageModelsProviderLabel(entry.model);
 	}
 }
 
@@ -1400,8 +1411,8 @@ export class ChatModelsWidget extends Disposable {
 						}
 						const ariaLabels = [];
 						ariaLabels.push(e.model.hidden
-							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, e.model.provider.vendor.displayName)
-							: localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
+							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, getManageModelsProviderLabel(e.model))
+							: localize('model.name', '{0} from {1}', e.model.metadata.name, getManageModelsProviderLabel(e.model)));
 						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
 							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
 							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));

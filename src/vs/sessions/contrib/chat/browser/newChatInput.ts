@@ -45,7 +45,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
+import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -85,7 +85,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
@@ -104,7 +104,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
-const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
+const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -361,6 +361,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			supportsBackground?: boolean;
 			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
 			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+			onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -390,6 +391,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -461,6 +463,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
 				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
 				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+				onDidChangeVisibility: visible => this.options.onDidChangeInputNotificationVisible?.(visible),
 			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);
@@ -491,7 +494,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, parent, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -856,6 +859,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
 		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
 		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
+		const isVoiceSessionActive = derived(this, reader => isNewChatVoiceSessionActive(
+			this.voiceSessionController.isConnected.read(reader),
+			this.voiceSessionController.isConnecting.read(reader),
+			this.voiceSessionController.targetSession.read(reader),
+			this.voiceSessionController.hasDraftTarget.read(reader),
+		));
 
 		const action = toAction({
 			id: ChatVoiceInputModeAction.ID,
@@ -867,6 +876,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
 			isActive: isVoiceInputActive,
+			isVoiceActive: isVoiceSessionActive,
 		}));
 		pill.render(pillContainer);
 
@@ -883,7 +893,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// `AGENTS_VOICE_CONNECTED` context key, which tracks `isConnected` only.
 			// Counting `isConnecting` here would show the pill while the scoped
 			// standalone toolbar still shows its Connecting item (duplicate controls).
-			const connected = this.voiceSessionController.isConnected.read(reader);
+			const connected = isVoiceSessionActive.read(reader) && this.voiceSessionController.isConnected.read(reader);
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && connected);
 			pillContainer.classList.toggle('hidden', !pillActive);
 			// Mirror the pill's active state onto the input container so voice glow
@@ -951,7 +961,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
 		this._register(sttService.onDidChangeDownloadingModel(renderState));
-		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
+		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService, undefined, this.themeService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
@@ -959,7 +969,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// voice mic affordances never compete on this composer. Also hide when
 			// the segmented voice/dictation pill applies (both modes available, so
 			// the pill hosts its own dictation cell), which supersedes this button.
-			const voiceActive = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
+			const voiceActive = isNewChatVoiceSessionActive(
+				this.voiceSessionController.isConnected.get(),
+				this.voiceSessionController.isConnecting.get(),
+				this.voiceSessionController.targetSession.get(),
+				this.voiceSessionController.hasDraftTarget.get(),
+			);
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
 			const handsFree = this.voiceInputModeService.handsFree.get();
@@ -967,12 +982,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// keys off `isConnected` only, not the connecting phase.
 			const sessionActive = this.voiceSessionController.isConnected.get();
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
+			// Honor the shared `dictation.showButton` visibility toggle: hiding the
+			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
+			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive || !buttonShown);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
 			this.voiceSessionController.isConnected.read(reader);
 			this.voiceSessionController.isConnecting.read(reader);
+			this.voiceSessionController.targetSession.read(reader);
+			this.voiceSessionController.hasDraftTarget.read(reader);
 			this.voiceInputModeService.dictationAvailable.read(reader);
 			this.voiceInputModeService.voiceAvailable.read(reader);
 			this.voiceInputModeService.handsFree.read(reader);
@@ -982,7 +1002,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Both the enable kill-switch and the model selection can change
 			// availability (e.g. an unsupported on-device platform becomes
 			// configured when switching to the cloud backend).
-			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model') || e.affectsConfiguration(DictationSettingId.ShowButton)) {
 				updateVisibility();
 			}
 		}));

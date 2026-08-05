@@ -1383,7 +1383,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-top-right-radius: 0;
 }
 
-
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 5px;
 	display: none;
@@ -2974,9 +2973,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.insertions-and-deletions {
 		display: flex;
-		gap: var(--vscode-spacing-size80);
-		margin-right: var(--vscode-spacing-size40);
-		font-size: var(--vscode-bodyFontSize-small);
+		gap: var(--vscode-spacing-size40);
+		margin: 0 var(--vscode-spacing-size60);
+		font-size: var(--vscode-fontSize-body2);
+		font-weight: var(--vscode-fontWeight-regular);
+		/* Keep numeric changes aligned even when rows contain different digit counts. */
+		font-variant-numeric: tabular-nums;
+		font-feature-settings: "tnum";
+
+		.insertions,
+		.deletions {
+			font-weight: var(--vscode-fontWeight-regular);
+			padding: var(--vscode-spacing-sizeNone);
+		}
 	}
 
 	.checkpoint-file-changes-summary-header {
@@ -3056,6 +3065,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-summary-list .monaco-icon-label {
 		display: flex;
+	}
+
+	.chat-summary-list .insertions-and-deletions > .insertions,
+	.chat-summary-list .insertions-and-deletions > .deletions {
+		flex: none;
+		text-align: right;
 	}
 
 	.chat-summary-list .monaco-scrollable-element {
@@ -3189,9 +3204,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Per-row action bar in the changed-files list (e.g. the "Preview" action). The
-	row becomes a flex row so the file label fills the remaining width and the
-	actions hug the right edge. Scoped via the class the renderer adds only when a
-	row-action provider is supplied. */
+	row becomes a flex row so the file label fills the remaining width, followed
+	by the actions and the right-aligned change counts. Scoped via the class the
+	renderer adds only when a row-action provider is supplied. */
 .interactive-session .chat-summary-list .monaco-list-row.chat-summary-list-row-with-actions,
 .interactive-session .chat-summary-list-row-with-actions {
 	display: flex;
@@ -3206,6 +3221,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-summary-list-row-with-actions > .chat-summary-list-actions {
 	flex: 0 0 auto;
 	padding-right: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-summary-list-row-with-actions > .insertions-and-deletions {
+	flex: 0 0 auto;
 }
 
 .interactive-session .chat-summary-list-actions .action-label {
@@ -4719,26 +4738,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Voice mode: blue when listening. The glow keeps the button's resting shape —
-	only its color and the pulse change between states, so the control never
-	morphs from a circle into a rounded square mid-session. */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+/* Voice mode mic glyph: tinted with the same theme-derived accent as the ambient
+	glow (published as `--voice-accent` by the glow controller). The glow keeps the
+	button's resting shape — only its color and the pulse change between states, so
+	the control never morphs from a circle into a rounded square mid-session. */
+.chat-input-container.voice-active .chat-input-toolbars .action-label.codicon-voice-mode-compact {
+	--chat-voice-icon-glow-color: color-mix(in srgb, var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) 40%, transparent);
+	color: var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) !important;
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
-}
-
-/* Voice mode: purple when speaking */
-.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
-	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: var(--vscode-cornerRadius-circle);
-}
-
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact,
 .monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }

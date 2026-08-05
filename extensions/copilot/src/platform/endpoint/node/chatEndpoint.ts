@@ -194,7 +194,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IChatWebSocketManager private readonly _chatWebSocketService: IChatWebSocketManager,
-		@ILogService _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		// This metadata should always be present, but if not we will default to 8192 tokens
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
@@ -432,12 +432,19 @@ export class ChatEndpoint implements IChatEndpoint {
 		// ReasoningEffortOverride setting would otherwise be dropped. The override
 		// setting takes precedence over the UI selection; both are validated
 		// against the levels the model advertises.
-		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
-		if (declaredLevels) {
+		// Keep the raw value so an explicitly empty `[]` (server declares no accepted
+		// levels) is distinguished from `undefined` (no declaration) and still surfaces
+		// a dropped client/override value below.
+		const declaredLevels = this.supportsReasoningEffort;
+		if (declaredLevels !== undefined) {
 			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? options.modelCapabilities?.reasoningEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
-				body.reasoning_effort = candidateEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (declaredLevels.includes(candidateEffort)) {
+					body.reasoning_effort = candidateEffort;
+				} else {
+					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
 		}
 

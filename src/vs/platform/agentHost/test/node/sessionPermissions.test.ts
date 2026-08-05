@@ -239,6 +239,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('requires confirmation for sed in-place edits', async () => {
+		const event = shellEvent('sed -i "s/foo/bar/" file.txt', 'bash');
+		assert.deepStrictEqual({
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
+		}, {
+			approval: undefined,
+			ruleResolvable: false,
+		});
+	});
+
 	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
 
@@ -315,6 +326,20 @@ suite('SessionPermissionManager', () => {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
 			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('CMD delayed-expansion redirect destinations require confirmation', async () => {
+		const delayedExpansion = shellEvent('echo hi >!APPDATA!\\outside.txt', 'bash');
+		const literalExclamation = shellEvent('echo hi >important!.txt', 'bash');
+		assert.deepStrictEqual({
+			delayedApproval: await permissions.getAutoApproval(delayedExpansion, sessionUri),
+			delayedRuleResolvable: permissions.isAutoApproveRuleResolvable(delayedExpansion, sessionUri),
+			literalApproval: await permissions.getAutoApproval(literalExclamation, sessionUri),
+		}, {
+			delayedApproval: undefined,
+			delayedRuleResolvable: false,
+			literalApproval: ToolCallConfirmationReason.NotNeeded,
 		});
 	});
 

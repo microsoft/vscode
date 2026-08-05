@@ -5,19 +5,18 @@
 
 .chat-pet-host {
 	position: relative;
-	isolation: isolate;
 }
 
-.chat-pet-drag-bounds {
-	position: relative;
-	z-index: 1;
+.chat-pet-overlay {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
 }
 
 .chat-pet-button {
 	position: absolute;
 	right: var(--vscode-spacing-size320);
 	bottom: 100%;
-	z-index: 0;
 	width: 48px;
 	height: 48px;
 	padding: 0;
@@ -25,6 +24,7 @@
 	outline: none;
 	background: transparent;
 	cursor: grab;
+	pointer-events: auto;
 	touch-action: none;
 	transition: transform 200ms ease-out;
 }
@@ -83,7 +83,7 @@
 	}
 }
 
-.monaco-workbench .chat-pet-host > .chat-pet-button:focus {
+.monaco-workbench .chat-pet-overlay > .chat-pet-button:focus {
 	outline: none;
 }
 
@@ -133,6 +133,11 @@
 
 .chat-pet-speech-bubble.hidden {
 	display: none;
+}
+
+.chat-pet-button[data-state='rendering'].speech-bubble-left .chat-pet-speech-bubble {
+	left: calc(-1 * var(--vscode-spacing-size280));
+	transform: scaleX(-1);
 }
 
 .chat-pet-button.dragging .chat-pet-speech-bubble {

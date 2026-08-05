@@ -6,7 +6,8 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
-import { Event } from '../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -14,9 +15,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import type { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import type { ITerminalFont } from '../../common/terminal.js';
-import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXTermOptions } from '../../browser/terminal.js';
+import { ITerminalService, type IDetachedXTermOptions } from '../../browser/terminal.js';
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createFakeDetachedTerminal } from './chatTerminalMirrorTestUtils.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
 import { computeChatTerminalMirrorCols, computeMaxBufferColumnWidth, computeSnapshotLineCount, DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
 
@@ -30,38 +32,6 @@ const defaultTerminalConfig = {
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '6'
 };
-
-/**
- * Creates a fake detached terminal instance backed by a real raw xterm.js terminal so mirror
- * tests can inspect the resulting buffer and count resize/write calls. The fixed font metrics
- * (charWidth 10, letterSpacing 0) make width-to-cols math deterministic on any machine.
- */
-function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions) {
-	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
-	const counters = { resizeCalls: 0, writeCalls: 0 };
-	const font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
-	const instance = {
-		xterm: {
-			raw,
-			get cols() { return raw.cols; },
-			get rows() { return raw.rows; },
-			get buffer() { return raw.buffer; },
-			getFont: () => font,
-			write: (data: string, callback?: () => void) => {
-				counters.writeCalls++;
-				raw.write(data, callback);
-			},
-			resize: (columns: number, rows: number) => {
-				counters.resizeCalls++;
-				raw.resize(columns, rows);
-			}
-		},
-		onData: Event.None,
-		attachToElement: () => { },
-		dispose: () => raw.dispose()
-	} as unknown as IDetachedTerminalInstance;
-	return { raw, counters, instance };
-}
 
 suite('Workbench - ChatTerminalCommandMirror', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -970,6 +940,166 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const { resizeCalls, writeCalls } = { ...fakes[0].counters };
 			await mirror.layout(1224);
 			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
+		});
+	});
+
+	suite('row height metrics', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+		let nextFont: ITerminalFont | undefined;
+
+		setup(async () => {
+			const configurationService = new TestConfigurationService({
+				editor: {
+					fastScrollSensitivity: 2,
+					mouseWheelScrollSensitivity: 1
+				} as Partial<IEditorOptions>,
+				files: {},
+				terminal: {
+					integrated: defaultTerminalConfig
+				},
+			});
+			instantiationService = workbenchInstantiationService({
+				configurationService: () => configurationService
+			}, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			nextFont = undefined;
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options, nextFont);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		function createSnapshotMirror(output: { text: string } | undefined): DetachedTerminalSnapshotMirror {
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+		}
+
+		async function createLaidOutCommandMirror(): Promise<DetachedTerminalCommandMirror> {
+			const capabilities = store.add(new TerminalCapabilityStore());
+			const source = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 10,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+			const mirror = store.add(instantiationService.createInstance(DetachedTerminalCommandMirror, source, {} as ITerminalCommand));
+			// layout creates the detached terminal without needing a rendered command
+			await mirror.layout(1224);
+			return mirror;
+		}
+
+		test('snapshot mirror reports the mirror cell height once the terminal exists', async () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.render();
+			// charHeight 14 × lineHeight 1 from the fake font
+			strictEqual(mirror.getRowHeightPx(), 14);
+		});
+
+		test('snapshot mirror reports undefined before the detached terminal resolves', () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			strictEqual(mirror.getRowHeightPx(), undefined);
+		});
+
+		test('uses the exact fractional cell height without per-row rounding', async () => {
+			// The DOM renderer paints each row at the exact css cell height; ceiling the
+			// per-row value would accumulate across rows and slice the last row
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1.1, charWidth: 10, charHeight: 14.4 };
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.render();
+			strictEqual(mirror.getRowHeightPx(), 14.4 * 1.1);
+		});
+
+		test('command mirror reports the mirror cell height', async () => {
+			const mirror = await createLaidOutCommandMirror();
+			strictEqual(mirror.getRowHeightPx(), 14);
+		});
+
+		function createHost(): HTMLElement {
+			const host = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(host);
+			store.add(toDisposable(() => host.remove()));
+			return host;
+		}
+
+		function nextRender(raw: Terminal): Promise<void> {
+			return new Promise<void>(resolve => {
+				const listener = raw.onRender(() => {
+					listener.dispose();
+					resolve();
+				});
+			});
+		}
+
+		function write(raw: Terminal, data: string): Promise<void> {
+			return new Promise<void>(resolve => raw.write(data, resolve));
+		}
+
+		test('snapshot mirror onDidChangeRowHeight fires once per metrics change, only after attach', async () => {
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			let fires = 0;
+			store.add(mirror.onDidChangeRowHeight(() => fires++));
+			await mirror.render();
+			strictEqual(fires, 0, 'rendering content alone must not fire before attach');
+
+			const host = createHost();
+			await mirror.attach(host);
+			strictEqual(fires, 0, 'attach alone must not fire without a render');
+
+			const raw = fakes[0].raw;
+			let rendered = nextRender(raw);
+			raw.open(host);
+			await rendered;
+			strictEqual(fires, 1, 'the first real render announces the metrics');
+
+			rendered = nextRender(raw);
+			await write(raw, 'more');
+			await rendered;
+			strictEqual(fires, 1, 'renders with unchanged metrics must not re-fire');
+
+			nextFont.charHeight = 21;
+			rendered = nextRender(raw);
+			await write(raw, '!');
+			await rendered;
+			strictEqual(fires, 2, 'a metrics change fires exactly once more');
+		});
+
+		test('command mirror onDidChangeRowHeight fires once per metrics change, only after attach', async () => {
+			nextFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
+			const mirror = await createLaidOutCommandMirror();
+			let fires = 0;
+			store.add(mirror.onDidChangeRowHeight(() => fires++));
+
+			const host = createHost();
+			const raw = fakes[0].raw;
+			let rendered = nextRender(raw);
+			raw.open(host);
+			await rendered;
+			strictEqual(fires, 0, 'renders before attach must not fire');
+
+			await mirror.attach(host);
+			rendered = nextRender(raw);
+			await write(raw, 'output');
+			await rendered;
+			strictEqual(fires, 1, 'the first render after attach announces the metrics');
+
+			rendered = nextRender(raw);
+			await write(raw, 'more');
+			await rendered;
+			strictEqual(fires, 1, 'renders with unchanged metrics must not re-fire');
+
+			nextFont.charHeight = 21;
+			rendered = nextRender(raw);
+			await write(raw, '!');
+			await rendered;
+			strictEqual(fires, 2, 'a metrics change fires exactly once more');
 		});
 	});
 });
