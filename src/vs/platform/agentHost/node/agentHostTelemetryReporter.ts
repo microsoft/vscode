@@ -9,9 +9,10 @@ import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js'
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
+import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
-import { DEFAULT_CHAT_ID, isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -787,7 +788,7 @@ export class AgentHostTelemetryReporter {
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		const chatSessionId = parseChatUri(report.session)?.chatId ?? DEFAULT_CHAT_ID;
+		const chatSessionId = getTelemetryChatSessionId(report.session);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,

@@ -35,6 +35,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
@@ -1498,7 +1499,7 @@ suite('CopilotAgent', () => {
 					failureKind: 'connectionClosed',
 					operation: 'abort',
 					agentSessionId: 'cancelled',
-					chatSessionId: 'default',
+					chatSessionId: getTelemetryChatSessionId(cancelledChat),
 					turnId: undefined,
 					sdkSessionId: 'cancelled',
 					activeTurnCount: 1,
@@ -1521,7 +1522,7 @@ suite('CopilotAgent', () => {
 				recoveryTurns: [{
 					clientFailureId: 'string',
 					agentSessionId: 'failed',
-					chatSessionId: 'default',
+					chatSessionId: getTelemetryChatSessionId(failedChat),
 					turnId: 'failed-turn',
 					sdkSessionId: 'failed',
 					clientFailureIdMatches: true,
@@ -1571,7 +1572,7 @@ suite('CopilotAgent', () => {
 					failureKind: 'clientNotConnected',
 					operation: 'abort',
 					agentSessionId: 'abort-failure',
-					chatSessionId: 'default',
+					chatSessionId: getTelemetryChatSessionId(chat),
 					turnId: undefined,
 					sdkSessionId: 'abort-failure',
 					activeTurnCount: 1,

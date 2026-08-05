@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildChatUri } from '../../common/state/sessionState.js';
+import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
+import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { classifyCopilotClientFailure, createCopilotFailureCorrelation } from '../../node/copilot/copilotFailureTelemetry.js';
 
 suite('CopilotFailureTelemetry', () => {
@@ -41,9 +43,36 @@ suite('CopilotFailureTelemetry', () => {
 
 		assert.deepStrictEqual(createCopilotFailureCorrelation(session, chat, 'turn-id', 'sdk-session-id'), {
 			agentSessionId: 'agent-session-id',
-			chatSessionId: 'peer-chat-id',
+			chatSessionId: getTelemetryChatSessionId(chat),
 			turnId: 'turn-id',
 			sdkSessionId: 'sdk-session-id',
+		});
+	});
+
+	test('hashes subagent chat IDs without path-like telemetry values', () => {
+		const session = AgentSession.uri('copilotcli', 'agent-session-id');
+		const subagent = URI.parse(buildSubagentSessionUri(session, 'tool-call-id'));
+		const value = getTelemetryChatSessionId(subagent);
+
+		assert.strictEqual(value, String(Number(value)));
+		assert.strictEqual(value.includes('/'), false);
+	});
+
+	test('drops empty provider request identifiers', () => {
+		assert.deepStrictEqual(readAgentErrorTelemetryMeta({
+			errorType: 'test',
+			message: 'failed',
+			_meta: {
+				chatError: {
+					fetchError: {
+						requestId: '',
+						serverRequestId: '',
+					},
+				},
+			},
+		}), {
+			providerCallId: undefined,
+			serviceRequestId: undefined,
 		});
 	});
 });

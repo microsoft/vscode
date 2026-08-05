@@ -17,10 +17,10 @@ export function readAgentErrorTelemetryMeta(error: ErrorInfo): IAgentErrorTeleme
 	}
 	const chatError = meta['chatError'];
 	const fetchError = chatError && typeof chatError === 'object' ? (chatError as { fetchError?: unknown }).fetchError : undefined;
-	const providerCallId = fetchError && typeof fetchError === 'object' && typeof (fetchError as { requestId?: unknown }).requestId === 'string'
+	const providerCallId = fetchError && typeof fetchError === 'object' && typeof (fetchError as { requestId?: unknown }).requestId === 'string' && (fetchError as { requestId: string }).requestId.length > 0
 		? (fetchError as { requestId: string }).requestId
 		: undefined;
-	const serviceRequestId = fetchError && typeof fetchError === 'object' && typeof (fetchError as { serverRequestId?: unknown }).serverRequestId === 'string'
+	const serviceRequestId = fetchError && typeof fetchError === 'object' && typeof (fetchError as { serverRequestId?: unknown }).serverRequestId === 'string' && (fetchError as { serverRequestId: string }).serverRequestId.length > 0
 		? (fetchError as { serverRequestId: string }).serverRequestId
 		: undefined;
 	return { providerCallId, serviceRequestId };

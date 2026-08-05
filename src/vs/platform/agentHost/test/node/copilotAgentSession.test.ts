@@ -22,6 +22,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -5510,7 +5511,7 @@ suite('CopilotAgentSession', () => {
 				eventName: 'agentHost.copilotSdkSessionError',
 				data: {
 					agentSessionId: 'test-session-1',
-					chatSessionId: 'default',
+					chatSessionId: getTelemetryChatSessionId(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')))),
 					turnId: 'turn-1',
 					sdkSessionId: 'test-session-1',
 					sdkEventId: 'session-error-event',
@@ -5566,7 +5567,7 @@ suite('CopilotAgentSession', () => {
 				eventName: 'agentHost.copilotModelCallFailure',
 				data: {
 					agentSessionId: 'test-session-1',
-					chatSessionId: 'default',
+					chatSessionId: getTelemetryChatSessionId(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')))),
 					turnId: 'turn-1',
 					sdkSessionId: 'test-session-1',
 					sdkEventId: 'model-failure-event',

@@ -9,7 +9,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
-import { DEFAULT_CHAT_ID, parseChatUri } from '../../common/state/sessionState.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
 export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
@@ -31,7 +31,7 @@ type CopilotSessionFailureCorrelation = {
 export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string): CopilotSessionFailureCorrelation {
 	return {
 		agentSessionId: AgentSession.id(sessionUri),
-		chatSessionId: parseChatUri(chatUri)?.chatId ?? DEFAULT_CHAT_ID,
+		chatSessionId: getTelemetryChatSessionId(chatUri),
 		turnId: turnId || undefined,
 		sdkSessionId,
 	};
