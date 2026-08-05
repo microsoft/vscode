@@ -18,6 +18,7 @@ import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -500,8 +501,9 @@ export class SessionPermissionManager extends Disposable {
 	/**
 	 * Matches redirect destinations whose final path is decided by the shell
 	 * rather than by the text: variable expansions (`$HOME/x`, `$env:TEMP/x`,
-	 * `%APPDATA%\x`), command substitutions (`$(pwd)/x`, `` `pwd`/x ``), brace
-	 * expansions, and `~` in a position {@link untildify} does not handle.
+	 * `%APPDATA%\x`, `!APPDATA!\x`), command substitutions (`$(pwd)/x`,
+	 * `` `pwd`/x ``), brace expansions, and `~` in a position {@link untildify}
+	 * does not handle.
 	 * Mirrors the workbench's file-write analyzer guard.
 	 *
 	 * See https://github.com/microsoft/vscode/issues/274166 and
@@ -525,7 +527,7 @@ export class SessionPermissionManager extends Disposable {
 		// A destination the shell expands (e.g. `$HOME/x.txt`) would otherwise be
 		// treated as a literal relative path and resolve *inside* the working
 		// directory, auto-approving a write that actually lands elsewhere.
-		if (SessionPermissionManager._dynamicRedirectDestRegex.test(trimmed)) {
+		if (SessionPermissionManager._dynamicRedirectDestRegex.test(trimmed) || containsCmdDelayedExpansion(trimmed)) {
 			this._logService.trace(`[SessionPermissionManager] Redirect destination expands at runtime, requiring confirmation: ${dest}`);
 			return undefined;
 		}

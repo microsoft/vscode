@@ -157,7 +157,7 @@
  * untouched.
  */
 .style-override.monaco-workbench .part:not(.editor)[data-active-composite="workbench.view.explorer"] > .title > .title-label h2,
-.style-override .monaco-pane-view .pane > .pane-header:has(> .icon.codicon-explorer-view-icon) > .title {
+.style-override .monaco-pane-view .pane > .pane-header > .icon.codicon-explorer-view-icon + .title {
 	text-transform: none;
 }
 

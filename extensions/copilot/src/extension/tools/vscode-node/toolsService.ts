@@ -329,7 +329,7 @@ export class ToolsService extends BaseToolsService {
 				// For semantic_search (codebase) tool, allow experimentally disabling it entirely.
 				if (
 					tool.name === ToolName.Codebase
-					&& this._configurationService.getExperimentBasedConfig(ConfigKey.DisableSemanticSearchTool, this._experimentationService)
+					&& this._configurationService.getExperimentBasedConfig(ConfigKey.SemanticSearchToolMode, this._experimentationService) === 'disabled'
 				) {
 					return false;
 				}

@@ -186,11 +186,8 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 	 * collapse-driven hide (so opening it later re-reveals it); any other outcome
 	 * just captures the resulting state, preserving an explicit hide.
 	 */
-	onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
+	onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
 		if (this._ctx.multipleSessionsVisibleObs.get()) {
-			return;
-		}
-		if (this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -198,7 +195,7 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 			return;
 		}
 		if (!activeSession.isCreated.get()) {
-			this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+			this._setNewSessionViewState({ auxiliaryBarVisible });
 			return;
 		}
 		if (collapsed && previousAuxiliaryBarVisible) {

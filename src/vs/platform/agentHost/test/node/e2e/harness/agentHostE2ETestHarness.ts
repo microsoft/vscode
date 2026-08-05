@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -19,23 +19,26 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	getInlineToolInput,
-	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type TerminalState,
+	getInlineToolInput, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
+import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
-	type ChatToolCallStartAction,
+	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
-	getActionEnvelope, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
+	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 
 // #region Record/replay
 
@@ -57,6 +60,8 @@ const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
  * subprocess well within the range where it stays healthy.
  */
 const MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER = 25;
+/** Bounds host-owned resource accumulation even when tests never contact a model. */
+const MAX_TESTS_PER_SHARED_SERVER = 40;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
@@ -248,6 +253,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly suiteTitle: string;
 	/** Provider id passed to `createSession`. */
 	readonly provider: string;
+	/** Provider ids expected on models advertised by this harness. Defaults to {@link provider}. */
+	readonly modelProviders?: readonly string[];
 	/** URI scheme used when minting session URIs. */
 	readonly scheme: string;
 	/**
@@ -256,6 +263,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * `Bash` for Claude.)
 	 */
 	readonly shellToolName: string;
+	/** How file-operation scenarios should drive this provider. */
+	readonly fileOperationStrategy: 'fileTools' | 'shell';
 	/**
 	 * Tool names the provider uses to dispatch a subagent. The first entry
 	 * is used in the subagent-routing prompt; all entries are exempted from
@@ -304,7 +313,7 @@ export interface IAgentHostE2EProviderConfig {
 	/**
 	 * Provider exposes a subagent tool (`task` / `Task`) that produces
 	 * `ToolResultSubagentContent` and routes inner tool calls to a child
-	 * session. Claude has not landed subagents yet (Phase 12 in roadmap).
+	 * session.
 	 */
 	readonly supportsSubagents: boolean;
 	/** Whether the provider supports creating side chats from a source turn. */
@@ -315,28 +324,6 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/**
-	 * Whether this provider offers file-reading/writing tools of its own.
-	 *
-	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
-	 * tools; do not run a shell command.") cannot be satisfied by a provider
-	 * that only has a shell: it refuses the operation rather than falling back.
-	 * Codex is the current example — its captures contain only `exec_command`.
-	 *
-	 * Scenarios that pin a portable shell command instead are unaffected.
-	 */
-	readonly supportsFileTools: boolean;
-	/**
-	 * Whether this provider's file-manipulation scenarios replay stably when the
-	 * whole suite shares one server.
-	 *
-	 * A provider without file tools performs each of them through its shell, and
-	 * several such turns on one long-lived server hit the shared-server load
-	 * ceiling: the tool-call completion is reported inconsistently and the
-	 * failing scenario moves between runs. Individually they replay fine, so
-	 * this gates the family rather than any single test.
-	 */
-	readonly stableSharedServerFileScenarios?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -399,12 +386,13 @@ export async function runAhpSnapshotTest(
 	test: Mocha.Runnable,
 	trackingList: string[],
 	tempDirs: string[],
+	options?: IAhpSnapshotOptions,
 ): Promise<void> {
 	const scenario = AhpSnapshotScenario.load(test);
 	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
 	tempDirs.push(workingDirectory);
 	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
-	await scenario.run(c, sessionUri);
+	await scenario.run(c, sessionUri, options);
 }
 
 export { dispatchTurn, dispatchTurnWithAttachments };
@@ -503,18 +491,29 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 	c.clearReceived();
 	dispatch();
 
+	const chat = buildDefaultChatUri(session);
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
 	let sawPendingConfirmation = false;
 
 	while (true) {
-		const notification = await c.waitForNotification(n => !seenNotifications.has(n as object) && (
-			isActionNotification(n, 'chat/toolCallReady')
-			|| isActionNotification(n, 'chat/inputRequested')
-			|| isActionNotification(n, 'chat/turnComplete')
-			|| isActionNotification(n, 'chat/error')
-		), 90_000);
+		const notification = await c.waitForNotification(n => {
+			if (seenNotifications.has(n as object)
+				|| (!isActionNotification(n, 'chat/toolCallReady')
+					&& !isActionNotification(n, 'chat/inputRequested')
+					&& !isActionNotification(n, 'chat/turnComplete')
+					&& !isActionNotification(n, 'chat/error'))) {
+				return false;
+			}
+			if (getActionEnvelope(n).channel !== chat) {
+				return false;
+			}
+			if (isActionNotification(n, 'chat/inputRequested')) {
+				return true;
+			}
+			return (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
+		}, 90_000);
 		seenNotifications.add(notification as object);
 
 		if (isActionNotification(notification, 'chat/error')) {
@@ -580,6 +579,62 @@ export function textFromContent(content: readonly ToolResultContent[]): string {
 		.filter((c): c is Extract<ToolResultContent, { type: ToolResultContentType.Text }> => c.type === ToolResultContentType.Text)
 		.map(c => c.text)
 		.join('');
+}
+
+function toolResultText(content: readonly ToolResultContent[] | undefined): string {
+	if (!content) {
+		return '';
+	}
+	const terminalTexts: string[] = [];
+	for (const part of content) {
+		if (part.type !== ToolResultContentType.Terminal) {
+			continue;
+		}
+		if (part.result?.preview) {
+			terminalTexts.push(part.result.preview);
+		}
+	}
+	return [textFromContent(content), ...terminalTexts].filter(text => text.length > 0).join('\n');
+}
+
+function normalizeToolResultText(value: string, workspace?: string): string {
+	const withoutAnsi = removeAnsiEscapeCodes(value).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+	let normalizedWorkspace = withoutAnsi;
+	if (workspace) {
+		normalizedWorkspace = normalizedWorkspace
+			.replaceAll(realpathSync(workspace), '${workdir}')
+			.replaceAll(workspace, '${workdir}');
+	}
+	return normalizedWorkspace.replaceAll('\\', '/').trim();
+}
+
+/** Asserts deterministic content from a completed tool call instead of trusting replayed assistant prose. */
+export function assertToolCallCompleteText(
+	client: TestProtocolClient,
+	options: { readonly channel: string; readonly turnId: string; readonly toolNames: readonly string[]; readonly workspace?: string; readonly expected: readonly RegExp[]; readonly success?: boolean },
+): void {
+	const toolNames = new Set(options.toolNames.map(normalizeShellToolNameForCapture));
+	const starts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+		.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+		.filter(({ envelope, action }) => envelope.channel === options.channel && action.turnId === options.turnId && toolNames.has(normalizeShellToolNameForCapture(action.toolName)));
+	const startedToolCallIds = new Set(starts.map(({ action }) => action.toolCallId));
+	const completions = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+		.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+		.filter(({ envelope, action }) => envelope.channel === options.channel && action.turnId === options.turnId && startedToolCallIds.has(action.toolCallId));
+	const observed: { toolCallId: string; success: boolean; text: string }[] = [];
+	let matchingCompletion: ChatToolCallCompleteAction | undefined;
+	for (const { action } of completions) {
+		if (options.success !== undefined && action.result.success !== options.success) {
+			continue;
+		}
+		const text = normalizeToolResultText(toolResultText(action.result.content), options.workspace);
+		observed.push({ toolCallId: action.toolCallId, success: action.result.success, text });
+		if (options.expected.every(expected => expected.test(text))) {
+			matchingCompletion = action;
+			break;
+		}
+	}
+	assert.ok(matchingCompletion, `expected ${options.turnId} to complete ${options.toolNames.join('/')} with result text matching ${options.expected.map(String).join(', ')}; observed ${observed.map(value => JSON.stringify(value)).join(', ')}`);
 }
 
 export function terminalText(state: TerminalState): string {
@@ -715,7 +770,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
  *   the per-test fixture via {@link CapiReplayProxy.resetForReplay} and reconnect
  *   a fresh client each test. The agent host's cached SDK client / CLI subprocess
  *   is reused, so only the first test pays that startup. Safe as long as no test
- *   returns mid-turn (see the drain note on the permission test): one server
+ *   returns mid-turn: one server
  *   serves every test, so a turn left in flight would leak its continuation into
  *   the next test's fixture window as a strict cache miss.
  *
@@ -738,7 +793,10 @@ export class AgentHostE2EServerLease {
 	 * amortizing startup.
 	 */
 	private _modelBackedTestsOnCurrentServer = 0;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
+	private _testsOnCurrentServer = 0;
+	private _cleanupClientSeq = 1_000_000;
+	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -753,6 +811,7 @@ export class AgentHostE2EServerLease {
 			codexSdkRoot: startOptions.codexSdkRoot,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
+			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -764,11 +823,12 @@ export class AgentHostE2EServerLease {
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
-		// Proactively recycle a shared server whose cached provider subprocess has
-		// handled enough model-backed turns, before it can degrade and wedge a
-		// turn. Host-only tests never reach the provider's model loop, so they do
-		// not consume budget — only model-backed tests do.
-		if (this._shared && this._server && this._modelBackedTestsOnCurrentServer >= MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER) {
+		this._currentCapiReplay = capiReplay;
+		// Bound both provider-model load and host-owned resource accumulation.
+		if (this._shared && this._server && (
+			this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER
+			|| this._modelBackedTestsOnCurrentServer >= MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER
+		)) {
 			await this._recycleSharedServer();
 		}
 		if (this._shared && this._server) {
@@ -782,7 +842,9 @@ export class AgentHostE2EServerLease {
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
 			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
 			this._modelBackedTestsOnCurrentServer = 0;
+			this._testsOnCurrentServer = 0;
 		}
+		this._testsOnCurrentServer++;
 		if (modelTraffic === 'recorded') {
 			this._modelBackedTestsOnCurrentServer++;
 		}
@@ -793,6 +855,46 @@ export class AgentHostE2EServerLease {
 		);
 		await this._client.connect();
 		return { server: this._server, client: this._client };
+	}
+
+	/**
+	 * Restart the target while preserving its isolated home, user data, and the
+	 * replay proxy's consumed exchange sequence. Returns a connected,
+	 * uninitialized client for the caller to initialize with a new client id.
+	 */
+	async restart(): Promise<TestProtocolClient> {
+		const server = this._server;
+		const proxy = server?.capiReplay;
+		const capiReplay = this._currentCapiReplay;
+		if (!server || !proxy || !capiReplay) {
+			throw new Error('[agent-host-e2e] no replay-backed server to restart');
+		}
+
+		this._client?.close();
+		this._client = undefined;
+		await stopServer(server);
+		this._server = undefined;
+
+		try {
+			this._server = await this._target.launch({
+				...this._startOptions,
+				capiReplay,
+				existingCapiReplay: proxy,
+				logLevel: this._isCopilotProvider ? 'trace' : undefined,
+			});
+		} catch (error) {
+			await proxy.close();
+			throw error;
+		}
+
+		const client = new TestProtocolClient(
+			this._server.port,
+			() => this._server?.capiReplay?.takeReplayError(),
+			workingDirectory => this._server?.capiReplay?.setWorkingDirectory(workingDirectory),
+		);
+		await client.connect();
+		this._client = client;
+		return client;
 	}
 
 	/**
@@ -820,6 +922,7 @@ export class AgentHostE2EServerLease {
 			await stopServer(this._server);
 			this._server = undefined;
 			this._modelBackedTestsOnCurrentServer = 0;
+			this._testsOnCurrentServer = 0;
 		}
 	}
 
@@ -902,42 +1005,98 @@ export class AgentHostE2EServerLease {
 	 */
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
+		const cleanupErrors: Error[] = [];
 		if (client) {
 			for (const session of createdSessions) {
 				try {
-					// Abort first so the SDK query unwinds cleanly before we drop
-					// the session — disposing a mid-turn session directly tends to
-					// leave the agent host wedged. `session/abortTurn` is not part
-					// of the StateAction union, so it bypasses the typed dispatch.
-					client.notify('dispatchAction', {
-						clientSeq: 9999,
-						action: { type: 'session/abortTurn', session },
-					});
-					await client.call('disposeSession', { channel: session }, 30_000);
-				} catch { /* best-effort */ }
+					const state = await fetchSessionWithChat(client, session);
+					if (state.activeTurn) {
+						const chat = buildDefaultChatUri(session);
+						const turnId = state.activeTurn.id;
+						client.dispatch({
+							channel: chat,
+							clientSeq: this._cleanupClientSeq++,
+							action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
+						});
+						await client.waitForNotification(n =>
+							isActionNotification(n, 'chat/turnCancelled')
+							&& getActionEnvelope(n).channel === chat
+							&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
+							10_000,
+						);
+					}
+					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					const terminals = (root.snapshot!.state as RootState).terminals ?? [];
+					for (const terminal of terminals) {
+						if (terminal.claim.kind === TerminalClaimKind.Session && terminal.claim.session === session) {
+							await client.call('disposeTerminal', { channel: terminal.resource }, getAgentHostE2ETestTimeout(30_000, 90_000));
+						}
+					}
+					await client.call('disposeSession', { channel: session }, getAgentHostE2ETestTimeout(30_000, 90_000));
+				} catch (error) {
+					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				}
 			}
 			client.close();
 		}
 		createdSessions.length = 0;
 		this._client = undefined;
 
-		if (this._shared && !forceRestart) {
+		const mustRestart = forceRestart || cleanupErrors.length > 0;
+		if (this._shared && !mustRestart) {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.
-			this._server?.capiReplay?.assertNoReplayMismatches();
+			try {
+				this._server?.capiReplay?.assertNoReplayMismatches();
+			} catch (error) {
+				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				try {
+					await this._server?.capiReplay?.close();
+				} catch (stopError) {
+					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+				}
+				try {
+					await stopServer(this._server);
+				} catch (stopError) {
+					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+				}
+				this._server = undefined;
+				this._modelBackedTestsOnCurrentServer = 0;
+				this._testsOnCurrentServer = 0;
+			}
 		} else {
 			// Per-test server, or a shared server being restarted after a failure.
 			// Flush the recording / surface strict replay cache-misses (unless the
 			// test already failed) before the process goes away. Kill even if the
 			// strict check throws.
 			try {
-				if (!forceRestart) {
+				if (forceRestart) {
+					await this._server?.capiReplay?.close();
+				} else {
 					await this._server?.capiReplay?.stop();
 				}
+			} catch (error) {
+				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 			} finally {
-				await stopServer(this._server);
+				try {
+					await stopServer(this._server);
+				} catch (error) {
+					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				}
 				this._server = undefined;
+				this._modelBackedTestsOnCurrentServer = 0;
+				this._testsOnCurrentServer = 0;
 			}
+		}
+		if (cleanupErrors.length > 0) {
+			if (forceRestart) {
+				process.stdout.write(`[agent-host-e2e] cleanup reported ${cleanupErrors.length} secondary error(s) after the test failed:\n`);
+				for (const error of cleanupErrors) {
+					process.stdout.write(`[agent-host-e2e] # ${error.message}\n`);
+				}
+				return;
+			}
+			throw new AggregateError(cleanupErrors, `Failed to release Agent Host E2E test resources: ${cleanupErrors.map(error => error.message).join('; ')}`);
 		}
 	}
 

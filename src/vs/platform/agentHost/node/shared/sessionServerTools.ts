@@ -198,7 +198,7 @@ export interface ISessionServerToolAccessor {
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => Promise<void>;
 	readonly deleteSession: (session: URI) => Promise<void>;
 	/** Reads a point-in-time snapshot of a session's chat conversation (default chat, or a specific chat by id). */
-	readonly getChatContext: (session: URI, chatId?: string) => IChatContextSnapshot | undefined;
+	readonly getChatContext: (session: URI, chatId?: string) => Promise<IChatContextSnapshot | undefined>;
 	/** The spawn depth of a session (0 for a user/top-level session, N for one created N levels deep by `create_session`). */
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
@@ -898,7 +898,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
-	const snapshot = accessor.getChatContext(session, chatId);
+	const snapshot = await accessor.getChatContext(session, chatId);
 	if (!snapshot) {
 		// No live conversation state (e.g. a cold/unsubscribed session): return the
 		// identity + an empty transcript. Metadata is available via list_sessions.

@@ -34,6 +34,11 @@ import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 export interface BaseParams {
 	/** Channel URI this command targets. */
 	channel: URI;
+	/**
+	 * Optional JSON-serializable metadata associated with this request.
+	 * Receivers MUST ignore keys they do not understand.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 // ─── Pagination ──────────────────────────────────────────────────────────────

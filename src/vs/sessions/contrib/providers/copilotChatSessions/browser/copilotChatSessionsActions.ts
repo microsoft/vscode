@@ -170,16 +170,17 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 				const disposableStore = new DisposableStore();
 				disposableStore.add(picker.onDidSelect(mode => {
-					const session = sessionsService.activeSession.get();
-					if (!session) {
+					const scopedSession = session.get();
+					if (!scopedSession) {
 						return;
 					}
-					const provider = sessionsProvidersService.getProvider(session.providerId);
+					const provider = sessionsProvidersService.getProvider(scopedSession.providerId);
 					if (provider instanceof CopilotChatSessionsProvider) {
-						provider.getSession(session.sessionId)?.setMode(mode);
+						provider.getSession(scopedSession.sessionId)?.setMode(mode);
 					}
 				}));
 				return new PickerActionViewItem(picker, disposableStore);
