@@ -56,32 +56,50 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('carries picker category, price category, and promo from model metadata', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('claude-sonnet', {
-			category: 'powerful',
-			priceCategory: 'medium',
-			promo: {
-				id: 'summer-sale',
-				discountPercent: 25,
-				endsAt: '2026-08-01T00:00:00Z',
-				message: 'Save on Claude Sonnet',
-			},
-		})]);
+		provider.updateModels([
+			makeModel('claude-sonnet', {
+				category: 'powerful',
+				priceCategory: 'medium',
+				promo: {
+					id: 'summer-sale',
+					discountPercent: 25,
+					endsAt: '2026-08-01T00:00:00Z',
+					message: 'Save on Claude Sonnet',
+				},
+			}),
+			// Open-ended, message-only promo: the untyped `_meta` read must keep it
+			// rather than drop the promo for the missing `endsAt` / zero discount.
+			makeModel('gpt-5', {
+				promo: {
+					id: 'featured',
+					discountPercent: 0,
+					message: 'Now available',
+				},
+			}),
+		]);
 
-		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
-		assert.deepStrictEqual({
-			category: metadata.category,
-			priceCategory: metadata.priceCategory,
-			promo: metadata.promo,
-		}, {
-			category: 'powerful',
-			priceCategory: 'medium',
-			promo: {
-				id: 'summer-sale',
-				discountPercent: 25,
-				endsAt: '2026-08-01T00:00:00Z',
-				message: 'Save on Claude Sonnet',
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			category: info.metadata.category,
+			priceCategory: info.metadata.priceCategory,
+			promo: info.metadata.promo,
+		})), [
+			{
+				category: 'powerful',
+				priceCategory: 'medium',
+				promo: {
+					id: 'summer-sale',
+					discountPercent: 25,
+					endsAt: '2026-08-01T00:00:00Z',
+					message: 'Save on Claude Sonnet',
+				},
 			},
-		});
+			{
+				category: undefined,
+				priceCategory: undefined,
+				promo: { id: 'featured', discountPercent: 0, message: 'Now available' },
+			},
+		]);
 	});
 
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {

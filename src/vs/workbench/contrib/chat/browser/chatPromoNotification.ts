@@ -15,14 +15,8 @@ const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
 
 /**
- * Watches for models with active promotions and surfaces a chat input
- * notification per harness (chat session type) the first time each promo
- * appears. Each notification is scoped to the session type of the model that
- * carries the promo, so a chat input only advertises a model it can actually
- * switch to. The server-authored promo message is rendered regardless of the
- * discount, so 0% promos (models that are merely featured) are advertised too,
- * and the "Ends {date}." line is omitted for open-ended promos. Dismissals are
- * persisted by promo id so the same promo is never shown again.
+ * Surfaces a model's promo as a chat input notification, scoped to the harness
+ * (chat session type) of the model that carries it. Dismissals are persisted by promo id.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -52,11 +46,8 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		const dismissed = this._getDismissedPromoIds();
 		const modelIds = this._languageModelsService.getLanguageModelIds();
 
-		// A promo can appear in several harnesses at once (e.g. the same model
-		// offered in the Local, Copilot, and Codex sessions). Bucket the first
-		// non-dismissed promo per harness (a model's `targetChatSessionType`,
-		// or the local pool when unset). A discounted promo always wins over a
-		// 0% one, which only features a model without a price change.
+		// Bucket one non-dismissed promo per harness (a model's `targetChatSessionType`,
+		// or the local pool when unset), preferring a discounted promo over a message-only one.
 		const promoByHarness = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		for (const id of modelIds) {
 			const meta = this._languageModelsService.lookupLanguageModel(id);

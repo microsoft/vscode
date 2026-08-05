@@ -322,9 +322,10 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly warningText?: IStringDictionary<string>;
 	/**
-	 * Optional promotional information for this model. Positive discounts surface
-	 * promotional UI; non-positive discounts only feature the model in the picker.
-	 * `endsAt` is optional: open-ended promos omit it and no end date is rendered.
+	 * Optional promotional information for this model. A positive `discountPercent`
+	 * surfaces the full promotional UI; `0` is a message-only promo that features the
+	 * model without a price change; a negative value is malformed and is ignored.
+	 * `endsAt` is optional — open-ended promos omit it and render no end date.
 	 */
 	readonly promo?: {
 		readonly id: string;
@@ -355,20 +356,12 @@ export namespace ILanguageModelChatMetadata {
 		return !!metadata.promo && metadata.promo.discountPercent > 0;
 	}
 
-	/**
-	 * Whether the model carries a server-authored promo message worth surfacing.
-	 * Unlike {@link hasPromoDiscount} this also covers 0% promos, which feature a
-	 * model without a discount but can still advertise it with a message.
-	 * Negative discounts are treated as malformed data and are ignored.
-	 */
+	/** Whether the model has a promo message to surface, including message-only (0%) promos. */
 	export function hasPromoMessage(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
 		return !!metadata.promo && metadata.promo.discountPercent >= 0 && !!metadata.promo.message;
 	}
 
-	/**
-	 * The localized "Ends {date}." sentence for a promo, or `undefined` when the
-	 * promo has no end date (open-ended) or an unparsable one.
-	 */
+	/** The localized "Ends {date}." sentence, or `undefined` for a missing or unparsable end date. */
 	export function getPromoEndsAtLabel(endsAt: string | undefined): string | undefined {
 		if (!endsAt) {
 			return undefined;

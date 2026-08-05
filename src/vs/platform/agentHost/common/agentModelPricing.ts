@@ -39,7 +39,7 @@ export interface IAgentModelPricingMeta {
 	readonly category?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; shown as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
-	/** Promotional information when the model is experiencing a discount. */
+	/** Promotional information for the model. A `discountPercent` of `0` is a valid message-only promo. */
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
@@ -197,7 +197,7 @@ export interface ICAPIModelBilling {
 	readonly priceCategory?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
-	/** Promotional info when the model is experiencing a promotional discount. */
+	/** Promotional information for the model. A `discountPercent` of `0` is a valid message-only promo. */
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
