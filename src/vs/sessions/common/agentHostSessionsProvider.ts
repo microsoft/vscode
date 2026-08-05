@@ -32,6 +32,7 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
+	readonly disabledByContainer: boolean;
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;

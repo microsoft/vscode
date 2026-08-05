@@ -39,6 +39,7 @@ function agentHostServer(id: string, name: string): AgentHostMcpServer {
 		id,
 		name,
 		enabled: true,
+		disabledByContainer: false,
 		status: McpServerStatus.Ready,
 		state: { kind: McpServerStatus.Ready },
 		setEnabled() { },

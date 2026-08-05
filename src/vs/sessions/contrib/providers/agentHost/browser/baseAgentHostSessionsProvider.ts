@@ -3270,16 +3270,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
-			.flatMap(c => c.type === CustomizationType.McpServer
-				? [c]
-				: c.children
-					? c.children.filter(c => c.type === CustomizationType.McpServer)
+			.flatMap(container => container.type === CustomizationType.McpServer
+				? [{ customization: container, disabledByContainer: false }]
+				: container.children
+					? container.children
+						.filter(child => child.type === CustomizationType.McpServer)
+						.map(customization => ({ customization, disabledByContainer: container.type === CustomizationType.Plugin && !container.enabled }))
 					: [])
-			.map((c): IAgentHostMcpServer => ({
+			.map(({ customization: c, disabledByContainer }): IAgentHostMcpServer => ({
 				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
-				enabled: c.enabled,
+				enabled: disabledByContainer ? false : c.enabled,
 				enablement: c.enablement,
+				disabledByContainer,
 				status: c.state.kind,
 				state: c.state,
 				setEnabled: (enabled: boolean) => {

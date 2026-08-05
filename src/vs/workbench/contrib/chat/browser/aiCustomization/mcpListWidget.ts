@@ -397,20 +397,22 @@ interface IMcpStatusPresentation {
 	readonly icon?: ThemeIcon;
 }
 
-function getMcpStatusPresentation(state: McpStatusKind | undefined, enablement?: Pick<AgentHostMcpServer, 'enablement'>): IMcpStatusPresentation | undefined {
+function getMcpStatusPresentation(state: McpStatusKind | undefined, enablement?: Pick<AgentHostMcpServer, 'disabledByContainer' | 'enablement'>): IMcpStatusPresentation | undefined {
 	if (state === undefined) {
 		return undefined;
 	}
 	if (state === 'disabled') {
 		const decisive = enablement?.enablement?.[0];
 		return {
-			label: decisive?.kind === CustomizationEnablementKind.Session
-				? localize('disabledSession', "Disabled (Session)")
-				: decisive?.kind === CustomizationEnablementKind.Workspace
-					? localize('disabledWorkspace', "Disabled (Workspace)")
-					: decisive?.kind === CustomizationEnablementKind.Global
-						? localize('disabledEverywhere', "Disabled (Everywhere)")
-						: localize('disabled', "Disabled"),
+			label: enablement?.disabledByContainer
+				? localize('disabledPlugin', "Disabled (Plugin)")
+				: decisive?.kind === CustomizationEnablementKind.Session
+					? localize('disabledSession', "Disabled (Session)")
+					: decisive?.kind === CustomizationEnablementKind.Workspace
+						? localize('disabledWorkspace', "Disabled (Workspace)")
+						: decisive?.kind === CustomizationEnablementKind.Global
+							? localize('disabledEverywhere', "Disabled (Everywhere)")
+							: localize('disabled', "Disabled"),
 			className: 'disabled',
 			icon: Codicon.circleSlash,
 		};
@@ -612,6 +614,9 @@ export function getSessionEnablementAction(server: AgentHostMcpServer): IAction 
 
 /** Creates durable profile/workspace actions for an agent-host-only server. */
 export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, isEmptyWorkbench: boolean): IAction[] {
+	if (server.disabledByContainer) {
+		return [];
+	}
 	const disabled = isContributionDisabled(agentHostCustomizations.getMcpServerEnablement(sessionResource, server.name));
 	const actions: IAction[] = [];
 	if (disabled) {
@@ -702,17 +707,21 @@ export function getActiveSessionServerOptionsActions(commandService: ICommandSer
 		actions.push(lifecycleAction);
 	}
 
-	const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, server, isEmptyWorkbench);
-	if (durableActions.length > 0) {
-		if (actions.length > 0) {
-			actions.push(new Separator());
+	if (!server.disabledByContainer) {
+		const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, server, isEmptyWorkbench);
+		if (durableActions.length > 0) {
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			actions.push(...durableActions);
 		}
-		actions.push(...durableActions);
+
+		actions.push(getSessionEnablementAction(server));
 	}
 
-	actions.push(getSessionEnablementAction(server));
-
-	actions.push(new Separator());
+	if (actions.length > 0) {
+		actions.push(new Separator());
+	}
 	actions.push(new Action(
 		'mcpServer.activeSession.options',
 		localize('activeSessionMcpServerOptions', "Server Options"),
@@ -1586,7 +1595,7 @@ export class McpListWidget extends Disposable {
 				actions.push(disposables.add(lifecycleAction));
 			}
 
-			if (e.element.localServer) {
+			if (e.element.localServer && !e.element.activeSessionServer?.disabledByContainer) {
 				const isEmptyWorkbench = this.workspaceService.getActiveProjectRoot() === undefined;
 				const agentHostTarget = e.element.activeSessionServer ? {
 					agentHostCustomizations: this.agentHostCustomizationService,
@@ -1608,7 +1617,7 @@ export class McpListWidget extends Disposable {
 				}
 			}
 
-			if (e.element.activeSessionServer) {
+			if (e.element.activeSessionServer && !e.element.activeSessionServer.disabledByContainer) {
 				const sessionAction = getSessionEnablementAction(e.element.activeSessionServer);
 				if (isDisposable(sessionAction)) {
 					disposables.add(sessionAction);
@@ -1680,7 +1689,7 @@ export class McpListWidget extends Disposable {
 		const groups: IAction[][] = getContextMenuActions(mcpServer, false, this.instantiationService);
 		const actions: IAction[] = [];
 		const activeSessionLifecycleAction = activeSessionServer ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
-		const activeSessionEnablementAction = activeSessionServer ? getSessionEnablementAction(activeSessionServer) : undefined;
+		const activeSessionEnablementAction = activeSessionServer && !activeSessionServer.disabledByContainer ? getSessionEnablementAction(activeSessionServer) : undefined;
 		let sessionEnablementAdded = false;
 		if (activeSessionLifecycleAction) {
 			actions.push(disposables.add(activeSessionLifecycleAction));
@@ -1697,7 +1706,7 @@ export class McpListWidget extends Disposable {
 			}
 			const visibleMenuActions = activeSessionServer
 				? menuActions
-					.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+					.filter(action => !shouldHideLocalActionForActiveSessionServer(action) && (!activeSessionServer.disabledByContainer || !isLocalMcpServerEnablementAction(action)))
 					.map(action => {
 						const wrappedAction = withAgentHostMcpServerEnablement(action, {
 							agentHostCustomizations: this.agentHostCustomizationService,

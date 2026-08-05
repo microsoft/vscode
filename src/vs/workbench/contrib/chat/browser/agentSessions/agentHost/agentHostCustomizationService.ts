@@ -203,6 +203,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				name: c.name,
 				enabled: c.enabled,
 				enablement: c.enablement,
+				disabledByContainer: c.disabledByContainer,
 				status: c.state.kind,
 				state: c.state,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
@@ -358,14 +359,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * decisions (see AI_CUSTOMIZATIONS.md, "Container Enablement and the
 	 * Cascade").
 	 */
-	private _flattenMcpServers(customizations: readonly Customization[]): McpServerCustomization[] {
+	private _flattenMcpServers(customizations: readonly Customization[]): (McpServerCustomization & { readonly disabledByContainer: boolean })[] {
 		return customizations.flatMap(container => {
 			if (container.type === CustomizationType.McpServer) {
-				return [container];
+				return [{ ...container, disabledByContainer: false }];
 			}
 			const masked = container.type === CustomizationType.Plugin && !container.enabled;
 			return container.children?.filter(child => child.type === CustomizationType.McpServer)
-				.map(child => masked ? { ...child, enabled: false } : child) ?? [];
+				.map(child => ({ ...child, enabled: masked ? false : child.enabled, disabledByContainer: masked })) ?? [];
 		});
 	}
 

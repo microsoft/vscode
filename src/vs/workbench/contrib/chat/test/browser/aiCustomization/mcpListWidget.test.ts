@@ -32,6 +32,7 @@ function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): Age
 		id: 'server-1',
 		name: 'Server One',
 		enabled: true,
+		disabledByContainer: false,
 		status: McpServerStatus.Ready,
 		state: { kind: McpServerStatus.Ready },
 		setEnabled: () => { },
@@ -273,7 +274,7 @@ suite('mcpListWidget', () => {
 
 		test('hides the lifecycle action while the host publishes a disabled server', () => {
 			const { service } = createAgentHostCustomizations(ContributionEnablementState.DisabledProfile);
-			const server = createAgentHostServer({ enabled: false, status: McpServerStatus.Ready });
+			const server = createAgentHostServer({ enabled: false, status: McpServerStatus.Ready, disabledByContainer: false });
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
 			const commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
 			const actions = trackActions(disposables, getActiveSessionServerOptionsActions(
@@ -291,6 +292,22 @@ suite('mcpListWidget', () => {
 				'(separator)',
 				'Server Options',
 			]);
+		});
+
+		test('omits child enablement actions when disabled by a plugin', () => {
+			const { service } = createAgentHostCustomizations(ContributionEnablementState.DisabledProfile);
+			const server = createAgentHostServer({ enabled: false, status: McpServerStatus.Ready, disabledByContainer: true });
+			const sessionResource = URI.parse('vscode-agent-session:///session-1');
+			const commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+			const actions = trackActions(disposables, getActiveSessionServerOptionsActions(
+				commandService,
+				service,
+				false,
+				sessionResource,
+				server,
+			));
+
+			assert.deepStrictEqual(actions.map(action => action instanceof Separator ? '(separator)' : action.label), ['Server Options']);
 		});
 	});
 

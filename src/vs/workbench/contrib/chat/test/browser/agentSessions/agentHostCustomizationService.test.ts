@@ -229,10 +229,36 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 			name: server.name,
 			enabled: server.enabled,
 			enablement: server.enablement,
+			disabledByContainer: (server as { readonly disabledByContainer?: boolean }).disabledByContainer,
 		})), [{
 			name: 'GitHub',
 			enabled: false,
 			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+			disabledByContainer: true,
+		}]);
+	});
+
+	test('preserves an MCP server state when its plugin is enabled', () => {
+		const sut = createSut();
+		sut.setTarget(session, new FakeTarget([{
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'file:///plugin-1',
+			name: 'Plugin One',
+			enabled: true,
+			children: [mcpServer('github', 'GitHub', false, { kind: CustomizationEnablementKind.Session, enabled: false })],
+		}]));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			name: server.name,
+			enabled: server.enabled,
+			enablement: server.enablement,
+			disabledByContainer: (server as { readonly disabledByContainer?: boolean }).disabledByContainer,
+		})), [{
+			name: 'GitHub',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			disabledByContainer: false,
 		}]);
 	});
 });
