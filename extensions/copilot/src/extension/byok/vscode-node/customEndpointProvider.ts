@@ -90,6 +90,14 @@ interface _CustomEndpointModelConfig {
 	name: string;
 	url: string;
 	apiType?: CustomEndpointApiType;
+	/**
+	 * Optional model name sent on the wire (the `model` field in the request body).
+	 * When unset the model's {@link CustomEndpointModelConfig.id} is used. Specify
+	 * this when several models must share the same underlying model name while
+	 * keeping distinct, unique `id`s (e.g. two entries pointing at the same
+	 * `gpt-5.5` model but with different settings).
+	 */
+	modelId?: string;
 	/** Optional when {@link contextWindow} is set; then derived as `contextWindow - maxOutputTokens`. */
 	maxInputTokens?: number;
 	maxOutputTokens: number;
@@ -169,7 +177,13 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
-		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		// The registered model identity (unique `id`) is what other components see
+		// (model picker, per-model settings). Only the request to the endpoint needs
+		// the actual wire model name, so resolve it here when a distinct `modelId`
+		// is configured; otherwise the unique `id` doubles as the wire name. This
+		// keeps the wire name contained to the custom endpoint. See #325069.
+		const wireModelId = modelConfiguration?.modelId ?? model.id;
+		const modelInfo = resolveModelInfo(wireModelId, this._name, undefined, modelCapabilities);
 		const supportedEndpoints = apiTypeToSupportedEndpoints(apiType);
 		if (supportedEndpoints) {
 			modelInfo.supported_endpoints = supportedEndpoints;

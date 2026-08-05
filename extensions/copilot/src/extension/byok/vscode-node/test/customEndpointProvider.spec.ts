@@ -14,7 +14,9 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
+import { CustomEndpointBYOKModelProvider, CustomEndpointModelConfig, CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { IBYOKStorageService } from '../byokStorageService';
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -627,6 +629,61 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(messages[0].reasoning_content).toBe('I should read the README before answering.');
 			expect(messages[0].reasoning).toBe('I should read the README before answering.');
 			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
+		});
+	});
+
+	describe('createOpenAIEndPoint', () => {
+		class TestCustomEndpointProvider extends CustomEndpointBYOKModelProvider {
+			public createEndpointForTest(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>) {
+				return this.createOpenAIEndPoint(model);
+			}
+		}
+
+		const storageStub: IBYOKStorageService = {
+			getAPIKey: async () => undefined,
+			storeAPIKey: async () => { },
+			deleteAPIKey: async () => { },
+			getStoredModelConfigs: async () => ({}),
+			saveModelConfig: async () => { },
+			removeModelConfig: async () => { },
+		};
+
+		function makeProviderModel(id: string, models: CustomEndpointModelConfig[]): OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig> {
+			const cfg = models.find(m => m.id === id)!;
+			return {
+				id,
+				name: cfg.name,
+				family: id,
+				version: '1.0',
+				maxInputTokens: 100,
+				maxOutputTokens: cfg.maxOutputTokens,
+				capabilities: { toolCalling: cfg.toolCalling, imageInput: cfg.vision },
+				url: cfg.url,
+				configuration: { apiKey: 'test-api-key', models },
+			};
+		}
+
+		// Regression for https://github.com/microsoft/vscode/issues/325069
+		// A custom model can target a wire model name distinct from its unique `id`,
+		// so several entries with unique `id`s can share the same underlying model.
+		// The wire name stays contained to the endpoint request; only the unique
+		// `id` is exposed to the rest of the system.
+		it('issue #325069: sends modelId as the wire model when set, and the unique id otherwise', async () => {
+			const models: CustomEndpointModelConfig[] = [
+				{ id: 'gpt-5.5-a', modelId: 'gpt-5.5', name: 'A', url: 'https://api.example.com/v1/chat/completions', toolCalling: true, vision: false, maxOutputTokens: 100 },
+				{ id: 'gpt-5.5-b', name: 'B', url: 'https://api.example.com/v1/chat/completions', toolCalling: true, vision: false, maxOutputTokens: 100 },
+			];
+			const provider = instaService.createInstance(TestCustomEndpointProvider, storageStub);
+			const withOverride = await provider.createEndpointForTest(makeProviderModel('gpt-5.5-a', models));
+			const withoutOverride = await provider.createEndpointForTest(makeProviderModel('gpt-5.5-b', models));
+
+			expect({
+				overrideModel: withOverride.model,
+				fallbackModel: withoutOverride.model,
+			}).toEqual({
+				overrideModel: 'gpt-5.5',
+				fallbackModel: 'gpt-5.5-b',
+			});
 		});
 	});
 });

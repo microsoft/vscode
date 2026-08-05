@@ -2064,7 +2064,11 @@
                 "properties": {
                   "id": {
                     "type": "string",
-                    "description": "Unique identifier for the model"
+                    "markdownDescription": "Unique identifier for the model within this provider group. Used to identify the model in the model picker and to key its per-model settings, so it must be unique among the models in this group. When several entries should target the same underlying model on the server, keep their `id` values distinct and set the shared model name via `modelId`."
+                  },
+                  "modelId": {
+                    "type": "string",
+                    "markdownDescription": "The model name sent to the endpoint (the `model` field in the request body). Optional; defaults to `id`. Set this when multiple models must share the same underlying model name on the server while keeping distinct, unique `id` values so their settings don't collide."
                   },
                   "name": {
                     "type": "string",
