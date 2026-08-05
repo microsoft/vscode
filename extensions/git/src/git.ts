@@ -1762,6 +1762,10 @@ export class Repository {
 		return this.diffFilesShortStat(undefined, { cached: false, path });
 	}
 
+	async diffWithHEADWithStats(options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		return this.diffFilesWithStats(undefined, { cached: false, similarityThreshold: options?.similarityThreshold });
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
@@ -1790,6 +1794,10 @@ export class Repository {
 
 	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
 		return this.diffFilesShortStat(undefined, { cached: true, path });
+	}
+
+	async diffIndexWithHEADWithStats(options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		return this.diffFilesWithStats(undefined, { cached: true, similarityThreshold: options?.similarityThreshold });
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
@@ -1880,6 +1888,31 @@ export class Repository {
 		}
 
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	private async diffFilesWithStats(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		if (ref) {
+			args.push(ref);
+		}
+
+		args.push('--');
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
 	private async diffFilesShortStat(ref: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {

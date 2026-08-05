@@ -53,6 +53,110 @@ export const enum ResourceGroupType {
 	Untracked
 }
 
+type DiffStatistics = { readonly insertions: number; readonly deletions: number };
+
+/**
+ * Untracked files are not reported by `git diff`, so their line count is read from
+ * disk. Files larger than this are skipped to bound the amount of I/O per status
+ * update.
+ */
+const DIFF_STATISTICS_MAX_FILE_SIZE = 1024 * 1024;
+
+/**
+ * Maximum number of untracked files that are read from disk concurrently while
+ * computing diff statistics.
+ */
+const DIFF_STATISTICS_CONCURRENCY = 5;
+
+function toDiffStatisticsMap(changes: DiffChange[]): Map<string, DiffStatistics> {
+	const result = new Map<string, DiffStatistics>();
+
+	for (const change of changes) {
+		result.set(change.uri.fsPath, { insertions: change.insertions, deletions: change.deletions });
+	}
+
+	// For renames `change.uri` is the new path while `Resource.resourceUri` is the
+	// original path. Register the original path as a fallback, without overwriting
+	// an entry that another change already claimed.
+	for (const change of changes) {
+		if (!result.has(change.originalUri.fsPath)) {
+			result.set(change.originalUri.fsPath, { insertions: change.insertions, deletions: change.deletions });
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Counts the lines of a file on disk so that they can be reported as insertions.
+ * Returns `undefined` when git itself would not report line statistics for the
+ * file (binary, too large, or unreadable).
+ */
+export async function countFileLines(uri: Uri): Promise<DiffStatistics | undefined> {
+	let handle: fsPromises.FileHandle | undefined;
+
+	try {
+		const fileStat = await fsPromises.stat(uri.fsPath);
+		if (!fileStat.isFile() || fileStat.size > DIFF_STATISTICS_MAX_FILE_SIZE) {
+			return undefined;
+		}
+
+		if (fileStat.size === 0) {
+			return { insertions: 0, deletions: 0 };
+		}
+
+		handle = await fsPromises.open(uri.fsPath, 'r');
+		const buffer = Buffer.alloc(64 * 1024);
+
+		let insertions = 0;
+		let lastByte = 0;
+
+		while (true) {
+			const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+			if (bytesRead === 0) {
+				break;
+			}
+
+			for (let i = 0; i < bytesRead; i++) {
+				// A NUL byte makes git treat the file as binary, in which case it
+				// reports no line statistics at all.
+				if (buffer[i] === 0) {
+					return undefined;
+				}
+
+				if (buffer[i] === 0x0a /* \n */) {
+					insertions++;
+				}
+			}
+
+			lastByte = buffer[bytesRead - 1];
+		}
+
+		// Git counts a trailing incomplete line as a line
+		return { insertions: lastByte === 0x0a ? insertions : insertions + 1, deletions: 0 };
+	} catch {
+		return undefined;
+	} finally {
+		await handle?.close();
+	}
+}
+
+async function resolveDiffStatistics(resource: Resource, statistics: DiffStatistics | undefined): Promise<DiffStatistics | undefined> {
+	if (statistics) {
+		return statistics;
+	}
+
+	// Untracked and intent-to-add files have no content in the index for git to
+	// diff against, so their line count is read from the working tree instead.
+	switch (resource.type) {
+		case Status.UNTRACKED:
+		case Status.INTENT_TO_ADD:
+			return countFileLines(resource.resourceUri);
+		default:
+			return undefined;
+	}
+}
+
 export class Resource implements SourceControlResourceState {
 
 	static getStatusLetter(type: Status): string {
@@ -190,6 +294,7 @@ export class Resource implements SourceControlResourceState {
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 	get contextValue(): string | undefined { return this._repositoryKind; }
+	get diffStatistics(): DiffStatistics | undefined { return this._diffStatistics; }
 
 	private static Icons = {
 		light: {
@@ -319,6 +424,7 @@ export class Resource implements SourceControlResourceState {
 		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
 		private _repositoryKind?: 'repository' | 'submodule' | 'worktree',
+		private _diffStatistics?: DiffStatistics,
 	) { }
 
 	async open(): Promise<void> {
@@ -342,7 +448,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	clone(resourceGroupType?: ResourceGroupType) {
-		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind, this._diffStatistics);
+	}
+
+	withDiffStatistics(diffStatistics: DiffStatistics | undefined): Resource {
+		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind, diffStatistics);
 	}
 }
 
@@ -1186,6 +1296,10 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEADShortStats(path));
 	}
 
+	diffWithHEADWithStats(options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		return this.run(Operation.Diff, () => this.repository.diffWithHEADWithStats(options));
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
@@ -1202,6 +1316,10 @@ export class Repository implements Disposable {
 
 	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
 		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEADShortStats(path));
+	}
+
+	diffIndexWithHEADWithStats(options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEADWithStats(options));
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
@@ -3092,7 +3210,67 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
+		await this.applyDiffStatistics(indexGroup, workingTreeGroup, untrackedGroup, similarityThreshold, cancellationToken);
+
 		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+	}
+
+	/**
+	 * Computes the number of inserted/deleted lines for the resources of the index and
+	 * working tree groups, and replaces them in-place with resources that carry the
+	 * statistics. Resources of the merge group are skipped as git does not report line
+	 * statistics for unmerged paths.
+	 */
+	private async applyDiffStatistics(
+		indexGroup: Resource[],
+		workingTreeGroup: Resource[],
+		untrackedGroup: Resource[],
+		similarityThreshold: number,
+		cancellationToken?: CancellationToken
+	): Promise<void> {
+		// Diff statistics require additional git commands as well as reading untracked
+		// files from disk, so they are skipped for repositories that hit the status limit.
+		if (this.isRepositoryHuge) {
+			return;
+		}
+
+		try {
+			const [indexChanges, workingTreeChanges] = await Promise.all([
+				indexGroup.length > 0 ? this.diffIndexWithHEADWithStats({ similarityThreshold }) : Promise.resolve<DiffChange[]>([]),
+				workingTreeGroup.length > 0 ? this.diffWithHEADWithStats({ similarityThreshold }) : Promise.resolve<DiffChange[]>([])
+			]);
+
+			if (cancellationToken?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			const limiter = new Limiter<void>(DIFF_STATISTICS_CONCURRENCY);
+			const applyToGroup = (group: Resource[], statistics: Map<string, DiffStatistics>) =>
+				group.map((resource, index) => limiter.queue(async () => {
+					if (cancellationToken?.isCancellationRequested) {
+						return;
+					}
+
+					group[index] = resource.withDiffStatistics(
+						await resolveDiffStatistics(resource, statistics.get(resource.resourceUri.fsPath)));
+				}));
+
+			await Promise.all([
+				...applyToGroup(indexGroup, toDiffStatisticsMap(indexChanges)),
+				...applyToGroup(workingTreeGroup, toDiffStatisticsMap(workingTreeChanges)),
+				...applyToGroup(untrackedGroup, new Map())
+			]);
+
+			if (cancellationToken?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} catch (err) {
+			if (err instanceof CancellationError) {
+				throw err;
+			}
+
+			this.logger.warn(`[Repository][applyDiffStatistics] Failed to compute diff statistics: ${err}`);
+		}
 	}
 
 	private setCountBadge(): void {

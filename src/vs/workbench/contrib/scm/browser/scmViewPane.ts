@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/v
 import { append, $, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode, ISCMResourceDiffStatistics } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -50,6 +50,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
+import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
+import { historyItemHoverAdditionsForeground, historyItemHoverDeletionsForeground } from './scmHistory.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
@@ -77,6 +79,82 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { SCMInputWidget } from './scmInput.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
+
+type DiffStatisticsVisibility = 'all' | 'files' | 'groups' | 'off';
+
+registerColor('scm.diffStatisticsInsertionsForeground', historyItemHoverAdditionsForeground, localize('scmDiffStatisticsInsertionsForeground', "Foreground color of the number of inserted lines in the Source Control view."));
+registerColor('scm.diffStatisticsDeletionsForeground', historyItemHoverDeletionsForeground, localize('scmDiffStatisticsDeletionsForeground', "Foreground color of the number of deleted lines in the Source Control view."));
+
+/**
+ * Aggregating the statistics of a resource group is linear in the number of its
+ * resources, while the group header is re-rendered on every scroll. Cache the result
+ * keyed on the resources array, which is replaced whenever the group changes.
+ */
+const resourceGroupDiffStatistics = new WeakMap<readonly ISCMResource[], ISCMResourceDiffStatistics | null>();
+
+function showDiffStatistics(configurationService: IConfigurationService, target: 'files' | 'groups'): boolean {
+	const visibility = configurationService.getValue<DiffStatisticsVisibility>('scm.diffStatistics');
+	return visibility === 'all' || visibility === target;
+}
+
+function getResourceGroupDiffStatistics(group: ISCMResourceGroup): ISCMResourceDiffStatistics | undefined {
+	const resources = group.resources;
+	const cached = resourceGroupDiffStatistics.get(resources);
+
+	if (cached !== undefined) {
+		return cached ?? undefined;
+	}
+
+	let insertions = 0;
+	let deletions = 0;
+	let hasStatistics = false;
+
+	for (const resource of resources) {
+		if (!resource.diffStatistics) {
+			continue;
+		}
+
+		hasStatistics = true;
+		insertions += resource.diffStatistics.insertions;
+		deletions += resource.diffStatistics.deletions;
+	}
+
+	const result = hasStatistics ? { insertions, deletions } : null;
+	resourceGroupDiffStatistics.set(resources, result);
+
+	return result ?? undefined;
+}
+
+function renderDiffStatistics(container: HTMLElement, statistics: ISCMResourceDiffStatistics | undefined): void {
+	clearNode(container);
+
+	// The statistics are announced as part of the aria label of the row, so the
+	// element itself is always hidden from screen readers.
+	container.setAttribute('aria-hidden', 'true');
+
+	if (!statistics || (statistics.insertions === 0 && statistics.deletions === 0)) {
+		container.classList.add('empty');
+		return;
+	}
+
+	container.classList.remove('empty');
+
+	if (statistics.insertions > 0) {
+		append(container, $('span.insertions')).textContent = `+${statistics.insertions}`;
+	}
+
+	if (statistics.deletions > 0) {
+		append(container, $('span.deletions')).textContent = `-${statistics.deletions}`;
+	}
+}
+
+function formatDiffStatisticsLabel(statistics: ISCMResourceDiffStatistics | undefined): string | undefined {
+	if (!statistics || (statistics.insertions === 0 && statistics.deletions === 0)) {
+		return undefined;
+	}
+
+	return localize('scmDiffStatisticsLabel', "{0} insertions, {1} deletions", statistics.insertions, statistics.deletions);
+}
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
@@ -381,6 +459,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
+	readonly diffStatistics: HTMLElement;
 	readonly count: CountBadge;
 	readonly actionBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
@@ -396,6 +475,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
 		@ICommandService private commandService: ICommandService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -412,17 +492,20 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 			actionViewItemProvider: this.actionViewItemProvider,
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const diffStatistics = append(element, $('.diff-statistics.empty'));
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const disposables = combinedDisposable(actionBar, count);
 
-		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
+		return { name, diffStatistics, count, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
 		const group = node.element;
 		template.name.textContent = group.label;
 		template.count.setCount(group.resources.length);
+
+		renderDiffStatistics(template.diffStatistics, showDiffStatistics(this.configurationService, 'groups') ? getResourceGroupDiffStatistics(group) : undefined);
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(group.provider);
 		template.elementDisposables.add(connectPrimaryMenu(menus.getResourceGroupMenu(group), primary => {
@@ -449,6 +532,7 @@ interface ResourceTemplate {
 	element: HTMLElement;
 	name: HTMLElement;
 	fileLabel: IResourceLabel;
+	diffStatistics: HTMLElement;
 	decorationIcon: HTMLElement;
 	actionBar: WorkbenchToolBar;
 	actionBarMenu: IMenu | undefined;
@@ -499,6 +583,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
 		@ICommandService private commandService: ICommandService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -521,11 +606,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 
+		const diffStatistics = append(element, $('.diff-statistics.empty'));
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const actionBarMenuListener = new MutableDisposable<IDisposable>();
 		const disposables = combinedDisposable(actionBar, fileLabel, actionBarMenuListener);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, actionBarMenuListener, elementDisposables: new DisposableStore(), disposables };
+		return { element, name, fileLabel, diffStatistics, decorationIcon, actionBar, actionBarMenu: undefined, actionBarMenuListener, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -539,6 +625,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
 		let strikethrough: boolean | undefined;
+		let diffStatistics: ISCMResourceDiffStatistics | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
@@ -547,6 +634,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
+				diffStatistics = resourceOrFolder.element.diffStatistics;
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				this._renderActionBar(template, resourceOrFolder, menus.getResourceFolderMenu(resourceOrFolder.context));
@@ -561,6 +649,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			[matches, descriptionMatches] = processResourceFilterData(uri, node.filterData);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
 			strikethrough = resourceOrFolder.decorations.strikeThrough;
+			diffStatistics = resourceOrFolder.diffStatistics;
 		}
 
 		const renderedData: RenderedResourceData = {
@@ -568,6 +657,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		};
 
 		this.renderIcon(template, renderedData);
+		renderDiffStatistics(template.diffStatistics, showDiffStatistics(this.configurationService, 'files') ? diffStatistics : undefined);
 
 		this.renderedResources.set(template, renderedData);
 		template.elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
@@ -599,6 +689,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		template.name.classList.remove('strike-through');
 		template.element.classList.remove('faded');
+		renderDiffStatistics(template.diffStatistics, undefined);
 		template.decorationIcon.style.display = 'none';
 		template.decorationIcon.style.backgroundImage = '';
 
@@ -897,7 +988,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMActionButton(element)) {
 			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
-			return element.label;
+			const statisticsLabel = showDiffStatistics(this.configurationService, 'groups')
+				? formatDiffStatisticsLabel(getResourceGroupDiffStatistics(element)) : undefined;
+			return statisticsLabel ? `${element.label}, ${statisticsLabel}` : element.label;
 		} else {
 			const result: string[] = [];
 
@@ -905,6 +998,13 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 
 			if (element.decorations.tooltip) {
 				result.push(element.decorations.tooltip);
+			}
+
+			const statisticsLabel = showDiffStatistics(this.configurationService, 'files')
+				? formatDiffStatisticsLabel(element.diffStatistics) : undefined;
+
+			if (statisticsLabel) {
+				result.push(statisticsLabel);
 			}
 
 			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
@@ -1557,6 +1657,12 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.showActionButton'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
+
+					// Only affects how rows are rendered, so the tree does not have to be refreshed
+					Event.filter(this.configurationService.onDidChangeConfiguration,
+						e => e.affectsConfiguration('scm.diffStatistics'),
+						this.visibilityDisposables)
+						(() => this.tree.rerender(), this, this.visibilityDisposables);
 
 					// Add visible repositories
 					this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);

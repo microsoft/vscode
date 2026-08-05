@@ -243,6 +243,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
 			default: false
 		},
+		'scm.diffStatistics': {
+			type: 'string',
+			enum: ['all', 'files', 'groups', 'off'],
+			enumDescriptions: [
+				localize('scm.diffStatistics.all', "Show added and removed line counts on resource group headers and individual resources."),
+				localize('scm.diffStatistics.files', "Show added and removed line counts only on individual resources."),
+				localize('scm.diffStatistics.groups', "Show added and removed line counts only on resource group headers."),
+				localize('scm.diffStatistics.off', "Do not show added and removed line counts.")
+			],
+			description: localize('scm.diffStatistics', "Controls whether Source Control shows added and removed line counts for resources and resource groups."),
+			default: 'all'
+		},
 		'scm.countBadge': {
 			type: 'string',
 			enum: ['all', 'focused', 'off'],

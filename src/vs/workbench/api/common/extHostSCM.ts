@@ -244,6 +244,25 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 		return -1;
 	}
 
+	if (result !== 0) {
+		return result;
+	}
+
+	const aStats = a.diffStatistics;
+	const bStats = b.diffStatistics;
+	if (aStats && bStats) {
+		if (aStats.insertions !== bStats.insertions) {
+			return aStats.insertions - bStats.insertions;
+		}
+		if (aStats.deletions !== bStats.deletions) {
+			return aStats.deletions - bStats.deletions;
+		}
+	} else if (aStats) {
+		return 1;
+	} else if (bStats) {
+		return -1;
+	}
+
 	return result;
 }
 
@@ -504,8 +523,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 				const faded = r.decorations && !!r.decorations.faded;
 				const contextValue = r.contextValue || '';
+				const diffStatistics = isProposedApiEnabled(this._extension, 'scmDiffStatistics') && r.diffStatistics
+					? { insertions: r.diffStatistics.insertions, deletions: r.diffStatistics.deletions }
+					: undefined;
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri, diffStatistics] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
