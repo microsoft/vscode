@@ -3936,6 +3936,28 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('narrates an omni-routed confirmation when its session is not shown', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined, confirmationType?: VoiceConfirmationType) => void;
+		controller.setTargetSession(resource, 'existing_session');
+
+		handleStateChange.call(controller, resource.toString(), 'waiting_for_confirmation', 'Allow running the tests?', undefined, 'vscode-chat://different-session', 'tool');
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			sessionId: request.sessionId,
+			kind: request.kind,
+			text: request.text,
+			confirmationType: request.confirmationType,
+		})), [{
+			sessionId: resource.toString(),
+			kind: 'confirmation',
+			text: 'Allow running the tests?',
+			confirmationType: 'tool',
+		}]);
+	});
+
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
 		// Queue semantics applied uniformly: approve the command you were asked
 		// about, then answer the questions.

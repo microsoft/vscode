@@ -7,16 +7,19 @@ import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
@@ -28,15 +31,21 @@ import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
+const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -57,6 +66,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private readonly _ownershipChannel: BroadcastChannel;
 	private _modelRef: IChatModelReference | undefined;
 	private _widget: ChatWidget | undefined;
+	private _pendingPromptIndex = 0;
+	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
 	private _lead: HTMLElement | undefined;
@@ -82,6 +93,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -207,6 +220,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this.closeWindow();
 			}
 		}));
+		this._renderPendingPrompts(auxiliaryWindow);
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -391,6 +405,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			void auxiliaryWindow.setBounds({ x, y, width, height: contentHeight });
 		};
+		this._fitWindowToContent = fitWindowToInput;
 
 		let layingOut = false;
 		const layout = () => {
@@ -442,6 +457,171 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
 
+	private _renderPendingPrompts(auxiliaryWindow: IAuxiliaryWindow): void {
+		const panel = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-pending-panel'));
+		const header = dom.append(panel, dom.$('.chat-input-window-pending-header', { 'aria-live': 'polite' }));
+		const marker = dom.append(header, dom.$('span.chat-input-window-pending-marker', { 'aria-hidden': 'true' }));
+		marker.appendChild(renderIcon(Codicon.gripper));
+		const label = dom.append(header, dom.$('span.chat-input-window-pending-label'));
+		const navigation = dom.append(header, dom.$('.chat-input-window-pending-navigation'));
+		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Request"));
+		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Request"));
+
+		const parent = dom.append(panel, dom.$('.chat-input-window-pending-widget.interactive-session'));
+		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
+		ChatContextKeys.inChatInputWindow.bindTo(scopedContextKeyService).set(true);
+		const scopedInstantiationService = this._windowDisposables.add(this.instantiationService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				scopedContextKeyService,
+			])
+		));
+		const widget = this._windowDisposables.add(scopedInstantiationService.createInstance(
+			ChatWidget,
+			ChatAgentLocation.Chat,
+			{ isQuickChat: true },
+			{
+				autoScroll: true,
+				renderInputOnTop: true,
+				renderStyle: 'compact',
+				renderGettingStartedTip: false,
+				filter: item => isResponseVM(item) && !!item.model.isPendingConfirmation.get(),
+				enableImplicitContext: false,
+				defaultMode: ChatMode.Ask,
+				menus: { telemetrySource: 'chatInputWindowPending' },
+			},
+			{
+				inputEditorBackground: inputBackground,
+				resultEditorBackground: editorBackground,
+				listBackground: editorBackground,
+				listForeground: editorBackground,
+				overlayBackground: editorBackground,
+			}
+		));
+		widget.render(parent);
+		widget.setVisible(true);
+
+		let pendingModels: readonly IChatModel[] = [];
+		let layingOut = false;
+		const layout = () => {
+			if (layingOut || !panel.classList.contains('shown')) {
+				return;
+			}
+			layingOut = true;
+			try {
+				const width = Math.max(0, panel.clientWidth);
+				widget.layout(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
+				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(1, Math.ceil(widget.contentHeight)));
+				parent.style.height = `${height}px`;
+				widget.layout(height, width);
+				this._fitWindowToContent();
+			} finally {
+				layingOut = false;
+			}
+		};
+		const showPendingModel = (index: number) => {
+			if (pendingModels.length === 0) {
+				this._pendingPromptIndex = 0;
+				panel.classList.remove('shown', 'question');
+				widget.setModel(undefined);
+				this._fitWindowToContent();
+				return;
+			}
+			this._pendingPromptIndex = (index + pendingModels.length) % pendingModels.length;
+			const model = pendingModels[this._pendingPromptIndex];
+			panel.classList.add('shown');
+			panel.classList.toggle('question', this._hasPendingQuestion(model));
+			label.textContent = localize('chatInputWindow.pending.count', "{0} of {1} waiting on you", this._pendingPromptIndex + 1, pendingModels.length);
+			const hasMultiple = pendingModels.length > 1;
+			for (const button of [previous, next]) {
+				button.classList.toggle('disabled', !hasMultiple);
+				button.setAttribute('aria-disabled', String(!hasMultiple));
+				button.tabIndex = hasMultiple ? 0 : -1;
+			}
+			widget.setModel(model);
+			auxiliaryWindow.window.requestAnimationFrame(layout);
+		};
+
+		this._windowDisposables.add(dom.addDisposableListener(previous, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex - 1)));
+		this._windowDisposables.add(dom.addDisposableListener(next, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex + 1)));
+		this._windowDisposables.add(widget.onDidChangeContentHeight(layout));
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
+		this._loadPendingSessionModels();
+		this._windowDisposables.add(autorun(reader => {
+			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
+			pendingModels = [...this.chatService.chatModels.read(reader)]
+				.filter(model => !!model.requestNeedsInput.read(reader));
+			const preservedIndex = currentResource
+				? pendingModels.findIndex(model => model.sessionResource.toString() === currentResource)
+				: -1;
+			showPendingModel(preservedIndex >= 0 ? preservedIndex : Math.min(this._pendingPromptIndex, pendingModels.length - 1));
+		}));
+	}
+
+	private _loadPendingSessionModels(): void {
+		const refs = this._windowDisposables.add(new DisposableMap<string, IChatModelReference>());
+		const loads = new Set<string>();
+		const cts = new CancellationTokenSource();
+		this._windowDisposables.add(toDisposable(() => cts.dispose(true)));
+		const update = async () => {
+			const pendingSessions = this.agentSessionsService.model.sessions
+				.filter(session => !session.isArchived() && session.status === AgentSessionStatus.NeedsInput);
+			const pendingKeys = new Set(pendingSessions.map(session => session.resource.toString()));
+			for (const key of refs.keys()) {
+				if (!pendingKeys.has(key)) {
+					refs.deleteAndDispose(key);
+				}
+			}
+			await Promise.all(pendingSessions.map(async session => {
+				const key = session.resource.toString();
+				if (this.chatService.getSession(session.resource) || refs.has(key) || loads.has(key)) {
+					return;
+				}
+				loads.add(key);
+				try {
+					const ref = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, cts.token, 'ChatInputWindow-pending');
+					if (!ref) {
+						return;
+					}
+					if (cts.token.isCancellationRequested || !this.agentSessionsService.model.sessions.some(candidate =>
+						candidate.resource.toString() === key && candidate.status === AgentSessionStatus.NeedsInput && !candidate.isArchived())) {
+						ref.dispose();
+						return;
+					}
+					refs.set(key, ref);
+				} catch (error) {
+					if (!cts.token.isCancellationRequested) {
+						this.logService.warn(`[chatInputWindow] Failed to load pending session ${key}:`, error);
+					}
+				} finally {
+					loads.delete(key);
+				}
+			}));
+		};
+		this._windowDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => void update()));
+		void update();
+	}
+
+	private _appendPendingNavigationButton(container: HTMLElement, icon: ThemeIcon, ariaLabel: string): HTMLElement {
+		const button = dom.append(container, dom.$('a.chat-input-window-pending-navigation-button', {
+			role: 'button',
+			tabindex: '0',
+			'aria-label': ariaLabel,
+		}));
+		button.appendChild(renderIcon(icon));
+		this._windowDisposables.add(dom.addStandardDisposableListener(button, dom.EventType.KEY_DOWN, event => {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				event.preventDefault();
+				button.click();
+			}
+		}));
+		return button;
+	}
+
+	private _hasPendingQuestion(model: IChatModel): boolean {
+		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
+	}
+
 	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
 		const win = auxiliaryWindow.window;
 		if (visible) {
@@ -475,6 +655,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _disposeWidget(): void {
 		this._routingController = undefined;
 		this._widget = undefined;
+		this._fitWindowToContent = () => { };
 		this._row = undefined;
 		this._lead = undefined;
 		this._trail = undefined;
