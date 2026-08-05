@@ -645,12 +645,14 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 	// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
 	// captured so the closing quote must match it, and whitespace and `!` are allowed
-	// around the optional address since sed ignores them.
-	'/^sed\\b(?:\\s+-\\S+)*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
-	// Same dangerous commands after a `;` or `{` separator inside a quoted script
-	'/^sed\\b(?:\\s+-\\S+)*\\s+([\'"])(?:(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+	// around the optional address since sed ignores them. The option prefix also skips
+	// the separate operand consumed by -l/--line-length.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+	// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+	// Escaped characters are consumed before testing for the matching closing quote.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
 	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
-	'/^sed\\b(?:\\s+-\\S+)*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?\\s*!?\\s*[erRwW]\\s/': false,
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 	'/^sort\\b(?!-)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,

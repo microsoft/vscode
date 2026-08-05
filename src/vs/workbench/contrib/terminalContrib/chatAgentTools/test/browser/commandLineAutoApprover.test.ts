@@ -141,6 +141,12 @@ suite('CommandLineAutoApprover', () => {
 				'sed "1 e id"',
 				'sed "1!e id"',
 				'sed "1, 3 w /tmp/x" input.txt',
+				'sed -l 80 "e id" input.txt',
+				'sed --line-length 80 "1w /tmp/x" input.txt',
+				'sed --line-length=80 "1r /etc/passwd" input.txt',
+				'sed "s/a/\\"/;e id" input.txt',
+				'sed "/x/p;//e id" input.txt',
+				'sed e',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
