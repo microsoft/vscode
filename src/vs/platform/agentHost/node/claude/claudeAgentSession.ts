@@ -785,7 +785,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._pendingResumeSessionAt !== undefined
-			|| !areWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			|| !areWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories, false)) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
@@ -800,7 +800,7 @@ export class ClaudeAgentSession extends Disposable {
 			throw new Error(`Cannot change Claude session primary working directory: ${this.sessionId}`);
 		}
 		const desiredAdditionalDirectories = workingDirectories.slice(1);
-		if (areWorkingDirectoriesEqual(this._desiredAdditionalDirectories, desiredAdditionalDirectories)) {
+		if (areWorkingDirectoriesEqual(this._desiredAdditionalDirectories, desiredAdditionalDirectories, false)) {
 			return;
 		}
 		this._desiredAdditionalDirectories = desiredAdditionalDirectories;

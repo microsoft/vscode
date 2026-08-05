@@ -9,14 +9,21 @@ import { extUri, extUriBiasedIgnorePathCase } from '../../../../base/common/reso
 import { URI } from '../../../../base/common/uri.js';
 import { ActionType, type SessionWorkingDirectoryAction } from './sessionActions.js';
 
-export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined, immutablePrimary = false): boolean {
+/**
+ * Compares two working-directory lists. `hasImmutablePrimary` describes the
+ * lists being passed: when `true` their first entry is a fixed process root and
+ * is compared by position, while the remaining directories are compared as an
+ * unordered set. Pass `false` for lists whose entries are all equal peers —
+ * including additional-directory tails that already exclude the primary.
+ */
+export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined, hasImmutablePrimary: boolean): boolean {
 	if (!first || !second) {
 		return first === second;
 	}
-	if (immutablePrimary && !extUri.isEqual(first[0], second[0])) {
+	if (hasImmutablePrimary && !extUri.isEqual(first[0], second[0])) {
 		return false;
 	}
-	const offset = immutablePrimary ? 1 : 0;
+	const offset = hasImmutablePrimary ? 1 : 0;
 	const toKey = (directory: URI) => extUri.getComparisonKey(directory);
 	const firstSet = new ResourceSet(first.slice(offset), toKey);
 	const secondSet = new ResourceSet(second.slice(offset), toKey);

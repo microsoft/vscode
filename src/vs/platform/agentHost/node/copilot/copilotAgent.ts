@@ -2636,7 +2636,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const activeClient = this._activeClients.get(context.session);
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
-			const rootsChanged = !!entry && workingDirectories !== undefined && !areWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
+			const rootsChanged = !!entry && workingDirectories !== undefined && !areWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories), false);
 			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot);
 			if (entry && (rootsChanged || structuralConfigChanged)) {
 				this._logService.info(`[Copilot:${context.sessionId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);

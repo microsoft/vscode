@@ -15,11 +15,11 @@ suite('Session working directories', () => {
 	const primary = 'file:///workspace/primary';
 	const secondary = 'file:///workspace/secondary';
 
-	test('compares additional working directories as a set', () => {
+	test('compares equal-peer working directories as a set', () => {
 		const first = [URI.file('/workspace/a'), URI.file('/workspace/b')];
 		const second = [URI.file('/workspace/b'), URI.file('/workspace/a')];
 
-		assert.strictEqual(areWorkingDirectoriesEqual(first, second), true);
+		assert.strictEqual(areWorkingDirectoriesEqual(first, second, false), true);
 	});
 
 	test('compares an immutable primary positionally and additional directories as a set', () => {
