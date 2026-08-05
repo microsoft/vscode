@@ -157,16 +157,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	container.style.height = '700px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
-	// The component-explorer harness injects a global `* { box-sizing: border-box }`
-	// reset into the document head. The chat input toolbar (and other Monaco UI bits)
-	// rely on the browser default `content-box` so that explicit `height` plus `padding`
-	// add up correctly (e.g. the attachments row is 16px height + 3px padding = 22px).
-	// Revert the reset for our subtree so the fixture renders like the real product.
-	const styleReset = document.createElement('style');
-	styleReset.textContent = '.component-fixture-box-sizing-reset, .component-fixture-box-sizing-reset * { box-sizing: revert; }';
-	container.appendChild(styleReset);
-	container.classList.add('component-fixture-box-sizing-reset');
-
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {

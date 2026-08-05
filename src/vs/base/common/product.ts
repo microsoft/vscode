@@ -151,8 +151,13 @@ export interface IProductConfiguration {
 	};
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
-
-	/**
+	  
+	readonly copilotVersions?: {
+		readonly runtime: string;
+		readonly sdk: string;
+	};
+  
+  /**
 	 * Hard gate for the Entra ID (Microsoft) authentication path of the Extensions
 	 * Marketplace. When falsy, the `extensions.gallery.authProvider: microsoft`
 	 * setting is ignored and the GitHub/default auth path is used instead. This keeps
