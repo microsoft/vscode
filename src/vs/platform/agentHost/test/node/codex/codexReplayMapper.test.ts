@@ -94,14 +94,15 @@ suite('codexReplayMapper', () => {
 			length: turns.length,
 			state: turns[0].state,
 			error: turns[0].error,
+			resumable: turns[0].resumable,
 		}, {
 			length: 1,
 			state: TurnState.Error,
 			error: {
 				errorType: 'CodexError',
 				message: 'oops',
-				resumable: true,
 			},
+			resumable: true,
 		});
 	});
 
@@ -138,6 +139,7 @@ suite('codexReplayMapper', () => {
 			content: turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
 			state: turns[0].state,
 			error: turns[0].error,
+			resumable: turns[0].resumable,
 			codexTurnId: replay.codexTurnIdByHostTurnId.get('turn_a'),
 		}, {
 			length: 1,
@@ -146,6 +148,7 @@ suite('codexReplayMapper', () => {
 			content: ['partial', 'finished'],
 			state: TurnState.Complete,
 			error: undefined,
+			resumable: undefined,
 			codexTurnId: 'turn_b',
 		});
 	});
@@ -188,6 +191,7 @@ suite('codexReplayMapper', () => {
 			content: turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
 			state: turns[0].state,
 			error: turns[0].error,
+			resumable: turns[0].resumable,
 		}, {
 			length: 1,
 			id: 'turn_a',
@@ -197,8 +201,8 @@ suite('codexReplayMapper', () => {
 			error: {
 				errorType: 'CodexError',
 				message: 'third failure',
-				resumable: true,
 			},
+			resumable: true,
 		});
 	});
 

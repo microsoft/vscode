@@ -7,7 +7,13 @@ import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDi
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
+import { defineCustomizationDiscoveryTests } from './customizationDiscoverySuite.js';
+import { defineAnnotationsTests } from './annotationsSuite.js';
+import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineProtocolContractTests } from './protocolContractsSuite.js';
+import { defineServerToolsTests } from './serverToolsSuite.js';
+import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
@@ -17,9 +23,10 @@ import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const isLinux = process.platform === 'linux';
+
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -43,11 +50,22 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			stableNewScenarioResponse: config.stableNewScenarioResponse,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			restartServer: async () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				client = await lease.restart();
+			},
+			connectClient: () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.connectClient();
+			},
 		};
 
 		suiteSetup(async function () {
@@ -60,11 +78,20 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		});
 
 		suiteTeardown(async function () {
-			this.timeout(90_000);
+			this.timeout(120_000);
+			const errors: Error[] = [];
 			try {
 				await lease?.dispose();
-			} finally {
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			try {
 				await removeTempDirs(tempDirs);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, `Failed to dispose Agent Host E2E suite resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
 
@@ -78,7 +105,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		});
 
 		teardown(async function () {
-			this.timeout(90_000);
+			this.timeout(120_000);
 			if (!lease) {
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
@@ -91,7 +118,20 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				// the server is restarted and its temp home is eventually removed.
 				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 			}
-			await lease.release(createdSessions, failed);
+			const errors: Error[] = [];
+			try {
+				await lease.release(createdSessions, failed);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			try {
+				await removeTempDirs(tempDirs);
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
+			}
 		});
 
 		// Suites that contain only conformance-tier scenarios.
@@ -99,6 +139,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineAnnotationsTests(context);
+			defineProtocolContractTests(context);
+			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
@@ -114,6 +157,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// peer turns and capability advertisement are provider-dependent
 		// (parity). The registrars self-select on `context.tier`.
 		defineMultiChatTests(context);
+		defineServerToolsTests(context);
+		defineCustomizationDiscoveryTests(context);
+		defineSessionPersistenceTests(context);
 	});
 }
 

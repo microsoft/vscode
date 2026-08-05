@@ -79,7 +79,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via "chat.agentHost.enabled" or web runtime. Not connecting.`);
+			this._logService.info(`${LOG_PREFIX} Disabled via configuration, policy, or runtime availability. Not connecting.`);
 			this.setAuthenticationPending(false);
 			return;
 		}

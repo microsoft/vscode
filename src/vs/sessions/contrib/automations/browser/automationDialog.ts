@@ -709,7 +709,7 @@ export function renderForm(
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
-	DOM.append(intervalGroup, $('label.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
+	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
 	const intervalOptions: ISelectOptionItem[] = INTERVALS.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
@@ -723,7 +723,7 @@ export function renderForm(
 	intervalSelect.render(intervalSelectContainer);
 
 	const timeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-time-group'));
-	DOM.append(timeGroup, $('label.automation-form-label', undefined, localize('automation.form.time', "Time")));
+	DOM.append(timeGroup, $('span.automation-form-label', undefined, localize('automation.form.time', "Time")));
 	const timeOptions = buildTimeOptions();
 	const initialTimeIndex = nearestTimeOptionIndex(state.hour, state.minute);
 	state.hour = timeOptions[initialTimeIndex].hour;
@@ -744,7 +744,7 @@ export function renderForm(
 	}));
 
 	const dayGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-day-group'));
-	DOM.append(dayGroup, $('label.automation-form-label', undefined, localize('automation.form.day', "Day of week")));
+	DOM.append(dayGroup, $('span.automation-form-label', undefined, localize('automation.form.day', "Day of week")));
 	const dayOptions: ISelectOptionItem[] = DAYS_OF_WEEK.map(d => ({ text: d }));
 	const daySelect = disposables.add(new SelectBox(
 		dayOptions,
@@ -774,7 +774,7 @@ export function renderForm(
 	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false }));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
@@ -838,7 +838,7 @@ export function renderForm(
 	}));
 
 	const promptRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
+	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 
 	const chatInputStyles: IChatInputStyles = {

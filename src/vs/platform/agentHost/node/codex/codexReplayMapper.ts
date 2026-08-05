@@ -184,8 +184,8 @@ function replayTurnToTurn(codexTurn: CodexTurn): IReplayedTurn | undefined {
 				error: {
 					errorType: 'CodexError',
 					...extractForwardedErrorInfo(errorMessage),
-					resumable: true,
 				},
+				resumable: true,
 			} : {}),
 		},
 	};
@@ -201,6 +201,7 @@ function mergeContinuedTurn(previous: Turn, continuation: Turn): Turn {
 		usage: continuation.usage ?? previous.usage,
 		state: continuation.state,
 		...(continuation.error ? { error: continuation.error } : {}),
+		...(continuation.resumable === true ? { resumable: true } : {}),
 	};
 }
 

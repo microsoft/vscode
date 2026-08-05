@@ -36,7 +36,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -124,18 +124,11 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly onDidEndSessionLayoutRestore: Event<void> = this._onDidEndSessionLayoutRestore.event;
 
 	/**
-	 * [D9] `true` while {@link toggleSidePane} hides/shows the editor + auxiliary
-	 * bar together. The desktop controller's per-session aux-bar capture skips
-	 * this window, so toggling the whole side pane is never recorded as an
-	 * aux-bar choice.
+	 * [D9] `true` between the layout service's side-pane will/did toggle events.
+	 * The per-session aux-bar capture skips this window, so toggling the whole
+	 * side pane is never recorded as an explicit aux-bar choice.
 	 */
 	protected _togglingSidePane = false;
-
-	/**
-	 * Remembers which parts were visible when the side pane was last hidden, so
-	 * re-opening restores the same parts instead of always showing both.
-	 */
-	private _lastVisibleSidePaneParts: { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined;
 
 	private readonly _useModalConfigObs;
 
@@ -154,6 +147,14 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected get _legacyWorkingSetsStorageKey(): string | undefined {
 		return WORKING_SETS_STORAGE_KEY;
+	}
+
+	protected get _isEditorPartVisibilityPerSession(): boolean {
+		return true;
+	}
+
+	protected get _isViewStatePerSession(): boolean {
+		return true;
 	}
 
 	constructor(
@@ -207,7 +208,9 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!session) {
 					continue;
 				}
-				this._viewStateBySession.delete(session.resource);
+				if (this._isViewStatePerSession) {
+					this._viewStateBySession.delete(session.resource);
+				}
 				this._panelVisibilityBySession.delete(session.resource);
 			}
 		}));
@@ -226,7 +229,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -245,10 +248,10 @@ export abstract class BaseLayoutController extends Disposable {
 		// during a session-switch restore (those changes are layout-driven, not
 		// user choices).
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
-			if (e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
+			if (!this._isEditorPartVisibilityPerSession || e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -332,6 +335,19 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 		this._register(this._sessionManagementService.onDidReplaceSession(({ from, to }) => this._onSessionReplaced(from, to)));
 
+		this._register(this._layoutService.onWillToggleSidePane(() => {
+			this._togglingSidePane = true;
+		}));
+		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
+			try {
+				const wasVisible = before.editor || before.auxiliaryBar;
+				const visible = after.editor || after.auxiliaryBar;
+				this._onSidePaneToggled(wasVisible && !visible, before.auxiliaryBar, after.auxiliaryBar);
+			} finally {
+				this._togglingSidePane = false;
+			}
+		}));
+
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
 		this._register(this._registerSidePaneToggleAction());
 
@@ -351,13 +367,20 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerAuxiliaryControllers(): void { }
 
 	/**
-	 * Registers the `Toggle Side Panel` action (menu item, keybinding,
-	 * command-palette entry). The action delegates straight to `toggleSidePane()`,
-	 * so no command/service indirection is needed; the controller owns the toggle
-	 * behaviour and its memory.
+	 * Whether a custom view currently replaces the sessions grid. The parts it
+	 * covers are force-hidden, so those transitions must not be captured as the
+	 * active session's layout preference.
+	 */
+	protected _isCustomViewVisible(): boolean {
+		return this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+	}
+
+	/**
+	 * Registers the `Toggle Side Panel` action (menu item, keybinding, and
+	 * command-palette entry). The command calls the workbench layout service
+	 * directly; this controller observes the service's toggle lifecycle events.
 	 */
 	private _registerSidePaneToggleAction(): IDisposable {
-		const that = this;
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -374,8 +397,9 @@ export abstract class BaseLayoutController extends Disposable {
 					category: Categories.View,
 					f1: true,
 					// A quick chat has no side pane (Round 20 hides the empty aux bar
-					// and the chat is full-width), so toggling it is meaningless.
-					precondition: IsQuickChatSessionContext.negate(),
+					// and the chat is full-width), so toggling it is meaningless. A custom
+					// view replaces the side pane entirely.
+					precondition: ContextKeyExpr.and(IsQuickChatSessionContext.negate(), CustomViewVisibleContext.negate()),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
@@ -392,7 +416,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			run(accessor: ServicesAccessor): void {
-				const nowVisible = that.toggleSidePane();
+				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
 
 				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
 
@@ -412,6 +436,9 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	protected _onSessionReplaced(from: ISession, to: ISession): void {
+		if (!this._isEditorPartVisibilityPerSession) {
+			return;
+		}
 		// `onDidReplaceSession` fires only when an untitled draft is atomically
 		// replaced by its committed session on submit, so it always means "the
 		// committed session inherits the draft's on-screen side-pane layout".
@@ -440,85 +467,10 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * Toggle the **side pane** — the editor area together with the auxiliary bar.
-	 * Closing it hides both; re-opening restores exactly the parts that were
-	 * visible when it was last closed (defaulting to both). The whole operation
-	 * runs under {@link _togglingSidePane} so the desktop controller does not
-	 * record it as a per-session aux-bar choice ([D9]). Returns `true` if the
-	 * side pane is now visible.
+	 * Records a completed whole-side-pane toggle from the did event's before/after
+	 * state while {@link _togglingSidePane} is still set.
 	 */
-	toggleSidePane(): boolean {
-		this._togglingSidePane = true;
-		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
-		try {
-			// Treat the side pane as visible when *either* part is visible so the
-			// toggle always closes both, instead of just revealing the auxiliary
-			// bar on top of an already-visible editor area.
-			const editorVisible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-			const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-			const isCurrentlyVisible = editorVisible || auxiliaryBarVisible;
-
-			// When hiding and unhiding the editor part and auxiliary bar, hiding
-			// must be done in the opposite order than showing for sizing to restore
-			// correct dimensions.
-			if (isCurrentlyVisible) {
-				this._lastVisibleSidePaneParts = { editor: editorVisible, auxiliaryBar: auxiliaryBarVisible };
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
-			} else {
-				// Restore only the parts that were visible before hiding (falling back
-				// to the layout's default parts when there is no remembered state,
-				// e.g. after a reload).
-				const restore = this._lastVisibleSidePaneParts ?? this._defaultReopenSidePaneParts();
-				const hasEditors = this._editorGroupsService.groups.some(group => !group.isEmpty);
-				const hasAuxViewContainers = this._hasActiveAuxViewContainers();
-				if (restore.editor && hasEditors) {
-					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-				}
-				if (restore.auxiliaryBar && hasAuxViewContainers) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-				}
-				// Ensure the toggle has a visible effect, but never reveal an empty
-				// aux bar: prefer the editor when it has content, else the aux bar
-				// only when it has active view containers (a quick chat with neither
-				// has nothing to reveal).
-				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-					if (hasEditors) {
-						this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-					} else if (hasAuxViewContainers) {
-						this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-					}
-				}
-			}
-
-			// Let subclasses record the resulting side-pane state ([D2] capture is suppressed while toggling).
-			this._onSidePaneToggled(isCurrentlyVisible, auxiliaryBarVisible);
-
-			return !isCurrentlyVisible;
-		} finally {
-			suppressEditorPartAutoVisibility.dispose();
-			this._togglingSidePane = false;
-		}
-	}
-
-	/**
-	 * Hook invoked at the end of {@link toggleSidePane}, while
-	 * {@link _togglingSidePane} is still set, so subclasses can record the
-	 * resulting side-pane state (which the [D2] capture listener deliberately
-	 * ignores). `collapsed` is `true` when the toggle just hid the whole side
-	 * pane; `previousAuxiliaryBarVisible` is the aux bar's visibility before the
-	 * toggle. The base implementation does nothing.
-	 */
-	protected _onSidePaneToggled(_collapsed: boolean, _previousAuxiliaryBarVisible: boolean): void { }
-
-	/**
-	 * The parts to reveal when re-opening the side pane with no remembered state
-	 * (e.g. after a reload). The base default shows both the editor and the
-	 * auxiliary bar; subclasses can specialize per layout / session type.
-	 */
-	protected _defaultReopenSidePaneParts(): { readonly editor: boolean; readonly auxiliaryBar: boolean } {
-		return { editor: true, auxiliaryBar: true };
-	}
+	protected _onSidePaneToggled(_collapsed: boolean, _previousAuxiliaryBarVisible: boolean, _auxiliaryBarVisible: boolean): void { }
 
 	/**
 	 * [B4] Hook that lets a subclass snapshot the active session's view state when
@@ -620,10 +572,10 @@ export abstract class BaseLayoutController extends Disposable {
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
 					}
-					if (entry.editorPartHidden !== undefined) {
+					if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
 						this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
 					}
-					if (entry.viewState) {
+					if (this._isViewStatePerSession && entry.viewState) {
 						this._viewStateBySession.set(resource, entry.viewState);
 					}
 				}
@@ -680,8 +632,12 @@ export abstract class BaseLayoutController extends Disposable {
 		// Collect all session resources across all maps
 		const allResources = new ResourceMap<true>();
 		this._workingSets.forEach((_, r) => allResources.set(r, true));
-		this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
-		this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		if (this._isViewStatePerSession) {
+			this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
+		}
+		if (this._isEditorPartVisibilityPerSession) {
+			this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		}
 
 		if (allResources.size === 0) {
 			this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
@@ -693,8 +649,8 @@ export abstract class BaseLayoutController extends Disposable {
 			entries.push({
 				sessionResource: resource.toString(),
 				editorWorkingSet: this._workingSets.get(resource),
-				viewState: this._viewStateBySession.get(resource),
-				editorPartHidden: this._editorPartHiddenBySession.get(resource),
+				viewState: this._isViewStatePerSession ? this._viewStateBySession.get(resource) : undefined,
+				editorPartHidden: this._isEditorPartVisibilityPerSession ? this._editorPartHiddenBySession.get(resource) : undefined,
 			});
 		});
 		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -749,7 +705,9 @@ export abstract class BaseLayoutController extends Disposable {
 			// draft→committed submit records the draft's editor-part visibility onto
 			// the committed session (see `_onSessionReplaced`), so this restores the
 			// submitted layout too.
-			const editorPartHidden = sessionResource ? this._editorPartHiddenBySession.get(sessionResource) === true : false;
+			const editorPartHidden = this._isEditorPartVisibilityPerSession && sessionResource
+				? this._editorPartHiddenBySession.get(sessionResource) === true
+				: false;
 			const revealEditorPart = !options?.isInitialRestore
 				&& this._shouldRevealEditorPartOnApply(editorPartHidden, isModal);
 			// Restore a session that had its (docked) editor part closed by actively
@@ -771,11 +729,8 @@ export abstract class BaseLayoutController extends Disposable {
 
 			// On the initial restore after a reload, preserve the editor part
 			// visibility that the workbench already restored. Single-pane is the
-			// exception: its per-session editor-part visibility is authoritative and
-			// persisted, so a Detail-only (or whole-side-pane-closed) session must be
-			// restored with its editor hidden rather than left visible if the
-			// workbench (or an init-time width sync) revealed it. `_shouldHideEditorPartOnApply`
-			// returns `false` for the classic layout, so this is a no-op there.
+			// Layouts may opt into an authoritative editor-hidden restore through
+			// `_shouldHideEditorPartOnApply`; the classic and single-pane layouts do not.
 			if (options?.isInitialRestore) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {

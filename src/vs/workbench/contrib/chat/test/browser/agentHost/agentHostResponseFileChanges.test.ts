@@ -30,6 +30,7 @@ import {
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
+import { IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
@@ -165,12 +166,17 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 	});
 
-	test('maps turn file edits into entry diffs', () => {
+	test('classifies project files as workspace files without working directories', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
+		conn.setState(backendSession.toString(), {
+			project: { uri: URI.file('/repo').toString(), displayName: 'repo' },
+			workingDirectories: [],
+			chats: [],
+		} as unknown as SessionState);
 		conn.setState(defaultChatUri.toString(), {
 			resource: defaultChatUri.toString(),
 			title: 'Chat',
@@ -190,11 +196,18 @@ suite('AgentHostResponseFileChangesProvider', () => {
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 						success: true,
 						pastTenseMessage: 'Wrote file',
-						content: [{
-							type: ToolResultContentType.FileEdit,
-							after: { uri: URI.file('/outside/README.md').toString(), content: { uri: 'git-blob://readme-after' } },
-							diff: { added: 7, removed: 0 },
-						}],
+						content: [
+							{
+								type: ToolResultContentType.FileEdit,
+								after: { uri: URI.file('/outside/README.md').toString(), content: { uri: 'git-blob://readme-after' } },
+								diff: { added: 7, removed: 0 },
+							},
+							{
+								type: ToolResultContentType.FileEdit,
+								after: { uri: URI.file('/repo/docs.md').toString(), content: { uri: 'git-blob://docs-after' } },
+								diff: { added: 3, removed: 1 },
+							},
+						],
 					},
 				}],
 				usage: undefined,
@@ -203,15 +216,17 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} as unknown as ChatState);
 
 		const obs = provider.getFileEditsForRequest(chatResource, 't1')!;
-		let latest: readonly IEditSessionEntryDiff[] = [];
+		let latest: readonly IChatResponseFileEdit[] = [];
 		ds.add(autorun(r => { latest = obs.read(r); }));
 
 		assert.deepStrictEqual(latest.map(diff => ({
 			modified: fromAgentHostUri(diff.modifiedURI).path,
+			isOutsideWorkspace: diff.isOutsideWorkspace,
 			added: diff.added,
 			removed: diff.removed,
 		})), [
-			{ modified: '/outside/README.md', added: 7, removed: 0 },
+			{ modified: '/outside/README.md', isOutsideWorkspace: true, added: 7, removed: 0 },
+			{ modified: '/repo/docs.md', isOutsideWorkspace: false, added: 3, removed: 1 },
 		]);
 	});
 

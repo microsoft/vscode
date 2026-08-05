@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { append, h } from '../../../../../../../base/browser/dom.js';
+import { append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
@@ -191,6 +191,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
+			const width = entries[0]?.contentRect.width;
+			if (width) {
+				editor.object.layout(width);
+			}
+		}, getWindow(this.context.container)));
+		this._register(editorResizeObserver.observe(elements.editor));
 		this._register(hoverService.setupDelayedHover(elements.editor, {
 			content: message || '',
 			style: HoverStyle.Pointer,
@@ -525,7 +532,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
 				}, {
-					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/security?referrer=in-product#_security-risks-to-be-aware-of)`)
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/run/security?referrer=in-product#_security-risks-to-be-aware-of)`)
 				}],
 			}
 		});

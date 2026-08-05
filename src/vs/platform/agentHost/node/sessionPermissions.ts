@@ -18,6 +18,7 @@ import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -46,6 +47,7 @@ export interface IToolApprovalEvent {
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
+	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -307,12 +309,19 @@ export class SessionPermissionManager extends Disposable {
 
 		// 6. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
+			// Terminal-rule analysis needs an explicit shell dialect. Producers
+			// that omit `shellLanguage` (or fail to correlate one) must prompt.
+			if (!e.shellLanguage) {
+				this._logService.trace('[SessionPermissionManager] Shell language is missing, requiring confirmation');
+				return undefined;
+			}
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+				language: e.shellLanguage,
 			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
@@ -329,7 +338,7 @@ export class SessionPermissionManager extends Disposable {
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
 	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
-		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass) {
+		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
 			return false;
 		}
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
@@ -340,6 +349,7 @@ export class SessionPermissionManager extends Disposable {
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+			language: e.shellLanguage,
 		}).autoApproveRuleResolvable;
 	}
 
@@ -375,6 +385,8 @@ export class SessionPermissionManager extends Disposable {
 				type: ActionType.ChatToolCallReady,
 				turnId,
 				toolCallId: state.toolCallId,
+				...(state.contributor ? { contributor: state.contributor } : {}),
+				...(state.intention !== undefined ? { intention: state.intention } : {}),
 				invocationMessage: state.invocationMessage,
 				toolInput: state.toolInput,
 				confirmationTitle: state.confirmationTitle,
@@ -396,6 +408,8 @@ export class SessionPermissionManager extends Disposable {
 			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: state.toolCallId,
+			...(state.contributor ? { contributor: state.contributor } : {}),
+			...(state.intention !== undefined ? { intention: state.intention } : {}),
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -485,15 +499,36 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
+	 * Matches redirect destinations whose final path is decided by the shell
+	 * rather than by the text: variable expansions (`$HOME/x`, `$env:TEMP/x`,
+	 * `%APPDATA%\x`, `!APPDATA!\x`), command substitutions (`$(pwd)/x`,
+	 * `` `pwd`/x ``), brace expansions, and `~` in a position {@link untildify}
+	 * does not handle.
+	 * Mirrors the workbench's file-write analyzer guard.
+	 *
+	 * See https://github.com/microsoft/vscode/issues/274166 and
+	 * https://github.com/microsoft/vscode/issues/274167
+	 */
+	private static readonly _dynamicRedirectDestRegex = /[$(){}`~%]/;
+
+	/**
 	 * Resolves the raw text of a shell redirect destination to an absolute
 	 * filesystem path. `~` is expanded to the user's home directory; the
 	 * downstream working-directory check rejects paths that end up outside
 	 * the workspace. Returns `undefined` when resolution would require a
-	 * working directory that isn't configured.
+	 * working directory that isn't configured, or when the destination expands
+	 * at runtime and therefore cannot be resolved from its text alone.
 	 */
 	private _resolveShellRedirectResource(dest: string, workingDirectory: URI | undefined): URI | undefined {
 		const trimmed = untildify(dest.trim(), homedir());
 		if (!trimmed) {
+			return undefined;
+		}
+		// A destination the shell expands (e.g. `$HOME/x.txt`) would otherwise be
+		// treated as a literal relative path and resolve *inside* the working
+		// directory, auto-approving a write that actually lands elsewhere.
+		if (SessionPermissionManager._dynamicRedirectDestRegex.test(trimmed) || containsCmdDelayedExpansion(trimmed)) {
+			this._logService.trace(`[SessionPermissionManager] Redirect destination expands at runtime, requiring confirmation: ${dest}`);
 			return undefined;
 		}
 		if (path.isAbsolute(trimmed)) {

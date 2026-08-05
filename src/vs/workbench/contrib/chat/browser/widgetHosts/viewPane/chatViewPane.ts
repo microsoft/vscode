@@ -39,6 +39,8 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../../platform/theme/common/theme.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
@@ -76,10 +78,12 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -163,8 +167,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.element.classList.add('chat-viewpane-container');
 
 		// View state for the ViewPane is currently global per-provider basically,
 		// but some other strictly per-model state will require a separate memento.
@@ -423,9 +429,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						widget.input.setValue(text, false);
 					} else {
 						// Preserve any text the user already typed in the input.
-						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
+							preserveFocus: true,
+							isVoiceModeInput: this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true,
+						});
 					}
 				}
+				return undefined;
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
@@ -491,7 +501,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let animFrameId: number | undefined;
 		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
-		let lastGlowTarget: HTMLElement | undefined;
+		const glowController = this._register(createVoiceGlowController(
+			inputContainerEl,
+			() => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			() => resolveVoiceGlowColors(this.themeService.getColorTheme()),
+		));
+		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 		// Merge the real voice session with any dev/preview simulation so the walkthrough
 		// commands drive the input-box glow exactly as a live session would.
 		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
@@ -523,20 +538,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
 				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
-				const target = inputContainerEl;
-
-				// If the target changed, clear styling on the old one
-				if (lastGlowTarget && lastGlowTarget !== target) {
-					lastGlowTarget.style.borderColor = '';
-					lastGlowTarget.style.boxShadow = '';
-					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
-				}
-				lastGlowTarget = target;
 
 				if (!glowActive) {
-					target.style.borderColor = '';
-					target.style.boxShadow = '';
-					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
+					glowController.clear();
 					return;
 				}
 
@@ -554,13 +558,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
-				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
-				target.style.borderColor = borderColor;
-				target.style.boxShadow = boxShadow;
-				target.classList.add('voice-active');
-				target.classList.toggle('voice-listening', voiceState === 'listening');
-				target.classList.toggle('voice-speaking', voiceState === 'speaking');
+				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -569,11 +567,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				win.cancelAnimationFrame(animFrameId);
 				animFrameId = undefined;
 			}
-			const target = lastGlowTarget ?? inputContainerEl;
-			target.style.borderColor = '';
-			target.style.boxShadow = '';
-			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
-			lastGlowTarget = undefined;
+			glowController.clear();
 		};
 
 		this._register(autorun(reader => {

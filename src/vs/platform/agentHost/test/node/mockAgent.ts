@@ -96,14 +96,11 @@ export class MockAgent implements IAgent {
 
 	constructor(readonly id: AgentProvider = 'mock') { }
 
-	resumeTurnSupported = false;
-
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: this.id,
 			displayName: `Agent ${this.id}`,
 			description: `Test ${this.id} agent`,
-			capabilities: this.resumeTurnSupported ? { resumeTurn: {} } : undefined,
 		};
 	}
 
@@ -958,9 +955,6 @@ export class ScriptedMockAgent implements IAgent {
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
-		},
-		resumeTurn: (): Promise<void> => {
-			throw new Error('Scripted mock agent does not support resuming failed turns');
 		},
 		abort: (chat: URI): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat);

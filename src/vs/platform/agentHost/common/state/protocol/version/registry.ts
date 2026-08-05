@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.7.0';
+export const PROTOCOL_VERSION = '0.8.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,6 +35,7 @@ export const PROTOCOL_VERSION = '0.7.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+	'0.8.0',
 	'0.7.0',
 	'0.6.0',
 	'0.5.2',
@@ -109,7 +110,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionConfigChanged]: '0.1.0',
 	[ActionType.SessionMetaChanged]: '0.1.0',
 	[ActionType.ChatTurnStarted]: '0.4.0',
-	[ActionType.ChatTurnResumed]: '0.7.0',
+	[ActionType.ChatTurnResumed]: '0.8.0',
 	[ActionType.ChatDelta]: '0.4.0',
 	[ActionType.ChatResponsePart]: '0.4.0',
 	[ActionType.ChatToolCallStart]: '0.4.0',

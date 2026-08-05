@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getStreamingCreateMessage, getStreamingEditMessage, getStreamingReplaceMessage, streamingToolTextLineCount } from '../../common/streamingToolCallDisplay.js';
 import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -84,9 +85,8 @@ interface ClaudeToolRow {
 	 */
 	readonly interactive?: true;
 	/**
-	 * Phase 8.5 — rendering hint for the workbench (drives the
-	 * terminal / search / subagent renderers). Omit for tools that
-	 * render in the generic tool renderer (read, write, MCP, …).
+	 * Phase 8.5 — rendering hint for the workbench. Omit for tools that
+	 * use the generic renderer without specialized streaming behavior.
 	 */
 	readonly toolKind?: ClaudeToolKind;
 }
@@ -102,11 +102,11 @@ const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
 	KillBash: { permissionKind: 'shell', toolKind: 'terminal' },
 
 	// read tools
-	Read: { permissionKind: 'read', pathField: 'file_path' },
+	Read: { permissionKind: 'read', pathField: 'file_path', toolKind: 'read' },
 	Glob: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
 	Grep: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
 	LS: { permissionKind: 'read', pathField: 'path' },
-	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path' },
+	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path', toolKind: 'read' },
 
 	// write tools
 	Write: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
@@ -283,8 +283,8 @@ export function getClaudeConfirmationTitle(toolName: string): string {
  * Phase 8.5 — workbench rendering hint. One-liner over `TOOL_ROWS`.
  * Returns `'terminal'` for shell tools (drives the terminal renderer),
  * `'search'` for `Grep` / `Glob` (drives the search renderer),
- * `'subagent'` for `Task` / `Agent` (drives the subagent renderer),
- * `undefined` for everything else (generic tool renderer).
+ * `'subagent'` for `Task` / `Agent` (drives the subagent renderer), and
+ * `'read'` for file reads (defers incomplete resource arguments).
  */
 export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined {
 	return TOOL_ROWS[toolName]?.toolKind;
@@ -293,8 +293,7 @@ export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined 
 /**
  * Phase 8.5 — build the `_meta` bag stamped at the tool-open seam.
  * Returns `undefined` for tools that have no `toolKind` hint so the
- * resulting envelope stays minimal (a `Read` row gets no `_meta` at
- * all). Mirrors Copilot's
+ * resulting envelope stays minimal. Mirrors Copilot's
  * [`mapSessionEvents.ts:197`](../copilot/mapSessionEvents.ts#L197)
  * single-write pattern.
  */
@@ -467,6 +466,42 @@ export function getClaudeInvocationMessage(
 			return localize('claude.toolInvoke.taskGet', "Reading task");
 		default:
 			return displayName;
+	}
+}
+
+export function getClaudeStreamingInvocationMessage(toolName: string, input: Record<string, unknown> | undefined): StringOrMarkdown | undefined {
+	switch (toolName) {
+		case 'Write':
+			return getStreamingCreateMessage(input?.['file_path'], streamingToolTextLineCount(input?.['content']));
+		case 'Edit':
+			return getStreamingReplaceMessage(
+				input?.['file_path'],
+				streamingToolTextLineCount(input?.['old_string']),
+				streamingToolTextLineCount(input?.['new_string']),
+			);
+		case 'MultiEdit': {
+			const edits = Array.isArray(input?.['edits']) ? input['edits'] : [];
+			let oldLineCount: number | undefined;
+			let newLineCount: number | undefined;
+			for (const edit of edits) {
+				if (!edit || typeof edit !== 'object' || Array.isArray(edit)) {
+					continue;
+				}
+				const oldLines = streamingToolTextLineCount((edit as Record<string, unknown>)['old_string']);
+				const newLines = streamingToolTextLineCount((edit as Record<string, unknown>)['new_string']);
+				if (oldLines !== undefined) {
+					oldLineCount = (oldLineCount ?? 0) + oldLines;
+				}
+				if (newLines !== undefined) {
+					newLineCount = (newLineCount ?? 0) + newLines;
+				}
+			}
+			return getStreamingReplaceMessage(input?.['file_path'], oldLineCount, newLineCount);
+		}
+		case 'NotebookEdit':
+			return getStreamingEditMessage(input?.['notebook_path'], streamingToolTextLineCount(input?.['new_source']));
+		default:
+			return undefined;
 	}
 }
 

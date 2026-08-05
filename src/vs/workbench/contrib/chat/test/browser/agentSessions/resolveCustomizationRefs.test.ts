@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -13,7 +14,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -78,18 +79,23 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = []): IAgentPl
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; mcpServers?: number } = {}): IAgentPlugin {
-	const { label = 'Plugin', enabled = true, mcpServers = 0 } = options;
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
+	const { label = 'Plugin', enabled = true, agents = 0, mcpServers = 0 } = options;
 	return {
 		uri,
 		format: PluginFormat.Copilot,
 		label,
 		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
+		hooks: observableValue('hooks', []),
+		commands: observableValue('commands', []),
+		skills: observableValue('skills', []),
+		agents: observableValue('agents', Array.from({ length: agents }, (_, index) => ({ uri: URI.joinPath(uri, 'agents', `agent-${index}.agent.md`), name: `agent-${index}` }))),
+		instructions: observableValue('instructions', []),
 		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
 	} as unknown as IAgentPlugin;
 }
 
-function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map()): IFileService {
+function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map(), contents: ReadonlyMap<string, string> = new Map()): IFileService {
 	return {
 		async stat(uri: URI) {
 			const known = stats.get(uri.toString());
@@ -97,6 +103,13 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 				return known;
 			}
 			throw new Error(`no stat for ${uri.toString()}`);
+		},
+		async readFile(uri: URI) {
+			const content = contents.get(uri.toString());
+			if (content !== undefined) {
+				return { resource: uri, value: VSBuffer.fromString(content) };
+			}
+			throw new Error(`no content for ${uri.toString()}`);
 		},
 	} as unknown as IFileService;
 }
@@ -281,6 +294,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			remoteBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
 			{ includeUserStorage: true },
 		);
 
@@ -334,6 +348,24 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 0);
 		assert.deepStrictEqual(refs.map(r => ({ uri: r.uri, name: r.name })), [
 			{ uri: pluginUri.toString(), name: 'MCP Only' },
+		]);
+	});
+
+	test('includes plugins discovered through their agents before prompt-file hydration', async () => {
+		const pluginUri = URI.file('/plugins/agent-only');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Agent Only', agents: 1 })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Agent Only' },
 		]);
 	});
 
@@ -530,6 +562,52 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 0);
 	});
 
+	test('includes workspace-discovered `.mcp.json` servers when includeWorkspaceDotMcp is set (multi-root gate)', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wsdot.srv', collectionId: 'workspace-dot-mcp.0', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
+		);
+
+		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]);
+		assert.strictEqual(refs.length, 1);
+	});
+
+	test('still excludes `.code-workspace` servers even when includeWorkspaceDotMcp is set', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wscfg.srv', collectionId: 'mcp.config.workspace', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE }),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
 	test('syncs `.vscode/mcp.json` servers that resolve without user interaction', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
@@ -642,5 +720,112 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['srv']);
 		assert.strictEqual(refs.length, 1);
+	});
+});
+
+suite('resolveLocalCustomAgents', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parses agent frontmatter for the pre-session picker', async () => {
+		const pluginUri = URI.file('/plugins/github-inbox');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'inbox.agent.md');
+		const plugin = {
+			...makePlugin(pluginUri),
+			agents: observableValue('agents', [{ uri: agentUri, name: 'inbox.agent' }]),
+		} as IAgentPlugin;
+
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(new Map(), new Map([[agentUri.toString(), [
+				'---',
+				'name: Inbox',
+				'description: Triage GitHub notifications',
+				'user-invocable: false',
+				'---',
+				'Agent instructions',
+			].join('\n')]])),
+			makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			SessionType.CopilotCLI,
+		);
+
+		assert.deepStrictEqual(agents, [{
+			type: 'agent',
+			id: agentUri.toString(),
+			uri: agentUri.toString(),
+			name: 'Inbox',
+			description: 'Triage GitHub notifications',
+			disableUserInvocation: true,
+		}]);
+	});
+
+	test('includes loose workspace agents in the pre-session picker', async () => {
+		const agentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(new Map(), new Map([[agentUri.toString(), [
+				'---',
+				'name: Reviewer',
+				'description: Review workspace changes',
+				'user-invocable: true',
+				'---',
+				'Agent instructions',
+			].join('\n')]])),
+			makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.local)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			SessionType.CopilotCLI,
+		);
+
+		assert.deepStrictEqual(agents, [{
+			type: 'agent',
+			id: agentUri.toString(),
+			uri: agentUri.toString(),
+			name: 'Reviewer',
+			description: 'Review workspace changes',
+			disableUserInvocation: undefined,
+		}]);
+	});
+});
+
+suite('shouldSyncWorkspaceDotMcp - multi-root gate', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Pins the production local Copilot Agent Host session type so a drift in the
+	// gate's session-type comparison (the class of bug that would otherwise leave
+	// the feature tests green) fails here.
+	const LOCAL_COPILOT = 'agent-host-copilotcli';
+
+	test('true only for local Copilot + multi-root workspace + setting enabled', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, true), true);
+	});
+
+	test('false when the multi-root setting is disabled', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, false), false);
+	});
+
+	test('false for a single-folder workspace', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 1, true), false);
+	});
+
+	test('false for an empty workspace', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 0, true), false);
+	});
+
+	test('false for a non-Copilot harness (e.g. Claude)', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('agent-host-claude', 2, true), false);
+	});
+
+	test('false for the Copilot CLI (extension host) harness', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('copilotcli', 2, true), false);
+	});
+
+	test('false for a remote Copilot Agent Host session', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('remote-myauthority-copilotcli', 2, true), false);
 	});
 });

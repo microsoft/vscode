@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
@@ -95,8 +96,8 @@ suite('mapSessionEvents — history replay', () => {
 				errorType: 'test_error',
 				message: 'Request failed',
 				stack: 'stack',
-				resumable: true,
 			},
+			resumable: true,
 		}]);
 	});
 
@@ -140,7 +141,7 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('ignores an error from an unknown subagent', async () => {
+	test('treats an unmapped error agentId as the root agent', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'parent-turn', data: { interactionId: 'm1', content: 'Delegate this' } },
 			{ type: 'session.error', agentId: 'unknown-subagent', data: { errorType: 'subagent_error', message: 'Subagent failed' } },
@@ -153,8 +154,12 @@ suite('mapSessionEvents — history replay', () => {
 			parentError: turns[0].error,
 			subagentCount: subagentTurnsByToolCallId.size,
 		}, {
-			parentState: TurnState.Cancelled,
-			parentError: undefined,
+			parentState: TurnState.Error,
+			parentError: {
+				errorType: 'subagent_error',
+				message: 'Subagent failed',
+				stack: undefined,
+			},
 			subagentCount: 0,
 		});
 	});
@@ -220,10 +225,15 @@ suite('mapSessionEvents — history replay', () => {
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns[0].error, {
-			errorType: 'second_error',
-			message: 'Second failure',
-			stack: undefined,
+		assert.deepStrictEqual({
+			error: turns[0].error,
+			resumable: turns[0].resumable,
+		}, {
+			error: {
+				errorType: 'second_error',
+				message: 'Second failure',
+				stack: undefined,
+			},
 			resumable: true,
 		});
 	});
@@ -279,6 +289,34 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
+	});
+
+	test('resolves relative patch links in restored tool messages', async () => {
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: src/file.ts',
+			'@@',
+			'-old',
+			'+new',
+			'*** End Patch',
+		].join('\n');
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'edit the file' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'apply_patch' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'apply_patch', arguments: patch } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
+		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
+		assert.ok(part);
+		assert.deepStrictEqual({
+			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
+			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
+		}, {
+			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+		});
 	});
 
 	test('restores MCP app data for completed tool calls', async () => {

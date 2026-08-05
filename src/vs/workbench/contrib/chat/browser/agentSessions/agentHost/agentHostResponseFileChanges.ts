@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
+import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -28,7 +28,7 @@ import {
 	type ToolCallState
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatResponseFileChangesProvider } from '../../chatResponseFileChangesService.js';
+import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
 
@@ -68,7 +68,7 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 export class AgentHostResponseFileChangesProvider extends Disposable implements IChatResponseFileChangesProvider {
 
 	private readonly _perRequest = new Map<string, IObservable<readonly IEditSessionEntryDiff[]>>();
-	private readonly _perRequestFileEdits = new Map<string, IObservable<readonly IEditSessionEntryDiff[]>>();
+	private readonly _perRequestFileEdits = new Map<string, IObservable<readonly IChatResponseFileEdit[]>>();
 
 	constructor(
 		private readonly _connection: IAgentConnection,
@@ -95,7 +95,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		return obs;
 	}
 
-	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined {
+	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined {
 		const backendSession = this._resolveBackendSession(sessionResource);
 		if (!backendSession || !requestId) {
 			return undefined;
@@ -143,7 +143,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		});
 	}
 
-	private _createFileEditDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+	private _createFileEditDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> {
 		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
@@ -168,6 +168,18 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		}, chatUri => chatUri.toString());
 
 		return derived(reader => {
+			const sessionState = sessionStateObs.read(reader).read(reader);
+			const workspaceRoots: URI[] = [];
+			if (sessionState && !(sessionState instanceof Error)) {
+				const roots = new Map<string, URI>();
+				for (const root of [sessionState.project?.uri, ...(sessionState.workingDirectories ?? [])]) {
+					if (root) {
+						const uri = URI.parse(root);
+						roots.set(uri.toString(), uri);
+					}
+				}
+				workspaceRoots.push(...roots.values());
+			}
 			for (const obs of chatStateObs.read(reader)) {
 				const chatState = obs.read(reader);
 				if (!chatState || chatState instanceof Error) {
@@ -177,7 +189,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					? chatState.activeTurn
 					: chatState.turns.find(turn => turn.id === requestId);
 				if (turn) {
-					return this._responsePartsToEntryDiffs(turn.responseParts);
+					return this._responsePartsToEntryDiffs(turn.responseParts, workspaceRoots);
 				}
 			}
 			return [];
@@ -202,14 +214,14 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		});
 	}
 
-	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[]): IEditSessionEntryDiff[] {
-		const byUri = new Map<string, IEditSessionEntryDiff>();
+	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IChatResponseFileEdit[] {
+		const byUri = new Map<string, IChatResponseFileEdit>();
 		for (const responsePart of responseParts) {
 			if (responsePart.kind !== ResponsePartKind.ToolCall) {
 				continue;
 			}
 			for (const fileEdit of getToolCallFileEdits(responsePart.toolCall)) {
-				const diff = this._fileEditToEntryDiff(fileEdit);
+				const diff = this._fileEditToEntryDiff(fileEdit, workspaceRoots);
 				if (!diff) {
 					continue;
 				}
@@ -226,13 +238,14 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		return [...byUri.values()];
 	}
 
-	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff): IEditSessionEntryDiff | undefined {
+	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {
 		const normalized = normalizeFileEdit(fileEdit);
 		if (!normalized || !normalized.afterUri) {
 			return undefined;
 		}
+		const afterUri = normalized.afterUri;
 
-		const modifiedURI = toAgentHostUri(normalized.afterUri, this._connectionAuthority);
+		const modifiedURI = toAgentHostUri(afterUri, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
 			: toAgentHostUri(normalized.beforeContentUri, this._connectionAuthority);
@@ -250,6 +263,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			identical: false,
 			isFinal: true,
 			isBusy: false,
+			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(afterUri, root)),
 		};
 	}
 

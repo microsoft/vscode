@@ -5,13 +5,14 @@
 
 import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { basename } from '../../../../base/common/path.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
+import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -30,6 +31,12 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined): string {
+	return isAbsolute(path) || !workingDirectory || workingDirectory.scheme !== Schemas.file
+		? path
+		: join(workingDirectory.fsPath, path);
 }
 
 /**
@@ -103,7 +110,7 @@ interface IToolStartInfo {
 	readonly displayName: string;
 	readonly invocationMessage: StringOrMarkdown;
 	readonly toolInput?: string;
-	readonly toolKind?: 'terminal' | 'subagent' | 'search';
+	readonly toolKind?: ToolKind;
 	readonly language?: string;
 	/** Intention (why the command runs) for shell tools, from their `description` argument. */
 	readonly intention?: string;
@@ -138,6 +145,7 @@ interface ITurnBuilder {
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
 	error: ErrorInfo | undefined;
+	resumable: boolean;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -156,7 +164,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, error: undefined, resumable: false, pendingTools: new Map() };
 }
 
 /** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
@@ -206,13 +214,13 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	// `getToolInputString` sees the cleaned command line.
 	const cleaned = stripRedundantCdPrefix(toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
 	const toolArgs = cleaned ?? rawArgs;
-	const toolKind = getToolKind(toolName);
+	const toolKind = getToolKind(toolName, parameters);
 	const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 	const displayName = getToolDisplayName(toolName);
 	return {
 		toolName,
 		displayName,
-		invocationMessage: getInvocationMessage(toolName, displayName, parameters),
+		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, workingDirectory)),
 		toolInput: getToolInputString(toolName, parameters, toolArgs),
 		toolKind,
 		language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
@@ -243,6 +251,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		usage: builder.usage,
 		state,
 		...(state === TurnState.Error && builder.error ? { error: builder.error } : {}),
+		...(state === TurnState.Error && builder.resumable ? { resumable: true } : {}),
 	};
 }
 
@@ -459,9 +468,6 @@ export async function mapSessionEvents(
 			}
 			case 'session.error': {
 				const parentToolCallId = e.agentId ? resolveParentToolCallId(e.agentId, undefined) : undefined;
-				if (e.agentId && !parentToolCallId) {
-					break;
-				}
 				if (parentToolCallId && finishedSubagentTurns.has(parentToolCallId)) {
 					break;
 				}
@@ -477,9 +483,9 @@ export async function mapSessionEvents(
 					errorType: e.data.errorType,
 					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
-					...(!e.agentId && rootAssistantTurnActive ? { resumable: true } : {}),
 					...(meta ? { _meta: meta } : {}),
 				};
+				builder.resumable = !parentToolCallId && rootAssistantTurnActive;
 				if (parentToolCallId) {
 					subagentTurnStates.set(parentToolCallId, TurnState.Error);
 					activeSubagentTurns.delete(parentToolCallId);
@@ -651,7 +657,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, storedEdits, subagentInfoByToolCallId.get(d.toolCallId));
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory);
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -745,6 +751,7 @@ export async function mapSessionEvents(
 				rawSessionId,
 				storedEdits,
 				subagentInfoByToolCallId.get(request.toolCallId),
+				workingDirectory,
 			));
 		}
 	}
@@ -847,6 +854,7 @@ function makeCompletedToolCallPart(
 	rawSessionId: string,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
 	subagent: ISubagentInfo | undefined,
+	workingDirectory: URI | undefined,
 ): ResponsePart {
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const content: ToolResultContent[] = [];
@@ -912,7 +920,7 @@ function makeCompletedToolCallPart(
 		invocationMessage: info.invocationMessage,
 		toolInput: info.toolInput,
 		success: d.success,
-		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined),
+		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory)),
 		content: content.length > 0 ? content : undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,

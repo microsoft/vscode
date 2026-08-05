@@ -153,6 +153,7 @@ function endTurn(
 	duration: number,
 	terminalStatus?: SessionStatus.Error,
 	error?: { errorType: string; message: string; stack?: string },
+	resumable?: boolean,
 ): ChatState {
 	if (!state.activeTurn || state.activeTurn.id !== turnId) {
 		return state;
@@ -191,6 +192,7 @@ function endTurn(
 		usage: active.usage,
 		state: turnState,
 		error,
+		...(resumable === true ? { resumable: true } : {}),
 	};
 
 	const next: ChatState = {
@@ -364,7 +366,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			if (!turn || turn.id !== action.turnId) {
 				return state;
 			}
-			if (turn.state !== TurnState.Error || turn.error?.resumable !== true) {
+			if (turn.state !== TurnState.Error || turn.resumable !== true) {
 				return state;
 			}
 			const turns = state.turns.slice();
@@ -414,7 +416,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return endTurn(state, action.turnId, TurnState.Cancelled, action.duration);
 
 		case ActionType.ChatError:
-			return endTurn(state, action.turnId, TurnState.Error, action.duration, SessionStatus.Error, action.error);
+			return endTurn(state, action.turnId, TurnState.Error, action.duration, SessionStatus.Error, action.error, action.resumable);
 
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
@@ -479,7 +481,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				return {
 					...tc,
 					...(action._meta !== undefined ? { _meta: action._meta } : {}),
-					partialInput: (tc.partialInput ?? '') + action.content,
+					...(action.content !== undefined
+						? { partialInput: (tc.partialInput ?? '') + action.content }
+						: {}),
 					invocationMessage: action.invocationMessage ?? tc.invocationMessage,
 				};
 			});
@@ -498,12 +502,14 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 					contributor: refineToolCallContributor(tc.contributor, action.contributor, log),
 					intention: action.intention ?? tc.intention,
 				};
+				const toolInput = action.toolInput
+					?? (tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput);
 				if (action.confirmed) {
 					return {
 						status: ToolCallStatus.Running,
 						...base,
 						invocationMessage: action.invocationMessage,
-						toolInput: action.toolInput,
+						toolInput,
 						confirmed: action.confirmed,
 					};
 				}
@@ -513,7 +519,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 					status: ToolCallStatus.PendingConfirmation,
 					...base,
 					invocationMessage: action.invocationMessage,
-					toolInput: action.toolInput ?? pending?.toolInput,
+					toolInput,
 					confirmationTitle: action.confirmationTitle ?? pending?.confirmationTitle,
 					riskAssessment: action.riskAssessment ?? pending?.riskAssessment,
 					edits: action.edits ?? pending?.edits,
@@ -530,11 +536,14 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				const base = tcBaseWithMeta(tc, action._meta);
 				const selectedOption = resolveSelectedOption(tc.options, action.selectedOptionId);
 				if (action.approved) {
+					const toolInput = action.editedToolInput !== undefined && typeof tc.toolInput === 'string'
+						? action.editedToolInput
+						: tc.toolInput;
 					return {
 						status: ToolCallStatus.Running,
 						...base,
 						invocationMessage: tc.invocationMessage,
-						toolInput: action.editedToolInput ?? tc.toolInput,
+						toolInput,
 						confirmed: action.confirmed,
 						...(selectedOption ? { selectedOption } : {}),
 					};

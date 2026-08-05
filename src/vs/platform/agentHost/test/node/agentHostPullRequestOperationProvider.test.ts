@@ -21,6 +21,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
+	async attachSessionGitHubIssues(): Promise<void> { }
 };
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
@@ -58,5 +59,16 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		];
 
 		assert.deepStrictEqual(actual, [undefined, undefined]);
+	});
+
+	test('advertises PR operations again for a branch whose pull request is unknown', () => {
+		const provider = createContribution();
+
+		const actual = [
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/other' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+		];
+
+		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [undefined, ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']]);
 	});
 });
