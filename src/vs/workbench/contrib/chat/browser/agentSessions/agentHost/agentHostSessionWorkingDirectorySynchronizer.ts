@@ -40,6 +40,10 @@
  * prompt, so the agent sees the current set. Runs are serialized per session,
  * and overlapping triggers collapse into one follow-up pass.
  *
+ * That pre-send pass is also the backstop for eligibility inputs that are not
+ * themselves triggers, such as provider capabilities arriving after a session
+ * registers.
+ *
  * ## Ownership
  *
  * Dispatch is ordinary optimistic AHP traffic: no acknowledgement is awaited.
@@ -343,6 +347,12 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 	 * with a pinned primary, and a plain multi-root session still bound to the
 	 * open workspace file. Excludes workspace-less, worktree-isolated, and
 	 * multi-chat sessions, whose directories are not the workspace's to manage.
+	 *
+	 * Deliberately not a reconcile trigger: this reads `connection.rootState`,
+	 * but a session registered before provider capabilities hydrate is not
+	 * re-reconciled when they land. The pre-send `reconcile` re-evaluates
+	 * eligibility before every prompt, so an agent never runs with stale roots —
+	 * only the session's own state lags until the next trigger.
 	 */
 	private _isEligible(registration: IAgentHostWorkingDirectoryRegistration, state: SessionState): boolean {
 		const protocolVersion = registration.connection.initializeResult.get()?.protocolVersion;
