@@ -2169,8 +2169,8 @@ suite('CopilotAgent', () => {
 				capabilities: { limits: { max_context_window_tokens: 128000 } },
 				supportedReasoningEfforts: ['minimal', 'xhigh'],
 			}, {
-				id: 'unsupported-only',
-				name: 'Unsupported Only',
+				id: 'non-standard-only',
+				name: 'Non Standard Only',
 				capabilities: { limits: { max_context_window_tokens: 128000 } },
 				supportedReasoningEfforts: ['minimal', 'none'],
 			}]),
@@ -2181,16 +2181,16 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(models.map(model => [model.id, model.configSchema?.properties.thinkingLevel?.enum, model.configSchema?.properties.thinkingLevel?.default]), [
 				['gpt-5.6-terra', ['low', 'medium', 'high', 'xhigh'], 'medium'],
-				['claude-opus-5', ['low', 'medium', 'high', 'xhigh'], 'high'],
-				['no-preferred', ['xhigh'], 'xhigh'],
-				['unsupported-only', undefined, undefined],
+				['claude-opus-5', ['low', 'medium', 'high', 'xhigh', 'max'], 'high'],
+				['no-preferred', ['minimal', 'xhigh'], 'minimal'],
+				['non-standard-only', ['minimal', 'none'], 'minimal'],
 			]);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('BYOK model configSchema exposes only Copilot-supported reasoning efforts', async () => {
+	test('BYOK model configSchema exposes the advertised reasoning efforts', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });
 		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
@@ -2218,8 +2218,8 @@ suite('CopilotAgent', () => {
 				},
 				{
 					vendor: 'acme',
-					id: 'unsupported-only',
-					name: 'Unsupported Only',
+					id: 'minimal-only',
+					name: 'Minimal Only',
 					supportedReasoningEfforts: ['minimal'],
 					defaultReasoningEffort: 'minimal',
 				},
@@ -2233,9 +2233,9 @@ suite('CopilotAgent', () => {
 					default: model.configSchema.properties.thinkingLevel.default,
 				},
 			})), [
-				{ id: 'acme/fallback-default', thinkingLevel: { enum: ['low', 'high'], default: 'low' } },
+				{ id: 'acme/fallback-default', thinkingLevel: { enum: ['minimal', 'low', 'high'], default: 'minimal' } },
 				{ id: 'acme/valid-default', thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
-				{ id: 'acme/unsupported-only', thinkingLevel: undefined },
+				{ id: 'acme/minimal-only', thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
 			]);
 		} finally {
 			await disposeAgent(agent);

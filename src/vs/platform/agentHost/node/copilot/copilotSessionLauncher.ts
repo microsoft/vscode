@@ -32,6 +32,7 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import type { ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 /**
@@ -46,8 +47,23 @@ export const ContextSizeConfigKey = 'contextSize';
  */
 export const ContextTierConfigKey = 'contextTier';
 
-const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
-type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
+/**
+ * Every reasoning-effort tier that the runtime may advertise via a model's
+ * `supportedReasoningEfforts`. This is intentionally broader than the SDK's
+ * `SessionConfig['reasoningEffort']` union, which lags behind newly-introduced
+ * tiers such as `'max'`; values are passed through to the runtime as-is.
+ */
+const ReasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ReasoningEffortLevel[];
+type ReasoningEffort = ReasoningEffortLevel;
+
+/**
+ * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
+ * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
+ * unchanged rather than dropped.
+ */
+export function toSdkReasoningEffort(effort: ReasoningEffort | undefined): SessionConfig['reasoningEffort'] {
+	return effort as SessionConfig['reasoningEffort'];
+}
 
 const ContextTiers = ['default', 'long_context'] as const;
 type ContextTier = NonNullable<SessionConfig['contextTier']>;
@@ -245,10 +261,10 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
 	if (isCopilotReasoningEffort(effortOverride)) {
-		return effortOverride;
+		return toSdkReasoningEffort(effortOverride);
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
 /**
