@@ -188,6 +188,7 @@ export function createTabBarTestContext(container: HTMLElement, options: ITabBar
 		groupView,
 		model,
 		undefined,
+		false,
 	));
 
 	const layout = () => {
