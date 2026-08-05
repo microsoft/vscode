@@ -675,6 +675,10 @@
 	display: none;
 }
 
+.new-chat-input-container > .chat-input-notification-container.has-notification {
+	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
+}
+
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification {
 	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
 	padding: 10px 16px 16px 16px;
@@ -702,11 +706,4 @@
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-error {
 	border-color: var(--vscode-editorError-foreground);
 	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
-}
-
-/* Remove the top border-radius from the input area when a notification is visible */
-.new-chat-input-container > .chat-input-notification-container.has-notification + .new-chat-input-area {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-	border-top: none;
 }
