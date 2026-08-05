@@ -57,19 +57,52 @@ suite('CommandAutoApprover', () => {
 
 		// Safe git sub-commands
 		test('approves allowed git sub-commands', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git status'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git log --oneline'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git diff HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git show HEAD'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git ls-files'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('git branch'), 'approved');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git status'),
+				approver.shouldAutoApprove('git log --oneline'),
+				approver.shouldAutoApprove('git diff HEAD'),
+				approver.shouldAutoApprove('git show HEAD'),
+				approver.shouldAutoApprove('git show --format=%B HEAD'),
+				approver.shouldAutoApprove('git --no-pager show HEAD'),
+				approver.shouldAutoApprove('git -C repo show HEAD'),
+				approver.shouldAutoApprove('git show --output-format=text HEAD'),
+				approver.shouldAutoApprove('git ls-files'),
+				approver.shouldAutoApprove('git branch'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+			]);
 		});
 
 		// Unsafe git sub-commands
 		test('denies denied git operations', () => {
-			assert.strictEqual(approver.shouldAutoApprove('git branch -D main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git branch --delete main'), 'denied');
-			assert.strictEqual(approver.shouldAutoApprove('git log --output=/tmp/out'), 'denied');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git branch -D main'),
+				approver.shouldAutoApprove('git branch --delete main'),
+				approver.shouldAutoApprove('git log --output=/tmp/out'),
+				approver.shouldAutoApprove('git show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git show --output message.txt HEAD'),
+				approver.shouldAutoApprove('git show --format=%B --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git --no-pager show --output=message.txt HEAD'),
+				approver.shouldAutoApprove('git -C repo show --output message.txt HEAD'),
+			], [
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
 		});
 
 		// Safe commands with dangerous arg blocking
@@ -85,6 +118,29 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
 				approver.shouldAutoApprove('sed -e "s/foo/bar/"'),
 				approver.shouldAutoApprove('sed --expression "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed "s/foo/bar/e"'),
+				approver.shouldAutoApprove('sed "s/foo/bar/w"'),
+				approver.shouldAutoApprove('sed "1e id > /tmp/SECURITY_TEST_pwned"'),
+				approver.shouldAutoApprove('sed "1w /tmp/SECURITY_TEST_pwned_file" input.txt'),
+				approver.shouldAutoApprove('sed "1r /etc/passwd" input.txt'),
+				approver.shouldAutoApprove('sed "1W /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed "e id"'),
+				approver.shouldAutoApprove('sed "s/a/b/;e id"'),
+				approver.shouldAutoApprove('sed "/pat/e id"'),
+				approver.shouldAutoApprove('sed -n "1e id" file.txt'),
+				approver.shouldAutoApprove('sed 1e id'),
+				approver.shouldAutoApprove('sed "s/a/b/; e id"'),
+				approver.shouldAutoApprove('sed "s/a/\'/;e id"'),
+				approver.shouldAutoApprove('sed /pat/e input.txt'),
+				approver.shouldAutoApprove('sed "1 e id"'),
+				approver.shouldAutoApprove('sed "1!e id"'),
+				approver.shouldAutoApprove('sed "1, 3 w /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed -l 80 "e id" input.txt'),
+				approver.shouldAutoApprove('sed --line-length 80 "1w /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed --line-length=80 "1r /etc/passwd" input.txt'),
+				approver.shouldAutoApprove('sed "s/a/\\"/;e id" input.txt'),
+				approver.shouldAutoApprove('sed "/x/p;//e id" input.txt'),
+				approver.shouldAutoApprove('sed e'),
 				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt'),
 				approver.shouldAutoApprove('sed -I "s/foo/bar/" file.txt'),
 				approver.shouldAutoApprove('sed -ni "s/foo/bar/" file.txt'),
@@ -94,6 +150,29 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('sed --in-place=.bak "s/foo/bar/" file.txt'),
 			], [
 				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 				'denied',
 				'denied',
 				'denied',
@@ -176,18 +255,37 @@ suite('CommandAutoApprover', () => {
 
 		// PowerShell
 		test('approves allowed PowerShell commands', () => {
-			assert.strictEqual(approver.shouldAutoApprove('Get-ChildItem'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Get-Content file.txt'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Write-Host "hello"'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Select-Object Name'), 'approved');
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem', pwsh),
+				approver.shouldAutoApprove('Get-Content file.txt', pwsh),
+				approver.shouldAutoApprove('Write-Host "hello"', pwsh),
+				approver.shouldAutoApprove('Select-Object Name', pwsh),
+				approver.shouldAutoApprove('Measure-Object Length', pwsh),
+				approver.shouldAutoApprove('Compare-Object $a $b', pwsh),
+				approver.shouldAutoApprove('Format-Table', pwsh),
+				approver.shouldAutoApprove('Sort-Object Name', pwsh),
+			], ['approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved']);
 		});
 
 		test('PowerShell case-insensitive rules work', () => {
-			// Rules with /i flag (like Select-*, Measure-*, etc.) are case-insensitive
-			assert.strictEqual(approver.shouldAutoApprove('select-object Name'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('SELECT-OBJECT Name'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('Measure-Command'), 'approved');
-			assert.strictEqual(approver.shouldAutoApprove('measure-command'), 'approved');
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('select-object Name', pwsh),
+				approver.shouldAutoApprove('SELECT-OBJECT Name', pwsh),
+				approver.shouldAutoApprove('measure-object Length', pwsh),
+			], ['approved', 'approved', 'approved']);
+		});
+
+		test('does not auto-approve arbitrary PowerShell cmdlets by verb', () => {
+			const pwsh = { language: 'powershell' } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Select-Custom', pwsh),
+				approver.shouldAutoApprove('Measure-Command', pwsh),
+				approver.shouldAutoApprove('Compare-Custom', pwsh),
+				approver.shouldAutoApprove('Format-Hex', pwsh),
+				approver.shouldAutoApprove('Sort-Custom', pwsh),
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch']);
 		});
 
 		test('denies denied PowerShell commands', () => {
@@ -227,7 +325,10 @@ suite('CommandAutoApprover', () => {
 		// to the filesystem, so they remain eligible for auto-approval when
 		// the command name is on the allowlist.
 		test('input redirections do not block auto-approval', () => {
-			assert.strictEqual(approver.shouldAutoApprove('cat < file.txt'), 'approved');
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('cat < file.txt'),
+				approver.shouldAutoApprove('sort<input.txt'),
+			], ['approved', 'approved']);
 		});
 
 		// Redirections to /dev/null and other known-safe sinks do not write
@@ -401,6 +502,14 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'denied']);
 		});
 
+		test('requires confirmation for incomplete PowerShell parses', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Write-Output before; "unterminated', pwsh),
+				approver.shouldAutoApprove('Write-Output before; `Write-Output after', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem -Recurse', pwsh),
+			], ['noMatch', 'noMatch', 'approved']);
+		});
+
 		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
 			const autoApproveRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
 			assert.deepStrictEqual([
@@ -445,13 +554,15 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem; [System.IO.File]::Delete("x")', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { [System.IO.File]::Delete($_.FullName) }', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem; $obj.Delete()', pwsh),
+				approver.shouldAutoApprove('[Math]::Max(1, 2) | Out-String', pwsh),
+				approver.shouldAutoApprove(`Out-String -InputObject ([scriptblock]::Create('Write-Output ok').Invoke())`, pwsh),
 				// Deliberate over-block: an invocation in an argument is usually
 				// harmless, but the rules cannot tell `[math]::Round` from
 				// `[System.IO.File]::Delete`, so both require confirmation.
 				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', pwsh),
 				// Property access executes no method, so it stays approved.
 				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
-			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
 		});
 
 		test('exact allow rules require a safely analyzable command line', () => {

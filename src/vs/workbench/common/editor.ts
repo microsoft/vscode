@@ -83,15 +83,6 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 }
 
 /**
- * Declares that an editor hosts the full-width group header (rendered by the
- * editor group below the tab bar, using the group's configured header menus).
- */
-export interface IEditorHeaderActions {
-	/** Editor-scoped instantiation service so the header toolbars' `when` clauses see the editor's context. */
-	readonly instantiationService: IInstantiationService;
-}
-
-/**
  * The editor pane is the container for workbench editors.
  */
 export interface IEditorPane extends IComposite {
@@ -185,14 +176,8 @@ export interface IEditorPane extends IComposite {
 	 */
 	getViewState(): object | undefined;
 
-	/**
-	 * An optional method to declare that this editor hosts the full-width group
-	 * header (rendered by the editor group below the tab bar using the group's
-	 * configured header menus), providing the editor-scoped instantiation service
-	 * so the header actions' `when` clauses evaluate in the editor's context.
-	 * Return `undefined` for no header (the default).
-	 */
-	getHeaderActions?(): IEditorHeaderActions | undefined;
+	/** An optional instantiation service scoped to the editor pane. */
+	readonly scopedInstantiationService?: IInstantiationService;
 
 	/**
 	 * An optional method to return the current selection in

@@ -32,6 +32,7 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import type { ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 /**
@@ -46,8 +47,23 @@ export const ContextSizeConfigKey = 'contextSize';
  */
 export const ContextTierConfigKey = 'contextTier';
 
-const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
-type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
+/**
+ * Every reasoning-effort tier that the runtime may advertise via a model's
+ * `supportedReasoningEfforts`. This is intentionally broader than the SDK's
+ * `SessionConfig['reasoningEffort']` union, which lags behind newly-introduced
+ * tiers such as `'max'`; values are passed through to the runtime as-is.
+ */
+const ReasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ReasoningEffortLevel[];
+type ReasoningEffort = ReasoningEffortLevel;
+
+/**
+ * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
+ * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
+ * unchanged rather than dropped.
+ */
+export function toSdkReasoningEffort(effort: ReasoningEffort | undefined): SessionConfig['reasoningEffort'] {
+	return effort as SessionConfig['reasoningEffort'];
+}
 
 const ContextTiers = ['default', 'long_context'] as const;
 type ContextTier = NonNullable<SessionConfig['contextTier']>;
@@ -245,10 +261,10 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
 	if (isCopilotReasoningEffort(effortOverride)) {
-		return effortOverride;
+		return toSdkReasoningEffort(effortOverride);
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
 /**
@@ -590,6 +606,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			workspaceless: plan.workspaceless === true,
 			toolSearchActive,
 		};
+		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
@@ -604,6 +621,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
+			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
@@ -622,6 +640,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			agent: plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
+			additionalDirectories,
 			systemMessage,
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))

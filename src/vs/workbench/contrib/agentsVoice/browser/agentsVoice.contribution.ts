@@ -35,9 +35,8 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
@@ -170,6 +169,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
@@ -196,6 +196,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
@@ -302,6 +303,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -343,6 +345,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
@@ -537,77 +540,9 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Select Microphone Command ---
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentsVoice.selectMicrophone',
-			title: nls.localize2('agentsVoice.selectMicrophone', "Voice: Select Microphone"),
-			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const storageService = accessor.get(IStorageService);
-
-		const devices = await navigator.mediaDevices.enumerateDevices();
-
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
-			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
-			return;
-		}
-
-		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
-
-		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [];
-
-		// "System Default" entry — clears the stored device so the OS default is always used
-		items.push({
-			label: nls.localize('systemDefault', "System Default"),
-			description: currentDeviceId === '' ? nls.localize('current', "(current)") : undefined,
-			deviceId: '',
-		});
-
-		for (const d of audioInputs) {
-			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? nls.localize('current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
-		});
-
-		if (picked) {
-			const selection = picked as DevicePickItem;
-			if (selection.deviceId) {
-				storageService.store(AgentsVoiceStorageKeys.MicrophoneDevice, selection.deviceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			} else {
-				storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
-			}
-		}
-	}
-});
+// Microphone selection is shared with dictation via the single
+// `workbench.action.chat.selectSpeechToTextMicrophone` command (see
+// chatSpeechToTextActions.ts), so Voice Mode no longer registers its own.
 
 // --- Settings ---
 
@@ -627,6 +562,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+		},
+		[AgentsVoiceSettingId.ShowButton]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.showButton', "Controls whether the Voice Mode button is shown in the chat input. When hidden, Voice Mode can still be started with its keyboard shortcut."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',
@@ -677,7 +619,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.language.ko', "Korean"),
 				nls.localize('agents.voice.language.zh', "Chinese"),
 			],
-			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and dictation, and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic uses the configured display language for speech recognition and dictation when supported; otherwise, it follows the system or browser locale. English voice output is used when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 		},

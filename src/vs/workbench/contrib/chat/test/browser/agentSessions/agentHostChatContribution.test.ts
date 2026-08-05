@@ -26,7 +26,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
-import { getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -84,6 +84,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -93,6 +94,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
 import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
@@ -854,6 +856,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
+	instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
+		register: () => toDisposable(() => { }),
+		reconcile: async () => { },
+	} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
@@ -922,9 +928,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			customizations: [...(customizationsByType.get(sessionType)?.get() ?? [])],
 		}),
 		getCustomizations: (sessionType: string) => derived(reader => customizationsByType.get(sessionType)?.read(reader) ?? []),
+		getCustomAgents: () => constObservable([]),
 		getClientTools: () => constObservable<readonly ToolDefinition[]>([]),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
+	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
@@ -3155,7 +3163,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Matching workspace',
 				workingDirectories: [c, d],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString(), name: 'First' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'different-workspace-file'),
@@ -3163,7 +3171,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Different workspace',
 				workingDirectories: [a, b],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString(), name: 'Second' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'metadata-less'),
@@ -8626,7 +8634,7 @@ suite('AgentHostChatContribution', () => {
 				undefined,
 				{
 					getInitialSessionConfig: () => ({ isolation: 'folder' }),
-					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } }),
+					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } }),
 				},
 			);
 
@@ -8650,7 +8658,7 @@ suite('AgentHostChatContribution', () => {
 				_meta: agentHostService.createSessionCalls[0]._meta,
 			}, {
 				config: { isolation: 'folder' },
-				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } },
 			});
 		}));
 
@@ -9519,7 +9527,7 @@ suite('AgentHostChatContribution', () => {
 			};
 		}
 
-		test('syncs queued messages added to restored active sessions', async () => {
+		test('syncs queued messages added to restored active sessions idempotently', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
 			const backendSession = AgentSession.uri('copilot', 'restored-pending-sync');
@@ -9546,21 +9554,58 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.dispatchedActions.length = 0;
 			const text = 'Run the queued follow-up';
-			const request = upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] } });
+			const elementValue = 'Element: button#submit';
+			const request = upcastPartial<IChatRequestModel>({
+				id: 'queued-request-1',
+				message: { text, parts: [] },
+				variableData: {
+					variables: [{
+						kind: 'element',
+						id: 'element-submit',
+						name: 'button#submit',
+						value: elementValue,
+					}],
+				},
+			});
 			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: {} });
 			chatModel.firePendingRequestsChanged();
 
-			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
-			assert.ok(action, 'queued message should be dispatched to the agent host');
-			assert.deepStrictEqual(action, {
-				type: ActionType.ChatPendingMessageSet,
-				kind: 'queued',
-				id: 'queued-request-1',
-				message: { text, origin: { kind: MessageKind.User } },
+			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
+			assert.ok(dispatch, 'queued message should be dispatched to the agent host');
+			const action = dispatch.action as Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }>;
+			agentHostService.fireAction({
+				channel: dispatch.channel,
+				action,
+				serverSeq: 1,
+				origin: { clientId: dispatch.clientId, clientSeq: dispatch.clientSeq },
+			});
+			agentHostService.dispatchedActions.length = 0;
+			chatModel.firePendingRequestsChanged();
+			assert.deepStrictEqual({
+				action,
+				repeatedActions: agentHostService.dispatchedActions,
+			}, {
+				action: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: 'queued',
+					id: 'queued-request-1',
+					message: {
+						text,
+						origin: { kind: MessageKind.User },
+						attachments: [{
+							type: MessageAttachmentKind.Simple,
+							label: 'button#submit',
+							modelRepresentation: elementValue,
+							displayKind: 'element',
+							_meta: toElementAttachmentMeta('element-submit'),
+						}],
+					},
+				},
+				repeatedActions: [],
 			});
 		});
 
-		test('projects pending messages queued by another client into the chat model', async () => {
+		test('projects pending messages queued by another client without republishing element attachments', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
 			const backendSession = AgentSession.uri('copilot', 'remote-queued');
@@ -9605,7 +9650,17 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Queued,
 					id: 'remote-queued-1',
-					message: { text: 'queued elsewhere', origin: { kind: MessageKind.User } },
+					message: {
+						text: 'queued elsewhere',
+						origin: { kind: MessageKind.User },
+						attachments: [{
+							type: MessageAttachmentKind.Simple,
+							label: 'button#submit',
+							modelRepresentation: 'Element: button#submit',
+							displayKind: 'element',
+							_meta: toElementAttachmentMeta('remote-element'),
+						}],
+					},
 				} as ChatAction,
 				serverSeq: 1,
 				origin: undefined,
@@ -9623,9 +9678,11 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			const last = chatService.syncPendingRequestsFromRemoteCalls.at(-1);
+			const elementVariable = pendingRequests.flatMap(request => request.request.variableData?.variables ?? []).find(variable => variable.kind === 'element');
 			assert.deepStrictEqual({
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
+				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
 					|| d.action.type === ActionType.ChatPendingMessageRemoved
@@ -9640,6 +9697,7 @@ suite('AgentHostChatContribution', () => {
 					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
 					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
 				],
+				elementCorrelationId: 'remote-element',
 				echoedActions: [],
 			});
 		});
@@ -10286,8 +10344,8 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
 		});
 
-		test('dispatches activeClientSet on first turn when restoring a session where current client customizations are stale', async () => {
-			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+		test('refreshes stale customizations on open when the current client is already active', async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
@@ -10321,24 +10379,72 @@ suite('AgentHostChatContribution', () => {
 				connectionAuthority: 'local',
 			}));
 
-			// Opening the session does NOT re-claim with fresh customizations.
+			// Opening refreshes this client's stale customizations without claiming
+			// a session where only another client is active.
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
-			assert.strictEqual(
-				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet').length,
-				0,
-				'no dispatch expected on session open',
-			);
-
-			// The fresh customization set is published on first turn.
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { type: string; activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(activeClientAction.type, 'session/activeClientSet');
+			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+			]);
+		});
+
+		test('refreshes customizations when the current active client hydrates after open', async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			agentHostService.fireAction({
+				channel: sessionResource.toString(),
+				action: {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: {
+						clientId: agentHostService.clientId,
+						tools: [],
+						customizations: [],
+					},
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionActiveClientSet);
+			assert.strictEqual(activeClientActions.length, 1);
+			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);

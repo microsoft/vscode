@@ -53,12 +53,13 @@ export function setup(logger: Logger): void {
 			baseUrl = `http://127.0.0.1:${address.port}`;
 		});
 
-		afterEach(async () => {
-			for (const page of openPages) {
-				if (!page.isClosed()) {
-					await page.close();
-				}
-			}
+		afterEach(async function () {
+			const app = this.app as Application;
+			const pageClosePromises = [...openPages]
+				.filter(page => !page.isClosed())
+				.map(page => page.waitForEvent('close'));
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			await Promise.all(pageClosePromises);
 			openPages.clear();
 		});
 
@@ -100,6 +101,7 @@ export function setup(logger: Logger): void {
 			const workbenchPage = app.code.driver.currentPage;
 			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+			await browserPage.locator('body').click({ position: { x: 1, y: 1 } });
 			await browserPage.keyboard.press(`${modifier}+f`);
 			const findWidget = workbenchPage.locator('.browser-find-widget-wrapper .simple-find-part.visible');
 			const findInput = findWidget.locator('.monaco-findInput input');
@@ -164,8 +166,10 @@ export function setup(logger: Logger): void {
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
 			await target.click();
 			await browserPage.waitForFunction(() => document.activeElement?.hasAttribute('data-vscode-pick-host'));
+			await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent = '0');
 			await browserPage.keyboard.type(comment);
 			await browserPage.keyboard.press('Enter');
+			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
 			await app.workbench.chat.waitForInputText('@button#comment-target');
 			await app.workbench.chat.waitForInputText(comment);
 
@@ -341,7 +345,14 @@ function pageForRoute(route: string, requestCount: number): string {
 				});
 			</script>`);
 		case '/comment':
-			return html('Browser Smoke Comment', '<button id="comment-target">Comment target</button>');
+			return html('Browser Smoke Comment', `<button id="comment-target">Comment target</button>
+				<output id="comment-keydown-count">0</output>
+				<script>
+					window.addEventListener('keydown', () => {
+						const output = document.querySelector('#comment-keydown-count');
+						output.textContent = String(Number(output.textContent) + 1);
+					});
+				</script>`);
 		case '/screenshot':
 			return html('Browser Smoke Screenshot', '<div id="screenshot-top">Top</div><div style="height: 2400px"></div><div id="screenshot-bottom">Bottom</div>');
 		case '/lifecycle':

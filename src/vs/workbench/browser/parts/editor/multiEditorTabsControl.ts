@@ -105,7 +105,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		fit: 120 as const
 	};
 	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 28 as const;
-	private static readonly STYLE_OVERRIDE_PINNED_TAB_SPACING = 4 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -923,6 +922,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Gesture Support
 		const gestureDisposable = Gesture.addTarget(tabContainer);
+
+		// Tab Fill (Modern UI pill background). A real element is used because the
+		// tab's ::before/::after pseudo-elements are reserved for drop-target indicators.
+		const tabFillContainer = $('.tab-fill', { 'aria-hidden': true });
+		tabContainer.appendChild(tabFillContainer);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -2266,13 +2270,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
 		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
-		const styleOverrideSpacing = hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_PINNED_TAB_SPACING : 0;
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return (hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact) + styleOverrideSpacing;
+				return hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
 			case 'shrink':
-				return MultiEditorTabsControl.TAB_WIDTH.shrink + styleOverrideSpacing;
+				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:
 				return 0;
 		}

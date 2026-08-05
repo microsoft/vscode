@@ -1,0 +1,73 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read config.json and reply with the numeric value of "answer" only. Use your file tools; do not run a shell command.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: glob
+          input:
+            pattern: '**/config.json'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read config.json and reply with the numeric value of "answer" only. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/config.json'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./config.json
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/config.json
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read config.json and reply with the numeric value of "answer" only. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/config.json'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./config.json
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/config.json
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 1. {"answer":42}
+    response:
+      content: '42'
+      stopReason: end_turn
