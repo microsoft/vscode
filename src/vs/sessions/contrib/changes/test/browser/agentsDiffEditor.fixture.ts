@@ -101,6 +101,11 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 
 class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
 
+	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = 32;
+	readonly diffEditorItemContentBottomPadding = 8;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }

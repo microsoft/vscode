@@ -64,9 +64,21 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 	lineNumbersMinChars: 3,
 };
 
+/** Keeps the overlay scrollbar clear of the final diff entry. */
+const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
+
+/** Compact file header height so the list optimizes for vertical space. */
+const CHANGES_ENTRY_HEADER_HEIGHT_PX = 32;
+
+/** Breathing room below each file's diff so its contents never touch the separator. */
+const CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX = 8;
+
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = CHANGES_ENTRY_HEADER_HEIGHT_PX;
+	readonly diffEditorItemContentBottomPadding = CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX;
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
@@ -237,6 +249,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
+		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._applyRenderSideBySide();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {

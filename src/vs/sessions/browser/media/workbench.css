@@ -157,7 +157,7 @@
 
 .agent-sessions-workbench:not(.dock-detail-panel) .part.auxiliarybar {
 	margin: 0 0 0 0;
-	padding-left: 5px;
+	padding-left: var(--vscode-spacing-size60);
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
@@ -294,9 +294,42 @@
 	background: var(--vscode-agentsPanel-border);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	box-sizing: border-box;
+/* Match the chat header's horizontal wall padding (10px) so the right pane's
+ * header content lines up with the chat window's top header region instead of
+ * sitting at the editor group's default 8px inset. */
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-toolbars:has(> .editor-group-header-primary:not(.has-no-actions), > .editor-group-header-secondary:not(.has-no-actions)) {
+	padding: 2px var(--vscode-spacing-size100, 10px);
+}
+
+/* Divider under the editor group header toolbars (e.g. the Changes view's
+ * Branch Changes / Create PR controls). Inset on both sides to line up with the
+ * header content padding above, matching the chat header where the divider sits
+ * flush with the content edges instead of spanning edge to edge. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
+	position: relative;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars::after,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: var(--vscode-spacing-size100);
+	right: var(--vscode-spacing-size100);
+	width: auto;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
+	pointer-events: none;
+}
+
+/* This divider is the separator directly above the first file in the multi-file
+ * diff (Changes view). When that first file is emphasized (hover / press / focus),
+ * extend it to full bleed too, so its top boundary matches the full-bleed
+ * separators shown between files. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:has(.multiDiffEntry.first-diff-entry > .header:is(:hover, :active, :focus-visible), .multiDiffEditor:focus-within .multiDiffEntry.first-diff-entry.active) .editor-group-header-toolbars::after,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)):has(.multiDiffEntry.first-diff-entry > .header:is(:hover, :active, :focus-visible), .multiDiffEditor:focus-within .multiDiffEntry.first-diff-entry.active) > .title::after {
+	left: 0;
+	right: 0;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,

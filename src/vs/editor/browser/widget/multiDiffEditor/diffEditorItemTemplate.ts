@@ -27,6 +27,7 @@ export class TemplateData implements IObjectData {
 	constructor(
 		public readonly viewModel: DocumentDiffItemViewModel,
 		public readonly deltaScrollVertical: (delta: number) => void,
+		public readonly isFirst: boolean,
 	) { }
 
 
@@ -47,7 +48,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	private readonly _modifiedWidth;
 	private readonly _originalContentWidth;
 	private readonly _originalWidth;
-
+	private readonly _itemHorizontalInsets: Readonly<{ left: number; right: number }>;
 	public readonly maxScroll;
 
 	private readonly _elements;
@@ -77,9 +78,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
 		this._collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
 		this._editorContentHeight = observableValue<number>(this, 500);
+		this._itemHorizontalInsets = this._workbenchUIElementFactory.diffEditorItemHorizontalInsets ?? { left: 9, right: 9 };
 		this.contentHeight = derived(this, reader => {
-			const h = this._collapsed.read(reader) ? 0 : this._editorContentHeight.read(reader);
-			return h + this._outerEditorHeight;
+			// When collapsed, only the header is shown so the entry sits flush against the
+			// divider. The content bottom padding (folded into `_outerEditorHeight`) is an
+			// inset for the expanded diff content only, so it must not inflate the collapsed height.
+			if (this._collapsed.read(reader)) {
+				return this._headerHeight;
+			}
+			return this._editorContentHeight.read(reader) + this._outerEditorHeight;
 		});
 		this._modifiedContentWidth = observableValue<number>(this, 0);
 		this._modifiedWidth = observableValue<number>(this, 0);
@@ -127,17 +134,19 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath, MultiDiffEditorItemLabelKind.Secondary))
 			: undefined;
 		this._dataStore = this._register(new DisposableStore());
-		this._headerHeight = 40;
+		this._headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
 		this._lastScrollTop = -1;
 		this._isSettingScrollTop = false;
 
 		const btn = this._register(new Button(this._elements.collapseButton, {}));
+		const activateItem = () => this._viewModel.get()?.setActive(undefined);
 
 		this._register(autorun(reader => {
 			btn.element.className = '';
 			btn.icon = this._collapsed.read(reader) ? Codicon.chevronRight : Codicon.chevronDown;
 		}));
 		this._register(btn.onDidClick(() => {
+			activateItem();
 			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
 		}));
 
@@ -146,7 +155,9 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			this._elements.header.tabIndex = 0;
 			this._elements.header.setAttribute('role', 'button');
 
+			this._register(addDisposableListener(this._elements.header, EventType.FOCUS_IN, activateItem));
 			this._register(addDisposableListener(this._elements.header, EventType.CLICK, (e) => {
+				activateItem();
 				// Don't toggle if clicking on actions or the collapse button itself (already handled)
 				const target = e.target;
 				if (!(target instanceof Element)) {
@@ -160,6 +171,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 			this._register(addDisposableListener(this._elements.header, EventType.KEY_DOWN, (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
+					activateItem();
 					const target = e.target;
 					if (target instanceof Element && (target.closest('.actions') || target.closest('.collapse-button'))) {
 						return;
@@ -214,7 +226,9 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}));
 
 		this._container.appendChild(this._elements.root);
-		this._outerEditorHeight = this._headerHeight;
+		// Reserve the header plus an optional bottom inset so the embedded editor
+		// lays out below the header and stops short of the entry's separator.
+		this._outerEditorHeight = this._headerHeight + (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0);
 
 		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
 		const ctxAllUnchangedRegionsShown = EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.bindTo(this._contextKeyService);
@@ -247,6 +261,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	public setData(data: TemplateData | undefined): void {
 		this._data = data;
+		this._elements.root.classList.toggle('first-diff-entry', data?.isFirst ?? false);
 		const optionsOverride = this._optionsOverride;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -351,7 +366,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 		globalTransaction(tx => {
 			this.editor.layout({
-				width: width - 2 * 8 - 2 * 1,
+				width: width - this._itemHorizontalInsets.left - this._itemHorizontalInsets.right,
 				height: verticalRange.length - this._outerEditorHeight,
 			});
 		});
