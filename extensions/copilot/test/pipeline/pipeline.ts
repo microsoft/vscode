@@ -20,11 +20,12 @@ import { processContinuousRecords } from './continuous/processContinuous';
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
 import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
 import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
-import { assembleSample, ISample, SampleClassification, resolveOutputPath, writeSamples } from './output';
+import { assembleSample, ISample, IWriteResult, SampleClassification, resolveOutputPath, writeSamples } from './output';
 import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecording';
 import { generateAllResponses, generateResponse, IResponseGenerationInput, applyEditsToContent } from './responseStep';
+import { publishScoredEditsFiles, writeScoredEditsFiles } from './scoredEditsOutput';
 import { streamJsonRecords } from './streamJsonRecords';
 import { openWriteStream } from './writeStream';
 import type { WithRowIndex } from './withRowIndex';
@@ -179,6 +180,7 @@ async function loadAndProduceProcessedRows(nesDatagenOpts: NesDatagen, verbose: 
  */
 export async function runInputPipeline(opts: RunPipelineOptions, log = console.log.bind(console)): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
+	validateScoredEditsOptions(nesDatagenOpts);
 	if (nesDatagenOpts.sampleTask !== NesDatagenSampleTask.Xtab) {
 		return runCursorPipeline(opts, log);
 	}
@@ -310,8 +312,16 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 			log(`    Workspace recording rows rejected for partial edit-window labels: ${workspaceRowsWithDroppedOracleEdits}`);
 		}
 
-		const writeResult = await writeSamples(outputPath, samples);
+		const { writeResult, scoredEditsResult } = await writePipelineOutputs(
+			nesDatagenOpts,
+			outputPath,
+			samples,
+			{ kind: 'processedRows', rows: processed },
+		);
 		log(`  [5/5] Output written: ${writeResult.written} samples → ${writeResult.outputPath}`);
+		if (scoredEditsResult) {
+			log(`    Scored edits: ${scoredEditsResult.written} files → ${scoredEditsResult.outputDirectory}`);
+		}
 		if (writeResult.skipped > 0) {
 			log(`    Structural validation dropped ${writeResult.skipped} samples`);
 			if (verbose) {
@@ -631,6 +641,7 @@ interface IWorkerPartition {
 interface IPipelineWorker extends IWorkerPartition {
 	readonly args: string[];
 	readonly resultPath: string;
+	readonly scoredEditsOutputDirectory?: string;
 }
 
 function partitionWork(itemCount: number, parallelism: number): IWorkerPartition[] {
@@ -677,14 +688,14 @@ async function runPipelineWorkers(workers: readonly IPipelineWorker[], verbose: 
 	return elapsed;
 }
 
-async function mergeWorkerResults(workers: readonly IPipelineWorker[], outputPath: string) {
+async function mergeWorkerResults(workers: readonly IPipelineWorker[]): Promise<ISample[]> {
 	const allSamples: ISample[] = [];
 	for (const worker of workers) {
 		for await (const sample of streamJsonRecords<ISample>(worker.resultPath)) {
 			allSamples.push(sample);
 		}
 	}
-	return writeSamples(outputPath, allSamples);
+	return allSamples;
 }
 
 /**
@@ -693,6 +704,7 @@ async function mergeWorkerResults(workers: readonly IPipelineWorker[], outputPat
  */
 export async function runInputPipelineParallel(opts: SimulationOptions): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
+	validateScoredEditsOptions(nesDatagenOpts);
 	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
 		return runWorkspaceRecordingPipelineParallel(opts);
 	}
@@ -731,15 +743,15 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 			...partition,
 			chunkPath: path.join(tmpDir, `chunk_${workerIndex}.json`),
 			resultPath: path.join(tmpDir, `result_${workerIndex}.jsonl`),
+			scoredEditsOutputDirectory: path.join(tmpDir, `scoredEdits_${workerIndex}`),
 		}));
 
 		// Distribute records into contiguous per-worker chunk files by streaming the
 		// input a second time, writing each chunk incrementally as a JSON array.
 		await writeChunkFiles(inputPath, chunkWorkers.map(worker => worker.chunkPath), chunkSize);
 
-		const workers: IPipelineWorker[] = chunkWorkers.map(worker => ({
-			...worker,
-			args: [
+		const workers: IPipelineWorker[] = chunkWorkers.map(worker => {
+			const args = [
 				'nes-datagen',
 				'--input', worker.chunkPath,
 				'--config-file', opts.configFile!,
@@ -755,8 +767,12 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
 				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
 				'--worker',
-			],
-		}));
+			];
+			if (nesDatagenOpts.generateScoredEdits) {
+				args.push('--generate-scored-edits', '--scored-edits-output-directory', worker.scoredEditsOutputDirectory);
+			}
+			return { ...worker, args };
+		});
 		if (verbose) {
 			for (const worker of workers) {
 				worker.args.push('--verbose');
@@ -765,8 +781,17 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 
 		const elapsed = await runPipelineWorkers(workers, verbose, 'rows');
 		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
-		const writeResult = await mergeWorkerResults(workers, outputPath);
+		const allSamples = await mergeWorkerResults(workers);
+		const { writeResult, scoredEditsResult } = await writePipelineOutputs(
+			nesDatagenOpts,
+			outputPath,
+			allSamples,
+			{ kind: 'stagingDirectories', directories: workers.map(worker => worker.scoredEditsOutputDirectory!) },
+		);
 		console.log(`  Output: ${writeResult.written} samples → ${writeResult.outputPath} (${elapsed})`);
+		if (scoredEditsResult) {
+			console.log(`  Scored edits: ${scoredEditsResult.written} files → ${scoredEditsResult.outputDirectory}`);
+		}
 	} finally {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	}
@@ -801,6 +826,7 @@ async function runWorkspaceRecordingPipelineParallel(opts: SimulationOptions): P
 			const pivotOperationIndices = descriptors
 				.slice(partition.start, partition.start + partition.count)
 				.map(descriptor => descriptor.pivotOperationIndex);
+			const scoredEditsOutputDirectory = path.join(tmpDir, `scoredEdits_${workerIndex}`);
 			const args = [
 				'nes-datagen',
 				'--input', inputPath,
@@ -816,21 +842,107 @@ async function runWorkspaceRecordingPipelineParallel(opts: SimulationOptions): P
 				'--workspace-pivot-operation-indices', pivotOperationIndices.join(','),
 				'--worker',
 			];
+			if (nesDatagenOpts.generateScoredEdits) {
+				args.push('--generate-scored-edits', '--scored-edits-output-directory', scoredEditsOutputDirectory);
+			}
 			if (verbose) {
 				args.push('--verbose');
 			}
 			return {
 				...partition,
 				resultPath: path.join(tmpDir, `result_${workerIndex}.jsonl`),
+				scoredEditsOutputDirectory,
 				args,
 			};
 		});
 
 		const elapsed = await runPipelineWorkers(workers, verbose, 'samples');
 		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
-		const writeResult = await mergeWorkerResults(workers, outputPath);
+		const allSamples = await mergeWorkerResults(workers);
+		const { writeResult, scoredEditsResult } = await writePipelineOutputs(
+			nesDatagenOpts,
+			outputPath,
+			allSamples,
+			{ kind: 'stagingDirectories', directories: workers.map(worker => worker.scoredEditsOutputDirectory!) },
+		);
 		console.log(`  Output: ${writeResult.written} samples → ${writeResult.outputPath} (${elapsed})`);
+		if (scoredEditsResult) {
+			console.log(`  Scored edits: ${scoredEditsResult.written} files → ${scoredEditsResult.outputDirectory}`);
+		}
 	} finally {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });
+	}
+}
+
+function validateScoredEditsOptions(options: NesDatagen): void {
+	if (!options.generateScoredEdits) {
+		return;
+	}
+	if (options.sampleTask !== NesDatagenSampleTask.Xtab) {
+		throw new Error('--generate-scored-edits requires --sample-task=xtab');
+	}
+	if (!options.workerMode && options.scoredEditsOutputDirectory) {
+		throw new Error('--scored-edits-output-directory is only valid for nes-datagen workers');
+	}
+	if (options.workerMode && !options.scoredEditsOutputDirectory) {
+		throw new Error('nes-datagen workers require --scored-edits-output-directory when generating scoredEdits');
+	}
+}
+
+type ScoredEditsSource =
+	| { readonly kind: 'processedRows'; readonly rows: readonly IProcessedRow[] }
+	| { readonly kind: 'stagingDirectories'; readonly directories: readonly string[] };
+
+async function writePipelineOutputs(
+	options: NesDatagen,
+	outputPath: string,
+	samples: readonly ISample[],
+	scoredEditsSource: ScoredEditsSource,
+): Promise<{
+	readonly writeResult: IWriteResult;
+	readonly scoredEditsResult?: { readonly outputDirectory: string; readonly written: number };
+}> {
+	if (!options.generateScoredEdits) {
+		return { writeResult: await writeSamples(outputPath, samples) };
+	}
+
+	if (options.workerMode) {
+		if (scoredEditsSource.kind !== 'processedRows') {
+			throw new Error('nes-datagen workers require processed rows to generate scoredEdits');
+		}
+		const writeResult = await writeSamples(outputPath, samples);
+		const scoredEditsResult = await writeScoredEditsFiles(
+			options.scoredEditsOutputDirectory!,
+			samples,
+			scoredEditsSource.rows,
+			options.rowOffset,
+		);
+		return { writeResult, scoredEditsResult };
+	}
+
+	const stagingDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nes-generated-output-'));
+	try {
+		const stagedSamplesOutputPath = path.join(stagingDirectory, 'samples.jsonl');
+		const stagedWriteResult = await writeSamples(stagedSamplesOutputPath, samples);
+		let scoredEditsDirectories: readonly string[];
+		if (scoredEditsSource.kind === 'processedRows') {
+			const scoredEditsDirectory = path.join(stagingDirectory, 'scoredEdits');
+			await writeScoredEditsFiles(scoredEditsDirectory, samples, scoredEditsSource.rows, options.rowOffset);
+			scoredEditsDirectories = [scoredEditsDirectory];
+		} else {
+			scoredEditsDirectories = scoredEditsSource.directories;
+		}
+		const scoredEditsResult = await publishScoredEditsFiles(
+			outputPath,
+			stagedSamplesOutputPath,
+			samples,
+			scoredEditsDirectories,
+		);
+		return {
+			writeResult: { ...stagedWriteResult, outputPath: path.resolve(outputPath) },
+			scoredEditsResult,
+		};
+	} finally {
+		await fs.promises.rm(stagingDirectory, { recursive: true, force: true });
 	}
 }
