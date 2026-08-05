@@ -368,6 +368,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
+			renderSendButton?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
@@ -856,17 +857,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
-		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
-			secondary: true,
-			title: this.options.supportsBackground
-				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-				: localize('send', "Send"),
-			ariaLabel: localize('send', "Send"),
-		}));
-		sendButton.icon = Codicon.arrowUpCompact;
-		// Hold Alt while clicking Send to start the session in the background.
-		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
+		if (this.options.renderSendButton !== false) {
+			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
+			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
+				secondary: true,
+				title: this.options.supportsBackground
+					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+					: localize('send', "Send"),
+				ariaLabel: localize('send', "Send"),
+			}));
+			sendButton.icon = Codicon.arrowUpCompact;
+			// Hold Alt while clicking Send to start the session in the background.
+			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
+		}
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {

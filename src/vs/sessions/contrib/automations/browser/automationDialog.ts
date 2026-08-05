@@ -941,6 +941,7 @@ export function renderForm(
 		loading: automationSessionLoading,
 		historyKey: constObservable(undefined),
 		placeholder: localize('automation.form.newChatInput.placeholder', "Describe what you want to automate"),
+		renderSendButton: false,
 		renderSessionTypePickerInControls: false,
 		sessionTypePickerOptions: { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false },
 		usePersistedDraftState: false,
