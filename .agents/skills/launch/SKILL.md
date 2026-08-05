@@ -14,14 +14,14 @@ You're working on VS Code itself and you want to:
 
 This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
 
-The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. Auth tokens themselves live in the OS keychain (shared automatically) plus small files inside `User/globalStorage` - both of which *are* preserved.
+The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved.
 
 ## Prerequisites
 
 - macOS or Linux. The launcher is a bash script and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
-- An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev`, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
+- An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
   - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
@@ -33,7 +33,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 ## Launch
 
-The launcher script lives next to this SKILL.md at `scripts/launch.sh`. Resolve it relative to wherever this skill file is installed - do not hardcode an absolute path.
+The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Linux) or `scripts\launch.ps1` (Windows). Resolve it relative to wherever this skill file is installed - do not hardcode an absolute path.
 
 ```bash
 # LAUNCH=<dir-of-this-SKILL.md>/scripts/launch.sh
@@ -46,9 +46,29 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh`. Resolve 
 "$LAUNCH" --full                             # skip slim excludes; copy everything
 ```
 
+On Windows, invoke the PowerShell launcher with the same flags:
+
+```powershell
+$skillDir = '<dir-of-this-SKILL.md>'
+$launch = Join-Path $skillDir 'scripts\launch.ps1'
+& $launch                                      # default: workbench
+& $launch --agents                             # Agents window
+& $launch -- --use-mock-keychain               # forward extra args to code.bat
+& $launch --source-user-data-dir C:\path\to\profile
+& $launch --repo C:\path\to\vscode
+& $launch --clone-extensions
+& $launch --full
+```
+
+If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
+
 ### What gets copied (slim mode, the default)
 
-The exclude list mirrors the one used by VS Code's own perf-test skill (`.github/skills/auto-perf-optimize`), which is known to keep Copilot auth and language-model availability working. Specifically `WebStorage/`, `Service Worker/`, `Local Storage/`, `Cookies`, `Network Persistent State`, `TransportSecurity`, `Trust Tokens`, `Preferences`, `machineid`, and the entire `User/globalStorage/` (which holds `state.vscdb` - where extension `SecretStorage` blobs live, encrypted with the OS keychain key) are all preserved. Auth tokens themselves stay in the OS keychain, which is per-user, so they follow automatically.
+The exclude list mirrors the one used by VS Code's own perf-test skill (`.github/skills/auto-perf-optimize`), which is known to keep Copilot auth and language-model availability working. Specifically `WebStorage/`, `Service Worker/`, `Local Storage/`, `Cookies`, `Network Persistent State`, `TransportSecurity`, `Trust Tokens`, `Preferences`, `machineid`, and the entire `User/globalStorage/` (which holds `state.vscdb`) are all preserved.
+
+#### Windows authentication
+
+Windows has no shared per-app keychain for these secrets. They live in the copied profile, notably `User/globalStorage/state.vscdb` and root `Local State`, so the launcher verifies that they (plus `machineid` and `Network`) survived the copy. If a launched instance prompts for sign-in, launch `.\scripts\code.bat --user-data-dir=<source-udd>` directly, sign in once, and close it; every later launch copies that source profile and inherits the session.
 
 Excluded (transient, regenerable, or known-not-needed):
 - `User/workspaceStorage/` - per-workspace state, **including stored chat sessions** (often multi-GB)
@@ -81,6 +101,18 @@ MAIN=$(jq -r .mainPort      <<<"$INFO")
 AGENT=$(jq -r .agentHostPort <<<"$INFO")
 LOG=$(jq -r .logFile        <<<"$INFO")
 PID=$(jq -r .pid            <<<"$INFO")
+```
+
+On Windows, capture and parse the JSON without `jq`:
+
+```powershell
+$info = & $launch | Select-Object -Last 1 | ConvertFrom-Json
+$cdp = $info.cdpPort
+$ext = $info.extHostPort
+$main = $info.mainPort
+$agent = $info.agentHostPort
+$log = $info.logFile
+$pid = $info.pid
 ```
 
 ### What each port is for
@@ -335,4 +367,4 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - focus chat with the platform shortcut, use `press` or clipboard paste rather than `fill` / `type`, then verify the input state before sending.
-- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). Some auth lives in the OS keychain - that's per-user, so it follows automatically as long as you're running as the same user.
+- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). On Windows, sign in directly against the source profile once so its copied `state.vscdb` and `Local State` contain the session.
