@@ -188,6 +188,17 @@ export class CursorMoveCommands {
 
 			let selectToLineNumber = position.lineNumber + 1;
 			let selectToColumn = 1;
+
+			// If the clicked line has a folded region immediately after it,
+			// extend the selection to cover the entire folded range
+			const hiddenAreas = viewModel.getHiddenAreas();
+			for (const hiddenArea of hiddenAreas) {
+				if (hiddenArea.startLineNumber === position.lineNumber + 1) {
+					selectToLineNumber = hiddenArea.endLineNumber + 1;
+					break;
+				}
+			}
+
 			if (selectToLineNumber > lineCount) {
 				selectToLineNumber = lineCount;
 				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
