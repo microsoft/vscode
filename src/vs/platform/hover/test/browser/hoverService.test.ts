@@ -24,6 +24,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { AnchorAlignment } from '../../../../base/common/layout.js';
 
 suite('HoverService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -178,6 +180,53 @@ suite('HoverService', () => {
 			});
 
 			assert.strictEqual(hover, undefined, 'Hover should not be created for empty content');
+		});
+
+		test('should align the right edge of a hover with its target', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+
+			hoverWidget.layout();
+
+			assert.strictEqual(hoverWidget.x, 198);
+			hover.dispose();
+		});
+
+		test('should constrain a right-aligned hover to the available width', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(100, 100, 50, 20);
+			const hover = showHover('Constrained right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', {
+				configurable: true,
+				get: () => Math.min(200, Number.parseFloat(hoverWidget.domNode.style.maxWidth) || 200)
+			});
+
+			hoverWidget.layout();
+
+			assert.deepStrictEqual({
+				x: hoverWidget.x,
+				maxWidth: hoverWidget.domNode.style.maxWidth
+			}, {
+				x: 2,
+				maxWidth: '146px'
+			});
+			hover.dispose();
 		});
 
 		test('should call onDidShow callback when hover is shown', () => {

@@ -278,6 +278,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private actionToolBarElement!: HTMLElement;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
 	private centerAdjacentToolBarElement: HTMLElement | undefined;
+	private readonly updateToolBarDisposable = this._register(new DisposableStore());
+	private updateToolBarElement: HTMLElement | undefined;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -514,7 +516,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}));
 
 			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
-			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateCenterAdjacentToolBarOverflow()));
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
 		// Create Toolbar Actions
@@ -522,6 +524,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
+		}
+
+		// Update Toolbar
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
+			this.updateToolBarElement = updateToolBarElement;
+			const updateToolBar = this.updateToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, MenuId.TitleBarUpdate, {
+				contextMenu: MenuId.TitleBarContext,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: {
+					primaryGroup: () => true,
+				},
+				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
+				hoverDelegate: this.hoverDelegate
+			}));
+
+			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
 		// Window Controls Container
@@ -922,30 +941,26 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		super.layoutContents(width, height);
 
 		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
-		this.updateCenterAdjacentToolBarOverflow();
+		this.updateTitleBarToolBarOverflow();
 	}
 
 	/**
-	 * Hides the optional center-adjacent toolbar (e.g. the update indicator) when showing it would push the title bar
-	 * content—most notably the trailing window controls—off-screen as the window is collapsed horizontally (#303222).
-	 * Overflow is measured against actual rendered widths so the toolbar stays visible whenever it fits.
+	 * Hides optional title bar toolbars when showing them would push the trailing window controls off-screen (#303222).
 	 */
-	private updateCenterAdjacentToolBarOverflow(): void {
-		const element = this.centerAdjacentToolBarElement;
-		if (!element) {
-			return;
-		}
+	private updateTitleBarToolBarOverflow(): void {
+		for (const element of [this.centerAdjacentToolBarElement, this.updateToolBarElement]) {
+			if (!element) {
+				continue;
+			}
 
-		// Skip measuring (and its forced reflow) when the toolbar is empty, which is the common case.
-		if (element.classList.contains('has-no-actions')) {
+			if (element.classList.contains('has-no-actions')) {
+				element.classList.remove('overflowing');
+				continue;
+			}
+
 			element.classList.remove('overflowing');
-			return;
+			element.classList.toggle('overflowing', this.rootContainer.scrollWidth > this.rootContainer.clientWidth);
 		}
-
-		// Measure from the visible state, then hide again if the title bar content overflows its width.
-		element.classList.remove('overflowing');
-		const overflows = this.rootContainer.scrollWidth > this.rootContainer.clientWidth;
-		element.classList.toggle('overflowing', overflows);
 	}
 
 	private updateLayout(dimension: Dimension): void {

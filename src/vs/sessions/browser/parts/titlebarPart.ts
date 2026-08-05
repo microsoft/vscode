@@ -83,6 +83,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
+	private updateToolBarElement: HTMLElement | undefined;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
@@ -258,6 +259,18 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Update toolbar (rightmost, immediately before native window controls)
+		const updateToolBarElement = $('div.titlebar-actions-container.titlebar-update-container');
+		this.rightContent.insertBefore(updateToolBarElement, this.windowControlsContainer ?? null);
+		this.updateToolBarElement = updateToolBarElement;
+		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.update',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this._register(updateToolBar.onDidChangeMenuItems(() => this.updateUpdateToolBarOverflow()));
+
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e);
@@ -307,6 +320,22 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.updateUpdateToolBarOverflow();
+	}
+
+	private updateUpdateToolBarOverflow(): void {
+		const element = this.updateToolBarElement;
+		if (!element) {
+			return;
+		}
+
+		if (element.classList.contains('has-no-actions')) {
+			element.classList.remove('overflowing');
+			return;
+		}
+
+		element.classList.remove('overflowing');
+		element.classList.toggle('overflowing', this.rootContainer.scrollWidth > this.rootContainer.clientWidth);
 	}
 
 	private updateLayout(): void {
