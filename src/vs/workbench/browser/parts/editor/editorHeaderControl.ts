@@ -95,7 +95,7 @@ export class EditorHeaderControl extends Disposable {
 		if (this.breadcrumbsControl?.isHidden() === false && this.breadcrumbsContainer) {
 			let breadcrumbsWidth = 0;
 			if (this.headerContainer) {
-				breadcrumbsWidth = Math.max(0, this.breadcrumbsContainer.clientWidth);
+				breadcrumbsWidth = Math.max(0, this.breadcrumbsControl.domNode.clientWidth);
 			} else {
 				breadcrumbsWidth = Math.max(0, width);
 				this.breadcrumbsContainer.style.width = `${breadcrumbsWidth}px`;
