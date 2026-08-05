@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, Verbosity } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -520,6 +520,35 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		} finally {
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+});
+
+suite('CopilotSessionLauncher verbosity', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function applyVerbosity(verbosity: Verbosity): Promise<void> {
+		const launcher = createTestLauncher() as unknown as {
+			_applyVerbosity(session: CopilotSession, verbosity: Verbosity, sessionId: string): Promise<void>;
+		};
+		const session = {
+			rpc: {
+				options: {
+					update: async (options: unknown) => updates.push(options),
+				},
+			},
+		} as unknown as CopilotSession;
+		return launcher._applyVerbosity(session, verbosity, 'session-1');
+	}
+
+	const updates: unknown[] = [];
+
+	setup(() => updates.length = 0);
+
+	test('forwards the requested verbosity', async () => {
+		await applyVerbosity('high');
+
+		assert.deepStrictEqual(updates, [{ verbosity: 'high' }]);
 	});
 });
 
