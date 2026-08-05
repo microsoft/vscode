@@ -4,9 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { extUri, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ActionType, type SessionWorkingDirectoryAction } from './sessionActions.js';
+
+export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined, immutablePrimary = false): boolean {
+	if (!first || !second) {
+		return first === second;
+	}
+	if (immutablePrimary && !extUri.isEqual(first[0], second[0])) {
+		return false;
+	}
+	const offset = immutablePrimary ? 1 : 0;
+	const toKey = (directory: URI) => extUri.getComparisonKey(directory);
+	const firstSet = new ResourceSet(first.slice(offset), toKey);
+	const secondSet = new ResourceSet(second.slice(offset), toKey);
+	return firstSet.size === secondSet.size && [...firstSet].every(directory => secondSet.has(directory));
+}
 
 /**
  * Validates and canonicalizes a working-directory delta against the session's

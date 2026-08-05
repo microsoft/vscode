@@ -62,6 +62,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { areWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
 import { withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -461,15 +462,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	private _sameWorkingDirectories(first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
-		if (first === undefined || second === undefined) {
-			return first === second;
-		}
-		if (!this._sameUri(first[0], second[0])) {
-			return false;
-		}
-		const firstAdditional = new ResourceSet(first.slice(1));
-		const secondAdditional = new ResourceSet(second.slice(1));
-		return firstAdditional.size === secondAdditional.size && [...firstAdditional].every(directory => secondAdditional.has(directory));
+		return areWorkingDirectoriesEqual(first, second, true);
 	}
 
 	private _newProvisionalUri(provider: string): URI {

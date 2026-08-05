@@ -4,15 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
+import { areWorkingDirectoriesEqual, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
 
 suite('Session working directories', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const primary = 'file:///workspace/primary';
 	const secondary = 'file:///workspace/secondary';
+
+	test('compares additional working directories as a set', () => {
+		const first = [URI.file('/workspace/a'), URI.file('/workspace/b')];
+		const second = [URI.file('/workspace/b'), URI.file('/workspace/a')];
+
+		assert.strictEqual(areWorkingDirectoriesEqual(first, second), true);
+	});
+
+	test('compares an immutable primary positionally and additional directories as a set', () => {
+		const first = [URI.file('/workspace/primary'), URI.file('/workspace/a'), URI.file('/workspace/b')];
+		const reorderedAdditional = [URI.file('/workspace/primary'), URI.file('/workspace/b'), URI.file('/workspace/a')];
+		const changedPrimary = [URI.file('/workspace/a'), URI.file('/workspace/primary'), URI.file('/workspace/b')];
+
+		assert.deepStrictEqual([
+			areWorkingDirectoriesEqual(first, reorderedAdditional, true),
+			areWorkingDirectoriesEqual(first, changedPrimary, true),
+		], [true, false]);
+	});
 
 	test('uses an existing canonical spelling for equivalent set and remove actions', () => {
 		const encodedEquivalent = 'file:///workspace/%73econdary';
