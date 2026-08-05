@@ -13,7 +13,7 @@
  *     (quick input, hovers, suggest, context menus, toasts, dialogs, find,
  *     rename, color picker, ...).
  *   - Inner radius (6px): non-control containers that sit within the UI
- *     (notification center surfaces, sticky scroll, ...).
+ *     (notification center surfaces, ...).
  *   - Controls (4px): all interactable UI controls (text inputs, selects,
  *     list/tree rows, ...).
  *
@@ -52,6 +52,10 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+.style-override .browser-root .browser-url-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Select / dropdown controls */
 .style-override .monaco-select-box,
 .style-override .monaco-select-box-dropdown-container {
@@ -84,6 +88,10 @@
 
 .style-override .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+}
+
+.style-override .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
@@ -133,6 +141,11 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/* Match the minimap viewport slider to the adjacent editor scrollbar. */
+.style-override .monaco-editor .minimap-slider .minimap-slider-horizontal {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /*
  * Diff editor "fake united slider": when the overview ruler is shown, the diff
  * editor draws its own combined viewport slider (`.diffViewport`, spanning both
@@ -141,14 +154,14 @@
  * clear of the joined viewport and breaks the combined widget, so round only
  * the left corners (facing the editor) and keep the right side flat/flush.
  *
- * Gate on `:has(> .diffOverview)` so this only applies when the combined slider
- * is actually present: with `diffEditor.renderOverviewRuler` off there is no
- * `.diffViewport`, so the real slider is the sole scrollbar and should stay
- * rounded on all corners like every other scrollbar. The
+ * Gate on the `has-diff-overview` state class so this only applies when the
+ * combined slider is actually present: with `diffEditor.renderOverviewRuler`
+ * off there is no `.diffViewport`, so the real slider is the sole scrollbar and
+ * should stay rounded on all corners like every other scrollbar. The
  * `modified-in-monaco-diff-editor` class lives on the `.monaco-editor` root, so
  * target the slider as a descendant.
  */
-.style-override .monaco-diff-editor:has(> .diffOverview) .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+.style-override .monaco-diff-editor.has-diff-overview .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
 }
 
@@ -160,15 +173,16 @@
 	width: calc(100% - 1px) !important;
 }
 
+/* Editor sticky scroll container */
+.style-override .monaco-editor .sticky-widget {
+	border-radius: 0 !important;
+	overflow: hidden;
+	width: 100% !important;
+}
+
 /* =============================================================================
  * Inner (6px) — non-control containers that live within the UI.
  * ========================================================================== */
-
-/* Editor sticky scroll container */
-.style-override .monaco-editor .sticky-widget {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
-	overflow: hidden;
-}
 
 /*
  * Workbench parts (side bar, panel, auxiliary bar). The editor part is framed
@@ -207,6 +221,14 @@
 .style-override .monaco-editor .parameter-hints-widget {
 	border-radius: var(--vscode-cornerRadius-large) !important;
 	overflow: hidden;
+}
+
+/* Only boundary rows adopt the overlay's outer corners; interior rows keep the Control radius. */
+.style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):first-child {
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0 !important;
+}
+.style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):last-child {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
 }
 
 /* Context menus and general menu surfaces */
@@ -268,6 +290,11 @@
 	border-radius: calc(var(--vscode-sash-hover-size) / 2);
 }
 
+/* Keep the diff editor's bottom boundary from clipping the sash radius. */
+.style-override .monaco-diff-editor > .monaco-sash.vertical:before {
+	height: calc(100% - (var(--vscode-sash-hover-size) / 2));
+}
+
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
 }
@@ -280,6 +307,26 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.style-override.monaco-workbench .monaco-count-badge {
+/*
+ * Short numeric count badges (e.g. Search result and tree item counts) are small
+ * and roughly circular, so a full-circle radius reads as a clean round dot. (The
+ * activity-bar badge is a separate `.badge .badge-content` element, not a
+ * `.monaco-count-badge`, so it is unaffected by these rules.)
+ */
+.style-override.monaco-workbench .monaco-count-badge:not(.long) {
 	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/*
+ * Long text badges (`.long`, e.g. the Run and Debug call-stack "Running" /
+ * "Paused" state labels) are wide pills. A full-circle radius turns them into
+ * stadium-shaped capsules; the controls-tier radius keeps them as rectangular
+ * pills, matching the base `countBadge.css` intent where `.long` is squared off.
+ */
+.style-override.monaco-workbench .monaco-count-badge.long {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	border-radius: var(--vscode-cornerRadius-small);
 }

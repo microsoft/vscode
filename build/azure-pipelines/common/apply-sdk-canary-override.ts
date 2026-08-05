@@ -215,6 +215,13 @@ function collectOverrides(): Override[] {
 	}
 	if (cliVersion) {
 		overrides.push({ name: '@github/copilot', version: cliVersion });
+		// Surface the concrete CLI (explicit or inferred from the SDK) as a build
+		// tag so the GitHub orchestrator can read it back (build tags API) and
+		// report the real @github/copilot version instead of `auto`, without
+		// itself needing feed-read access. Mirrors the `sdk-canary=` tag above;
+		// same `=` (not `:`) separator for the Add Build Tag REST URL path.
+		// Idempotent across the per-platform jobs.
+		console.log(`##vso[build.addbuildtag]cli-canary=${cliVersion}`);
 	}
 	return overrides;
 }

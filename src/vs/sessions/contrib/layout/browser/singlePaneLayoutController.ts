@@ -63,6 +63,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			this._context = {
 				get isRestoringSessionLayout() { return that._isRestoringSessionLayout; },
 				withSessionLayoutRestore: work => that._withSessionLayoutRestore(work),
+				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
@@ -114,18 +115,6 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	// --- Base hooks ---
 
 	/**
-	 * With no remembered state, a created session re-opens to the Changes editor
-	 * with the detail panel closed; a new-session view re-opens to the Files detail
-	 * (its editor content stays hidden by R1).
-	 */
-	protected override _defaultReopenSidePaneParts(): { readonly editor: boolean; readonly auxiliaryBar: boolean } {
-		if (this._sessionsService.activeSession.get()?.isCreated.get() === false) {
-			return { editor: false, auxiliaryBar: true };
-		}
-		return { editor: true, auxiliaryBar: false };
-	}
-
-	/**
 	 * A session-switch restore closes/opens the docked editors (empty working-set
 	 * apply, managed-tab reconciliation), so suppress editor-part auto-visibility
 	 * for the whole restore to avoid closing the side pane or mistaking a
@@ -173,8 +162,8 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	}
 
 	// [D9b] Record a whole-side-pane toggle for the active session.
-	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
-		this._detailVisibility?.onSidePaneToggled(collapsed, previousAuxiliaryBarVisible);
+	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
+		this._detailVisibility?.onSidePaneToggled(collapsed, previousAuxiliaryBarVisible, auxiliaryBarVisible);
 	}
 
 	/**

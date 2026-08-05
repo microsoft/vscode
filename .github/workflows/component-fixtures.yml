@@ -71,6 +71,18 @@ jobs:
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
+      - name: Build component explorer
+        run: npx rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      - name: Upload component explorer
+        uses: actions/upload-artifact@v7
+        with:
+          name: component-explorer
+          path: .build/rspack-serve-out/
+
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
@@ -152,14 +164,8 @@ jobs:
             || {
               echo "match=false" >> "$GITHUB_OUTPUT"
               cat /tmp/blocks-ci-stderr.txt >&2
-              CONTENT=$(cat /tmp/blocks-ci-updated.md)
-              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              echo "$CONTENT" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              PATCH=$(diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true)
-              echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
-              echo "$PATCH" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md \
+                > /tmp/blocks-ci.patch || true
             }
 
       - name: Upload screenshots as artifact
@@ -171,18 +177,21 @@ jobs:
 
       - name: Determine base SHA
         id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
-            TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
-            git fetch --no-tags --depth=50 origin "${{ github.event.pull_request.base.ref }}"
-            BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+            TARGET_REF="origin/$BASE_REF"
+            git fetch --no-tags --depth=50 origin "$BASE_REF"
+            BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF")
           else
             # For push events, diff against the parent commit.
-            BASE_SHA=$(git rev-parse "${{ github.sha }}^")
+            BASE_SHA=$(git rev-parse "$EVENT_SHA^")
           fi
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "Using base SHA: $BASE_SHA (base for ${{ github.sha }})"
+          echo "Using base SHA: $BASE_SHA (base for $EVENT_SHA)"
 
       - name: Get OIDC token (non-fork only)
         id: oidc
@@ -243,17 +252,15 @@ jobs:
         id: diff
         if: always()
         run: |
-          BODY=$(node build/lib/screenshotDiffReport.ts \
+          node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             "${{ steps.base.outputs.base_sha }}" \
             ${{ github.sha }} \
             "${{ steps.base_manifest.outputs.path }}" \
-            test/componentFixtures/.screenshots/current/manifest.json)
-          if [ -n "$BODY" ]; then
+            test/componentFixtures/.screenshots/current/manifest.json \
+            > /tmp/screenshot-diff-comment.md
+          if [ -s /tmp/screenshot-diff-comment.md ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
-            echo "$BODY" >> "$GITHUB_OUTPUT"
-            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
           else
             echo "No screenshot changes to report."
           fi
@@ -268,33 +275,33 @@ jobs:
         if: always() && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
         # Single source of truth for the markdown body shared by the job
         # summary (the only surface fork PRs see) and the non-fork PR comment.
-        # Fixture rendering errors are already part of COMMENT_BODY via the
+        # Fixture rendering errors are already part of the screenshot diff via the
         # "Errored" section emitted by screenshotDiffReport.ts, so reporting
         # errors is not tied to blocks-ci here.
         run: |
           {
-            if [ -n "$COMMENT_BODY" ]; then
-              printf '%s\n' "$COMMENT_BODY"
+            if [ -s /tmp/screenshot-diff-comment.md ]; then
+              cat /tmp/screenshot-diff-comment.md
             fi
-            if [ -n "$BLOCKS_CI_CONTENT" ]; then
-              if [ -n "$COMMENT_BODY" ]; then printf '\n---\n\n'; fi
+            if [ -s /tmp/blocks-ci-updated.md ]; then
+              if [ -s /tmp/screenshot-diff-comment.md ]; then printf '\n---\n\n'; fi
               printf '### blocks-ci screenshots changed\n\n'
               printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
               printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
-              printf '```md\n%s\n```\n\n' "$BLOCKS_CI_CONTENT"
+              printf '```md\n'
+              cat /tmp/blocks-ci-updated.md
+              printf '```\n\n'
               printf '</details>\n'
-              if [ -n "$BLOCKS_CI_PATCH" ]; then
+              if [ -s /tmp/blocks-ci.patch ]; then
                 printf '\n<details open>\n<summary>Patch</summary>\n\n'
-                printf '```diff\n%s\n```\n\n' "$BLOCKS_CI_PATCH"
+                printf '```diff\n'
+                cat /tmp/blocks-ci.patch
+                printf '```\n\n'
                 printf '</details>\n'
               fi
             fi
           } > /tmp/comment-body.md
           echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
-        env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
-          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
 
       - name: Write job summary
         if: always() && steps.comment_body.outputs.path
@@ -375,23 +382,6 @@ jobs:
         run: |
           echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
-
-
-      # - name: Prepare explorer artifact
-      #   run: |
-      #     mkdir -p /tmp/explorer-artifact/screenshot-report
-      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
-      #     if [ -d test/componentFixtures/.screenshots/report ]; then
-      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
-      #     fi
-
-      # - name: Upload explorer artifact
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: component-explorer
-      #     path: /tmp/explorer-artifact/
-
-
       # - name: Set check title
       #   env:
       #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -133,6 +133,9 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 			if (e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
+			if (e.source === 'resize') {
+				return;
+			}
 			// [D9] Toggling the whole side pane hides/shows the aux bar as a side
 			// effect, not as a per-session choice, so don't record it.
 			if (this._ctx.togglingSidePane) {
@@ -183,11 +186,8 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 	 * collapse-driven hide (so opening it later re-reveals it); any other outcome
 	 * just captures the resulting state, preserving an explicit hide.
 	 */
-	onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
+	onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
 		if (this._ctx.multipleSessionsVisibleObs.get()) {
-			return;
-		}
-		if (this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -195,7 +195,7 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 			return;
 		}
 		if (!activeSession.isCreated.get()) {
-			this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+			this._setNewSessionViewState({ auxiliaryBarVisible });
 			return;
 		}
 		if (collapsed && previousAuxiliaryBarVisible) {

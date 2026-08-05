@@ -8,8 +8,8 @@ import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
@@ -35,7 +35,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
-			const promoId = this._shownNotifications.get(id);
+			const promoId = this._shownNotifications.get(id)?.promoId;
 			if (promoId) {
 				this._persistDismissedPromo(promoId);
 				this._update();
@@ -44,8 +44,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		this._update();
 	}
 
-	/** Maps each currently shown notification id to the promo id it represents. */
-	private readonly _shownNotifications = new Map<string, string>();
+	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string }>();
 
 	private _update(): void {
 		const dismissed = this._getDismissedPromoIds();
@@ -55,7 +54,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		// offered in the Local, Copilot, and Codex sessions). Bucket the first
 		// non-dismissed promo per harness (a model's `targetChatSessionType`,
 		// or the local pool when unset).
-		const promoByHarness = new Map<string, NonNullable<ILanguageModelChatMetadata['promo']>>();
+		const promoByHarness = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		for (const id of modelIds) {
 			const meta = this._languageModelsService.lookupLanguageModel(id);
 			if (!meta || !ILanguageModelChatMetadata.hasPromoDiscount(meta) || dismissed.has(meta.promo.id)) {
@@ -63,33 +62,40 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 			}
 			const harness = meta.targetChatSessionType ?? localChatSessionType;
 			if (!promoByHarness.has(harness)) {
-				promoByHarness.set(harness, meta.promo);
+				promoByHarness.set(harness, { identifier: id, metadata: meta });
 			}
 		}
 
 		// Refresh the notification for every harness that has an eligible promo,
 		// scoping each one to its harness so it only renders in matching sessions.
 		const desired = new Set<string>();
-		for (const [harness, promo] of promoByHarness) {
+		for (const [harness, model] of promoByHarness) {
+			const promo = model.metadata.promo!;
 			const notificationId = `${PROMO_NOTIFICATION_ID}.${harness}`;
 			desired.add(notificationId);
 
 			// Don't re-push an unchanged notification: re-setting it would clear a
 			// pending user dismissal in the notification service.
-			if (this._shownNotifications.get(notificationId) === promo.id) {
+			const shownNotification = this._shownNotifications.get(notificationId);
+			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id) {
 				continue;
 			}
-			this._shownNotifications.set(notificationId, promo.id);
+			this._shownNotifications.set(notificationId, { promoId: promo.id, modelIdentifier: model.identifier });
 
 			const endsAtDate = new Date(promo.endsAt);
 			const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
 			this._chatInputNotificationService.setNotification({
 				id: notificationId,
+				telemetryId: promo.id,
 				severity: ChatInputNotificationSeverity.Info,
 				message: promo.message,
 				description: localize('chat.promo.endsAt', "Ends {0}.", formattedDate),
-				actions: [],
+				actions: [{
+					label: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
+					kind: ChatInputNotificationActionKind.SwitchToModel,
+					modelIdentifier: model.identifier,
+				}],
 				dismissible: true,
 				autoDismissOnMessage: false,
 				sessionTypes: [harness],

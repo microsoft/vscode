@@ -37,7 +37,7 @@ suite('claudeMcpScan', () => {
 
 		assert.deepStrictEqual(
 			servers.map(s => ({ type: s.type, uri: s.uri, name: s.name, enabled: s.enabled, state: s.state })),
-			[{ type: CustomizationType.McpServer, uri: settings.toString(), name: 'srv', enabled: true, state: { kind: McpServerStatus.Starting } }],
+			[{ type: CustomizationType.McpServer, uri: settings.toString(), name: 'srv', enabled: true, state: { kind: McpServerStatus.Stopped } }],
 		);
 	});
 

@@ -28,6 +28,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly requestInProgress = observableValue('requestInProgress', false);
 	readonly hasActiveRequest = observableValue('hasActiveRequest', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
+	readonly isReadOnly = observableValue(this, false);
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;

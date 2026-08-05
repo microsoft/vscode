@@ -28,6 +28,9 @@ registerColor(
 	localize('actionBar.toggledBackground', 'Background color for toggled action items in action bar.')
 );
 
+const ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE = '--action-widget-close-start-opacity';
+const ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE = '--action-widget-close-start-transform';
+
 const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible")),
 	FilterFocused: new RawContextKey<boolean>('codeActionMenuFilterFocused', false, localize('codeActionMenuFilterFocused', "Whether the action widget filter input is focused")),
@@ -147,6 +150,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		}
 
 		this._closingList = list;
+		const computedStyle = dom.getWindow(widget).getComputedStyle(widget);
+		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE, computedStyle.opacity);
+		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE, computedStyle.transform);
 		widget.classList.add(closeAnimation.className);
 		list.hide(didCancel, false);
 		this._closeAnimation.value = disposableTimeout(() => {
@@ -159,6 +165,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	clear() {
 		this._closeAnimation.clear();
 		this._closingList = undefined;
+		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE);
+		this._widgetElement?.style.removeProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE);
 		this._widgetElement = undefined;
 		this._list.clear();
 	}
@@ -166,6 +174,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
+		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
+		if (widgetClassNames?.length) {
+			widget.classList.add(...widgetClassNames);
+		}
 		element.appendChild(widget);
 		this._widgetElement = widget;
 

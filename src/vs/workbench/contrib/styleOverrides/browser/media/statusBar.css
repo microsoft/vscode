@@ -70,6 +70,14 @@
 	border-bottom-right-radius: 0;
 }
 
+.style-override .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.style-override .part.statusbar > .right-items > .statusbar-item.visible-background-color-neighbor {
+	margin-right: var(--vscode-spacing-size40);
+}
+
 /*
  * Compact combo controls — a left/right pair that merges into one pill — give
  * the whole combo a single hover tint (painted inline on every sub-item's label
@@ -88,4 +96,13 @@
 .style-override .part.statusbar > .items-container > .statusbar-item.compact-left > a.statusbar-item-label:hover:not(.disabled),
 .style-override .part.statusbar > .items-container > .statusbar-item.compact-right > a.statusbar-item-label:hover:not(.disabled) {
 	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-right: var(--vscode-spacing-size40);
 }

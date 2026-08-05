@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin, IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -94,6 +94,7 @@ suite('copilotPluginConverters', () => {
 					headers: { 'Authorization': 'Bearer token' },
 				},
 			});
+
 		});
 
 		test('handles empty definitions', () => {
@@ -178,9 +179,17 @@ suite('copilotPluginConverters', () => {
 
 		test('parses YAML frontmatter for name, description, tools, and body', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/review.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: code-reviewer\ndescription: Reviews code for quality issues\ntools:\n  - read_file\n  - grep_search\n---\nYou are a meticulous code reviewer.\n`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: code-reviewer',
+				'description: Reviews code for quality issues',
+				'tools:',
+				'  - read_file',
+				'  - grep_search',
+				'---',
+				'You are a meticulous code reviewer.',
+				'',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'review' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -193,11 +202,77 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('parses skills and infer from frontmatter', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/skilled.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: skilled',
+				'skills:',
+				'  - baking-cake',
+				'  - cooking-pasta',
+				'infer: true',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'skilled' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'skilled',
+				tools: null,
+				skills: ['baking-cake', 'cooking-pasta'],
+				infer: true,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('infer defaults to false when disable-model-invocation is set', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-invoke.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: no-invoke',
+				'disable-model-invocation: true',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'no-invoke' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'no-invoke',
+				tools: null,
+				infer: false,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('omits skills and infer when frontmatter does not specify them', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/plain.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: plain',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'plain' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(Object.hasOwn(result[0], 'skills'), false);
+			assert.strictEqual(Object.hasOwn(result[0], 'infer'), false);
+		});
+
 		test('empty tools array becomes null (all tools)', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/empty-tools.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: free-for-all\ntools: []\n---\nBody.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: free-for-all',
+				'tools: []',
+				'---',
+				'Body.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'fallback' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -211,9 +286,12 @@ suite('copilotPluginConverters', () => {
 
 		test('falls back to resource name when frontmatter omits name', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-name.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\ndescription: Helper without an explicit name\n---\nBody only.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'description: Helper without an explicit name',
+				'---',
+				'Body only.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'resource-name' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -228,9 +306,12 @@ suite('copilotPluginConverters', () => {
 
 		test('trims whitespace from frontmatter name to match parsed agent name', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/padded.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: "  Inbox  "\n---\nBody.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: "  Inbox  "',
+				'---',
+				'Body.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'padded' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -459,6 +540,7 @@ suite('copilotPluginConverters', () => {
 
 		function makePlugin(overrides?: Partial<IParsedPlugin>): IParsedPlugin {
 			return {
+				format: PluginFormat.Copilot,
 				hooks: [],
 				mcpServers: [],
 				skills: [],
@@ -498,6 +580,13 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different plugin formats', () => {
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ format: PluginFormat.AgentPlugin })],
+				[makePlugin({ format: PluginFormat.OpenPlugin })],
+			), false);
 		});
 
 		test('returns false for different lengths', () => {

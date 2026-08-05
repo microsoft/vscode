@@ -203,7 +203,7 @@
 /* Remove card appearance from ALL parts on phone.
 	Specificity wins over the desktop card rule in style.css without !important;
 	width/height match what the mobile Part.layout() already inlines. */
-.agent-sessions-workbench.phone-layout .part.sessionspart,
+.agent-sessions-workbench.phone-layout .agents-part-card,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
@@ -222,7 +222,7 @@
 	policy above). Without this, opening the sidebar — which makes the
 	splitview share space between sidebar and sessions part — would shrink the
 	sessions part's content during the drawer slide animation. */
-.agent-sessions-workbench.phone-layout .part.sessionspart > .content,
+.agent-sessions-workbench.phone-layout .agents-part-card > .content,
 .agent-sessions-workbench.phone-layout .part.sidebar > .content,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
 .agent-sessions-workbench.phone-layout .part.panel > .content {
@@ -572,6 +572,12 @@
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot {
 	flex-shrink: 0;
 	min-width: max-content;
+}
+
+/* Keep phone chips unconstrained so long labels scroll horizontally instead of clipping. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .sessions-chat-session-type-picker,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: none;
 }
 
 /* Chip-pill style for each picker / toolbar action item in the chip row.

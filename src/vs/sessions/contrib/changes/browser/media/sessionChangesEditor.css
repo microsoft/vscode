@@ -79,11 +79,11 @@
 /* Diff-stats item (rich "N files +X -Y" rendering) styling, keyed off the item's
  * own marker class so it applies in both the classic internal changes-editor
  * header and the single-pane editor-group header (where it renders inside
- * `.editor-group-header-primary`). */
+ * `.editor-group-header-primary`). It remains fully interactive/clickable, so no
+ * hover-background override is needed here -- it keeps the normal toolbar hover. */
 .changes-diff-stats-action-rich {
 	flex: 1 1 auto;
 	min-width: 0;
-	cursor: default;
 }
 
 .changes-diff-stats-action-rich .action-label {
@@ -96,22 +96,8 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
-	padding: 0 var(--vscode-spacing-size40);
+	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
-	cursor: default;
-}
-
-/* `SinglePaneChangesDiffStatsActionItem` renders inside a `.monaco-action-bar`, whose
- * items get a hover/active background by default — which would make this passive
- * "N files +X -Y" status label look like a clickable button. It is non-interactive
- * (clicks are swallowed), so remove that background. Scoped to the rich label's marker
- * class and matched at the same specificity as the core toolbar hover rule so it wins
- * the cascade. (The closed-editor variant uses the base item without this class, so it
- * keeps the normal clickable hover.) */
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:hover:not(.disabled),
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:active:not(.disabled),
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich.active .action-label {
-	background-color: transparent;
 }
 
 /* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
@@ -129,7 +115,6 @@
 }
 
 .changes-diff-stats-action-rich .changes-diff-stats-files {
-	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
@@ -294,7 +279,7 @@
 	max-width: 100%;
 }
 
-.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button:not(.monaco-dropdown-button) {
 	flex: 1 1 auto;
 	flex-wrap: wrap;
 	min-width: 0;

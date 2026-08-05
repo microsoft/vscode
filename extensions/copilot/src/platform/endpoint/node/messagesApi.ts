@@ -37,6 +37,58 @@ export function buildToolInputSchema(schema: Record<string, unknown> | undefined
 	return { type: 'object', properties: {}, ...rest };
 }
 
+/**
+ * Anthropic only accepts ASCII letters, digits, underscores, and hyphens in tool call IDs.
+ */
+function sanitizeToolCallId(id: string): string {
+	return id.replace(/[^a-zA-Z0-9_-]/gu, '_');
+}
+
+/**
+ * Allocates Anthropic-compatible tool call IDs while preserving call/result pairing.
+ */
+function createAnthropicToolCallIdMapper(messages: readonly Raw.ChatMessage[]): (id: string) => string {
+	const validIdPattern = /^[a-zA-Z0-9_-]+$/u;
+	const usedIds = new Set<string>();
+
+	for (const message of messages) {
+		if (message.role === Raw.ChatRole.Assistant) {
+			for (const toolCall of message.toolCalls ?? []) {
+				if (validIdPattern.test(toolCall.id)) {
+					usedIds.add(toolCall.id);
+				}
+			}
+		} else if (message.role === Raw.ChatRole.Tool && validIdPattern.test(message.toolCallId)) {
+			usedIds.add(message.toolCallId);
+		}
+	}
+
+	const mappedIds = new Map<string, string>();
+	return id => {
+		const existingId = mappedIds.get(id);
+		if (existingId !== undefined) {
+			return existingId;
+		}
+
+		if (validIdPattern.test(id)) {
+			mappedIds.set(id, id);
+			usedIds.add(id);
+			return id;
+		}
+
+		const baseId = sanitizeToolCallId(id) || 'tool_call';
+		let mappedId = baseId;
+		let suffix = 1;
+		while (usedIds.has(mappedId)) {
+			mappedId = `${baseId}_${suffix++}`;
+		}
+
+		mappedIds.set(id, mappedId);
+		usedIds.add(mappedId);
+		return mappedId;
+	};
+}
+
 /** IP Code Citation annotation from Messages API copilot_annotations */
 interface AnthropicIPCodeCitation {
 	id: number;
@@ -117,6 +169,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
+	const logService = accessor.get(ILogService);
 
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
 		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
@@ -177,13 +230,18 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		const defaultEffort = declaredLevels
 			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
 			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		const requestedEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride) ?? reasoningEffort;
 		if (defaultEffort !== undefined) {
-			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-				?? reasoningEffort
-				?? defaultEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
-				effort = candidateEffort;
+			const candidateEffort = requestedEffort ?? defaultEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (!declaredLevels || declaredLevels.includes(candidateEffort)) {
+					effort = candidateEffort;
+				} else {
+					logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${endpoint.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
+		} else if (explicitlyUnsupported && typeof requestedEffort === 'string' && requestedEffort.length > 0) {
+			logService.warn(`[reasoningEffort] Dropping reasoning effort '${requestedEffort}' for model '${endpoint.model}' — server declares no supported effort levels.`);
 		}
 	}
 
@@ -192,7 +250,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 
-	const logService = accessor.get(ILogService);
 	const telemetryService = accessor.get(ITelemetryService);
 	// TODO: Ideally the custom tool_search tool should filter results itself, but it doesn't
 	// have access to the enabled tools for the request. For now, filter tool_reference blocks
@@ -263,6 +320,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 	const unmergedMessages: MessageParam[] = [];
 	const systemBlocks: TextBlockParam[] = [];
 	const toolCallIdToName = new Map<string, string>();
+	const mapToolCallId = createAnthropicToolCallIdMapper(messages);
 
 	for (const message of messages) {
 		switch (message.role) {
@@ -292,7 +350,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 						}
 						content.push({
 							type: 'tool_use',
-							id: toolCall.id,
+							id: mapToolCallId(toolCall.id),
 							name: toolCall.function.name,
 							input: parsedInput,
 						});
@@ -338,7 +396,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 
 					const toolResultBlock: ToolResultBlockParam = {
 						type: 'tool_result',
-						tool_use_id: message.toolCallId,
+						tool_use_id: mapToolCallId(message.toolCallId),
 						content: validContent.length > 0 ? validContent : undefined,
 					};
 					if (hasCacheControl) {
@@ -360,7 +418,9 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		if (lastMessage && lastMessage.role === message.role) {
 			const prevContent = Array.isArray(lastMessage.content) ? lastMessage.content : [{ type: 'text' as const, text: lastMessage.content }];
 			const newContent = Array.isArray(message.content) ? message.content : [{ type: 'text' as const, text: message.content }];
-			lastMessage.content = [...prevContent, ...newContent];
+			lastMessage.content = lastMessage.role === 'assistant'
+				? mergeAssistantContent(prevContent, newContent)
+				: [...prevContent, ...newContent];
 		} else {
 			mergedMessages.push(message);
 		}
@@ -370,6 +430,22 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		messages: mergedMessages,
 		...(systemBlocks.length ? { system: systemBlocks } : {}),
 	};
+}
+
+function isThinkingBlock(block: ContentBlockParam): boolean {
+	return block.type === 'thinking' || block.type === 'redacted_thinking';
+}
+
+// Keep at most one response's thinking blocks when merging consecutive assistants (#327646).
+function mergeAssistantContent(prevContent: ContentBlockParam[], newContent: ContentBlockParam[]): ContentBlockParam[] {
+	const hasToolUse = (blocks: ContentBlockParam[]) => blocks.some(block => block.type === 'tool_use');
+	const thinkingSource = hasToolUse(newContent) ? newContent : hasToolUse(prevContent) ? prevContent : undefined;
+
+	return [
+		...(thinkingSource?.filter(isThinkingBlock) ?? []),
+		...prevContent.filter(block => !isThinkingBlock(block)),
+		...newContent.filter(block => !isThinkingBlock(block)),
+	];
 }
 
 /**

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -12,6 +13,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -30,12 +33,14 @@ import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFac
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
-import { SessionRunningSubagentsControl } from './sessionRunningSubagentsControl.js';
 import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
+import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
+import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
+import { INewChatVoiceTargetService } from './newChatVoice.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -95,8 +100,18 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override submitInput(): Promise<boolean> {
+		return this._widget instanceof NewChatWidget ? this._widget.submitInput() : Promise.resolve(false);
+	}
+
 	override attach(uris: URI[]): void {
 		this._widget.attach(uris);
+	}
+
+	override setVisible(visible: boolean): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.setHostVisible(visible);
+		}
 	}
 }
 
@@ -114,10 +129,11 @@ export class ChatView extends AbstractChatView {
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
-	/** Ephemeral chip above the input listing the active chat's running subagents. */
-	private readonly _runningSubagents: SessionRunningSubagentsControl;
-	/** Floating status pills (changes, preview) above the input; agent host only. */
+	/** Floating status pills (changes, preview, background activity) above the input. */
 	private readonly _chatPills: SessionChatInputToolbar;
+
+	/** Shows an "Ask Question" input when the user selects assistant markdown text. */
+	private readonly _selectionSideChatController: ResponseSelectionSideChatController;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
@@ -130,12 +146,16 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
+
+	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
+	private _isVisible: boolean | undefined;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -151,9 +171,13 @@ export class ChatView extends AbstractChatView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
+		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
+		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
@@ -188,17 +212,16 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
-		this._widget.setVisible(true);
+
+		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
 
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
 
-		// Ephemeral running-subagents chip above the input (hidden while idle).
-		this._runningSubagents = this._register(instantiationService.createInstance(SessionRunningSubagentsControl));
-		// Floating status pills above the input (hidden unless an agent host session
-		// has changes or a previewable file).
+		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -215,7 +238,11 @@ export class ChatView extends AbstractChatView {
 			const active = this._isActiveObs.read(reader);
 			const voiceActive = this.voiceSessionController.isConnected.read(reader)
 				|| this.voiceSessionController.isConnecting.read(reader);
-			this._voiceInitiatedHereKey.set(active && voiceActive);
+			const target = this.voiceSessionController.targetSession.read(reader);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			const current = this._currentChatResourceObs.read(reader);
+			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
@@ -240,15 +267,15 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override setChat(chat: IChat, historyKey?: string): void {
+		this.chatPillsDebugService.clear(this._chatPills);
 		const resource = chat.resource;
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
-		// Monitor this chat's running subagents in the ephemeral chip.
-		this._runningSubagents.setChat(resource);
-
-		// Reflect this chat's last-turn changes and status in the floating pills.
+		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
+		this._selectionSideChatController.setChat(chat);
+		this._banners.setDebugData(undefined);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
 		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any
@@ -265,6 +292,7 @@ export class ChatView extends AbstractChatView {
 
 		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
+		this._currentChatResourceObs.set(resource, undefined);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -298,6 +326,7 @@ export class ChatView extends AbstractChatView {
 			}
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
+				this._currentChatResourceObs.set(undefined, undefined);
 			}
 		});
 
@@ -346,26 +375,18 @@ export class ChatView extends AbstractChatView {
 	}
 
 	/**
-	 * Mounts the running-subagents chip and the session banners above the chat
-	 * input, as the first children of the input part (the chip sits directly above
-	 * the banners). Idempotent — re-runs cheaply on layout to recover if the chat
-	 * widget rebuilds its input part DOM.
+	 * Mounts the status pills and session banners above the chat input.
 	 */
 	private _ensureBannersMounted(): void {
 		const inputPartElement = this._widget.inputPart.element;
+		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
-		const subagentsNode = this._runningSubagents.element;
 		const bannersNode = this._banners.domNode;
-		// Desired order at the top of the input part: [pillsNode, subagentsNode, bannersNode, ...].
-		// Keyed off the pills first so this is a true no-op once the DOM has settled.
-		if (inputPartElement.firstChild !== pillsNode) {
-			inputPartElement.insertBefore(pillsNode, inputPartElement.firstChild);
+		if (persistentContentContainer.firstChild !== pillsNode) {
+			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);
 		}
-		if (pillsNode.nextSibling !== subagentsNode) {
-			inputPartElement.insertBefore(subagentsNode, pillsNode.nextSibling);
-		}
-		if (subagentsNode.nextSibling !== bannersNode) {
-			inputPartElement.insertBefore(bannersNode, subagentsNode.nextSibling);
+		if (persistentContentContainer.nextSibling !== bannersNode) {
+			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);
 		}
 	}
 
@@ -387,10 +408,13 @@ export class ChatView extends AbstractChatView {
 			micCaptureService: this.micCaptureService,
 			configurationService: this.configurationService,
 			keybindingService: this.keybindingService,
+			themeService: this.themeService,
+			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
 			getCurrentResource: () => this._currentChatResource,
+			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));
 	}
 
@@ -414,6 +438,14 @@ export class ChatView extends AbstractChatView {
 		this._isActiveObs.set(active, undefined);
 		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
+	}
+
+	override setVisible(visible: boolean): void {
+		if (this._isVisible === visible) {
+			return;
+		}
+		this._isVisible = visible;
+		this._widget.setVisible(visible);
 	}
 }
 

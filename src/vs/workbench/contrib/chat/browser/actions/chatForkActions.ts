@@ -21,16 +21,18 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 
+export const ForkConversationActionId = 'workbench.action.chat.forkConversation';
+
 export class ForkConversationAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.forkConversation',
+			id: ForkConversationActionId,
 			title: localize2('chat.forkConversation.label', "Fork Conversation"),
 			tooltip: localize2('chat.forkConversation.tooltip', "Fork conversation from this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.repoForked,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.readOnly.negate()),
 			menu: [
 				{
 					id: MenuId.ChatMessageCheckpoint,
@@ -42,7 +44,8 @@ export class ForkConversationAction extends Action2 {
 						ContextKeyExpr.or(
 							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 							ChatContextKeys.chatSessionSupportsFork
-						)
+						),
+						ChatContextKeys.readOnly.negate()
 					)
 				}
 			]

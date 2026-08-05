@@ -46,7 +46,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
 	}
 
 	override getName(): string {
@@ -69,6 +69,15 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 			}, this.instantiationService));
 		}
 		return this._innerInput;
+	}
+
+	/**
+	 * The wrapped multi-diff input, whose {@link MultiDiffEditorInput.resources}
+	 * expose the session's individual file diffs. Used to resolve the session's
+	 * files (e.g. for the agent feedback affordances) from this editor input.
+	 */
+	get multiDiffInput(): MultiDiffEditorInput {
+		return this.innerInput;
 	}
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {

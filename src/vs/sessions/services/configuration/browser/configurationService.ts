@@ -17,7 +17,7 @@ import { deepClone, equals } from '../../../../base/common/objects.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -39,7 +39,7 @@ import '../../../../workbench/services/configuration/browser/configurationServic
 class SessionsDefaultConfiguration extends DefaultConfiguration {
 
 	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
-		if (propertySchema.agentsWindow) {
+		if (propertySchema.agentsWindow && propertySchema.defaultValueSource !== 'experiments') {
 			return deepClone(propertySchema.agentsWindow.default);
 		}
 		return super.getDefaultValue(_key, propertySchema);
@@ -164,7 +164,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		let target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 
 		// Always update chat.disableAIFeatures at workspace scope in the agents window
-		if (key === ChatConfiguration.AIDisabled) {
+		if (key === ChatAIDisabledSettingId) {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 

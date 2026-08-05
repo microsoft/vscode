@@ -27,7 +27,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMemoryFileResource } from '../../common/chatArtifactExtraction.js';
 import { IChatArtifact, IChatArtifactsService, IArtifactSourceGroup, ArtifactSource } from '../../common/tools/chatArtifactsService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { getEditorOverrideForChatResource } from './chatContentParts/chatInlineAnchorWidget.js';
+import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 
 const ARTIFACT_TYPE_ICONS: Record<string, ThemeIcon> = {
 	devServer: Codicon.globe,
