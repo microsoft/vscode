@@ -11,6 +11,10 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
+import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
+import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
+import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -170,6 +174,7 @@ interface IAutoApproveRules {
 
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
+const sedFileWriteParser = new SedFileWriteParser();
 
 /**
  * Auto-approves or denies shell commands based on terminal auto-approve rules.
@@ -261,6 +266,9 @@ export class CommandAutoApprover extends Disposable {
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules, isPowerShell: boolean): CommandApprovalResult {
 		let allApproved = true;
 		for (const subCommand of subCommands) {
+			if (sedFileWriteParser.canHandle(subCommand)) {
+				return 'denied';
+			}
 			// Deny transient env var assignments
 			if (transientEnvVarRegex.test(subCommand)) {
 				return 'denied';
@@ -330,10 +338,7 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			try {
-				if (isPowerShell && tree.rootNode.hasError) {
-					// An erroring parse can produce truncated captures that hide
-					// part of the command line from rule matching, so require
-					// confirmation instead of judging the partial parse.
+				if (shouldRequireConfirmationForAutoApproveParse(isPowerShell ? 'powershell' : 'bash', tree.rootNode.hasError)) {
 					this._logService.trace('[CommandAutoApprover] PowerShell parse contains errors, requiring confirmation');
 					return undefined;
 				}
@@ -344,7 +349,7 @@ export class CommandAutoApprover extends Disposable {
 				// when it contains code the rules cannot see.
 				const query = new this._queryClass(language, isPowerShell
 					? '(command) @command (redirection) @redirection (generic_token) @generic_token (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
-					: '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect');
+					: '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect (variable_assignment) @unanalyzable (declaration_command) @unanalyzable');
 				const captures: QueryCapture[] = query.captures(tree.rootNode);
 				const subCommands: string[] = [];
 				const unsafeWriteDests: (string | undefined)[] = [];
@@ -353,7 +358,7 @@ export class CommandAutoApprover extends Disposable {
 					const text = masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex);
 					if (capture.name === 'command') {
 						subCommands.push(text);
-					} else if (capture.name === 'unanalyzable') {
+					} else if (capture.name === 'unanalyzable' && (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command')) {
 						unanalyzableType ??= capture.node.type;
 					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || (capture.name === 'generic_token' && pwshNoSpaceRedirectRegex.test(text))) {
 						// Writes to known-safe sinks (e.g. `> /dev/null`, `2>$null`)
@@ -594,15 +599,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	grep: true,
 
 	// Safe git sub-commands
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+	...gitAutoApproveRules,
 
 	// Docker readonly sub-commands
 	'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
@@ -610,24 +607,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
 
 	// PowerShell
-	'Get-ChildItem': true,
-	'Get-Content': true,
-	'Get-Date': true,
-	'Get-Random': true,
-	'Get-Location': true,
-	'Set-Location': true,
-	'Write-Host': true,
-	'Write-Output': true,
-	'Out-String': true,
-	'Split-Path': true,
-	'Join-Path': true,
-	'Start-Sleep': true,
-	'Where-Object': true,
-	'/^Select-[a-z0-9]/i': true,
-	'/^Measure-[a-z0-9]/i': true,
-	'/^Compare-[a-z0-9]/i': true,
-	'/^Format-[a-z0-9]/i': true,
-	'/^Sort-[a-z0-9]/i': true,
+	...powershellAutoApproveRules,
 
 	// Package manager read-only commands
 	'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
@@ -663,7 +643,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 	'/^sed\\b.*;W/': false,
-	sort: true,
+	'/^sort\\b(?!-)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,

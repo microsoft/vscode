@@ -47,6 +47,8 @@ function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remo
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	readonly pullRequestUrl: string;
+	/** The head branch the pull request was created (or found) for. */
+	readonly branchName: string;
 }
 
 /**
@@ -197,7 +199,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, headBranch, authToken, signal, headOwner);
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 		}
 		this._throwIfCancelled(token);
 
@@ -231,12 +233,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 	}
 
 	/**
@@ -251,13 +253,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		sessionUri: string,
 		owner: string,
 		repo: string,
+		branchName: string,
 		authToken: string,
 		signal: AbortSignal,
 		token: CancellationToken,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!this._autoMergeMethod) {
 			// No auto-merge configured
-			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined));
 		}
 
@@ -280,7 +283,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError));
 	}
 

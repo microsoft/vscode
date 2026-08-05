@@ -312,7 +312,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
 		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default approvals"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Default permissions"),
 			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
@@ -338,7 +338,7 @@ export const platformSessionSchema = createSchema({
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
 			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
-			localize('agentHost.sessionConfig.mode.autopilotDescription', "Autonomously iterates from start to finish"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Works autonomously within permissions"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
@@ -467,6 +467,15 @@ export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongCon
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
+
+// Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
+// setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
+// sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
+export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+// The VS Code setting ID gating legacy Copilot CLI migration, forwarded into the agent host root
+// config. Kept in sync with `ChatConfiguration.MigrateLegacyCopilotCliSessions` (workbench layer).
+export const MIGRATE_LEGACY_COPILOT_CLI_SETTING_ID = 'chat.agentSessions.migrateLegacyCopilotCli';
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -740,14 +749,20 @@ export const platformRootSchema = createSchema({
 	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
-		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
-		default: false,
+		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true` (default), models with a free long context window only show the long context option in the picker. When `false`, the smaller default context option stays selectable."),
+		default: true,
 	}),
 	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
 		default: true,
+	}),
+	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
+		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
+		default: false,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

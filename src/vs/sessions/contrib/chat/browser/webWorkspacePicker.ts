@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
@@ -122,7 +122,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		const firstRecent = scopedProviderId !== undefined
-			? this._getRecentWorkspaces().find(w => w.providerId === scopedProviderId)
+			? this._getRecentWorkspaces().find(w => {
+				const folderUri = w.workspace.folders[0]?.root;
+				return w.providerId === scopedProviderId && !!folderUri && !isWorktreeWorkspaceUri(folderUri);
+			})
 			: undefined;
 		if (firstRecent) {
 			const folderUri = firstRecent.workspace.folders[0]?.root;

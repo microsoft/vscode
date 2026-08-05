@@ -93,10 +93,16 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
 	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>): DetailPanelTarget {
 		const activeSession = this._sessionsService.activeSession.read(reader);
+		if (!activeSession) {
+			return DetailPanelTarget.Preserve;
+		}
 		const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 		const workspace = activeSession?.workspace.read(reader);
-		if (isQuickChat || !workspace) {
+		if (isQuickChat) {
 			return DetailPanelTarget.Hidden;
+		}
+		if (!workspace) {
+			return DetailPanelTarget.Preserve;
 		}
 
 		// For a created session an empty editor group means the whole side pane was
@@ -203,9 +209,8 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
 	private async _syncForcedDetailTarget(viewContainerId: string, auxBarVisible: boolean): Promise<void> {
 		if (!auxBarVisible) {
-			// The detail panel is hidden. A created session defaults to the Changes
-			// editor with the detail closed, and an explicit / per-session hide is
-			// respected — so a Changes/file editor becoming active never
+			// The detail panel is hidden. The global visibility choice is respected,
+			// so a Changes/file editor becoming active never
 			// force-reveals the detail. The one exception is restoring the detail
 			// after a *transient* browser-tab hide (`_hiddenByBrowser`). Never reveal
 			// while the whole side pane is closed (the editor content is also hidden)

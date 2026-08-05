@@ -4,19 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derivedObservableWithCache, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { isActiveSessionStatus, ISessionTurnFileChange } from '../../../services/sessions/common/session.js';
 
 const LAST_TURN_CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'chat-last-turn-changes-multi-diff-source';
 
 interface ILastTurnChangesMultiDiffUriFields {
 	readonly chatResource: string;
+}
+
+/** Return the title for a turn-scoped changes editor. */
+export function getTurnChangesEditorLabel(isTurnActive: boolean): string {
+	return isTurnActive
+		? localize('sessions.currentTurnChanges.title', "Current Turn Changes")
+		: localize('sessions.lastTurnChanges.title', "Last Turn Changes");
 }
 
 /**
@@ -95,7 +103,10 @@ export class LastTurnChangesMultiDiffSourceResolver extends Disposable implement
 		// The chat's resource is fixed for this editor, so resolve the owning chat
 		// once here rather than re-finding it on every observable read.
 		const chat = this._sessionsManagementService.getSessionForChatResource(chatResource)?.chat;
-		const lastTurnChanges = chat?.lastTurnChanges ?? constObservable<readonly ISessionFileChange[]>([]);
+		const lastTurnChanges = chat?.lastTurnChanges ?? constObservable<readonly ISessionTurnFileChange[]>([]);
+		const label = chat
+			? derived(this, reader => getTurnChangesEditorLabel(isActiveSessionStatus(chat.status.read(reader))))
+			: constObservable(getTurnChangesEditorLabel(false));
 
 		// Reuse the row for a file we've already seen (keeping its first origin) and
 		// keep the previous array reference when no new file appears, so the diff
@@ -113,6 +124,9 @@ export class LastTurnChangesMultiDiffSourceResolver extends Disposable implement
 			const seen = new Set<string>();
 			let addedNewFile = false;
 			for (const change of changes) {
+				if (change.isOutsideWorkspace) {
+					continue;
+				}
 				// The on-disk resource of the file: the live file whose current
 				// content is shown as the modified side of the diff.
 				const onDiskUri = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
@@ -143,7 +157,10 @@ export class LastTurnChangesMultiDiffSourceResolver extends Disposable implement
 			return items;
 		});
 
-		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };
+		return {
+			resources: new ValueWithChangeEventFromObservable(resourcesObs),
+			label: new ValueWithChangeEventFromObservable(label),
+		};
 	}
 }
 

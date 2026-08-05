@@ -14,7 +14,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
@@ -213,12 +213,28 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 	) {
 		super();
 
+		let voiceDraftSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
-			const resource = active?.isCreated.read(reader)
-				? active.activeChat.read(reader)?.resource
-				: undefined;
-			this.voiceSessionController.setActiveSessionShown(resource);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget) {
+				voiceDraftSession = undefined;
+			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+				voiceDraftSession = active;
+			}
+			if (voiceDraftSession?.isCreated.read(reader)) {
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+				voiceDraftSession = undefined;
+			}
+			if (!active) {
+				this.voiceSessionController.setActiveSessionShown(undefined);
+				return;
+			}
+			if (!active.isCreated.read(reader)) {
+				this.voiceSessionController.setActiveSessionShown(null);
+				return;
+			}
+			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
 		}));
 	}
 }

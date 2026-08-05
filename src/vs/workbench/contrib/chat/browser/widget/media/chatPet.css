@@ -83,7 +83,7 @@
 	}
 }
 
-.monaco-workbench .chat-pet-host > .chat-pet-button:focus {
+.monaco-workbench .chat-pet-overlay > .chat-pet-button:focus {
 	outline: none;
 }
 
@@ -133,6 +133,11 @@
 
 .chat-pet-speech-bubble.hidden {
 	display: none;
+}
+
+.chat-pet-button[data-state='rendering'].speech-bubble-left .chat-pet-speech-bubble {
+	left: calc(-1 * var(--vscode-spacing-size280));
+	transform: scaleX(-1);
 }
 
 .chat-pet-button.dragging .chat-pet-speech-bubble {

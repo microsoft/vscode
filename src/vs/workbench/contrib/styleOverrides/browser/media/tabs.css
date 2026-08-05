@@ -50,7 +50,7 @@
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
 	margin-right: var(--vscode-spacing-size40) !important;
-	padding: 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
 	--tab-border-top-color: transparent !important;
 }
 
@@ -106,22 +106,22 @@
 
 .style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
 	flex-direction: row;
-	padding: 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.close-action-off:not(.sticky-compact) {
-	padding: 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
 .style-override .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
-	padding-right: var(--vscode-spacing-size240) !important;
+	padding-right: var(--vscode-spacing-size280) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact),
 .style-override .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--vscode-spacing-size240) !important;
-	padding-right: var(--vscode-spacing-size40) !important;
+	padding-right: var(--vscode-spacing-size80) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
@@ -134,7 +134,13 @@
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px 0 4px 4px;
+	padding: 4px 0 0 4px;
+}
+
+/* Move the bottom gutter into the scrollable element so the horizontal
+ * scrollbar sits below the tab pills without increasing total height. */
+.style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element {
+	padding-bottom: var(--vscode-spacing-size40);
 }
 
 .style-override .part.editor .tabs-container > .tab.active {

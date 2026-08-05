@@ -44,6 +44,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
@@ -190,6 +191,8 @@ export interface IVoiceSessionController {
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]>;
 	/** The session resource that transcriptions will be sent to. undefined = active session. */
 	readonly targetSession: IObservable<URI | undefined>;
+	/** Whether Voice Mode is explicitly owned by a new-session draft. */
+	readonly hasDraftTarget: IObservable<boolean>;
 
 	connect(window: Window & typeof globalThis): Promise<void>;
 	disconnect(source?: 'explicit' | 'internal'): void;
@@ -253,6 +256,8 @@ export interface IVoiceSessionController {
 	 * sent to this session instead of the currently active one.
 	 */
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void;
+	/** Bind Voice Mode to the currently shown new-session draft. */
+	setDraftTarget(): void;
 
 	/**
 	 * Create a new chat session and set it as the target for transcription.
@@ -260,10 +265,14 @@ export interface IVoiceSessionController {
 	newSessionAsTarget(): void;
 
 	/**
-	 * Declares the UI's active session for audio routing (`is_active`, deferral,
-	 * and buffered flushes). `undefined` restores focus-based detection.
+	 * Declares the session shown in the UI for playback deferral and buffered
+	 * flushes. It also supplies `is_active` when no voice target is pinned.
+	 * `undefined` restores focus-based detection.
+	 * `null` explicitly indicates that a draft with no session is shown.
 	 */
-	setActiveSessionShown(resource: URI | undefined): void;
+	setActiveSessionShown(resource: URI | null | undefined): void;
+	/** Promote the owned draft after that draft creates its first chat session. */
+	promoteDraftTarget(resource: URI): void;
 
 	/**
 	 * Deterministically route audio to and narrate a session in response to an
@@ -334,6 +343,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _targetSession = observableValue<URI | undefined>(this, undefined);
 	readonly targetSession: IObservable<URI | undefined> = this._targetSession;
 	private _targetOmniRoute: 'existing_session' | 'new_session' | undefined;
+	private readonly _hasDraftTarget = observableValue<boolean>(this, false);
+	readonly hasDraftTarget: IObservable<boolean> = this._hasDraftTarget;
 
 	// --- Internal state ---
 	private _pttHeld = false;
@@ -535,6 +546,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * otherwise the legacy session-keyed {@link _liveReplyKeys} path applies.
 	 */
 	private readonly _responseRoutes = new Map<string, 'live' | 'deferred'>();
+	private readonly _responseSessionIds = new Map<string, string>();
+	private readonly _ownershipDroppedResponseIds = new Set<string>();
 
 	/**
 	 * Per-session record of the reply we most recently read for a session (played
@@ -1749,7 +1762,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// deferred response's buffer key matches the resource we flush on focus
 			// (otherwise it is stranded and never read). Untagged / non-agent-host
 			// ids pass through unchanged.
-			const codingSessionId = this._canonicalSessionId(e.codingSessionId);
+			const codingSessionId = this._canonicalSessionId(e.codingSessionId ?? solicitedNarration?.sessionId ?? (e.responseId ? this._responseSessionIds.get(e.responseId) : undefined));
+			if (e.responseId && codingSessionId) {
+				this._responseSessionIds.set(e.responseId, codingSessionId);
+			}
+			if (e.responseId && this._ownershipDroppedResponseIds.has(e.responseId)) {
+				if (e.isFinal) {
+					this._ownershipDroppedResponseIds.delete(e.responseId);
+					this._responseSessionIds.delete(e.responseId);
+					this._responseRoutes.delete(e.responseId);
+				}
+				return;
+			}
 			// A confirmation was resolved (e.g. the user pressed Allow) while its
 			// narration was still being requested/streamed: drop the now-stale
 			// approval narration so it isn't read aloud after the fact. Matched
@@ -1783,6 +1807,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// buffered and replayed when its session is later focused. Awaited
 			// replies bypass this inside _isRenarration.
 			const isRenarration = this._isRenarration(e.responseId, codingSessionId, e.transcript, e.isFirstChunk, e.isFinal);
+			const targetSessionId = this._targetSession.get()?.toString();
+			const belongsToVoiceSession = !codingSessionId || (!this._hasDraftTarget.get() && (!targetSessionId || this._isSameSession(codingSessionId, targetSessionId)));
+			if (!belongsToVoiceSession) {
+				if (e.responseId && !e.isFinal) {
+					this._ownershipDroppedResponseIds.add(e.responseId);
+				}
+				if (e.responseId) {
+					const pending = this._pendingSolicitedNarrations.get(e.responseId);
+					if (pending) {
+						if (pending.kind === 'response') {
+							const key = this._sessionKey(pending.sessionId);
+							this._pendingResponseSummaries.set(key, pending.text);
+							this._markPendingResponse(key, true);
+						}
+						this._deferInterruptedNarration(e.responseId, pending);
+					}
+				}
+				if (e.responseId && e.isFinal) {
+					this._responseSessionIds.delete(e.responseId);
+					this._responseRoutes.delete(e.responseId);
+				}
+				this.logService.trace(`[voice] dropping audio for non-target session=${codingSessionId} target=${targetSessionId}`);
+				return;
+			}
 			const defer = isRenarration ? false : this._shouldDeferResponseStream(e.responseId, codingSessionId, e.isFirstChunk);
 			if (e.isFirstChunk || e.isFinal) {
 				this.logService.trace(`[voice] audio_response codingSessionId=${codingSessionId ?? '<none>'} responseId=${e.responseId?.slice(0, 8) ?? '<none>'} shown=${this._shownSessionId() ?? '<none>'} focused=${this._getFocusedSessionId() ?? '<none>'} external=${this._activeSessionShown ?? '<none>'} awaiting=${this._awaitingReplyForSession ?? '<none>'} isFirstChunk=${e.isFirstChunk} isFinal=${e.isFinal} suppress=${this._suppressIncomingAudio} renarration=${isRenarration} defer=${defer}`);
@@ -1850,6 +1898,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Retire the per-response route once its stream ends. Done last so the
 			// route stays inspectable for the whole handler (defer/dedupe/enqueue).
 			if (e.isFinal && e.responseId) {
+				this._responseSessionIds.delete(e.responseId);
 				this._responseRoutes.delete(e.responseId);
 			}
 		}));
@@ -2088,6 +2137,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// voice to the old session or repopulate its stale confirmation.
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
+		this._hasDraftTarget.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
 		this._pendingToolConfirmations.set([], undefined);
 		// Terminal disconnect: drop embedder-driven active-session state too, so a
@@ -2228,6 +2278,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// isn't re-pinned to this evicted session (see disconnect()).
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
+		this._hasDraftTarget.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
 		this._pendingToolConfirmations.set([], undefined);
 		transaction(tx => {
@@ -2751,7 +2802,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void {
 		this._targetOmniRoute = resource ? omniRoute : undefined;
+		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
+	}
+
+	setDraftTarget(): void {
+		this._targetOmniRoute = undefined;
+		this._targetSession.set(undefined, undefined);
+		this._hasDraftTarget.set(true, undefined);
+	}
+
+	promoteDraftTarget(resource: URI): void {
+		if (!this._hasDraftTarget.get()) {
+			return;
+		}
+		this._hasDraftTarget.set(false, undefined);
+		this._targetSession.set(resource, undefined);
+		if (this._isSameSession(resource.toString(), this._shownSessionId())) {
+			this._activateShownSession(resource);
+		}
 	}
 
 	newSessionAsTarget(): void {
@@ -2759,6 +2828,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const resource = ref.object.sessionResource;
 		ref.dispose();
 		this._targetOmniRoute = undefined;
+		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
 		// Try to switch the view to the new session (works if chat pane is open)
 		this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
@@ -3726,6 +3796,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _activateShownSession(resource: URI): void {
 		const key = resource.toString();
 		this._lastShownSessionId = key;
+		this._suspendPlaybackForHiddenSessions();
 		// Refresh the backend→UI alias for this resource up front so a response
 		// buffered under the bare backend id (alias not yet known at arrival)
 		// resolves to this key, and so future responses for it route correctly.
@@ -3739,6 +3810,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// next focus/state event (or an explicit activateSession) after connect.
 		if (!this._isConnected.get()) {
 			this.logService.trace(`[voice] _activateShownSession(${key.slice(-32)}) skipped: controller not connected (external=${this._externalActiveSessionMode})`);
+			return;
+		}
+		if (this._hasDraftTarget.get()) {
+			this.logService.trace(`[voice] _activateShownSession(${key.slice(-32)}) skipped: Voice Mode belongs to a draft`);
+			return;
+		}
+		const targetSessionId = this._targetSession.get()?.toString();
+		if (targetSessionId && !this._isSameSession(key, targetSessionId)) {
+			this.logService.trace(`[voice] _activateShownSession(${key.slice(-32)}) skipped: Voice Mode belongs to ${targetSessionId.slice(-32)}`);
 			return;
 		}
 		const flushResult = this._flushDeferredResponse(key);
@@ -3837,6 +3917,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				} else if (bufferRetainedUnderPress) {
 					this.logService.trace(`[voice] activate skip: buffered reply retained under held press for ${key.slice(-32)}`);
 				} else {
+					const deferred = this._deferredNarrations.get(sessionKey);
+					if (deferred && this._narratableIdentity(deferred) === this._narratableIdentity(narratable)) {
+						this._clearDeferred(sessionKey);
+					}
 					this._narrate(key, narratable.kind, narratable.text, undefined, undefined, narratable.confirmationType, narratable.pending);
 				}
 				if (narratable.kind === 'response') {
@@ -4339,6 +4423,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * session is "active" and everything else is a background narration.
 	 */
 	private _getActiveSessionId(): string | undefined {
+		if (this._hasDraftTarget.get()) {
+			return undefined;
+		}
 		if (this._externalActiveSessionMode) {
 			// Embedder is authoritative; ignore polluted focus/last-shown heuristics.
 			return this._targetSession.get()?.toString() ?? this._activeSessionShown;
@@ -4369,21 +4456,38 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._getFocusedSessionId();
 	}
 
-	setActiveSessionShown(resource: URI | undefined): void {
+	private _pinActiveSessionAsTarget(): void {
+		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get() && !this._hasDraftTarget.get()) {
+			// Changing the visible session must not move an existing voice
+			// conversation with it. Pin voice to its current session while the
+			// newly shown session remains authoritative for playback deferral.
+			this._targetSession.set(URI.parse(this._activeSessionShown), undefined);
+		}
+	}
+
+	setActiveSessionShown(resource: URI | null | undefined): void {
 		const key = resource?.toString();
-		// `undefined` means the embedder has no active session to pin (e.g. a
-		// draft composer). Per the interface contract this RESTORES focus-based
-		// detection: leaving external mode on while blanking `_activeSessionShown`
-		// would wedge narration - `_shownSessionId()` returns undefined, so no
-		// session is ever "shown", every tagged reply defers forever, and both
-		// focus paths stay gated off. Reset to focus-based instead.
-		if (!resource) {
+		if (resource === null) {
+			this._pinActiveSessionAsTarget();
+			if (!this._targetSession.get()) {
+				this._hasDraftTarget.set(true, undefined);
+			}
+			this.logService.trace(`[voice] setActiveSessionShown=<draft> (was ${this._activeSessionShown ?? '<none>'})`);
+			this._externalActiveSessionMode = true;
+			this._activeSessionShown = undefined;
+			this._suspendPlaybackForHiddenSessions();
+			return;
+		}
+		// `undefined` relinquishes embedder ownership and restores focus tracking.
+		if (resource === undefined) {
 			if (!this._externalActiveSessionMode && this._activeSessionShown === undefined) {
 				return;
 			}
+			this._pinActiveSessionAsTarget();
 			this.logService.trace(`[voice] setActiveSessionShown=<none>; restoring focus-based detection (was ${this._activeSessionShown ?? '<none>'})`);
 			this._externalActiveSessionMode = false;
 			this._activeSessionShown = undefined;
+			this._hasDraftTarget.set(false, undefined);
 			this._onFocusedSessionChanged();
 			return;
 		}
@@ -4404,9 +4508,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
+		this._pinActiveSessionAsTarget();
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
-		// Route audio here now: flush buffers, clear pending, and re-send context.
+		this._suspendPlaybackForHiddenSessions();
+		// Activate the view now: flush buffers, clear pending, and re-send context.
 		this._activateShownSession(resource);
 	}
 
@@ -4437,9 +4543,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		const known = this._responseRoutes.get(responseId);
 		if (known !== undefined) {
-			// Every chunk after the first follows the first chunk's decision, even
-			// if focus changed meanwhile (a focus change promotes via the flush
-			// path, which rewrites the route to 'live').
+			// A deferred response is promoted by the flush path when its session is
+			// shown. Conversely, stop treating a live response as live when the user
+			// switches away so its remaining chunks wait for that session.
+			if (known === 'live' && this._shouldDeferForSession(sessionId)) {
+				this._responseRoutes.set(responseId, 'deferred');
+				return true;
+			}
 			return known === 'deferred';
 		}
 		const defer = this._shouldDeferForSession(sessionId);
@@ -4530,6 +4640,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return true;
 		}
 		if (this._liveReplyKeys.has(key)) {
+			if (this._shouldDeferForSession(sessionId)) {
+				this._liveReplyKeys.delete(key);
+				return true;
+			}
 			return false;
 		}
 		// Continuation whose first chunk we never observed: fall back to the shown
@@ -4887,6 +5001,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._deferredResponses.clear();
 		this._responseRoutes.clear();
+		this._responseSessionIds.clear();
+		this._ownershipDroppedResponseIds.clear();
 		for (const key of this._confirmationPendingSessions) {
 			this._markPendingResponse(key, false);
 		}
@@ -4898,6 +5014,36 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	// --- Audio FIFO queue ---
+
+	private _suspendPlaybackForHiddenSessions(): void {
+		const hiddenQueue: IQueuedAudioResponse[] = [];
+		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
+			const queued = this._audioQueue[i];
+			if (!queued.sessionId || !this._shouldDeferForSession(queued.sessionId)) {
+				continue;
+			}
+			this._audioQueue.splice(i, 1);
+			hiddenQueue.unshift(queued);
+		}
+		for (const queued of hiddenQueue) {
+			const sessionId = queued.sessionId;
+			if (!sessionId) {
+				continue;
+			}
+			if (queued.narration?.kind === 'checkpoint') {
+				this._preemptCheckpointPlayback(sessionId, queued.responseId, false);
+				continue;
+			}
+			for (const chunk of queued.chunks) {
+				this._deferResponse(sessionId, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, queued.responseId);
+			}
+		}
+
+		const playingSession = this._currentPlaybackSessionId;
+		if (playingSession && this._shouldDeferForSession(playingSession)) {
+			this._stopCurrentPlaybackAsInterrupted();
+		}
+	}
 
 	private _preemptCheckpointPlayback(sessionId?: string, targetNarrationId?: string, stopActivePlayback = true): void {
 		const sessionKey = sessionId ? this._sessionKey(sessionId) : undefined;
@@ -5324,6 +5470,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._clearPendingResponse(sessionKey);
 			// A deferred narration from the previous turn is now stale.
 			this._clearDeferred(sessionKey);
+		}
+		const targetSessionId = this._targetSession.get()?.toString();
+		if (this._hasDraftTarget.get() || (targetSessionId && !this._isSameSession(sessionId, targetSessionId))) {
+			// A pinned target makes Voice Mode session-bound. Other sessions keep
+			// their normal visual state but do not speak through this connection.
+			return;
 		}
 		if (!this._isSameSession(sessionId, shownNow)) {
 			// Background session. A completed reply must not play now: show the
@@ -5790,6 +5942,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					id: sessionIdStr,
 					...(s.label ? { label: s.label } : {}),
 					is_active: isActive,
+					...(isActive && this._targetOmniRoute ? { omni_route: this._targetOmniRoute } : {}),
 					agent_state: scoped.state,
 					...(cachedSummary ? { last_response_summary: cachedSummary } : {}),
 				};
@@ -5874,6 +6027,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// cycles from starting concurrent loads whose refs would overwrite each
 		// other in _eagerModelRefs and leak the prior ref.
 		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
+			return;
+		}
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be eagerly
+		// loaded: loading its model subscribes/restores it on the agent host, which
+		// adopts (migrates) it. Migration must happen only on explicit user open.
+		if (this.agentSessionsService.model.getSession(resource)?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
 			return;
 		}
 		this.logService.trace(`[voice] eagerly loading model for session ${key.slice(-32)}`);

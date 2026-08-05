@@ -253,6 +253,8 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
+	/** Show the read-only status banner above the transcript instead of beside the composer. */
+	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
