@@ -26,9 +26,14 @@ const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButton
  * In every other single-mode case the standalone controls (gated on the negation
  * below) take over.
  */
-export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.or(
-	ContextKeyExpr.and(VisibleDictation, VisibleVoiceMode),
-	ContextKeyExpr.and(VisibleVoiceMode, VisibleDictation.negate(), HandsFreeDisabled, AGENTS_VOICE_CONNECTED),
+// Keep VisibleVoiceMode factored out so negating this expression does not
+// combinatorially expand its entitlement-plan disjunction.
+export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.and(
+	VisibleVoiceMode,
+	ContextKeyExpr.or(
+		VisibleDictation,
+		ContextKeyExpr.and(HandsFreeDisabled, AGENTS_VOICE_CONNECTED),
+	),
 )!;
 
 /** Standalone voice/dictation controls show when the pill does not apply. */

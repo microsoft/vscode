@@ -7,10 +7,13 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { SegmentedVoiceInputModePillActive, SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 suite('VoiceInputModeService', () => {
@@ -75,5 +78,33 @@ suite('VoiceInputModeService', () => {
 			{ voice: service.voiceAvailable.get(), dictation: service.dictationAvailable.get() },
 			{ voice: false, dictation: false }
 		);
+	});
+
+	test('shows the segmented pill only when it has multiple active controls', () => {
+		const values: Record<string, ContextKeyValue> = {
+			[ChatContextKeys.enabled.key]: true,
+			[ChatContextKeys.Entitlement.planPro.key]: true,
+			[ChatContextKeys.speechToTextConfigured.key]: true,
+			'config.agents.voice.enabled': true,
+			'config.agents.voice.showButton': true,
+			'config.dictation.showButton': true,
+			'config.agents.voice.handsFree': true,
+			[AGENTS_VOICE_CONNECTED.key]: false,
+		};
+		const matches = (expression: ContextKeyExpression) => expression.evaluate({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		});
+
+		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
+		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
+
+		values[ChatContextKeys.speechToTextConfigured.key] = false;
+		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), false);
+		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), true);
+
+		values['config.agents.voice.handsFree'] = false;
+		values[AGENTS_VOICE_CONNECTED.key] = true;
+		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
+		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
 	});
 });
