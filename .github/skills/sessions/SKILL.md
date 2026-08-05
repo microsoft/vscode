@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Minimum-size activation across the Sessions/Editor split must be symmetric**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. Implement and test both directions together; a one-sided Sessions-only handler does not match editor-grid behavior.
+
 - **Animation performance must preserve perceptual smoothness**: reducing a continuous title shimmer to 10 stepped updates per second makes the sweep visibly choppy even if paint counts improve. Use a smooth baseline such as 30 updates per second, then measure the remaining performance win; do not optimize decorative motion by callback counts alone.
 
 - **Pet placement must align the visible sprite, not only its absolute-positioning box**: anchoring the button at `bottom: 100%` leaves the pet visually detached because the input stack has top padding and transient confirmation/question surfaces add their own top margin. Keep the host on the complete stack and derive the optical offset from the actual input-to-host inset, capped at the confirmation/question alignment; one fixed deeper offset makes the bare input look overlapped.
