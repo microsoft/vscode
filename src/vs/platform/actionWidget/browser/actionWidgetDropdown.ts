@@ -31,10 +31,15 @@ export function withActionWidgetDropdownMotion(listOptions: IActionListOptions |
 	if (!classNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
 		classNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
 	}
+	const widgetClassNames = listOptions?.widgetClassName?.split(/\s+/).filter(Boolean) ?? [];
+	if (!widgetClassNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
+		widgetClassNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
+	}
 
 	return {
 		...listOptions,
 		className: classNames.join(' '),
+		widgetClassName: widgetClassNames.join(' '),
 		closeAnimation: listOptions?.closeAnimation ?? actionWidgetDropdownCloseAnimation,
 	};
 }

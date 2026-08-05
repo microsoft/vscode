@@ -16,7 +16,7 @@ import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AutoMergeMethod, CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import type { AutoMergeMethod, CreatedPullRequest, GitHubIssueOrPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -143,6 +143,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 			return this.existingAfterCreateFailure;
 		}
 		return this.existing;
+	}
+	async getIssueOrPullRequest(): Promise<GitHubIssueOrPullRequest> {
+		throw new Error('not used');
 	}
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
 		this.calls.push(`enablePullRequestAutoMerge:${pullRequestId}:${mergeMethod}`);

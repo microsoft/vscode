@@ -46,7 +46,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
@@ -351,7 +351,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -360,7 +360,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
 		project: opts?.project,
-		workingDirectories: opts?.workingDirectories ?? (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
+		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 		_meta,
 	};
 }
@@ -1077,76 +1077,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('session metadata changes update the operational workspace for a one-folder multi-root session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('multi-root-meta', {
-			summary: 'Multi-root Session',
-			project: { uri: URI.parse('file:///Users/me/project'), displayName: 'project' },
-		}));
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
-		const session = provider.getSessions()[0]!;
-		const changes: ISessionChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
-		const multiRoot = {
-			workspaceFile: 'file:///Users/me/project.code-workspace',
-			name: 'Project Workspace',
-		};
-
-		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
-		fireSessionMetaChanged(agentHost, 'multi-root-meta', withSessionMultiRootMetadata(undefined, multiRoot));
-
-		const workspace = session.workspace.get()!;
-		assert.deepStrictEqual({
-			label: workspace.label,
-			canCreateSession: workspace.canCreateSession,
-			uri: workspace.uri.toString(),
-			folders: workspace.folders.map(folder => folder.root.toString()),
-			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
-		}, {
-			label: 'Project Workspace (Workspace)',
-			canCreateSession: false,
-			uri: 'file:///Users/me/project',
-			folders: ['file:///Users/me/project'],
-			changedEvents: [[true]],
-		});
-	}));
-
-	test('multi-root workspace metadata falls back to the file name and preserves all working directories', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('multi-root-folders', {
-			workingDirectories: [URI.file('/work/primary'), URI.file('/work/secondary')],
-			multiRoot: {
-				workspaceFile: 'file:///work/Fallback.CODE-WORKSPACE',
-				name: '   ',
-			},
-		}));
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
-
-		const workspace = provider.getSessions()[0].workspace.get()!;
-		assert.deepStrictEqual({
-			label: workspace.label,
-			canCreateSession: workspace.canCreateSession,
-			uri: workspace.uri.toString(),
-			folders: workspace.folders.map(folder => ({
-				root: folder.root.toString(),
-				workingDirectory: folder.workingDirectory.toString(),
-			})),
-		}, {
-			label: 'Fallback (Workspace)',
-			canCreateSession: false,
-			uri: 'file:///work/primary',
-			folders: [{
-				root: 'file:///work/primary',
-				workingDirectory: 'file:///work/primary',
-			}, {
-				root: 'file:///work/secondary',
-				workingDirectory: 'file:///work/secondary',
-			}],
-		});
-	}));
-
 	test('getSessions populates from listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('list-1', { summary: 'First' }));
 		agentHost.addSession(createSession('list-2', { summary: 'Second' }));
@@ -1486,10 +1416,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
-			createSession('multi-root-cached', { summary: 'Multi Root', workingDirectory: URI.parse('vscode-remote://ssh-remote+host/work/demo'), multiRoot }),
+			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
 		]);
 		const nextHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => nextHost.dispose()));
@@ -1508,13 +1437,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			repersisted: repersisted[0].multiRoot,
 			hydratedTitle: session.title.get(),
-			workspaceLabel: session.workspace.get()?.label,
-			canCreateSession: session.workspace.get()?.canCreateSession,
 		}, {
 			repersisted: multiRoot,
 			hydratedTitle: 'Updated after hydration',
-			workspaceLabel: 'Demo Workspace (Workspace)',
-			canCreateSession: false,
 		});
 	}));
 
@@ -3544,6 +3469,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('equivalent chat catalogs do not notify chat observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-stable');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-stable').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				session.chats.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
+		test('equivalent peer chat values do not notify observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-values');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-values').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), activity: 'Working' },
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+			const peer = session.chats.get()[1];
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				peer.updatedAt.read(reader);
+				peer.description.read(reader);
+				peer.lastTurnEnd.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');
@@ -4686,6 +4660,74 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- gitHubInfo / PR icon -------
 
+	test('equivalent session descriptions do not notify observers', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'description-stable', { title: 'Session' });
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'description-stable') as AgentHostSessionAdapter;
+		assert.ok(session);
+		session.status.set(SessionStatus.InProgress, undefined);
+		session.setActivity('Working');
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			session.description.read(reader);
+			updateCount++;
+		}));
+
+		session.status.set(SessionStatus.NeedsInput, undefined);
+
+		assert.strictEqual(updateCount, 1);
+	});
+
+	test('equivalent GitHub info does not notify observers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const makePullRequest = (): IGitHubPullRequest => ({
+			number: 42,
+			title: 'PR',
+			body: '',
+			state: GitHubPullRequestState.Closed,
+			author: { login: 'author', avatarUrl: '' },
+			headRef: 'feature',
+			headSha: 'head',
+			baseRef: 'main',
+			isDraft: false,
+			createdAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			mergedAt: undefined,
+			mergeable: false,
+			mergeableState: 'blocked',
+		});
+		const pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', makePullRequest());
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		agentHost.addSession(createSession('github-stable', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('github-stable', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'PR Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			gitHubInfo.read(reader);
+			updateCount++;
+		}));
+
+		pullRequest.set(makePullRequest(), undefined);
+
+		assert.strictEqual(updateCount, 1);
+	}));
+
 	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A GitHub service that resolves a PR number asynchronously (mirroring the
 		// real `findPullRequestNumberByHeadBranch` REST lookup) and hands out a
@@ -4773,16 +4815,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+			_meta: {
+				github: {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequestUrls: [
+						'https://github.com/owner/repo/pull/42',
+						'https://github.com/owner/repo/pull/41',
+					]
+				}
+			},
 		});
 
 		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
 		const sub = autorun(reader => { gitHubInfoObs.read(reader); });
 		await timeout(0);
 
-		const pullRequest = gitHubInfoObs.get()?.pullRequest;
-		assert.strictEqual(pullRequest?.number, 42, 'PR is detected from the GitHub state URL');
-		assert.deepStrictEqual(pullRequest?.icon, computePullRequestIcon(GitHubPullRequestState.Open), 'a default open-PR icon is shown immediately while the live model is empty');
+		const gitHubInfo = gitHubInfoObs.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => ({
+				number: pullRequest.number,
+				uri: pullRequest.uri.toString(),
+				icon: pullRequest.icon,
+			}))
+		}, {
+			activePullRequest: {
+				number: 42,
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			pullRequests: [
+				{
+					number: 42,
+					uri: 'https://github.com/owner/repo/pull/42',
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				},
+				{
+					number: 41,
+					uri: 'https://github.com/owner/repo/pull/41',
+					icon: undefined,
+				},
+			]
+		});
 		sub.dispose();
 	}));
 

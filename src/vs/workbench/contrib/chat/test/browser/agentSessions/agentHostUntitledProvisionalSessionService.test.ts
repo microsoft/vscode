@@ -20,7 +20,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -151,6 +151,10 @@ function untitledChatUri(id: string): URI {
 	return URI.from({ scheme: 'agent-host-copilot', path: `/untitled-${id}` });
 }
 
+function workspaceFolder(uri: URI, index: number): IWorkspaceFolder {
+	return { uri, index, name: uri.path, toResource: relativePath => URI.joinPath(uri, relativePath) };
+}
+
 // ---- Tests -----------------------------------------------------------------
 
 suite('AgentHostUntitledProvisionalSessionService', () => {
@@ -169,6 +173,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let workbenchState: WorkbenchState;
 	let isSessionsWindow: boolean;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
+	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -179,6 +184,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workspaceName = undefined;
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
+		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
@@ -186,6 +192,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
 				return {
 					id: 'workspace',
@@ -279,9 +286,127 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(agentHost.createCalls[0]._meta, {
 			multiRoot: {
 				workspaceFile: workspaceConfiguration.toString(),
-				name: workspaceName,
 			},
 		});
+	});
+
+	test('workspace folder changes recreate a multi-root provisional with the latest secondary set', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		const added = URI.file('/workspace/three');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-folder-changes');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [secondary, added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [workspaceFolder(added, 1)],
+			removed: [workspaceFolder(primary, 0)],
+			changed: [],
+		});
+
+		await provisional.waitForPending(ui);
+		workspaceFolders = [added, secondary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [],
+			changed: [workspaceFolder(added, 0), workspaceFolder(secondary, 1)],
+		});
+		await provisional.waitForPending(ui);
+		const afterReorderCount = agentHost.createCalls.length;
+		workspaceFolders = [added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(secondary, 1)],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			workingDirectories: agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			afterReorderCount,
+		}, {
+			workingDirectories: [
+				[primary.toString(), secondary.toString()],
+				[primary.toString(), secondary.toString(), added.toString()],
+				[primary.toString(), added.toString()],
+			],
+			afterReorderCount: 2,
+		});
+	});
+
+	test('a single-folder draft adopts secondary roots when the workspace becomes multi-root', async () => {
+		const primary = URI.file('/workspace/one');
+		const added = URI.file('/workspace/two');
+		workspaceFolders = [primary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('single-to-multi-root');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [primary, added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [workspaceFolder(added, 1)],
+			removed: [],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), added.toString()],
+			],
+		);
+	});
+
+	test('tryRebind recomputes the latest multi-root folder set without relying on a workspace event', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		const added = URI.file('/workspace/three');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-rebind');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-multi-root-rebind' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [secondary, added];
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.at(-1)?.workingDirectories?.map(directory => directory.toString()),
+			[primary.toString(), secondary.toString(), added.toString()],
+		);
+	});
+
+	test('tryRebind promotes a single-folder draft when a second folder appears without a workspace event', async () => {
+		const primary = URI.file('/workspace/one');
+		const added = URI.file('/workspace/two');
+		workspaceFolders = [primary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('single-to-multi-root-rebind');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-single-to-multi-root-rebind' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [primary, added];
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), added.toString()],
+			],
+		);
 	});
 
 	test('getOrCreate omits multi-root metadata without a workspace configuration', async () => {
@@ -545,7 +670,6 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			_meta: {
 				multiRoot: {
 					workspaceFile: workspaceConfiguration.toString(),
-					name: workspaceName,
 				},
 			},
 		});

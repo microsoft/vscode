@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -179,8 +180,6 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Folders in this session workspace. */
 	readonly folders: ISessionFolder[];
-	/** Whether a new session can be created for this workspace. Absent means supported. */
-	readonly canCreateSession?: boolean;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -221,6 +220,8 @@ export interface IGitHubInfo {
 	readonly owner: string;
 	/** GitHub repository name. */
 	readonly repo: string;
+	/** Pull requests associated with this session, most recent first. */
+	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 	/** Pull request associated with this session, if any. */
 	readonly pullRequest?: {
 		/** Pull request number. */
@@ -239,6 +240,20 @@ export interface IGitHubInfo {
 	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
 	 */
 	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub pull request associated with a session. */
+export interface IGitHubPullRequestRef {
+	/** GitHub repository owner of the pull request. */
+	readonly owner: string;
+	/** GitHub repository name of the pull request. */
+	readonly repo: string;
+	/** Pull request number. */
+	readonly number: number;
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the last known PR state. */
+	readonly icon?: ThemeIcon;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -260,6 +275,11 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/** A last-turn file change classified against its owning session workspace. */
+export type ISessionTurnFileChange = ISessionFileChange & {
+	readonly isOutsideWorkspace: boolean;
+};
 
 /**
  * The kind of change applied to a {@link ISessionFile}.
@@ -498,10 +518,10 @@ export interface IChat {
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
-	 * what the most recent request produced. Providers that cannot determine
-	 * this omit the observable.
+	 * what the most recent request produced. Each change is classified against
+	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
-	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -811,6 +831,11 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	return true;
 }
 
+/** Structural equality for arrays of {@link ISessionTurnFileChange}. */
+export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
+	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+}
+
 /**
  * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
  * so that providers can re-publish updated info without notifying observers when the underlying GitHub
@@ -830,6 +855,12 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
@@ -849,7 +880,6 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.label !== b.label
 		|| a.description !== b.description
 		|| a.group !== b.group
-		|| (a.canCreateSession ?? true) !== (b.canCreateSession ?? true)
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace

@@ -19,7 +19,9 @@ import { computeIssueIcon, GitHubIssueState, GitHubIssueStateReason, IGitHubIssu
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createIssueHoverElement, createIssueListElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
+import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
+// eslint-disable-next-line local/code-import-patterns
+import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenIssueActionViewItem } from '../../../../../sessions/contrib/github/browser/issueActions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -155,7 +157,7 @@ function renderIssueHover(ctx: ComponentFixtureContext, issue: IGitHubIssue): vo
 }
 
 function renderIssueList(ctx: ComponentFixtureContext, issues: readonly IGitHubIssue[]): void {
-	renderInHoverWidget(ctx, createIssueListElement(issues.map(issue => ({
+	renderInHoverWidget(ctx, createGitHubReferenceListElement(issues.map(issue => ({
 		number: issue.number,
 		title: issue.title,
 		icon: computeIssueIcon(issue.state, issue.stateReason),

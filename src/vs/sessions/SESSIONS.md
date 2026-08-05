@@ -205,7 +205,7 @@ Agent-host chat input completions preserve the host's result order through Monac
 
 Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
 
-`ISessionWorkspace.canCreateSession` optionally indicates whether the Agents Window can create another session for that workspace; omission means supported. Agent Host sessions with `_meta.multiRoot` keep their operational workspace URI and folders but use the recorded workspace name (or workspace-file fallback) as the workspace label and set this capability to `false`.
+Agent-host sessions retain up to ten deduplicated pull request URLs in most-recent-first order. Rediscovering a PR moves it to the front; legacy metadata containing a singular `pullRequestUrl` is read as a one-item list. The client projects the first entry as `IGitHubInfo.pullRequest`, so CI, review comments, session-list status, context actions, and all other existing PR behavior continue to target only the most recent PR. `IGitHubInfo.pullRequests` exposes the ordered history solely for the session-header pill: one PR renders `#N`, while multiple render `N Pull Requests` and open the same keyboard-accessible icon/number/title list used for referenced issues. The header keeps every retained PR's core state, CI checks, and review threads live so each row's icon and title stay current.
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders. Folders below a path segment ending in `.worktrees` or named `copilot-worktrees` appear only when the user previously selected them in an Agents picker; they are excluded from VS Code's general recents and never automatically preselected. For other folders, the picker restores the last explicitly selected workspace first, then other Agents-owned recents, and finally the most recent resolvable workspace from VS Code's general history.
 
@@ -320,12 +320,19 @@ below.
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. The changes count, diff, and preview
-list are scoped to files under the session workspace folder or its working
-directory/worktree; edits outside those roots are treated as external files and
-do not inflate the pill or show as preview candidates. The preview pill itself
-stays a compact resource label (file icon + name); preview wording is kept to
-tooltips and actions, not rendered as visible pill text.
+confirmation does not end the active turn. Opening the changes pill labels its
+multi-diff editor **Current Turn Changes** while the turn is active, including
+`NeedsInput`, and updates the open editor to **Last Turn Changes** as soon as the
+turn completes. Each `lastTurnChanges` entry carries
+`isOutsideWorkspace`, derived from the owning session's workspace folder,
+working directory, and worktree roots. `AgentHostSessionAdapter` caches that
+classification in its generic session-output cache under
+`isOutsideWorkspace:${uri.toString()}` and clears the cache when its workspace changes.
+The changes count and diff include only workspace entries, while the markdown
+preview pill includes only external entries. The completed-response pill receives
+the same per-session classification from its response-file provider. The preview
+pill itself stays a compact resource label (file icon + name); preview wording is
+kept to tooltips and actions, not rendered as visible pill text.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"
@@ -354,7 +361,17 @@ through the **Developer: Toggle Aquarium Action Visibility** command.
 hidden composer cannot leave the aquarium rendering behind the visible chat
 surface. Since `NewChatView` also hosts the peer-chat composer,
 aquarium-specific lifecycle calls must first narrow the wrapped widget to
-`NewChatWidget`.
+`NewChatWidget`. The pet's sprites are scheduled at their source frame
+boundaries instead of polling at the display refresh rate, and scheduling pauses
+while the document is hidden. In both the shared chat input and new-session
+composer, the pet is anchored above the complete input stack so confirmations,
+notifications, and onboarding tips remain below it. Its optical bottom edge sits
+against the topmost visible input surface rather than the transparent stack
+boundary; the offset follows the bare input's actual top inset and caps at the
+slightly deeper confirmation/question alignment. When the pet approaches the
+input's right edge while rendering, its speech bubble moves to the pet's left
+so the ellipsis remains visible without changing the pet's direction. Other pet
+states keep their standard presentation.
 
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated

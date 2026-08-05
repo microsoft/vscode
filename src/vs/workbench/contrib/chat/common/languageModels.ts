@@ -296,7 +296,11 @@ export interface ILanguageModelChatMetadata {
 	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
 	 * Presentation-only; it does not affect model selection or routing.
 	 */
-	readonly modelGroup?: { readonly id: string };
+	readonly modelGroup?: {
+		readonly id: string;
+		/** Identifies a first-party provider group that must remain distinct from user-configured groups with the same name. */
+		readonly source?: 'chatgptSubscription';
+	};
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -318,13 +322,15 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly warningText?: IStringDictionary<string>;
 	/**
-	 * Optional promotional information for this model. Positive discounts surface
-	 * promotional UI; non-positive discounts only feature the model in the picker.
+	 * Optional promotional information for this model. A positive `discountPercent`
+	 * surfaces the full promotional UI; `0` is a message-only promo that features the
+	 * model without a price change; a negative value is malformed and is ignored.
+	 * `endsAt` is optional — open-ended promos omit it and render no end date.
 	 */
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		readonly endsAt?: string;
 		readonly message: string;
 	};
 }
@@ -348,6 +354,24 @@ export namespace ILanguageModelChatMetadata {
 
 	export function hasPromoDiscount(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
 		return !!metadata.promo && metadata.promo.discountPercent > 0;
+	}
+
+	/** Whether the model has a promo message to surface, including message-only (0%) promos. */
+	export function hasPromoMessage(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent >= 0 && !!metadata.promo.message;
+	}
+
+	/** The localized "Ends {date}." sentence, or `undefined` for a missing or unparsable end date. */
+	export function getPromoEndsAtLabel(endsAt: string | undefined): string | undefined {
+		if (!endsAt) {
+			return undefined;
+		}
+		const endsAtDate = new Date(endsAt);
+		if (isNaN(endsAtDate.getTime())) {
+			return undefined;
+		}
+		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
 	/**

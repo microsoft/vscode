@@ -468,6 +468,15 @@ export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongCon
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
+// Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
+// setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
+// sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
+export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+// The VS Code setting ID gating legacy Copilot CLI migration, forwarded into the agent host root
+// config. Kept in sync with `ChatConfiguration.MigrateLegacyCopilotCliSessions` (workbench layer).
+export const MIGRATE_LEGACY_COPILOT_CLI_SETTING_ID = 'chat.agentSessions.migrateLegacyCopilotCli';
+
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
  * support for the Copilot provider. When `true`, the Copilot provider advertises
@@ -748,6 +757,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
 		default: true,
+	}),
+	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
+		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
+		default: false,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

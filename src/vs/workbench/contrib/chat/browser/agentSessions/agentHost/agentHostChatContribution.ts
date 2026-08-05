@@ -133,7 +133,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
-			if (agentHostEnablementService.enabled.read(reader)) {
+			const enabled = agentHostEnablementService.enabled.read(reader);
+			if (enabled) {
 				this._initialize();
 			}
 		}));
@@ -305,9 +306,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
-		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
-		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
-		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
+		const vendorDescriptors = [
+			{ vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined },
+			...(agent.provider === 'codex' ? [{
+				vendor: 'chatgpt',
+				displayName: localize('agentHostModelProvider.chatGPT', "ChatGPT"),
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+			}] : []),
+		];
+		this._languageModelsService.deltaLanguageModelChatProviderDescriptors(vendorDescriptors, []);
+		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], vendorDescriptors)));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));

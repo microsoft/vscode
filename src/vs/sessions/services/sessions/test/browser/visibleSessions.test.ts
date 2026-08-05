@@ -83,7 +83,7 @@ suite('VisibleSessions', () => {
 		};
 	}
 
-	test('forwards workspace metadata through visible and resource-override wrappers', () => {
+	test('forwards Git availability through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
 		const session = { ...stubSession('A'), hasGitRepository };
 		const model = createModel();

@@ -8,11 +8,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
-import { basename, isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -47,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -197,11 +197,25 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.icon?.id === y.icon?.id) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
 		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
+}
+
+function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
+	return a?.getTime() === b?.getTime();
+}
+
+function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString | undefined): boolean {
+	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
 /** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
@@ -212,6 +226,24 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
 		if (reference) {
 			refs.push({ ...reference, uri: URI.parse(url) });
 		}
+	}
+	return refs.length > 0 ? refs : undefined;
+}
+
+/** Maps session pull request URLs to references, preserving recency order. */
+function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined): readonly IGitHubPullRequestRef[] | undefined {
+	const refs: IGitHubPullRequestRef[] = [];
+	for (const url of pullRequestUrls ?? []) {
+		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/.exec(url);
+		if (!match) {
+			continue;
+		}
+		refs.push({
+			owner: match[1],
+			repo: match[2],
+			number: Number(match[3]),
+			uri: URI.parse(url),
+		});
 	}
 	return refs.length > 0 ? refs : undefined;
 }
@@ -356,16 +388,16 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), lastTurnChanges?: IObservable<readonly ISessionFileChange[]>) {
+	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
-		this._updatedAt = observableValue('chatUpdatedAt', modifiedAt);
+		this._updatedAt = observableValueOpts<Date>({ owner: this, debugName: 'chatUpdatedAt', equalsFn: dateEquals }, modifiedAt);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
-		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('chatMode', undefined);
-		this._description = observableValue<IMarkdownString | undefined>('chatDescription', summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
-		this._lastTurnEnd = observableValue<Date | undefined>('chatLastTurnEnd', modifiedAt);
+		this._mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'chatMode', equalsFn: structuralEquals }, undefined);
+		this._description = observableValueOpts<IMarkdownString | undefined>({ owner: this, debugName: 'chatDescription', equalsFn: markdownStringEquals }, summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
+		this._lastTurnEnd = observableValueOpts<Date | undefined>({ owner: this, debugName: 'chatLastTurnEnd', equalsFn: dateEquals }, modifiedAt);
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this.chat = {
@@ -541,6 +573,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
+	private readonly _sessionOutputCache = new Map<string, unknown>();
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
 	/**
@@ -656,7 +689,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.modelSelection = undefined;
 		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', undefined);
-		this.mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
+		this.mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'mode', equalsFn: structuralEquals }, undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
@@ -674,19 +707,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return undefined;
 			}
 
-			let owner = state.owner;
-			let repo = state.repo;
-			let pullRequestNumber: number | undefined;
-
-			if (state.pullRequestUrl) {
-				// Extract pull request information from the URL
-				const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(state.pullRequestUrl);
-				if (match) {
-					owner = owner ?? match[1];
-					repo = repo ?? match[2];
-					pullRequestNumber = Number(match[3]);
-				}
-			}
+			const pullRequests = toGitHubPullRequestRefs(state.pullRequestUrls);
+			const pullRequest = pullRequests?.[0];
+			const owner = state.owner ?? pullRequest?.owner;
+			const repo = state.repo ?? pullRequest?.repo;
 
 			if (!owner || !repo) {
 				return undefined;
@@ -695,28 +719,35 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				owner,
 				repo,
-				pullRequest: pullRequestNumber !== undefined ? {
-					number: pullRequestNumber,
-					uri: URI.parse(state.pullRequestUrl!),
+				pullRequests,
+				pullRequest: pullRequest ? {
+					number: pullRequest.number,
+					uri: pullRequest.uri,
 				} : undefined,
 				issues: toGitHubIssueRefs(state.issueUrls),
 			};
 		});
 
-		this.gitHubInfo = derived<IGitHubInfo | undefined>(reader => {
+		const gitHubInfoWithIcon = derived<IGitHubInfo | undefined>(this, reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
 			if (!baseGitHubInfo?.pullRequest) {
 				return baseGitHubInfo;
 			}
 
+			const icon = computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo);
 			return {
 				...baseGitHubInfo,
+				pullRequests: baseGitHubInfo.pullRequests?.map((pullRequest, index) => index === 0 ? {
+					...pullRequest,
+					icon
+				} : pullRequest),
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo)
+					icon
 				}
 			};
 		});
+		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));
 
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
@@ -726,7 +757,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = _options.loading;
-		this.description = derived(reader => {
+		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
 			const status = this.status.read(reader);
 			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
 				const activity = this._activity.read(reader);
@@ -771,7 +802,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Files created/edited/deleted outside the workspace, plus the last turn's
 		// changes, parsed from the chat-state turns. Computed lazily from the same
 		// active-session subscriptions used for changes.
-		const sessionOutput = createSessionOutputObs(this.backendUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
+		const sessionOutput = createSessionOutputObs(
+			this.backendUri,
+			this._options,
+			this.isActiveSessionObs,
+			this.isArchived,
+			this.workspace,
+			this._sessionOutputCache,
+		);
 		this._sessionOutput = sessionOutput;
 		this.externalChanges = sessionOutput.externalFiles;
 
@@ -797,7 +835,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		};
 		this._defaultChat = mainChat;
 		this._mainChatObs = observableValue<IChat>(this, mainChat);
-		this._chatsObs = observableValue<readonly IChat[]>(this, [mainChat]);
+		this._chatsObs = observableValueOpts<readonly IChat[]>({ owner: this, equalsFn: arrayEquals }, [mainChat]);
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
 
@@ -1206,8 +1244,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			} else {
 				const workspace = this._computeWorkspace();
-				if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-					this.workspace.set(workspace, tx);
+				if (this._setWorkspace(workspace, tx)) {
 					didChange = true;
 				}
 			}
@@ -1276,8 +1313,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
 			const workspace = this._computeWorkspace();
-			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-				this.workspace.set(workspace, tx);
+			if (this._setWorkspace(workspace, tx)) {
 				didChange = true;
 			}
 		});
@@ -1303,27 +1339,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return true;
 	}
 
+	private _setWorkspace(workspace: ISessionWorkspace | undefined, tx: ITransaction): boolean {
+		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
+			return false;
+		}
+		this._sessionOutputCache.clear();
+		this.workspace.set(workspace, tx);
+		return true;
+	}
+
 	/**
 	 * Resolves the session workspace. Quick chats stay workspace-less
 	 * (`undefined`) regardless of any scratch working directory the host
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
-		const workspace = this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
-		const multiRoot = readSessionMultiRootMetadata(this._meta);
-		if (!workspace || !multiRoot) {
-			return workspace;
-		}
-
-		const name = multiRoot.name?.trim();
-		const fileName = basename(URI.parse(multiRoot.workspaceFile));
-		const workspaceName = name || fileName.replace(/\.code-workspace$/i, '');
-		const workspaceLabel = localize('multiRootWorkspaceLabel', "Workspace");
-		return {
-			...workspace,
-			label: `${workspaceName} (${workspaceLabel})`,
-			canCreateSession: false,
-		};
+		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -4124,6 +4155,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		if (!rawId) {
+			return;
+		}
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be
+		// subscribed passively: subscribing its session/chat channel triggers an
+		// agent-host restore, which adopts (migrates) it. Migration must happen
+		// only when the user explicitly opens the session. It renders read-only
+		// from its summary until then; the marker clears once it is adopted.
+		if (readSessionEhcliAdoptable(this._metaByRawId.get(rawId)?._meta)) {
 			return;
 		}
 		const cached = this._sessionCache.get(rawId);
