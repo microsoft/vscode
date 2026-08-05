@@ -59,6 +59,7 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	border-bottom: none;
+	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
@@ -138,6 +139,10 @@
 
 .style-override:is(.hc-black, .hc-light) .part.editor .tabs-and-actions-container {
 	padding-top: var(--vscode-spacing-size40);
+}
+
+.style-override .part.editor .title.two-tab-bars > .tabs-and-actions-container {
+	padding-top: 0;
 }
 
 /* Move the bottom gutter into the scrollable element so the horizontal
