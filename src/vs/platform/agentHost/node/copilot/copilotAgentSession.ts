@@ -74,8 +74,9 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
-import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
+import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
+import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
@@ -745,6 +746,7 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
+	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
@@ -805,6 +807,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
+	/** Secondary filesystem roots successfully applied by the launch transaction. */
+	private readonly _appliedAdditionalDirectories: readonly URI[];
 	/**
 	 * Live owning-client identity, read at tool-call stamp time so a window
 	 * reload that re-pushes identical tools with a new `clientId` stamps
@@ -923,6 +927,7 @@ export class CopilotAgentSession extends Disposable {
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
+		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
 		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
 		// Capability decisions use the family-aliased selection so an aliased
@@ -1143,7 +1148,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _createToolCallMeta(toolName: string, parameters: Record<string, unknown> | undefined): Mutable<IToolCallMeta> {
-		const toolKind = getToolKind(toolName);
+		const toolKind = getToolKind(toolName, parameters);
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		return {
 			toolKind,
@@ -1297,6 +1302,28 @@ export class CopilotAgentSession extends Disposable {
 			duration: turn.duration,
 		});
 		this._clearActiveTurn();
+	}
+
+	failActiveTurn(error: ErrorInfo): string | undefined {
+		const turn = this._currentTurn;
+		if (!turn) {
+			return undefined;
+		}
+		this._reportToolCallDetails(turn, 'failed');
+		this._emitAction({
+			type: ActionType.ChatError,
+			turnId: turn.id,
+			duration: turn.duration,
+			error,
+		});
+		this._clearActiveTurn();
+		return turn.id;
+	}
+
+	discardActiveTurn(): void {
+		if (this._currentTurn) {
+			this._clearActiveTurn();
+		}
 	}
 
 	/**
@@ -1470,6 +1497,14 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get appliedSnapshot(): IActiveClientSnapshot {
 		return this._appliedSnapshot;
+	}
+
+	/**
+	 * Secondary roots granted when this live SDK session was created or resumed.
+	 * The primary process root is immutable and therefore excluded.
+	 */
+	get appliedAdditionalDirectories(): readonly URI[] {
+		return this._appliedAdditionalDirectories;
 	}
 
 	get customizationDirectory(): URI | undefined {
@@ -4231,6 +4266,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
@@ -4248,6 +4284,10 @@ export class CopilotAgentSession extends Disposable {
 					...(meta ? { _meta: meta } : {}),
 				},
 			});
+		}));
+
+		this._register(wrapper.onModelCallFailure(e => {
+			reportCopilotModelCallFailure(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
 		}));
 
 		// Tracks the last parent-scope usage so the async attribution enrichment

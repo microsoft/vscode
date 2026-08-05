@@ -129,6 +129,15 @@
 	font-size: 16px;
 }
 
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-source-description {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
 .models-widget .models-table-container .monaco-table-tr.models-vendor-row .model-provider {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);

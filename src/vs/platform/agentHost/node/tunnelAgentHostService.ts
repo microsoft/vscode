@@ -8,18 +8,24 @@ import type { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-manageme
 import { createHash } from 'crypto';
 import type WebSocket from 'ws';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	ITunnelAgentHostMainService,
+	parseTunnelGatewayInventory,
+	parseTunnelGatewaySelectionResponse,
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_PORT,
+	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
+	TUNNEL_GATEWAY_SELECT_PATH,
 	TUNNEL_LAUNCHER_LABEL,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelTags,
 	type ITunnelConnectResult,
+	type ITunnelGatewaySelection,
+	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
 	type ITunnelRelayMessage,
 } from '../common/tunnelAgentHost.js';
@@ -69,6 +75,15 @@ function deriveConnectionToken(tunnelId: string): string {
 	return result;
 }
 
+function rawGatewayDataToString(data: WebSocket.RawData): string {
+	if (Array.isArray(data)) {
+		return Buffer.concat(data).toString();
+	} else if (data instanceof ArrayBuffer) {
+		return Buffer.from(new Uint8Array(data)).toString();
+	}
+	return data.toString();
+}
+
 /** State for a single active tunnel relay connection. */
 class TunnelConnection extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
@@ -102,6 +117,56 @@ class TunnelConnection extends Disposable {
 	}
 }
 
+/**
+ * A protocol-v6 gateway selection that has been prepared (relay connected,
+ * selection WebSocket open, inventory received) but not yet completed. Owns
+ * the gateway WebSocket and relay client until either
+ * {@link TunnelAgentHostMainService.completeSelection} takes over ownership
+ * via {@link detach}, or this is disposed (cancellation, or the socket
+ * closing unexpectedly before a selection was made).
+ */
+export class PendingGatewaySelection implements IDisposable {
+	private _disposed = false;
+	private readonly _onSocketClosed = () => {
+		if (!this._disposed) {
+			this._onUnexpectedClose();
+		}
+	};
+
+	constructor(
+		readonly address: string,
+		readonly name: string,
+		readonly connectionToken: string,
+		readonly ws: WebSocket,
+		readonly relayClient: { dispose(): void },
+		private readonly _onUnexpectedClose: () => void,
+	) {
+		this.ws.once('close', this._onSocketClosed);
+	}
+
+	/** Detach the auto-cleanup listener so ownership of the socket can transfer to a live {@link TunnelConnection}. */
+	detach(): void {
+		this.ws.off('close', this._onSocketClosed);
+	}
+
+	dispose(): void {
+		if (!this._disposed) {
+			this._disposed = true;
+			this.ws.off('close', this._onSocketClosed);
+			try {
+				this.ws.close();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			try {
+				this.relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+		}
+	}
+}
+
 export class TunnelAgentHostMainService extends Disposable implements ITunnelAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 
@@ -112,6 +177,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
 	private readonly _connections = new Map<string, TunnelConnection>();
+	private readonly _pendingSelections = this._register(new DisposableMap<string, PendingGatewaySelection>());
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -269,13 +335,167 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			relayClient,
 		);
 
-		conn.onDidClose(() => {
+		// Self-disposing: Emitter.dispose() clears listeners without marking
+		// previously returned subscription handles as disposed, so this must
+		// dispose its own handle once it fires to avoid tripping the
+		// disposable leak tracker in tests that exercise a full connection.
+		const onConnClose = conn.onDidClose(() => {
+			onConnClose.dispose();
 			this._connections.delete(connectionId);
 			this._onDidRelayClose.fire(connectionId);
 		});
 
 		this._connections.set(connectionId, conn);
-		return { connectionId, address, name, connectionToken };
+		return {
+			connectionId, address, name, connectionToken,
+			// Legacy v5 tunnels have no gateway inventory, so `connect` always
+			// reuses a single deterministic target with no picker involved.
+			selected: { serverType: 'unknown', instanceId: '', role: 'primary', lifecycle: 'external' },
+		};
+	}
+
+	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
+		const client = await this._createManagementClient(token, authProvider);
+		const tunnel: Tunnel = { tunnelId, clusterId };
+		const resolved = await client.getTunnel(tunnel, {
+			includePorts: true,
+			tokenScopes: ['connect'],
+		});
+		if (!resolved) {
+			throw new Error(`${LOG_PREFIX} Tunnel ${tunnelId} not found`);
+		}
+
+		const tags = new TunnelTags(resolved.labels);
+		if (tags.protocolVersion < TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION) {
+			// Caller must fall back to the legacy `connect()`, which
+			// preserves the v5 direct-reuse behavior with no picker.
+			return undefined;
+		}
+
+		this._logService.info(`${LOG_PREFIX} Preparing gateway selection for tunnel ${tunnelId} in cluster ${clusterId}...`);
+
+		const { TunnelRelayTunnelClient } = await import('@microsoft/dev-tunnels-connections');
+		const relayClient = new TunnelRelayTunnelClient(client);
+		relayClient.acceptLocalConnectionsForForwardedPorts = false;
+		if (resolved.endpoints) {
+			relayClient.endpoints = resolved.endpoints;
+		}
+
+		let ws: WebSocket;
+		try {
+			await withTimeout(() => relayClient.connect(resolved), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
+			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			const portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			ws = await withTimeout(() => this._openGatewaySelectSocket(portStream), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection WebSocket open');
+		} catch (err) {
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			throw err;
+		}
+
+		let inventoryText: string;
+		try {
+			inventoryText = await withTimeout(() => this._readNextGatewayMessage(ws), TUNNEL_STEP_TIMEOUT_MS, 'gateway inventory message');
+		} catch (err) {
+			try {
+				ws.close();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			throw err;
+		}
+
+		const inventory = parseTunnelGatewayInventory(inventoryText);
+		const connectionToken = deriveConnectionToken(tunnelId);
+		const name = tags.name || resolved.name || tunnelId;
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+		const selectionId = generateUuid();
+
+		this._pendingSelections.set(selectionId, new PendingGatewaySelection(
+			address, name, connectionToken, ws, relayClient,
+			() => {
+				this._logService.warn(`${LOG_PREFIX} Gateway selection WebSocket for ${selectionId} closed before a selection was made`);
+				this._pendingSelections.deleteAndDispose(selectionId);
+			},
+		));
+
+		return { selectionId, inventory };
+	}
+
+	async completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult> {
+		const pending = this._pendingSelections.deleteAndLeak(selectionId);
+		if (!pending) {
+			throw new Error(`${LOG_PREFIX} No pending gateway selection with id ${selectionId}`);
+		}
+		// Ownership of the WebSocket/relay client has transferred to us: stop
+		// treating an unexpected close as "cancelled before selecting".
+		pending.detach();
+
+		const { ws, relayClient, address, name, connectionToken } = pending;
+
+		let responseText: string;
+		try {
+			ws.send(JSON.stringify(selection));
+			responseText = await withTimeout(() => this._readNextGatewayMessage(ws), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection acknowledgement');
+		} catch (err) {
+			try {
+				ws.close();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			throw err;
+		}
+
+		const response = parseTunnelGatewaySelectionResponse(responseText);
+		if (!response.ok) {
+			// The selected entry disappeared, or the CLI otherwise rejected
+			// the selection (e.g. raced with another client). Close
+			// everything rather than silently substituting another target.
+			try {
+				ws.close();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			throw new Error(`${LOG_PREFIX} ${response.error}`);
+		}
+
+		const connectionId = generateUuid();
+		const relay = this._attachRelaySteadyStateHandlers(ws, connectionId);
+		const conn = new TunnelConnection(connectionId, address, name, connectionToken, relay, relayClient);
+
+		// Self-disposing: see the matching comment in connect().
+		const onConnClose = conn.onDidClose(() => {
+			onConnClose.dispose();
+			this._connections.delete(connectionId);
+			this._onDidRelayClose.fire(connectionId);
+		});
+
+		this._connections.set(connectionId, conn);
+		this._logService.info(`${LOG_PREFIX} Gateway selection ${selectionId} completed: selected ${response.selected.serverType} ${response.selected.instanceId}`);
+
+		return { connectionId, address, name, connectionToken, selected: response.selected };
+	}
+
+	async cancelSelection(selectionId: string): Promise<void> {
+		this._pendingSelections.deleteAndDispose(selectionId);
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
@@ -351,34 +571,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 
 			ws.on('open', () => {
 				this._logService.info(`${LOG_PREFIX} WebSocket relay connected to agent host via tunnel`);
-				resolve({
-					send: (data: string) => {
-						if (ws.readyState === ws.OPEN) {
-							ws.send(data);
-						}
-					},
-					close: () => ws.close(),
-				});
-			});
-
-			ws.on('message', (data: WebSocket.RawData) => {
-				let text: string;
-				if (Array.isArray(data)) {
-					text = Buffer.concat(data).toString();
-				} else if (data instanceof ArrayBuffer) {
-					text = Buffer.from(new Uint8Array(data)).toString();
-				} else {
-					text = data.toString();
-				}
-				this._onDidRelayMessage.fire({ connectionId, data: text });
-			});
-
-			ws.on('close', (code: number, reason: Buffer) => {
-				this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${code}, reason=${reason?.toString() || '(empty)'}`);
-				const conn = this._connections.get(connectionId);
-				if (conn) {
-					conn.dispose();
-				}
+				resolve(this._attachRelaySteadyStateHandlers(ws, connectionId));
 			});
 
 			ws.on('error', (wsErr: unknown) => {
@@ -387,4 +580,115 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			});
 		});
 	}
+
+	/**
+	 * Attach the steady-state message-pump handlers ('message'/'close') to an
+	 * already-open agent host WebSocket, shared between the legacy
+	 * direct-reuse relay and the protocol-v6 gateway relay (which reuses the
+	 * same WebSocket used for inventory/selection once a selection succeeds).
+	 */
+	private _attachRelaySteadyStateHandlers(ws: WebSocket, connectionId: string): { send: (data: string) => void; close: () => void } {
+		ws.on('message', (data: WebSocket.RawData) => {
+			this._onDidRelayMessage.fire({ connectionId, data: rawGatewayDataToString(data) });
+		});
+
+		ws.on('close', (code: number, reason: Buffer) => {
+			this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${code}, reason=${reason?.toString() || '(empty)'}`);
+			const conn = this._connections.get(connectionId);
+			if (conn) {
+				conn.dispose();
+			}
+		});
+
+		return {
+			send: (data: string) => {
+				if (ws.readyState === ws.OPEN) {
+					ws.send(data);
+				}
+			},
+			close: () => ws.close(),
+		};
+	}
+
+	/**
+	 * Open the protocol-v6 gateway's selection WebSocket route over an
+	 * already-connected tunnel port stream. No `?tkn=` query parameter is
+	 * needed: connections arriving through the tunnel relay bypass the
+	 * gateway's loopback per-request token check entirely (only used for
+	 * the local, non-tunneled accept loop on the CLI side).
+	 */
+	private async _openGatewaySelectSocket(portStream: NodeJS.ReadWriteStream): Promise<WebSocket> {
+		const WS = await import('ws');
+
+		return new Promise((resolve, reject) => {
+			const url = `ws://localhost:${TUNNEL_AGENT_HOST_PORT}${TUNNEL_GATEWAY_SELECT_PATH}`;
+			const ws = new WS.WebSocket(url, {
+				createConnection: (() => portStream) as unknown as WebSocket.ClientOptions['createConnection'],
+			});
+
+			const onError = (wsErr: unknown) => reject(wsErr);
+			ws.once('open', () => {
+				ws.off('error', onError);
+				resolve(ws);
+			});
+			ws.once('error', onError);
+		});
+	}
+
+	/**
+	 * Await exactly one message on a gateway WebSocket — used to read the
+	 * one-time inventory message and, later, the one-time selection
+	 * acknowledgement, both of which precede the raw AHP frame-proxying
+	 * phase that reuses the same socket.
+	 */
+	private _readNextGatewayMessage(ws: WebSocket): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const cleanup = () => {
+				ws.off('message', onMessage);
+				ws.off('close', onClose);
+				ws.off('error', onError);
+			};
+			const onMessage = (data: WebSocket.RawData) => {
+				cleanup();
+				resolve(rawGatewayDataToString(data));
+			};
+			const onClose = (code: number, reason: Buffer) => {
+				cleanup();
+				reject(new Error(`${LOG_PREFIX} Gateway WebSocket closed before expected message; code=${code}, reason=${reason?.toString() || '(empty)'}`));
+			};
+			const onError = (wsErr: unknown) => {
+				cleanup();
+				reject(wsErr);
+			};
+			ws.once('message', onMessage);
+			ws.once('close', onClose);
+			ws.once('error', onError);
+		});
+	}
+}
+
+/**
+ * Test-only seam: register a pending gateway selection directly, bypassing
+ * the dev-tunnels SDK connection steps in {@link TunnelAgentHostMainService.prepareSelection},
+ * so {@link TunnelAgentHostMainService.completeSelection} and {@link TunnelAgentHostMainService.cancelSelection}
+ * can be unit tested against fake WebSocket-like streams.
+ */
+export function setPendingGatewaySelectionForTests(
+	service: TunnelAgentHostMainService,
+	selectionId: string,
+	pending: PendingGatewaySelection,
+): void {
+	(service as unknown as { _pendingSelections: DisposableMap<string, PendingGatewaySelection> })._pendingSelections.set(selectionId, pending);
+}
+
+/**
+ * Test-only seam: remove (and dispose) a pending gateway selection directly,
+ * mirroring what the real unexpected-close handler in {@link TunnelAgentHostMainService.prepareSelection}
+ * does, so tests can simulate that wiring without depending on the dev-tunnels SDK.
+ */
+export function deletePendingGatewaySelectionForTests(
+	service: TunnelAgentHostMainService,
+	selectionId: string,
+): void {
+	(service as unknown as { _pendingSelections: DisposableMap<string, PendingGatewaySelection> })._pendingSelections.deleteAndDispose(selectionId);
 }
