@@ -259,12 +259,12 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
 
-	/// Overrides the resolved user data directory used to home the shared
-	/// local agent-host endpoint registry
-	/// (`<user-data-dir>/agent-host/local-endpoint/metadata.json`), the same
-	/// file editor windows publish to. Defaults to the platform user data
-	/// directory (honoring `VSCODE_PORTABLE` / `VSCODE_APPDATA` when set),
-	/// matching the editor's own resolution rules.
+	/// Overrides the resolved user data directory used to home the local
+	/// agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
+	/// per-instance entry files editor windows also publish to). Defaults to
+	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
+	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
 	#[clap(long)]
 	pub user_data_dir: Option<String>,
 

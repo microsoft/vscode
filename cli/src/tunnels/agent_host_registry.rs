@@ -4,29 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 //! Rust CLI writer/reader for the shared local agent-host endpoint registry
-//! at `<userDataPath>/agent-host/local-endpoint/metadata.json`.
+//! under `<userDataPath>/agent-host/local-endpoint/`.
 //!
-//! This schema and the multi-writer locking/upsert/removal protocol are
-//! shared with, and MUST stay in lock-step with, the TypeScript
-//! implementation in:
-//!  - `src/vs/platform/agentHost/common/agentHostEndpointRegistry.ts` (schema
-//!    + pure array helpers)
-//!  - `src/vs/platform/agentHost/node/localAgentHostMetadata.ts` (lock,
-//!    atomic write, directory security)
-//!  - `src/vs/platform/agentHost/LOCAL_ENDPOINT.md` (protocol document)
+//! Each live agent host owns one immutable `entries/<sha256hex>.json` file
+//! named from its `(type, pid, instanceId)` identity, written atomically via a
+//! temp-file + rename, so publishers never need a lock. Readers enumerate
+//! `entries/`, merge a read-only legacy `metadata.json` array from older builds,
+//! prune dead PIDs, and dedupe by identity. The protocol is documented in
+//! `src/vs/platform/agentHost/LOCAL_ENDPOINT.md` and MUST stay in lock-step with
+//! the TypeScript implementation under `src/vs/platform/agentHost/`.
 //!
-//! The standalone `code agent host` CLI only ever publishes a `standalone`
-//! entry with a `tcp` endpoint; it never publishes (and must never select
-//! for reuse/`--replace`) an `editor` entry, since those are owned by
-//! running VS Code windows.
+//! The standalone `code agent host` CLI only publishes a `standalone`/`tcp`
+//! entry; it must never publish or select an `editor` entry (owned by running
+//! VS Code windows).
 
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::log;
 use crate::util::machine::process_exists;
@@ -45,23 +44,11 @@ pub const AGENT_HOST_PROTOCOL_VERSION: &str = "0.1.0";
 
 const METADATA_DIRECTORY_NAME: &str = "agent-host";
 const ENDPOINT_DIRECTORY_NAME: &str = "local-endpoint";
-const METADATA_FILE_NAME: &str = "metadata.json";
-
-/// How long [`publish_agent_host_endpoint`] waits to acquire the write lock
-/// before giving up. Mirrors the TS `asyncLockAcquireTimeoutMs`, used on the
-/// (infrequent, startup-time) publish path.
-const PUBLISH_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_millis(3000);
-const PUBLISH_LOCK_RETRY_DELAY: Duration = Duration::from_millis(40);
-
-/// How long [`remove_agent_host_endpoint`] waits to acquire the write lock.
-/// Mirrors the TS `syncLockAcquireTimeoutMs`, kept short since this runs on
-/// the shutdown path and must not noticeably delay process exit.
-const CLEANUP_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_millis(500);
-const CLEANUP_LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
-
-/// Grace period for a lock directory whose owner file has not appeared yet,
-/// to avoid racing a concurrent acquirer that is mid-write.
-const LOCK_OWNER_GRACE: Duration = Duration::from_millis(2000);
+const ENTRIES_DIRECTORY_NAME: &str = "entries";
+/// Read-only fallback: the single shared array file older builds wrote. It is
+/// never written or locked; its still-live entries are merged on read and age
+/// out naturally as their owning processes exit.
+const LEGACY_METADATA_FILE_NAME: &str = "metadata.json";
 
 // ---- Schema -----------------------------------------------------------------
 
@@ -85,8 +72,10 @@ pub enum AgentHostEndpointAddress {
 	Tcp { host: String, port: u16 },
 }
 
-/// One entry of the shared local agent-host endpoint registry. The registry
-/// file itself is a JSON array of these entries.
+/// One entry of the shared local agent-host endpoint registry. Each live
+/// agent host serializes exactly one of these as its own
+/// `entries/<sha256hex>.json` file; a legacy `metadata.json` (and the
+/// `code agent endpoints` SSH inventory) instead carries a JSON array of them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentHostEndpointMetadata {
@@ -177,10 +166,8 @@ impl AgentHostEndpointMetadata {
 	}
 }
 
-/// Deterministic ordering key for [`AgentHostServerType`] used when sorting
-/// discovered endpoints, so iteration/print order is stable across runs
-/// regardless of registry file write order. Standalone sorts first since it
-/// is the more likely single-instance case users expect to see first.
+/// Deterministic sort rank for [`AgentHostServerType`]: standalone first (the
+/// more likely single-instance case), then editor.
 fn server_type_sort_rank(server_type: AgentHostServerType) -> u8 {
 	match server_type {
 		AgentHostServerType::Standalone => 0,
@@ -188,10 +175,39 @@ fn server_type_sort_rank(server_type: AgentHostServerType) -> u8 {
 	}
 }
 
-fn is_same_identity(a: &AgentHostEndpointMetadata, identity: &AgentHostEndpointIdentity) -> bool {
-	a.server_type == identity.server_type
-		&& a.pid == identity.pid
-		&& a.instance_id == identity.instance_id
+/// The wire name for a server type, matching serde's `rename_all =
+/// "lowercase"` and the TypeScript `AgentHostServerType` string union. Used
+/// to build the identity hash input, so it MUST stay in sync with both.
+fn server_type_wire_name(server_type: AgentHostServerType) -> &'static str {
+	match server_type {
+		AgentHostServerType::Editor => "editor",
+		AgentHostServerType::Standalone => "standalone",
+	}
+}
+
+/// Canonical UTF-8 input hashed to derive an identity's entry file name. The
+/// `\0` separators are unambiguous (no field contains NUL) and this encoding is
+/// shared byte-for-byte with the TypeScript `getAgentHostEndpointIdentityHashInput`;
+/// it MUST NOT change without a coordinated update on both sides.
+fn identity_hash_input(identity: &AgentHostEndpointIdentity) -> String {
+	format!(
+		"{}\0{}\0{}",
+		server_type_wire_name(identity.server_type),
+		identity.pid,
+		identity.instance_id
+	)
+}
+
+/// The `<sha256hex>.json` file name for `identity`, keeping the raw
+/// `instanceId` out of the path. The editor derives the same name.
+fn entry_file_name(identity: &AgentHostEndpointIdentity) -> String {
+	let digest = Sha256::digest(identity_hash_input(identity).as_bytes());
+	let mut hex = String::with_capacity(digest.len() * 2 + 5);
+	for byte in digest {
+		hex.push_str(&format!("{byte:02x}"));
+	}
+	hex.push_str(".json");
+	hex
 }
 
 /// Structurally validates one raw registry entry. Unsupported schema versions
@@ -221,8 +237,9 @@ fn parse_registry_entry(
 	Ok(Some(entry))
 }
 
-/// Parses the raw contents of the registry file (expected to be
-/// `AgentHostEndpointMetadata[]`). Every entry is validated independently.
+/// Parses an array-shaped registry payload (`AgentHostEndpointMetadata[]`) —
+/// a legacy `metadata.json` file or the `code agent endpoints` SSH inventory.
+/// Every entry is validated independently.
 fn parse_registry(log: &log::Logger, raw: &[serde_json::Value]) -> Vec<AgentHostEndpointMetadata> {
 	raw.iter()
 		.enumerate()
@@ -241,15 +258,9 @@ fn parse_registry(log: &log::Logger, raw: &[serde_json::Value]) -> Vec<AgentHost
 		.collect()
 }
 
-/// Deduplicates `entries` by `(server_type, pid, instance_id)`. If a
-/// duplicate identity appears more than once (for example a crashed writer
-/// left a stale copy behind before another writer's cleanup ran), the entry
-/// encountered later in `entries` wins, since it is presumed to be the more
-/// recently written copy. Mirrors `dedupeAgentHostEndpointMetadata` in the TS
-/// reference (a `Map` keyed by identity: inserting an already-seen key
-/// updates its value but keeps its original iteration position), so the
-/// surviving entry's *position* is that of its first occurrence, but its
-/// *value* is that of its last occurrence.
+/// Deduplicates `entries` by identity. Mirrors `dedupeAgentHostEndpointMetadata`
+/// in TS: the surviving entry keeps the position of its first occurrence but the
+/// value of its last, so a later entry wins a collision.
 fn dedupe_entries(entries: Vec<AgentHostEndpointMetadata>) -> Vec<AgentHostEndpointMetadata> {
 	let mut result: Vec<AgentHostEndpointMetadata> = Vec::with_capacity(entries.len());
 	let mut index_by_identity: HashMap<AgentHostEndpointIdentity, usize> = HashMap::new();
@@ -263,35 +274,6 @@ fn dedupe_entries(entries: Vec<AgentHostEndpointMetadata>) -> Vec<AgentHostEndpo
 		}
 	}
 	result
-}
-
-/// Returns `entries` with any existing entry sharing `metadata`'s identity
-/// replaced by `metadata`.
-fn upsert_entry(
-	entries: Vec<AgentHostEndpointMetadata>,
-	metadata: AgentHostEndpointMetadata,
-) -> Vec<AgentHostEndpointMetadata> {
-	let identity = metadata.identity();
-	let mut remaining: Vec<_> = entries
-		.into_iter()
-		.filter(|e| !is_same_identity(e, &identity))
-		.collect();
-	remaining.push(metadata);
-	remaining
-}
-
-/// Returns `entries` with the exact-identity-matching entry removed, if any.
-/// Used on shutdown so a writer only ever removes its own entry, never a
-/// newer process's entry that happens to share its PID.
-fn remove_entry(
-	entries: &[AgentHostEndpointMetadata],
-	identity: &AgentHostEndpointIdentity,
-) -> Vec<AgentHostEndpointMetadata> {
-	entries
-		.iter()
-		.filter(|e| !is_same_identity(e, identity))
-		.cloned()
-		.collect()
 }
 
 /// Drops entries whose PID is confirmed dead. Entries are only ever pruned
@@ -328,73 +310,192 @@ fn metadata_directory(user_data_path: &Path) -> PathBuf {
 		.join(ENDPOINT_DIRECTORY_NAME)
 }
 
-/// Path to the shared registry file for `user_data_path`.
-fn metadata_path(user_data_path: &Path) -> PathBuf {
-	metadata_directory(user_data_path).join(METADATA_FILE_NAME)
+/// Directory holding the per-instance `entries/<sha256hex>.json` files.
+fn entries_directory(user_data_path: &Path) -> PathBuf {
+	metadata_directory(user_data_path).join(ENTRIES_DIRECTORY_NAME)
 }
 
-fn lock_directory_path(metadata_path: &Path) -> PathBuf {
-	let mut os_string = metadata_path.as_os_str().to_owned();
-	os_string.push(".lock");
-	PathBuf::from(os_string)
+/// Path to the read-only legacy shared array file, merged on read only.
+fn legacy_metadata_path(user_data_path: &Path) -> PathBuf {
+	metadata_directory(user_data_path).join(LEGACY_METADATA_FILE_NAME)
 }
 
-fn lock_owner_file_path(lock_dir: &Path) -> PathBuf {
-	lock_dir.join("owner.json")
-}
-
-fn temp_write_path(metadata_path: &Path, unique_suffix: &str) -> PathBuf {
-	let mut os_string = metadata_path.as_os_str().to_owned();
-	os_string.push(".");
-	os_string.push(unique_suffix);
-	os_string.push(".tmp");
-	PathBuf::from(os_string)
+/// The final path of `identity`'s own entry file.
+fn entry_path(user_data_path: &Path, identity: &AgentHostEndpointIdentity) -> PathBuf {
+	entries_directory(user_data_path).join(entry_file_name(identity))
 }
 
 // ---- Directory security -------------------------------------------------------
 
-/// Creates the metadata directory (if needed) and restricts it to the
-/// current user (Unix: `0700`; Windows: an ACL granting only the current
-/// user, `SYSTEM`, and `Administrators`), mirroring
-/// `prepareLocalAgentHostEndpointMetadataDirectory` in
-/// `node/localAgentHostMetadata.ts`.
+/// Creates and secures the metadata directory and the `entries/` directory
+/// beneath it (Unix: `0700`; Windows: an owner-only ACL). The entries directory
+/// is secured explicitly rather than relying on ACL inheritance timing.
 fn prepare_metadata_directory(user_data_path: &Path) -> io::Result<()> {
-	let dir = metadata_directory(user_data_path);
-	fs::create_dir_all(&dir)?;
+	prepare_owner_only_directory(&metadata_directory(user_data_path))?;
+	prepare_owner_only_directory(&entries_directory(user_data_path))?;
+	Ok(())
+}
+
+fn prepare_owner_only_directory(dir: &Path) -> io::Result<()> {
+	fs::create_dir_all(dir)?;
 
 	#[cfg(unix)]
 	{
 		use std::os::unix::fs::PermissionsExt;
-		fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+		fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
 	}
 
 	#[cfg(windows)]
-	super::agent_host_registry_acl_windows::apply_owner_only_acl(&dir)?;
+	super::agent_host_registry_acl_windows::apply_owner_only_acl(dir)?;
 
 	Ok(())
 }
 
 // ---- Read ---------------------------------------------------------------------
 
-/// Reads and validates every entry in the shared registry, without taking
-/// the write lock. Safe to call frequently: the registry file is only ever
-/// observed in a fully-written state (via atomic rename).
+/// Reads and validates every live entry in the registry without taking a lock,
+/// merging a read-only legacy `metadata.json` array left by older builds.
+/// Confirmed-dead entries are pruned (and their own files best-effort removed);
+/// the rest are deduped by identity — a live entry file winning over a colliding
+/// legacy entry — and returned in a deterministic order (standalone before
+/// editor, then by `instanceId`).
 pub fn read_registry(
 	log: &log::Logger,
 	user_data_path: &Path,
 ) -> io::Result<Vec<AgentHostEndpointMetadata>> {
-	read_registry_at(log, &metadata_path(user_data_path))
+	// Legacy entries first so a live entry file wins the dedupe on collision.
+	let legacy = read_legacy_registry(log, &legacy_metadata_path(user_data_path))?;
+	let mut live = prune_dead_entries(log, legacy);
+
+	for (entry, path) in read_entry_files(log, &entries_directory(user_data_path))? {
+		if process_exists(entry.pid) {
+			live.push(entry);
+		} else {
+			info!(
+				log,
+				"Pruning stale local endpoint registry entry: {:?} PID {} (instance {}) is no longer running",
+				entry.server_type,
+				entry.pid,
+				entry.instance_id
+			);
+			let _ = fs::remove_file(&path);
+		}
+	}
+
+	let mut result = dedupe_entries(live);
+	result.sort_by(|a, b| {
+		server_type_sort_rank(a.server_type)
+			.cmp(&server_type_sort_rank(b.server_type))
+			.then_with(|| a.instance_id.cmp(&b.instance_id))
+	});
+	Ok(result)
 }
 
-fn read_registry_at(log: &log::Logger, path: &Path) -> io::Result<Vec<AgentHostEndpointMetadata>> {
+/// Enumerates the `entries/` directory, returning each parsed entry with its
+/// path. Non-`.json` files (including `*.tmp` staging files) are ignored
+/// quietly; malformed, unsupported, or misnamed entries log a warning and are
+/// skipped without hiding any other entry.
+fn read_entry_files(
+	log: &log::Logger,
+	entries_dir: &Path,
+) -> io::Result<Vec<(AgentHostEndpointMetadata, PathBuf)>> {
+	let read_dir = match fs::read_dir(entries_dir) {
+		Ok(rd) => rd,
+		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+		Err(e) => return Err(e),
+	};
+
+	let mut out = Vec::new();
+	for dir_entry in read_dir {
+		let dir_entry = dir_entry?;
+		let file_name = dir_entry.file_name();
+		let name = file_name.to_string_lossy();
+		if !name.ends_with(".json") {
+			continue;
+		}
+		let path = dir_entry.path();
+		let entry = match read_entry_file(log, &path)? {
+			Some(entry) => entry,
+			None => continue,
+		};
+		// A valid entry must live under its own canonical identity file name;
+		// otherwise a misnamed copy could shadow or delete the real entry.
+		if name.as_ref() != entry_file_name(&entry.identity()).as_str() {
+			warning!(
+				log,
+				"Ignoring agent host endpoint entry at {} whose file name does not match its identity",
+				path.display()
+			);
+			continue;
+		}
+		out.push((entry, path));
+	}
+	Ok(out)
+}
+
+fn read_entry_file(
+	log: &log::Logger,
+	path: &Path,
+) -> io::Result<Option<AgentHostEndpointMetadata>> {
+	let metadata = match fs::symlink_metadata(path) {
+		Ok(m) => m,
+		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+		Err(e) => return Err(e),
+	};
+	if !metadata.is_file() {
+		// A directory or a symlink (defends against a symlink swap attack;
+		// genuine entries are only ever written via rename).
+		return Ok(None);
+	}
+
+	let raw = match fs::read_to_string(path) {
+		Ok(s) => s,
+		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+		Err(e) => return Err(e),
+	};
+
+	let value: serde_json::Value = match serde_json::from_str(&raw) {
+		Ok(v) => v,
+		Err(error) => {
+			warning!(
+				log,
+				"Ignoring malformed agent host endpoint entry at {}: {}",
+				path.display(),
+				error
+			);
+			return Ok(None);
+		}
+	};
+
+	match parse_registry_entry(&value) {
+		// `Ok(None)` here is an entry with an unsupported schema version:
+		// skip this file only, never the whole directory.
+		Ok(entry) => Ok(entry),
+		Err(error) => {
+			warning!(
+				log,
+				"Ignoring invalid agent host endpoint entry at {}: {}",
+				path.display(),
+				error
+			);
+			Ok(None)
+		}
+	}
+}
+
+/// Reads the read-only legacy `metadata.json` array, if present. A missing
+/// file, a non-file path (directory/symlink), or malformed JSON all yield an
+/// empty list rather than an error.
+fn read_legacy_registry(
+	log: &log::Logger,
+	path: &Path,
+) -> io::Result<Vec<AgentHostEndpointMetadata>> {
 	let metadata = match fs::symlink_metadata(path) {
 		Ok(m) => m,
 		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
 		Err(e) => return Err(e),
 	};
 	if !metadata.is_file() {
-		// Missing, a directory, or a symlink (defends against a symlink
-		// swap attack; genuine entries are only ever written via rename).
 		return Ok(Vec::new());
 	}
 
@@ -409,7 +510,7 @@ fn read_registry_at(log: &log::Logger, path: &Path) -> io::Result<Vec<AgentHostE
 		Err(error) => {
 			warning!(
 				log,
-				"Ignoring malformed agent host endpoint registry at {}: {}",
+				"Ignoring malformed legacy agent host endpoint registry at {}: {}",
 				path.display(),
 				error
 			);
@@ -422,13 +523,15 @@ fn read_registry_at(log: &log::Logger, path: &Path) -> io::Result<Vec<AgentHostE
 
 // ---- Atomic write ---------------------------------------------------------------
 
-fn write_registry_atomic(
-	path: &Path,
-	unique_suffix: &str,
-	entries: &[AgentHostEndpointMetadata],
+/// Atomically writes `metadata` to `final_path` via a uniquely named,
+/// mode-`0600` temp file (fsync'd, then renamed), cleaning up on failure.
+fn write_entry_atomic(
+	entries_dir: &Path,
+	final_path: &Path,
+	metadata: &AgentHostEndpointMetadata,
 ) -> io::Result<()> {
-	let temp_path = temp_write_path(path, unique_suffix);
-	let json = serde_json::to_vec(entries)?;
+	let temp_path = entries_dir.join(format!("{}.tmp", Uuid::new_v4()));
+	let json = serde_json::to_vec(metadata)?;
 
 	let mut open_options = OpenOptions::new();
 	open_options.write(true).create_new(true);
@@ -444,318 +547,112 @@ fn write_registry_atomic(
 		file.sync_all()?;
 	}
 
-	let rename_result = fs::rename(&temp_path, path);
-	// Best-effort cleanup, mirroring the TS `finally { rm force }`: a no-op
-	// once the rename above succeeded.
-	let _ = fs::remove_file(&temp_path);
+	let rename_result = rename_replacing(&temp_path, final_path);
+	let _ = fs::remove_file(&temp_path); // no-op once the rename succeeded
 	rename_result?;
 
 	#[cfg(unix)]
 	{
 		use std::os::unix::fs::PermissionsExt;
-		fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+		fs::set_permissions(final_path, fs::Permissions::from_mode(0o600))?;
 	}
 
 	Ok(())
 }
 
-// ---- Multi-writer lock ----------------------------------------------------------
-//
-// The lock is a sibling directory to metadata.json (metadata.json.lock).
-// Directory creation without `recursive` is used as the exclusive-acquire
-// primitive because it is atomic on every platform we support and needs no
-// native/optional dependency. The lock holder's `(pid, instanceId)` is
-// written into an owner file inside the directory so a contending process
-// can recognize and reclaim an abandoned lock: if the recorded PID is
-// confirmed dead, the lock is stale and is reclaimed immediately; otherwise
-// acquisition is retried until a bounded timeout elapses, after which the
-// caller must log and continue running undiscoverable rather than silently
-// bypassing the lock. Mirrors `node/localAgentHostMetadata.ts`.
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LockOwner {
-	pid: u32,
-	instance_id: String,
-}
-
-/// Holds the sibling lock directory for the duration of a registry
-/// read-modify-write. Releasing (removing the lock directory) happens on
-/// drop, but only if the owner recorded on disk still matches this guard
-/// (i.e. nobody else has reclaimed it as stale in the meantime).
-struct RegistryLock {
-	lock_dir: PathBuf,
-	owner: LockOwner,
-}
-
-impl Drop for RegistryLock {
-	fn drop(&mut self) {
-		if let Some(current) = read_lock_owner(&self.lock_dir) {
-			if current != self.owner {
-				// Another process already reclaimed this lock as stale; it
-				// now owns this lock's lifecycle, so leave it alone.
-				return;
+/// Renames `from` onto `to`. On Windows a replacing rename can transiently fail
+/// while the destination is momentarily held open; since we only ever write our
+/// own single-owner file, removing it and retrying once is race-safe.
+fn rename_replacing(from: &Path, to: &Path) -> io::Result<()> {
+	match fs::rename(from, to) {
+		Ok(()) => Ok(()),
+		Err(e) => {
+			#[cfg(windows)]
+			if is_windows_rename_contention(&e) {
+				let _ = fs::remove_file(to);
+				return fs::rename(from, to);
 			}
-		}
-		let _ = fs::remove_dir_all(&self.lock_dir);
-	}
-}
-
-fn read_lock_owner(lock_dir: &Path) -> Option<LockOwner> {
-	let raw = fs::read_to_string(lock_owner_file_path(lock_dir)).ok()?;
-	serde_json::from_str(&raw).ok()
-}
-
-fn is_lock_directory_stale_without_owner(lock_dir: &Path) -> bool {
-	match fs::metadata(lock_dir) {
-		Ok(metadata) => match metadata.modified() {
-			Ok(modified) => match modified.elapsed() {
-				Ok(elapsed) => elapsed > LOCK_OWNER_GRACE,
-				Err(_) => false,
-			},
-			Err(_) => false,
-		},
-		// The directory disappeared already (another process reclaimed
-		// it); let the caller retry acquisition.
-		Err(_) => true,
-	}
-}
-
-fn try_reclaim_stale_lock(lock_dir: &Path, log: &log::Logger) -> bool {
-	let owner = read_lock_owner(lock_dir);
-	match &owner {
-		Some(owner) if process_exists(owner.pid) => return false,
-		Some(_) => {}
-		None => {
-			if !is_lock_directory_stale_without_owner(lock_dir) {
-				return false;
-			}
-		}
-	}
-
-	if fs::remove_dir_all(lock_dir).is_err() {
-		return false;
-	}
-
-	warning!(
-		log,
-		"Reclaimed a stale local agent host endpoint registry lock{}",
-		match owner {
-			Some(o) => format!(" from PID {}", o.pid),
-			None => String::new(),
-		}
-	);
-	true
-}
-
-fn acquire_registry_lock(
-	lock_dir: &Path,
-	owner: &LockOwner,
-	timeout: Duration,
-	retry_delay: Duration,
-	log: &log::Logger,
-) -> io::Result<Option<RegistryLock>> {
-	let deadline = Instant::now() + timeout;
-	loop {
-		match fs::create_dir(lock_dir) {
-			Ok(()) => {
-				write_lock_owner(lock_dir, owner)?;
-				return Ok(Some(RegistryLock {
-					lock_dir: lock_dir.to_path_buf(),
-					owner: owner.clone(),
-				}));
-			}
-			Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-				if try_reclaim_stale_lock(lock_dir, log) {
-					continue;
-				}
-				if Instant::now() >= deadline {
-					return Ok(None);
-				}
-				std::thread::sleep(retry_delay);
-			}
-			Err(e) => return Err(e),
+			Err(e)
 		}
 	}
 }
 
-fn write_lock_owner(lock_dir: &Path, owner: &LockOwner) -> io::Result<()> {
-	let mut open_options = OpenOptions::new();
-	open_options.write(true).create(true).truncate(true);
-	#[cfg(unix)]
-	{
-		use std::os::unix::fs::OpenOptionsExt;
-		open_options.mode(0o600);
-	}
-	let mut file: File = open_options.open(lock_owner_file_path(lock_dir))?;
-	file.write_all(serde_json::to_string(owner)?.as_bytes())
+#[cfg(windows)]
+fn is_windows_rename_contention(error: &io::Error) -> bool {
+	// ACCESS_DENIED (5), SHARING_VIOLATION (32), ALREADY_EXISTS (183).
+	matches!(error.raw_os_error(), Some(5) | Some(32) | Some(183))
+		|| error.kind() == io::ErrorKind::PermissionDenied
 }
 
 // ---- Publish / remove -----------------------------------------------------------
 
-/// Upserts `metadata` into the shared local agent host endpoint registry.
-///
-/// Multiple processes (editor windows and the standalone `code agent host`
-/// CLI) can publish to the same registry file concurrently, so this
-/// acquires the sibling lock first, serializing the read-prune-upsert-write
-/// sequence across all writers. Readers remain lock-free because the final
-/// write is an atomic rename.
-///
-/// Returns an error if the lock cannot be acquired within a bounded timeout,
-/// or if any filesystem operation fails; callers MUST treat that as
-/// "continue running, but undiscoverable" and must not fall back to a
-/// non-atomic write.
+/// Publishes (or refreshes) this host's own `entries/<sha256hex>.json` file by
+/// atomically renaming a freshly written temp file into place. Because every
+/// writer only touches its own single-owner file, no lock is needed. Returns an
+/// error on any filesystem failure; callers must stay running but
+/// undiscoverable rather than retrying non-atomically.
 pub fn publish_agent_host_endpoint(
-	log: &log::Logger,
+	_log: &log::Logger,
 	user_data_path: &Path,
 	metadata: &AgentHostEndpointMetadata,
 ) -> io::Result<()> {
 	prepare_metadata_directory(user_data_path)?;
-	let path = metadata_path(user_data_path);
-	let lock_dir = lock_directory_path(&path);
-	let owner = LockOwner {
-		pid: metadata.pid,
-		instance_id: metadata.instance_id.clone(),
-	};
-
-	let _lock = acquire_registry_lock(
-		&lock_dir,
-		&owner,
-		PUBLISH_LOCK_ACQUIRE_TIMEOUT,
-		PUBLISH_LOCK_RETRY_DELAY,
-		log,
-	)?
-	.ok_or_else(|| {
-		io::Error::new(
-			io::ErrorKind::TimedOut,
-			format!(
-				"Timed out acquiring the local agent host endpoint registry lock at {}",
-				lock_dir.display()
-			),
-		)
-	})?;
-
-	let current = read_registry_at(log, &path)?;
-	let live = prune_dead_entries(log, current);
-	let deduped = dedupe_entries(live);
-	let next = upsert_entry(deduped, metadata.clone());
-	write_registry_atomic(&path, &metadata.instance_id, &next)
+	let entries_dir = entries_directory(user_data_path);
+	let final_path = entries_dir.join(entry_file_name(&metadata.identity()));
+	write_entry_atomic(&entries_dir, &final_path, metadata)
 }
 
-/// Removes exactly `identity`'s `(type, pid, instanceId)` entry from the
-/// registry, reacquiring the write lock first. Deletes the file entirely
-/// only when the resulting registry is empty. Best-effort: failures are
-/// logged, never returned as fatal, so process shutdown is never blocked by
-/// cleanup.
+/// Removes exactly `identity`'s own entry file, whose path is derived from its
+/// identity, so this can never delete another writer's entry. Best-effort: the
+/// shared entries directory is left in place to avoid racing concurrent
+/// publishers, and failures are logged, never returned as fatal.
 pub fn remove_agent_host_endpoint(
 	log: &log::Logger,
 	user_data_path: &Path,
 	identity: &AgentHostEndpointIdentity,
 ) {
-	let path = metadata_path(user_data_path);
-	let lock_dir = lock_directory_path(&path);
-	let owner = LockOwner {
-		pid: identity.pid,
-		instance_id: identity.instance_id.clone(),
-	};
-
-	let lock = match acquire_registry_lock(
-		&lock_dir,
-		&owner,
-		CLEANUP_LOCK_ACQUIRE_TIMEOUT,
-		CLEANUP_LOCK_RETRY_DELAY,
-		log,
-	) {
-		Ok(Some(lock)) => lock,
-		Ok(None) => {
-			warning!(
-				log,
-				"Timed out acquiring the local agent host endpoint registry lock while removing our entry from {}",
-				path.display()
-			);
-			return;
-		}
+	let path = entry_path(user_data_path, identity);
+	match fs::remove_file(&path) {
+		Ok(()) => {}
+		Err(e) if e.kind() == io::ErrorKind::NotFound => {}
 		Err(e) => {
 			warning!(
 				log,
-				"Failed to acquire the local agent host endpoint registry lock: {}",
+				"Failed to remove our entry from the local agent host endpoint registry at {}: {}",
+				path.display(),
 				e
 			);
-			return;
 		}
-	};
-
-	let result = (|| -> io::Result<()> {
-		let current = read_registry_at(log, &path)?;
-		let remaining = remove_entry(&current, identity);
-		if remaining.len() == current.len() {
-			return Ok(());
-		}
-		if remaining.is_empty() {
-			match fs::remove_file(&path) {
-				Ok(()) => Ok(()),
-				Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-				Err(e) => Err(e),
-			}
-		} else {
-			write_registry_atomic(&path, &identity.instance_id, &remaining)
-		}
-	})();
-
-	if let Err(e) = result {
-		warning!(
-			log,
-			"Failed to remove our entry from the local agent host endpoint registry: {}",
-			e
-		);
 	}
-
-	drop(lock);
 }
 
 // ---- Endpoint enumeration ---------------------------------------------------------
 
 /// Reads the registry and returns every live endpoint (both `editor` and
-/// `standalone`, both `socket`/pipe and `tcp` addresses), deduped by
-/// identity and pruned of dead-process entries, in a stable deterministic
-/// order (standalone before editor, then by `instanceId`).
-///
-/// This is the general-purpose discovery primitive backing `code agent
-/// ps|logs|stop`'s auto-discovery: every live entry here is a candidate
-/// host to query, not just the one this process would reuse for `code
-/// agent host`.
+/// `standalone`), deduped by identity, pruned of dead-process entries, in a
+/// stable order (standalone before editor, then by `instanceId`). Backs `code
+/// agent ps|logs|stop`'s auto-discovery.
 pub fn list_live_endpoints(
 	log: &log::Logger,
 	user_data_path: &Path,
 ) -> Vec<AgentHostEndpointMetadata> {
-	let entries = match read_registry(log, user_data_path) {
+	match read_registry(log, user_data_path) {
 		Ok(entries) => entries,
 		Err(e) => {
 			debug!(
 				log,
 				"Could not read the local agent host endpoint registry at {}: {}",
-				metadata_path(user_data_path).display(),
+				metadata_directory(user_data_path).display(),
 				e
 			);
-			return Vec::new();
+			Vec::new()
 		}
-	};
-
-	let live = prune_dead_entries(log, entries);
-	let mut deduped = dedupe_entries(live);
-	deduped.sort_by(|a, b| {
-		server_type_sort_rank(a.server_type)
-			.cmp(&server_type_sort_rank(b.server_type))
-			.then_with(|| a.instance_id.cmp(&b.instance_id))
-	});
-	deduped
+	}
 }
 
-/// Like [`list_live_endpoints`], but restricted to `standalone` entries.
-/// `editor` entries are never included here: they are owned by running VS
-/// Code windows and must never be selected, replaced, or killed by the
-/// standalone CLI. Used by `code agent kill`'s multi-instance
-/// disambiguation as well as by [`select_live_standalone_endpoint`].
+/// Like [`list_live_endpoints`], but restricted to `standalone` entries;
+/// `editor` entries are owned by running VS Code windows and must never be
+/// selected, replaced, or killed by the standalone CLI.
 pub fn list_live_standalone_endpoints(
 	log: &log::Logger,
 	user_data_path: &Path,
@@ -781,19 +678,12 @@ pub struct LiveStandaloneEndpoint {
 	pub tunnel_name: Option<String>,
 }
 
-/// Reads the registry and returns a live `standalone` entry to reuse, if
-/// any. `editor` entries are never considered: they are owned by running VS
-/// Code windows and must never be selected or replaced by the standalone
-/// CLI. Only `tcp` entries are considered, since this helper backs `code
-/// agent host`'s single-target TCP reuse path. If more than one live
-/// standalone entry exists, selection is deterministic (lowest
-/// `instanceId`) and a warning is logged recommending `--address` to
-/// disambiguate, since there is currently no dedicated "target this
-/// instance" flag.
-///
-/// Callers that want *every* live standalone entry (e.g. `code agent
-/// kill`'s multi-instance disambiguation, which must offer socket/pipe
-/// entries too) should use [`list_live_standalone_endpoints`] instead.
+/// Reads the registry and returns a live `standalone` `tcp` entry to reuse, if
+/// any, backing `code agent host`'s single-target TCP reuse. `editor` and
+/// non-`tcp` entries are never considered. When several live standalone entries
+/// exist, selection is deterministic (lowest `instanceId`) and a warning
+/// recommends `--address` to disambiguate. Callers wanting every live
+/// standalone entry should use [`list_live_standalone_endpoints`].
 pub fn select_live_standalone_endpoint(
 	log: &log::Logger,
 	user_data_path: &Path,
@@ -937,43 +827,35 @@ mod tests {
 	}
 
 	#[test]
-	fn upsert_replaces_only_matching_identity() {
-		let entries = vec![standalone(1, "a", 100), standalone(2, "b", 200)];
-		let next = upsert_entry(entries, standalone(1, "a", 999));
-
-		assert_eq!(next.len(), 2);
-		let a = next.iter().find(|e| e.instance_id == "a").unwrap();
-		assert_eq!(
-			a.endpoint,
-			AgentHostEndpointAddress::Tcp {
-				host: "127.0.0.1".to_string(),
-				port: 999
-			}
-		);
-	}
-
-	#[test]
-	fn upsert_preserves_other_writers_entries() {
-		let entries = vec![standalone(1, "a", 100)];
-		let next = upsert_entry(entries, standalone(2, "b", 200));
-
-		assert_eq!(next.len(), 2);
-		assert!(next.iter().any(|e| e.instance_id == "a"));
-		assert!(next.iter().any(|e| e.instance_id == "b"));
-	}
-
-	#[test]
-	fn remove_entry_only_removes_exact_identity() {
-		let entries = vec![standalone(1, "a", 100), standalone(1, "a-newer", 200)];
-		let identity = AgentHostEndpointIdentity {
-			server_type: AgentHostServerType::Standalone,
-			pid: 1,
-			instance_id: "a".to_string(),
+	fn identity_hash_input_and_entry_file_name_match_fixed_cross_language_vectors() {
+		// These vectors are shared byte-for-byte with the TypeScript
+		// implementation (`getAgentHostEndpointIdentityHashInput` +
+		// `createHash('sha256')` in `common/agentHostEndpointRegistry.ts` /
+		// `node/localAgentHostMetadata.ts`); both languages must derive the
+		// same `entries/<sha256hex>.json` name for a given identity.
+		let editor_identity = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Editor,
+			pid: 1234,
+			instance_id: "fixed-instance-id".to_string(),
 		};
-		let remaining = remove_entry(&entries, &identity);
+		let standalone_identity = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
+			pid: 4321,
+			instance_id: "abc-XYZ_123".to_string(),
+		};
 
-		assert_eq!(remaining.len(), 1);
-		assert_eq!(remaining[0].instance_id, "a-newer");
+		assert_eq!(
+			identity_hash_input(&editor_identity),
+			"editor\u{0}1234\u{0}fixed-instance-id"
+		);
+		assert_eq!(
+			entry_file_name(&editor_identity),
+			"029edbd47070427f394376710b64ae91d13904edadc1d26ac520a12995168a37.json"
+		);
+		assert_eq!(
+			entry_file_name(&standalone_identity),
+			"5457fbcae051e99f111749d6e9a1064acae7dd701b87802314c28d273986413e.json"
+		);
 	}
 
 	#[test]
@@ -1059,7 +941,7 @@ mod tests {
 	}
 
 	#[test]
-	fn publish_prunes_dead_entries_from_other_writers() {
+	fn read_prunes_dead_entry_and_best_effort_removes_its_file() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let dead = standalone(u32::MAX - 1, "dead", 100);
@@ -1068,20 +950,29 @@ mod tests {
 		let live = standalone(std::process::id(), "live", 200);
 		publish_agent_host_endpoint(&log, dir.path(), &live).unwrap();
 
+		let dead_path = entry_path(dir.path(), &dead.identity());
+		assert!(dead_path.exists());
+
 		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
 		assert_eq!(entries, vec![live]);
+		assert!(!dead_path.exists());
 	}
 
 	#[test]
-	fn remove_deletes_file_when_registry_becomes_empty() {
+	fn remove_deletes_only_own_file_and_leaves_the_entries_dir() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let metadata = standalone(std::process::id(), "instance-a", 8080);
 		publish_agent_host_endpoint(&log, dir.path(), &metadata).unwrap();
+		let path = entry_path(dir.path(), &metadata.identity());
+		assert!(path.exists());
 
 		remove_agent_host_endpoint(&log, dir.path(), &metadata.identity());
 
-		assert!(!metadata_path(dir.path()).exists());
+		assert!(!path.exists());
+		// The shared entries directory is intentionally retained to avoid
+		// racing a concurrent publisher.
+		assert!(entries_directory(dir.path()).exists());
 	}
 
 	#[test]
@@ -1101,9 +992,7 @@ mod tests {
 
 	#[test]
 	fn remove_does_not_delete_newer_process_entry_with_same_pid() {
-		// Simulates PID reuse: our entry was already overwritten by a
-		// different instanceId sharing our old PID. Removal must target
-		// the exact (type, pid, instanceId) tuple, never the PID alone.
+		// PID reuse: removal must target the exact (type, pid, instanceId), not the PID alone.
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let ours = standalone(std::process::id(), "ours", 8080);
@@ -1168,69 +1057,194 @@ mod tests {
 	}
 
 	#[test]
-	fn acquire_registry_lock_reclaims_stale_lock_from_dead_pid() {
+	fn concurrent_publishes_preserve_every_entry_without_a_lock() {
+		use std::sync::{Arc, Barrier};
+
 		let dir = tempfile::tempdir().unwrap();
-		let log = log::Logger::test();
-		let path = metadata_path(dir.path());
-		let lock_dir = lock_directory_path(&path);
-		fs::create_dir_all(lock_dir.parent().unwrap()).unwrap();
-		fs::create_dir(&lock_dir).unwrap();
-		write_lock_owner(
-			&lock_dir,
-			&LockOwner {
-				pid: u32::MAX - 1,
-				instance_id: "dead-owner".to_string(),
-			},
-		)
-		.unwrap();
+		let user_data_path = Arc::new(dir.path().to_path_buf());
+		let writer_count = 8;
+		let barrier = Arc::new(Barrier::new(writer_count));
 
-		let owner = LockOwner {
-			pid: std::process::id(),
-			instance_id: "new-owner".to_string(),
-		};
-		let lock = acquire_registry_lock(
-			&lock_dir,
-			&owner,
-			Duration::from_millis(500),
-			Duration::from_millis(10),
-			&log,
-		)
-		.unwrap();
+		let handles: Vec<_> = (0..writer_count)
+			.map(|index| {
+				let user_data_path = Arc::clone(&user_data_path);
+				let barrier = Arc::clone(&barrier);
+				std::thread::spawn(move || {
+					let log = log::Logger::test();
+					let entry = standalone(
+						std::process::id(),
+						&format!("instance-{index}"),
+						8000 + index as u16,
+					);
+					// Release all threads simultaneously to maximize overlap.
+					barrier.wait();
+					publish_agent_host_endpoint(&log, &user_data_path, &entry).unwrap();
+				})
+			})
+			.collect();
+		for handle in handles {
+			handle.join().unwrap();
+		}
 
-		assert!(lock.is_some());
+		let entries = read_registry(&log::Logger::test(), &user_data_path).unwrap();
+		let mut got: Vec<String> = entries.into_iter().map(|e| e.instance_id).collect();
+		got.sort();
+		let mut expected: Vec<String> =
+			(0..writer_count).map(|i| format!("instance-{i}")).collect();
+		expected.sort();
+		assert_eq!(got, expected);
 	}
 
 	#[test]
-	fn acquire_registry_lock_times_out_when_holder_is_alive() {
+	fn publish_creates_no_lock_artifact() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
-		let path = metadata_path(dir.path());
-		let lock_dir = lock_directory_path(&path);
-		fs::create_dir_all(lock_dir.parent().unwrap()).unwrap();
-		fs::create_dir(&lock_dir).unwrap();
-		write_lock_owner(
-			&lock_dir,
-			&LockOwner {
-				pid: std::process::id(),
-				instance_id: "alive-owner".to_string(),
-			},
+		let metadata = standalone(std::process::id(), "instance-a", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &metadata).unwrap();
+
+		let names: Vec<String> = fs::read_dir(metadata_directory(dir.path()))
+			.unwrap()
+			.map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+			.collect();
+		assert!(
+			!names.iter().any(|name| name.ends_with(".lock")),
+			"unexpected lock artifact in {names:?}"
+		);
+	}
+
+	#[test]
+	fn read_ignores_malformed_unsupported_temp_and_non_entry_files() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let live = standalone(std::process::id(), "live", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &live).unwrap();
+
+		let entries_dir = entries_directory(dir.path());
+		fs::write(entries_dir.join("malformed.json"), b"{ not json").unwrap();
+		let mut unsupported =
+			serde_json::to_value(standalone(std::process::id(), "future", 9090)).unwrap();
+		unsupported["schemaVersion"] = serde_json::json!(999);
+		fs::write(
+			entries_dir.join("unsupported.json"),
+			serde_json::to_vec(&unsupported).unwrap(),
 		)
 		.unwrap();
+		fs::write(entries_dir.join("staging.tmp"), b"partial").unwrap();
+		fs::write(entries_dir.join("notes.txt"), b"unrelated").unwrap();
 
-		let owner = LockOwner {
+		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
+		assert_eq!(entries, vec![live]);
+	}
+
+	#[test]
+	fn read_ignores_entry_files_whose_name_mismatches_identity() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let legit = standalone(std::process::id(), "legit", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &legit).unwrap();
+
+		// A valid object for legit's identity, but stored under names that are
+		// not its canonical `<lowercase sha256>.json`, must never override or
+		// delete the legitimate entry.
+		let mut impostor = legit.clone();
+		impostor.connection_token = "impostor-token".to_string();
+		let entries_dir = entries_directory(dir.path());
+		let other = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
 			pid: std::process::id(),
-			instance_id: "contender".to_string(),
+			instance_id: "other".to_string(),
 		};
-		let lock = acquire_registry_lock(
-			&lock_dir,
-			&owner,
-			Duration::from_millis(60),
-			Duration::from_millis(20),
-			&log,
-		)
-		.unwrap();
+		let upper = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
+			pid: std::process::id(),
+			instance_id: "upper".to_string(),
+		};
+		let upper_name = format!(
+			"{}.json",
+			entry_file_name(&upper)
+				.trim_end_matches(".json")
+				.to_uppercase()
+		);
+		let misnamed = [
+			entries_dir.join("wrong.json"),
+			entries_dir.join(entry_file_name(&other)),
+			entries_dir.join(upper_name),
+		];
+		for path in &misnamed {
+			fs::write(path, serde_json::to_vec(&impostor).unwrap()).unwrap();
+		}
 
-		assert!(lock.is_none());
+		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
+		assert_eq!(entries, vec![legit]);
+		for path in &misnamed {
+			assert!(path.exists());
+		}
+	}
+
+	#[test]
+	fn read_merges_legacy_metadata_read_only_and_new_entry_wins_collisions() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		prepare_metadata_directory(dir.path()).unwrap();
+
+		let shared_identity = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
+			pid: std::process::id(),
+			instance_id: "shared".to_string(),
+		};
+		let mut legacy_shared = standalone(std::process::id(), "shared", 1111);
+		legacy_shared.connection_token = "legacy-token".to_string();
+		let legacy_only = standalone(std::process::id(), "legacy-only", 2222);
+		let legacy_payload = vec![legacy_shared, legacy_only.clone()];
+		let legacy_path = legacy_metadata_path(dir.path());
+		fs::write(&legacy_path, serde_json::to_vec(&legacy_payload).unwrap()).unwrap();
+
+		let mut winning = standalone(std::process::id(), "shared", 3333);
+		winning.connection_token = "new-token".to_string();
+		publish_agent_host_endpoint(&log, dir.path(), &winning).unwrap();
+
+		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
+		// Deterministic order: both standalone, sorted by instanceId.
+		assert_eq!(entries, vec![legacy_only, winning]);
+		// The new entry file, not the legacy copy, won the identity collision.
+		let shared = read_registry(&log::Logger::test(), dir.path())
+			.unwrap()
+			.into_iter()
+			.find(|e| e.identity() == shared_identity)
+			.unwrap();
+		assert_eq!(shared.connection_token, "new-token");
+		// The legacy file was never mutated.
+		let legacy_after: Vec<AgentHostEndpointMetadata> =
+			serde_json::from_slice(&fs::read(&legacy_path).unwrap()).unwrap();
+		assert_eq!(legacy_after, legacy_payload);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn publish_writes_owner_only_directory_and_entry_permissions() {
+		use std::os::unix::fs::PermissionsExt;
+
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let metadata = standalone(std::process::id(), "instance-a", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &metadata).unwrap();
+
+		let metadata_mode = fs::metadata(metadata_directory(dir.path()))
+			.unwrap()
+			.permissions()
+			.mode() & 0o777;
+		let entries_mode = fs::metadata(entries_directory(dir.path()))
+			.unwrap()
+			.permissions()
+			.mode() & 0o777;
+		let entry_mode = fs::metadata(entry_path(dir.path(), &metadata.identity()))
+			.unwrap()
+			.permissions()
+			.mode() & 0o777;
+		assert_eq!(
+			(metadata_mode, entries_mode, entry_mode),
+			(0o700, 0o700, 0o600)
+		);
 	}
 
 	fn editor(pid: u32, instance_id: &str, socket_path: &str) -> AgentHostEndpointMetadata {
@@ -1256,8 +1270,6 @@ mod tests {
 		let pid = std::process::id();
 		let ed = editor(pid, "editor-b", "/tmp/editor-b.sock");
 		let sa = standalone(pid, "standalone-a", 8080);
-		// Publish editor first so we can assert sort order isn't just
-		// insertion order.
 		publish_agent_host_endpoint(&log, dir.path(), &ed).unwrap();
 		publish_agent_host_endpoint(&log, dir.path(), &sa).unwrap();
 

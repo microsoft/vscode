@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createHash } from 'crypto';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
 	AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
 	IAgentHostEndpointMetadata,
 	dedupeAgentHostEndpointMetadata,
+	getAgentHostEndpointIdentityHashInput,
 	getAgentHostEndpointIdentityKey,
 	parseAgentHostEndpointMetadataEntry,
 	parseAgentHostEndpointRegistry,
-	removeAgentHostEndpointMetadata,
-	upsertAgentHostEndpointMetadata,
 } from '../../common/agentHostEndpointRegistry.js';
 
 function createEntry(overrides: Partial<IAgentHostEndpointMetadata> = {}): IAgentHostEndpointMetadata {
@@ -92,19 +92,21 @@ suite('Agent Host Endpoint Registry (schema v2)', () => {
 		assert.strictEqual(deduped.find(entry => entry.type === 'editor' && entry.instanceId === 'dup')?.connectionToken, 'fresh-token');
 	});
 
-	test('upsert replaces only the matching identity, leaving other writers untouched', () => {
-		const a = createEntry({ instanceId: 'a' });
-		const b = createEntry({ pid: 200, instanceId: 'b', type: 'standalone', endpoint: { type: 'tcp', host: '127.0.0.1', port: 1 } });
-		const updatedA = createEntry({ instanceId: 'a', connectionToken: 'updated-token' });
+	test('derives a stable, cross-language identity hash input and file name', () => {
+		// These vectors are shared byte-for-byte with the Rust CLI
+		// (`cli/src/tunnels/agent_host_registry.rs`); both languages must
+		// derive the same `entries/<sha256hex>.json` name for a given identity.
+		const hashName = (type: 'editor' | 'standalone', pid: number, instanceId: string) =>
+			createHash('sha256').update(getAgentHostEndpointIdentityHashInput({ type, pid, instanceId }), 'utf8').digest('hex');
 
-		assert.deepStrictEqual(upsertAgentHostEndpointMetadata([a, b], updatedA), [b, updatedA]);
-	});
-
-	test('remove takes only the exact-identity entry (same PID is not enough)', () => {
-		const owner = createEntry({ instanceId: 'a' });
-		const impostor = createEntry({ instanceId: 'a-impostor' }); // same (type, pid), different instanceId
-		const other = createEntry({ pid: 200, instanceId: 'b' });
-
-		assert.deepStrictEqual(removeAgentHostEndpointMetadata([owner, impostor, other], owner), [impostor, other]);
+		assert.deepStrictEqual({
+			input: getAgentHostEndpointIdentityHashInput({ type: 'editor', pid: 1234, instanceId: 'fixed-instance-id' }),
+			editorHash: hashName('editor', 1234, 'fixed-instance-id'),
+			standaloneHash: hashName('standalone', 4321, 'abc-XYZ_123'),
+		}, {
+			input: 'editor' + '\0' + '1234' + '\0' + 'fixed-instance-id',
+			editorHash: '029edbd47070427f394376710b64ae91d13904edadc1d26ac520a12995168a37',
+			standaloneHash: '5457fbcae051e99f111749d6e9a1064acae7dd701b87802314c28d273986413e',
+		});
 	});
 });

@@ -1112,9 +1112,9 @@ impl AgentHostSidecar {
 			tunnel_name,
 		);
 
-		// Registry publish does blocking filesystem I/O and may briefly
-		// spin-retry on a contended lock; run it on a blocking-safe thread
-		// so it never stalls the tokio runtime.
+		// Registry publish does blocking filesystem I/O (write a temp file and
+		// atomically rename it into place); run it on a blocking-safe thread so
+		// it never stalls the tokio runtime.
 		{
 			let publish_log = log.clone();
 			let publish_path = user_data_path.clone();
@@ -1306,8 +1306,8 @@ impl Drop for AgentHostSidecar {
 		let user_data_path = self.user_data_path.clone();
 
 		// `drop` is synchronous and must not block a Tokio worker thread
-		// with this call's blocking filesystem I/O (lock acquisition,
-		// reads/writes). If a runtime is reachable from here, hand the
+		// with this call's blocking filesystem I/O (removing our own entry
+		// file). If a runtime is reachable from here, hand the
 		// cleanup off to a blocking-safe thread and don't wait for it —
 		// this is already a best-effort fallback, so fire-and-forget is
 		// acceptable. If no runtime is available (e.g. this sidecar

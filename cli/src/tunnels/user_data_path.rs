@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//! Resolves the platform "user data" directory used to home the shared
-//! agent-host discovery registry (`<userDataPath>/agent-host/local-endpoint/metadata.json`).
+//! Resolves the platform "user data" directory used to home the
+//! agent-host discovery registry (`<userDataPath>/agent-host/local-endpoint/entries/`,
+//! a directory of one atomic entry file per agent host instance).
 //!
 //! Mirrors the precedence and per-platform rules implemented by the
 //! TypeScript resolver in `src/vs/platform/environment/node/userDataPath.ts`

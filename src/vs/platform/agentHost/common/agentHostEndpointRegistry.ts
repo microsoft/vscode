@@ -6,16 +6,21 @@
 import { vEnum, vLiteral, vNumber, vObj, vOptionalProp, vString, vUnion } from '../../../base/common/validation.js';
 
 /**
- * Schema version for the shared local agent-host endpoint registry at
- * `<userDataPath>/agent-host/local-endpoint/metadata.json`. This schema is
- * shared with the Rust CLI (`cli/src/tunnels/agent_host_metadata.rs`); field
- * renames or removals MUST be coordinated across both languages.
+ * Schema version for the shared local agent-host endpoint registry under
+ * `<userDataPath>/agent-host/local-endpoint/`. Each running agent host owns
+ * one immutable entry file at `entries/<sha256hex>.json`; readers additionally
+ * merge any legacy `metadata.json` array left by older builds (read-only). This
+ * schema is shared with the Rust CLI
+ * (`cli/src/tunnels/agent_host_registry.rs`); field renames or removals MUST be
+ * coordinated across both languages.
  *
  * Version 1 was the editor-only, socket-path-only schema
  * (`ILocalAgentHostEndpointMetadata` in `node/localAgentHostMetadata.ts`).
  * Version 2 generalizes the registry to hold both editor (socket/pipe) and
- * standalone CLI (TCP) endpoints in the same file so every locally running
- * agent host is discoverable from one place.
+ * standalone CLI (TCP) endpoints so every locally running agent host is
+ * discoverable from one place. Changing the on-disk container (one file per
+ * instance vs. the historical single shared array) did not change this
+ * serialized entry shape or `AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION`.
  */
 export const AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION = 2;
 
@@ -36,9 +41,10 @@ export type AgentHostEndpointAddress =
 	| { readonly type: 'tcp'; readonly host: string; readonly port: number };
 
 /**
- * One entry of the shared local agent-host endpoint registry. The registry
- * file itself is a JSON array of these entries
- * (`AgentHostEndpointMetadata[]`).
+ * One entry of the shared local agent-host endpoint registry. Each live
+ * agent host serializes exactly one of these as its own
+ * `entries/<sha256hex>.json` file; a legacy `metadata.json` (and the
+ * `code agent endpoints` SSH inventory) instead carries a JSON array of them.
  */
 export interface IAgentHostEndpointMetadata {
 	readonly schemaVersion: typeof AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION;
@@ -118,11 +124,11 @@ export function parseAgentHostEndpointMetadataEntry(raw: unknown): IAgentHostEnd
 }
 
 /**
- * Parses the raw contents of the registry file (expected to be
- * `AgentHostEndpointMetadata[]`). Every entry is validated independently:
- * malformed entries and entries with an unsupported `schemaVersion` are
- * dropped rather than failing the entire read. A non-array top-level value
- * yields an empty registry.
+ * Parses an array-shaped registry payload (`AgentHostEndpointMetadata[]`) —
+ * a legacy `metadata.json` file or the `code agent endpoints` SSH inventory.
+ * Every entry is validated independently: malformed entries and entries with
+ * an unsupported `schemaVersion` are dropped rather than failing the entire
+ * read. A non-array top-level value yields an empty registry.
  */
 export function parseAgentHostEndpointRegistry(raw: unknown): IAgentHostEndpointMetadata[] {
 	if (!Array.isArray(raw)) {
@@ -143,15 +149,26 @@ export function getAgentHostEndpointIdentityKey(identity: IAgentHostEndpointIden
 	return `${identity.type}:${identity.pid}:${identity.instanceId}`;
 }
 
+/**
+ * Canonical UTF-8 input hashed to derive an identity's `<sha256hex>.json` entry
+ * file name. The `\0` separators are unambiguous (no field contains NUL) and the
+ * encoding is shared byte-for-byte with the Rust CLI; it MUST NOT change without
+ * a coordinated update on both sides.
+ */
+export function getAgentHostEndpointIdentityHashInput(identity: IAgentHostEndpointIdentity): string {
+	return `${identity.type}\0${identity.pid}\0${identity.instanceId}`;
+}
+
 export function isSameAgentHostEndpointIdentity(a: IAgentHostEndpointIdentity, b: IAgentHostEndpointIdentity): boolean {
 	return a.type === b.type && a.pid === b.pid && a.instanceId === b.instanceId;
 }
 
 /**
  * Deduplicates entries by `(type, pid, instanceId)`. If a duplicate identity
- * appears more than once (for example a crashed writer left a stale copy
- * before another writer's cleanup ran), the entry encountered later in
- * `entries` wins, since it is presumed to be the most recently written copy.
+ * appears more than once (for example a legacy `metadata.json` entry and a
+ * newer per-instance entry file both describe the same owner), the entry
+ * encountered later in `entries` wins, since it is presumed to be the most
+ * recently written copy.
  */
 export function dedupeAgentHostEndpointMetadata(entries: readonly IAgentHostEndpointMetadata[]): IAgentHostEndpointMetadata[] {
 	const byIdentity = new Map<string, IAgentHostEndpointMetadata>();
@@ -159,24 +176,4 @@ export function dedupeAgentHostEndpointMetadata(entries: readonly IAgentHostEndp
 		byIdentity.set(getAgentHostEndpointIdentityKey(entry), entry);
 	}
 	return [...byIdentity.values()];
-}
-
-/**
- * Returns `entries` with any existing entry sharing `metadata`'s identity
- * replaced by `metadata`. Used by a writer to upsert its own registry entry
- * without disturbing other writers' entries.
- */
-export function upsertAgentHostEndpointMetadata(entries: readonly IAgentHostEndpointMetadata[], metadata: IAgentHostEndpointMetadata): IAgentHostEndpointMetadata[] {
-	const remaining = entries.filter(entry => !isSameAgentHostEndpointIdentity(entry, metadata));
-	remaining.push(metadata);
-	return remaining;
-}
-
-/**
- * Returns `entries` with the exact-identity-matching entry removed, if any.
- * Used on shutdown so a writer only ever removes its own entry, never a
- * newer process's entry that happens to share its PID.
- */
-export function removeAgentHostEndpointMetadata(entries: readonly IAgentHostEndpointMetadata[], owner: IAgentHostEndpointIdentity): IAgentHostEndpointMetadata[] {
-	return entries.filter(entry => !isSameAgentHostEndpointIdentity(entry, owner));
 }

@@ -9,53 +9,72 @@ describes only the discoverable endpoint for external local clients.
 
 ## Metadata location
 
-The endpoint metadata file is:
+The registry is a **directory of per-instance entry files**:
 
 ```text
-<userDataPath>/agent-host/local-endpoint/metadata.json
+<userDataPath>/agent-host/local-endpoint/entries/<identity>.json
 ```
+
+Each locally running agent host process (this editor's own utility process,
+other editor windows, and the standalone `code agent host` CLI) owns exactly one
+entry file and writes only that file. `<identity>` is the lowercase SHA-256 hex
+digest of the UTF-8 string `${type}\0${pid}\0${instanceId}` (NUL-separated), so
+the filename is cross-language, path-safe, and collision-resistant for the full
+entry identity. Readers enumerate the directory to discover every live local
+agent host.
 
 `<userDataPath>` is the active VS Code user data directory. Its value depends on
 the product quality and any `--user-data-dir` argument. Implementations
 should resolve the active user data directory rather than assuming the default
 Stable or Insiders location.
 
-The file is a **shared registry**: every locally running agent host process
-(this editor's own utility process, other editor windows, and the standalone
-`code agent host` CLI) upserts its own entry into the same file, so any one
-process can discover every other live local agent host.
+Because each process writes only its own file, there is no shared
+read-modify-write and therefore **no lock**. See
+[Multi-writer safety](#multi-writer-safety).
 
-The file is optional. If VS Code cannot prepare or publish the external
+Entries are optional. If VS Code cannot prepare or publish the external
 endpoint, it logs the error and continues running the agent host over its
 internal MessagePort transport.
 
+### Legacy `metadata.json` fallback (read-only)
+
+Earlier builds wrote a single shared array file at
+`<userDataPath>/agent-host/local-endpoint/metadata.json`. Readers still merge
+valid entries from that legacy file **read-only** so hosts started by an older
+build (or before an in-place upgrade) remain discoverable. New per-instance
+entry files win any `(type, pid, instanceId)` collision. Writers never create,
+lock, or mutate `metadata.json`; its stale entries are filtered out by the
+PID-liveness check and age out naturally as those old hosts exit.
+
 ## File format
 
-The current schema version is `2`:
+Each entry file is a single JSON object. The current schema version is `2`:
 
 ```json
-[
-  {
-    "schemaVersion": 2,
-    "type": "editor",
-    "pid": 12345,
-    "instanceId": "base64url-instance-id",
-    "protocolVersion": "0.7.0",
-    "connectionToken": "base64url-bearer-token",
-    "endpoint": {
-      "type": "socket",
-      "path": "\\\\.\\pipe\\vscode-agent-host-..."
-    }
+{
+  "schemaVersion": 2,
+  "type": "editor",
+  "pid": 12345,
+  "instanceId": "base64url-instance-id",
+  "protocolVersion": "0.7.0",
+  "connectionToken": "base64url-bearer-token",
+  "endpoint": {
+    "type": "socket",
+    "path": "\\\\.\\pipe\\vscode-agent-host-..."
   }
-]
+}
 ```
+
+The legacy `metadata.json` fallback holds a JSON **array** of these same entry
+objects; the serialized entry schema is identical, only the storage container
+differs.
 
 | Property | Description |
 |---|---|
 | `schemaVersion` | Metadata schema version. Clients must ignore entries whose version they do not understand rather than rejecting the whole file. |
 | `type` | Kind of process that owns the endpoint: `editor` (a VS Code utility process) or `standalone` (the `code agent host` CLI). This controls ownership/default-selection policy on the client; it is not a measure of trust. |
 | `pid` | PID of the process that owns the endpoint. |
-| `instanceId` | Random identity used to distinguish successive endpoint owners. Combined with `type` and `pid`, this forms the entry's identity for dedupe/upsert/removal, since PIDs can be reused after a process exits. |
+| `instanceId` | Random identity used to distinguish successive endpoint owners. Combined with `type` and `pid`, this forms the entry's identity for dedupe/removal and for naming the entry file, since PIDs can be reused after a process exits. |
 | `protocolVersion` | AHP version spoken by the host. Clients must still perform the normal AHP `initialize` negotiation. |
 | `connectionToken` | Random bearer token required during the WebSocket upgrade. |
 | `endpoint` | Discriminated union describing how to connect: `{ "type": "socket", "path": string }` for a Windows named pipe or Unix domain socket (used by the editor today), or `{ "type": "tcp", "host": string, "port": number }` for a TCP listener (used by the standalone CLI). |
@@ -120,47 +139,55 @@ Clients must use the path from the metadata file rather than reconstructing it.
 
 ## Multi-writer safety
 
-Because more than one process can publish to `metadata.json` at once, an
-atomic rename by itself is not sufficient: two writers could read the same
-array concurrently and each overwrite the other's addition. Every writer
-therefore:
+The registry needs no lock. Each process owns a single entry file named after
+its own `(type, pid, instanceId)` identity, so concurrent publishers never touch
+the same file and cannot clobber each other's records. Every writer:
 
-1. Acquires an exclusive lock: an atomically-created sibling lock directory
-   (`metadata.json.lock`) containing an `owner.json` file recording the
-   lock holder's `(pid, instanceId)`.
-2. Reads the current array.
-3. Drops entries whose PID is confirmed dead.
-4. Upserts its own `(type, pid, instanceId)` entry.
-5. Writes a mode-`0600` temporary file and atomically renames it over
-   `metadata.json`.
-6. Releases the lock.
+1. Prepares the owner-only `entries` directory.
+2. Writes a mode-`0600` uniquely-named temporary file in that directory, flushes
+   it, and atomically renames it over its own `<identity>.json` final path.
+   Temporary files are cleaned up on failure and are ignored by readers because
+   they are not `*.json`.
 
-Lock acquisition is bounded: if the lock directory already exists, a
-contender inspects `owner.json`. If the recorded PID is no longer alive, the
-lock is stale and is reclaimed immediately; otherwise acquisition is retried
-until a short timeout elapses. On timeout, the writer does **not** silently
-bypass the lock and write anyway — it logs the failure and continues running
-undiscoverable, exactly as when the endpoint cannot be published at all.
+On Windows a rename over an existing file can transiently fail while another
+handle is open; because each identity has a single owner, the writer safely
+removes and replaces only its own final path to make republish idempotent
+without introducing a shared race.
 
-Readers never take the lock: because the registry file is only ever observed
-in a fully-written state (via atomic rename), reads are always safe without
-coordination.
+Readers never write under coordination. Each reader:
+
+1. Enumerates `entries/*.json`, plus the legacy `metadata.json` array if present.
+2. Parses and structurally validates every entry independently, ignoring
+   malformed files, unsupported schema versions, temporary files, and any other
+   unrecognized names — a bad file logs a warning but never hides valid entries.
+   A valid entry must also live under its own canonical `<identity>.json` name;
+   an object stored under any other name is warned and ignored, so a misnamed
+   copy can never shadow or delete the real entry.
+3. Drops entries whose PID is confirmed dead. A dead entry's own file is
+   best-effort removed by exact path; this is race-safe because any replacement
+   owner would use a different `instanceId` and therefore a different filename.
+4. Deduplicates by `(type, pid, instanceId)`, letting new entry files win over
+   legacy `metadata.json` collisions.
+5. Returns a deterministic ordering.
 
 ## Security and lifecycle
 
-- The metadata directory and file are restricted to the current user. On
-  Windows, `SYSTEM` and Administrators also retain full access.
+- The metadata root and the `entries` directory are restricted to the current
+  user (mode `0700` on POSIX). Entry files are mode `0600`. On Windows, both
+  directories carry an owner-only ACL; `SYSTEM` and Administrators also retain
+  full access.
 - The socket or pipe itself may use platform-default access. Possession of the
   metadata token is required to complete the WebSocket upgrade.
-- Metadata is written atomically only after the endpoint is listening and the
-  protocol handler is installed.
-- On shutdown, VS Code reacquires the write lock and removes only the entry
-  whose `(type, pid, instanceId)` exactly matches its own. This prevents an
-  older process from deleting a newer process's endpoint record, and prevents
-  a writer from ever deleting another live writer's entry. The file itself is
-  deleted only when the resulting array is empty.
-- Clients should handle a missing file, a stale PID, endpoint closure, and the
-  metadata being replaced while reconnecting.
+- An entry file is written atomically only after the endpoint is listening and
+  the protocol handler is installed.
+- On shutdown, VS Code computes its own `<identity>.json` path and removes only
+  that exact file. The shared `entries` directory is intentionally left in place
+  to avoid racing a concurrent publisher (an `rmdir` could delete the directory
+  between another writer creating it and writing its temp file). Because a
+  process only ever deletes its own file, it can never remove another live
+  writer's entry, and the legacy `metadata.json` is never mutated.
+- Clients should handle a missing entry, a stale PID, endpoint closure, and the
+  registry changing while reconnecting.
 
 The implementation and lifecycle wiring live in:
 
