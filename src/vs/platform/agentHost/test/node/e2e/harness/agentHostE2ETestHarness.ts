@@ -27,7 +27,7 @@ import { TerminalClaimKind } from '../../../../common/state/protocol/channels-te
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
-	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
+	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
@@ -517,7 +517,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 		seenNotifications.add(notification as object);
 
 		if (isActionNotification(notification, 'chat/error')) {
-			throw new Error(`Session error while driving ${turnId}`);
+			const action = getActionEnvelope(notification).action as ChatErrorAction;
+			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
