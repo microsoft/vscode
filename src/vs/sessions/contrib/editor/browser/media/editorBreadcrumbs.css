@@ -18,8 +18,13 @@
 	flex: 1 100%;
 	width: 100%;
 	height: 22px;
+	background-color: transparent;
 	border-bottom: none;
 	cursor: default;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumbs {
+	background-color: transparent;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-icon-label,
