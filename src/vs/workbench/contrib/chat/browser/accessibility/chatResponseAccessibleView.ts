@@ -16,6 +16,7 @@ import { IAccessibleViewImplementation } from '../../../../../platform/accessibi
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IInlineAgentSurveyService } from '../../../surveys/common/inlineAgentSurveyService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
@@ -32,6 +33,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const storageService = accessor.get(IStorageService);
+		const inlineAgentSurveyService = accessor.get(IInlineAgentSurveyService);
 		const widget = widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -56,7 +58,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 			return;
 		}
 
-		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService);
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService, inlineAgentSurveyService);
 	}
 }
 
@@ -243,7 +245,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		private readonly _widget: IChatWidget,
 		item: ChatTreeItem,
 		private readonly _wasOpenedFromInput: boolean,
-		private readonly _storageService: IStorageService
+		private readonly _storageService: IStorageService,
+		private readonly _inlineAgentSurveyService: IInlineAgentSurveyService,
 	) {
 		super();
 		this._storageDisposables.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, this._storageDisposables)(() => {
@@ -407,6 +410,13 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					break;
 				}
 			}
+		}
+
+		const survey = this._inlineAgentSurveyService.getPendingSurvey(item.sessionResource, item.id);
+		if (survey?.dismissed) {
+			contentParts.push(localize('inlineAgentSurveyDismissedAccessibleView', "Agent quality survey: feedback skipped. Return to the chat response to undo."));
+		} else if (survey) {
+			contentParts.push(localize('inlineAgentSurveyAccessibleView', "Optional agent quality survey: Did this do what you wanted? Select Yes, Partly, or No in the chat response. Partly or No reveals optional reasons and a Send button."));
 		}
 
 		return this._normalizeWhitespace(contentParts.join('\n'));

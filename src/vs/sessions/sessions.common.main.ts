@@ -126,6 +126,8 @@ import '../workbench/services/authentication/browser/authenticationQueryService.
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import '../workbench/services/assignment/common/assignmentService.js';
+import '../workbench/contrib/surveys/browser/inlineAgentSurveyService.js';
+import '../workbench/contrib/surveys/browser/inlineAgentSurvey.contribution.js';
 import '../workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
 import '../editor/common/services/languageFeaturesService.js';
 import '../editor/common/services/semanticTokensStylingService.js';

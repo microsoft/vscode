@@ -6,7 +6,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, StdAttr } from '../genAiAttributes';
-import { emitAgentTurnEvent, emitEditFeedbackEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitSessionStartEvent, emitToolCallEvent } from '../genAiEvents';
+import { emitAgentTurnEvent, emitEditFeedbackEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitInlineAgentSurveyEvent, emitSessionStartEvent, emitToolCallEvent } from '../genAiEvents';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
@@ -196,5 +196,51 @@ describe('emitEditSurvivalEvent', () => {
 		expect(attrs['survival_rate_four_gram']).toBe(0.95);
 		expect(attrs[CopilotChatAttr.REPO_HEAD_BRANCH_NAME]).toBe('feature/x');
 		expect(attrs[CopilotChatAttr.REPO_HEAD_COMMIT_HASH]).toBe('deadbeef');
+	});
+});
+
+describe('emitInlineAgentSurveyEvent', () => {
+	it('emits full event with a reason and correlation identifiers', () => {
+		const otel = createMockOTel();
+		emitInlineAgentSurveyEvent(otel, {
+			rating: 'partly',
+			reason: 'too_slow',
+			trigger: 'mature_response',
+			surface: 'agents_window',
+			turnCount: 7,
+			conversationId: 'sess-1',
+			requestId: 'resp-1',
+			model: 'gpt-4o',
+		});
+
+		expect(otel.emitLogRecord).toHaveBeenCalledOnce();
+		const [body, attrs] = otel.emitLogRecord.mock.calls[0];
+		expect(body).toContain('partly');
+		expect(attrs['event.name']).toBe('copilot_chat.inline_agent_survey');
+		expect(attrs['rating']).toBe('partly');
+		expect(attrs['reason']).toBe('too_slow');
+		expect(attrs['trigger']).toBe('mature_response');
+		expect(attrs['surface']).toBe('agents_window');
+		expect(attrs['turn_count']).toBe(7);
+		expect(attrs['conversation_id']).toBe('sess-1');
+		expect(attrs['request_id']).toBe('resp-1');
+		expect(attrs[GenAiAttr.REQUEST_MODEL]).toBe('gpt-4o');
+	});
+
+	it('omits optional fields when absent', () => {
+		const otel = createMockOTel();
+		emitInlineAgentSurveyEvent(otel, {
+			rating: 'yes',
+			trigger: 'first_response',
+			surface: 'editor_chat',
+			turnCount: 1,
+		});
+
+		const attrs = otel.emitLogRecord.mock.calls[0][1];
+		expect(attrs['rating']).toBe('yes');
+		expect(attrs).not.toHaveProperty('reason');
+		expect(attrs).not.toHaveProperty('conversation_id');
+		expect(attrs).not.toHaveProperty('request_id');
+		expect(attrs).not.toHaveProperty(GenAiAttr.REQUEST_MODEL);
 	});
 });

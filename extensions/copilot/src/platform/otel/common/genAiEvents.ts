@@ -238,6 +238,70 @@ export function emitUserFeedbackEvent(
 	});
 }
 
+/**
+ * Rating outcomes for the inline agent-quality survey.
+ */
+export type InlineAgentSurveyRating = 'yes' | 'partly' | 'no';
+
+/**
+ * Structured, validated payload for the inline agent-quality survey.
+ *
+ * This event intentionally carries only correlation identifiers and coarse
+ * structured feedback (rating + finite reason IDs + trigger/surface metadata).
+ * It must never include transcript, code, or free-text content.
+ */
+export interface IInlineAgentSurveyEvent {
+	/** Task-outcome rating selected by the user. */
+	readonly rating: InlineAgentSurveyRating;
+	/** Finite pre-defined reason ID, when one was selected. */
+	readonly reason?: string;
+	/** What caused the survey to be shown (e.g. `first_response`, `mature_response`). */
+	readonly trigger: string;
+	/** Where the survey was shown (e.g. `agents_window`, `editor_chat`). */
+	readonly surface: string;
+	/** Completed user-turn count for the surveyed chat. */
+	readonly turnCount: number;
+	/** Chat session / conversation correlation ID, when available. */
+	readonly conversationId?: string;
+	/** Response / request correlation ID, when available. */
+	readonly requestId?: string;
+	/** Model identifier for the surveyed response, when available. */
+	readonly model?: string;
+}
+
+/**
+ * Emit the inline agent-quality survey submission as an OTel log record.
+ *
+ * Mirrors {@link emitUserFeedbackEvent} but models the three-outcome survey
+ * (Yes/Partly/No) with an optional reason and trigger metadata.
+ * Optional correlation fields are omitted rather than synthesized when absent.
+ */
+export function emitInlineAgentSurveyEvent(
+	otel: IOTelService,
+	survey: IInlineAgentSurveyEvent,
+): void {
+	const attributes: Record<string, unknown> = {
+		'event.name': 'copilot_chat.inline_agent_survey',
+		'rating': survey.rating,
+		'trigger': survey.trigger,
+		'surface': survey.surface,
+		'turn_count': survey.turnCount,
+	};
+	if (survey.reason) {
+		attributes['reason'] = survey.reason;
+	}
+	if (survey.conversationId) {
+		attributes['conversation_id'] = survey.conversationId;
+	}
+	if (survey.requestId) {
+		attributes['request_id'] = survey.requestId;
+	}
+	if (survey.model) {
+		attributes[GenAiAttr.REQUEST_MODEL] = survey.model;
+	}
+	otel.emitLogRecord(`copilot_chat.inline_agent_survey: ${survey.rating}`, attributes);
+}
+
 export function emitCloudSessionInvokeEvent(
 	otel: IOTelService,
 	partnerAgent: string,

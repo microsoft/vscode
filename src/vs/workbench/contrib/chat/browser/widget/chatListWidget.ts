@@ -1028,6 +1028,10 @@ export class ChatListWidget extends Disposable {
 		return this._renderer.getTemplateDataForRequestId(requestId);
 	}
 
+	showInlineAgentSurveyForLatestResponse(): boolean {
+		return this._renderer.showInlineAgentSurveyForLatestResponse();
+	}
+
 	/**
 	 * Returns the currently rendered chat item containing the node.
 	 */

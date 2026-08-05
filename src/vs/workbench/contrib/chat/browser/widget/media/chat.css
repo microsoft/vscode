@@ -321,6 +321,127 @@
 	outline-offset: var(--vscode-spacing-size20);
 }
 
+.interactive-item-container .chat-inline-agent-survey {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.interactive-item-container .chat-inline-agent-survey-primary,
+.interactive-item-container .chat-inline-agent-survey-reasons,
+.interactive-item-container .chat-inline-agent-survey-confirmation,
+.interactive-item-container .chat-inline-agent-survey-dismissed {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	flex-wrap: wrap;
+}
+
+.interactive-item-container .chat-inline-agent-survey-question {
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.interactive-item-container .chat-inline-agent-survey-rating,
+.interactive-item-container .chat-inline-agent-survey-reason-options {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	flex-wrap: wrap;
+}
+
+.interactive-item-container .chat-inline-agent-survey .monaco-button {
+	min-width: 0;
+	padding: 2px var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	line-height: 18px;
+}
+
+.interactive-item-container .chat-inline-agent-survey .monaco-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.interactive-item-container .chat-inline-agent-survey .monaco-button.checked,
+.interactive-item-container .chat-inline-agent-survey .monaco-button.checked:hover {
+	border-color: var(--vscode-inputOption-activeBorder);
+	background-color: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+}
+
+.interactive-item-container .chat-inline-agent-survey-dismiss {
+	margin-left: auto;
+	padding: 2px;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.interactive-item-container .chat-inline-agent-survey-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-item-container .chat-inline-agent-survey-dismiss:focus-visible,
+.interactive-item-container .chat-inline-agent-survey-link:focus-visible,
+.interactive-item-container .chat-inline-agent-survey-undo:focus-visible,
+.interactive-item-container .chat-inline-agent-survey .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.interactive-item-container .chat-inline-agent-survey-reason-label,
+.interactive-item-container .chat-inline-agent-survey-dismissed {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+.interactive-item-container .chat-inline-agent-survey-confirmation {
+	color: var(--vscode-testing-iconPassed);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+.interactive-item-container .chat-inline-agent-survey-link,
+.interactive-item-container .chat-inline-agent-survey-undo {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+}
+
+.interactive-item-container .chat-inline-agent-survey-link:hover,
+.interactive-item-container .chat-inline-agent-survey-undo:hover {
+	text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.interactive-item-container .chat-inline-agent-survey,
+	.interactive-item-container .chat-inline-agent-survey-reasons {
+		animation: chat-inline-agent-survey-enter 160ms ease-out;
+	}
+}
+
+@keyframes chat-inline-agent-survey-enter {
+	from {
+		opacity: 0;
+		transform: translateY(var(--vscode-spacing-size40));
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 .interactive-item-container .chat-response-timing {
 	display: inline-grid;
 	flex-shrink: 0;

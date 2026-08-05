@@ -385,6 +385,8 @@ import './contrib/update/browser/update.contribution.js';
 // Surveys
 import './contrib/surveys/browser/nps.contribution.js';
 import './contrib/surveys/browser/languageSurveys.contribution.js';
+import './contrib/surveys/browser/inlineAgentSurveyService.js';
+import './contrib/surveys/browser/inlineAgentSurvey.contribution.js';
 
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
