@@ -51,7 +51,11 @@ suite('MicCaptureService', () => {
 				},
 			},
 		});
-		const service = store.add(new MicCaptureService(
+		const service = store.add(new class extends MicCaptureService {
+			protected override getMediaCaptureWindow(targetWindow: Window & typeof globalThis): Window & typeof globalThis {
+				return targetWindow;
+			}
+		}(
 			store.add(new TestStorageService()),
 			new TestNotificationService(),
 			new NullLogService(),

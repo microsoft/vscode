@@ -3876,6 +3876,48 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('queues an omni-routed response while other audio is playing', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+
+		voiceClientService.fireAudioResponse({
+			audio: 'current audio',
+			isFirstChunk: true,
+			isFinal: true,
+			responseId: 'current-response',
+			transcript: 'Current audio.',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'queued omni response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			responseId: 'omni-response',
+			transcript: 'Queued omni response.',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			queuedResponses: (Reflect.get(controller, '_audioQueue') as unknown[]).length,
+			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
+		}, {
+			playedAudio: ['current audio'],
+			queuedResponses: 1,
+			pendingResponses: 0,
+		});
+
+		ttsPlaybackService.stopPlayback();
+		(Reflect.get(controller, '_processQueue') as () => void).call(controller);
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['current audio', 'queued omni response']);
+	});
+
 	test('narrates a completed omni-routed response when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

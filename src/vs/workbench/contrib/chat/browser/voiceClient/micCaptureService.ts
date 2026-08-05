@@ -246,8 +246,12 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._suppressUntilTs = timestamp;
 	}
 
+	protected getMediaCaptureWindow(targetWindow: Window & typeof globalThis): Window & typeof globalThis {
+		return getMediaCaptureWindow(targetWindow);
+	}
+
 	prepare(window: Window & typeof globalThis): void {
-		this._window = getMediaCaptureWindow(window);
+		this._window = this.getMediaCaptureWindow(window);
 	}
 
 	async pttDown(turnId: string, passive: boolean = false): Promise<void> {
@@ -377,7 +381,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	}
 
 	async startCapture(window: Window & typeof globalThis): Promise<void> {
-		const captureWindow = getMediaCaptureWindow(window);
+		const captureWindow = this.getMediaCaptureWindow(window);
 		this._window = captureWindow;
 		if (this._isCapturing) { return; }
 		if (this._capturePromise) {
