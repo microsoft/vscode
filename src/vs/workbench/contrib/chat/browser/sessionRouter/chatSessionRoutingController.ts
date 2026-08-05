@@ -17,12 +17,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
@@ -66,7 +68,95 @@ const LAST_TARGET_STORAGE_KEY = 'chat.sessionRouting.lastTarget';
 /** Resolved destination for a submitted request: an existing session or a new one. */
 type PendingTarget =
 	| { readonly kind: 'session'; readonly sessionId: string; readonly label: string; readonly confidence: number }
-	| { readonly kind: 'new'; readonly label: string };
+	| NewSessionTarget;
+
+type NewSessionTarget = {
+	readonly kind: 'new';
+	readonly label: string;
+	readonly folder?: URI;
+};
+
+const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
+
+export function resolveNewSessionWorkspaceFolder(
+	utterance: string,
+	folders: readonly IWorkspaceFolder[],
+	results: readonly ISessionRouteResult[],
+	candidates: readonly IRoutableSession[],
+	defaultFolder: URI | undefined,
+): URI | undefined {
+	return folderMentionedInUtterance(utterance, folders)
+		?? folderFromRelatedSession(results, candidates, folders)
+		?? defaultFolder
+		?? folders[0]?.uri;
+}
+
+function folderMentionedInUtterance(utterance: string, folders: readonly IWorkspaceFolder[]): URI | undefined {
+	const normalizedUtterance = utterance.toLocaleLowerCase();
+	let best: { folder: IWorkspaceFolder; length: number } | undefined;
+	for (const folder of folders) {
+		const names = new Set([folder.name, folder.uri.path.split('/').filter(Boolean).at(-1)]);
+		for (const name of names) {
+			if (!name || name.length < 3) {
+				continue;
+			}
+			const normalizedName = name.toLocaleLowerCase();
+			const start = normalizedUtterance.indexOf(normalizedName);
+			if (start >= 0
+				&& isWordBoundary(normalizedUtterance[start - 1])
+				&& isWordBoundary(normalizedUtterance[start + normalizedName.length])
+				&& (!best || normalizedName.length > best.length)) {
+				best = { folder, length: normalizedName.length };
+			}
+		}
+	}
+	return best?.folder.uri;
+}
+
+function folderFromRelatedSession(
+	results: readonly ISessionRouteResult[],
+	candidates: readonly IRoutableSession[],
+	folders: readonly IWorkspaceFolder[],
+): URI | undefined {
+	const candidateById = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
+	for (const result of results) {
+		if (result.confidence < RELATED_SESSION_FOLDER_CONFIDENCE) {
+			continue;
+		}
+		const candidate = candidateById.get(result.sessionId);
+		const folder = candidate && folderForSessionMetadata(candidate, folders);
+		if (folder) {
+			return folder.uri;
+		}
+	}
+	return undefined;
+}
+
+function folderForSessionMetadata(candidate: IRoutableSession, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+	for (const path of [candidate.cwd, candidate.repo]) {
+		if (!path) {
+			continue;
+		}
+		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').toLocaleLowerCase();
+		const match = folders
+			.filter(folder => {
+				const folderPath = folder.uri.path.replace(/\/+$/, '').toLocaleLowerCase();
+				return normalizedPath === folderPath
+					|| normalizedPath.startsWith(`${folderPath}/`)
+					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}`)
+					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}.git`);
+			})
+			.sort((a, b) => b.uri.path.length - a.uri.path.length)[0];
+		if (match) {
+			return match;
+		}
+	}
+	return undefined;
+}
+
+function isWordBoundary(value: string | undefined): boolean {
+	return value === undefined || !/[\p{L}\p{N}_-]/u.test(value);
+}
 
 function statusToString(status: AgentSessionStatus): string {
 	switch (status) {
@@ -154,6 +244,8 @@ export class ChatSessionRoutingController extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 	}
@@ -199,8 +291,9 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 
-		const target = this._resolveTarget(results, enriched);
-		this._beginPendingSend(target, results, enriched, query, utterance, attachedContext, cts);
+		const newSessionTarget = this._resolveNewSessionTarget(utterance, attachedContext, results, enriched);
+		const target = this._resolveTarget(results, enriched, newSessionTarget);
+		this._beginPendingSend(target, newSessionTarget, results, enriched, query, utterance, attachedContext, cts);
 		return true;
 	}
 
@@ -228,11 +321,11 @@ export class ChatSessionRoutingController extends Disposable {
 	 * clears the confidence threshold (biased toward the last-used session on a
 	 * tie within the ambiguity margin), otherwise a brand-new session.
 	 */
-	private _resolveTarget(results: ISessionRouteResult[], candidates: IRoutableSession[]): PendingTarget {
+	private _resolveTarget(results: ISessionRouteResult[], candidates: IRoutableSession[], newSessionTarget: NewSessionTarget): PendingTarget {
 		const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
 		const top = results[0];
 		if (!top || !isHighConfidenceSessionRoute(top)) {
-			return { kind: 'new', label: localize('chatSessionRouting.newSession', "New session") };
+			return newSessionTarget;
 		}
 
 		// Prefer the last-used session when it is within the ambiguity margin of
@@ -283,7 +376,38 @@ export class ChatSessionRoutingController extends Disposable {
 			status: statusToString(session.status),
 			lastActivity: session.timing?.lastRequestEnded ?? session.timing?.lastRequestStarted ?? session.timing?.created,
 			description: markdownToText(session.description),
+			repo: session.metadata?.repositoryPath,
+			cwd: session.metadata?.workingDirectoryPath,
 		};
+	}
+
+	private _resolveNewSessionTarget(
+		utterance: string,
+		attachedContext: readonly IChatRequestVariableEntry[] | undefined,
+		results: readonly ISessionRouteResult[],
+		candidates: readonly IRoutableSession[],
+	): NewSessionTarget {
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const folder = this._folderFromAttachments(attachedContext)
+			?? resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
+		return {
+			kind: 'new',
+			label: folder
+				? localize('chatSessionRouting.newSessionInFolder', "New session in {0}", this.workspaceContextService.getWorkspaceFolder(folder)?.name ?? folder.path)
+				: localize('chatSessionRouting.newSession', "New session"),
+			folder,
+		};
+	}
+
+	private _folderFromAttachments(attachedContext: readonly IChatRequestVariableEntry[] | undefined): URI | undefined {
+		for (const attachment of attachedContext ?? []) {
+			const resource = IChatRequestVariableEntry.toUri(attachment);
+			const folder = resource && this.workspaceContextService.getWorkspaceFolder(resource);
+			if (folder) {
+				return folder.uri;
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -369,6 +493,7 @@ export class ChatSessionRoutingController extends Disposable {
 	 */
 	private _beginPendingSend(
 		target: PendingTarget,
+		newSessionTarget: NewSessionTarget,
 		results: ISessionRouteResult[],
 		candidates: IRoutableSession[],
 		submittedInput: string,
@@ -391,9 +516,9 @@ export class ChatSessionRoutingController extends Disposable {
 		if (target.kind === 'new' && results.length === 0) {
 			// With no alternatives to show, create and send to a new chat right
 			// away, then surface a link to it in the badge as soon as it exists.
-			this._renderNewSessionBadge(badge, store, submittedInput, utterance, attachedContext, cts);
+			this._renderNewSessionBadge(badge, store, target, submittedInput, utterance, attachedContext, cts);
 		} else {
-			this._renderCountdownBadge(badge, store, target, results, candidates, submittedInput, utterance, attachedContext, cts);
+			this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, utterance, attachedContext, cts);
 		}
 	}
 
@@ -406,6 +531,7 @@ export class ChatSessionRoutingController extends Disposable {
 		badge: HTMLElement,
 		store: DisposableStore,
 		target: PendingTarget,
+		newSessionTarget: NewSessionTarget,
 		results: ISessionRouteResult[],
 		candidates: IRoutableSession[],
 		submittedInput: string,
@@ -429,7 +555,7 @@ export class ChatSessionRoutingController extends Disposable {
 			}));
 		const options: PendingTarget[] = [
 			...ranked,
-			{ kind: 'new', label: localize('chatSessionRouting.startNewSession', "Start a new session") },
+			newSessionTarget,
 		];
 		const preselected = Math.max(0, options.findIndex(option =>
 			target.kind === 'session'
@@ -586,6 +712,7 @@ export class ChatSessionRoutingController extends Disposable {
 	private _renderNewSessionBadge(
 		badge: HTMLElement,
 		store: DisposableStore,
+		target: NewSessionTarget,
 		submittedInput: string,
 		utterance: string,
 		attachedContext: IChatRequestVariableEntry[] | undefined,
@@ -598,6 +725,9 @@ export class ChatSessionRoutingController extends Disposable {
 			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
 			this._retainSessionRef(ref.object.sessionResource, ref);
 			resource = ref.object.sessionResource;
+			if (target.folder) {
+				this.newSessionFolderService.setFolder(resource, target.folder);
+			}
 		} catch (err) {
 			this.logService.warn('[chatSessionRouting] error starting a new session:', err);
 		}
@@ -698,7 +828,7 @@ export class ChatSessionRoutingController extends Disposable {
 	/** Dispatch a resolved pending target, remembering it for next time. */
 	private async _dispatchTo(target: PendingTarget, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute = true): Promise<boolean> {
 		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
+			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute, target.folder);
 		}
 		return this._dispatchToSession(target.sessionId, submittedInput, utterance, attachedContext, token, notifyRoute);
 	}
@@ -766,7 +896,7 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean): Promise<boolean> {
+	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<boolean> {
 		try {
 			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
 			if (token.isCancellationRequested) {
@@ -774,6 +904,10 @@ export class ChatSessionRoutingController extends Disposable {
 				return true;
 			}
 			this._retainSessionRef(ref.object.sessionResource, ref);
+			folder ??= this._resolveNewSessionTarget(utterance, attachedContext, [], []).folder;
+			if (folder) {
+				this.newSessionFolderService.setFolder(ref.object.sessionResource, folder);
+			}
 			if (notifyRoute) {
 				this.host.onDidResolveRoute?.(ref.object.sessionResource, 'new_session');
 			}
