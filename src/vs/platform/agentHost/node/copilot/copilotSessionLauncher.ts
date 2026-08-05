@@ -131,9 +131,9 @@ interface ICopilotSessionLaunchBase {
 	 * ({@link workingDirectory} = index 0). These are the peer roots of a
 	 * multi-root session's ordered set — the directories the agent should be
 	 * granted tool access to in addition to its process cwd. Empty (or absent)
-	 * for a single-root session. Applied through the session-scoped permission
-	 * API after create/resume; the process still launches in
-	 * {@link workingDirectory}.
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
 	 */
 	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
@@ -408,7 +408,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
-			return this._completeSessionLaunch(raw, plan, sandboxConfig);
+			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+			return new CopilotSessionWrapper(raw);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -420,7 +421,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
-					return this._completeSessionLaunch(raw, fallbackPlan, sandboxConfig);
+					await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+					return new CopilotSessionWrapper(raw);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -463,34 +465,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._completeSessionLaunch(raw, plan, sandboxConfig);
-	}
-
-	/**
-	 * Completes the post-create/resume launch transaction before publishing the
-	 * wrapper. Permission paths are a complete replacement snapshot, so an empty
-	 * list removes all previously granted secondary roots. A permission failure
-	 * is fatal and disconnects the raw session, leaving a later launch free to
-	 * retry from the authoritative snapshot.
-	 */
-	private async _completeSessionLaunch(raw: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan, sandboxConfig: ISdkSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
-		try {
-			const additionalDirectories = plan.additionalDirectories?.map(directory => directory.fsPath) ?? [];
-			const result = await raw.rpc.permissions.configure({ paths: { additionalDirectories } });
-			if (!result.success) {
-				throw new Error(`Failed to configure additional directory permissions for Copilot session '${plan.sessionId}'`);
-			}
-			this._logService.info(`[Copilot:${plan.sessionId}] Applied ${additionalDirectories.length} additional director${additionalDirectories.length === 1 ? 'y' : 'ies'} via session.permissions.configure`);
-			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-			return new CopilotSessionWrapper(raw);
-		} catch (error) {
-			try {
-				await raw.disconnect();
-			} catch (disconnectError) {
-				this._logService.warn(`[Copilot:${plan.sessionId}] Failed to disconnect session after launch configuration failure`, disconnectError);
-			}
-			throw error;
-		}
+		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+		return new CopilotSessionWrapper(raw);
 	}
 
 	/**

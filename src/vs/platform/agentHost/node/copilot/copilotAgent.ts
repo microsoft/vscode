@@ -149,11 +149,10 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 
 export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 
-function additionalWorkingDirectoriesEqual(appliedDirectories: readonly URI[] | undefined, desiredWorkingDirectories: readonly URI[]): boolean {
+function additionalWorkingDirectoriesEqual(appliedDirectories: readonly URI[] | undefined, desiredAdditionalDirectories: readonly URI[]): boolean {
 	const applied = appliedDirectories ?? [];
-	const desired = desiredWorkingDirectories.slice(1);
-	return applied.length === desired.length
-		&& desired.every((directory, index) => isEqual(directory, applied[index]));
+	return applied.length === desiredAdditionalDirectories.length
+		&& desiredAdditionalDirectories.every((directory, index) => isEqual(directory, applied[index]));
 }
 
 /**
@@ -2668,7 +2667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// never disconnect a runtime that is still producing the prior turn.
 			while (entry) {
 				const activeClient = this._activeClients.get(context.session);
-				const rootsChanged = workingDirectories !== undefined && !additionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, workingDirectories);
+				const rootsChanged = workingDirectories !== undefined && !additionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 				const structuralConfigChanged = !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot);
 				this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, rootsChanged=${rootsChanged}, structuralConfigChanged=${structuralConfigChanged}`);
 				if (!rootsChanged && !structuralConfigChanged) {
