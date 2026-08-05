@@ -440,13 +440,22 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		assert.match(result.responseText, /SPACED_VALUE/);
 		if (config.fileOperationStrategy === 'shell') {
 			const chatUri = buildDefaultChatUri(sessionUri);
-			const ready = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+			const start = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+				.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolName === config.shellToolName)?.action;
+			const ready = start && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
 				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
-				.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolInput === shellCommand)?.action;
+				.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolCallId === start.toolCallId)?.action;
 			const completed = ready && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 				.some(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolCallId === ready.toolCallId);
-			assert.deepStrictEqual({ toolInput: ready?.toolInput, completed }, { toolInput: shellCommand, completed: true });
+			assert.deepStrictEqual({
+				readsFile: ready?.toolInput?.includes('readFileSync') && ready.toolInput.includes('file with spaces.txt'),
+				completed,
+			}, {
+				readsFile: true,
+				completed: true,
+			});
 		} else {
 			assertToolCallCompleteText(context.client, {
 				channel: buildDefaultChatUri(sessionUri),

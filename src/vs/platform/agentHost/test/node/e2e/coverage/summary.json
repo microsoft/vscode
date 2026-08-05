@@ -15,22 +15,22 @@
 	},
 	"total": {
 		"statements": {
-			"covered": 73745,
+			"covered": 73751,
 			"total": 99506,
 			"percentage": 74.11
 		},
 		"branches": {
-			"covered": 7420,
-			"total": 11516,
-			"percentage": 64.43
+			"covered": 7404,
+			"total": 11504,
+			"percentage": 64.36
 		},
 		"functions": {
-			"covered": 2571,
+			"covered": 2572,
 			"total": 3790,
-			"percentage": 67.83
+			"percentage": 67.86
 		},
 		"lines": {
-			"covered": 73745,
+			"covered": 73751,
 			"total": 99506,
 			"percentage": 74.11
 		}
@@ -2128,24 +2128,24 @@
 		},
 		"src/vs/platform/agentHost/node/agentHostChangesetFileMonitorCoordinator.ts": {
 			"statements": {
-				"covered": 305,
+				"covered": 326,
 				"total": 368,
-				"percentage": 82.88
+				"percentage": 88.58
 			},
 			"branches": {
-				"covered": 65,
-				"total": 77,
-				"percentage": 84.41
+				"covered": 68,
+				"total": 83,
+				"percentage": 81.92
 			},
 			"functions": {
-				"covered": 25,
+				"covered": 27,
 				"total": 27,
-				"percentage": 92.59
+				"percentage": 100
 			},
 			"lines": {
-				"covered": 305,
+				"covered": 326,
 				"total": 368,
-				"percentage": 82.88
+				"percentage": 88.58
 			}
 		},
 		"src/vs/platform/agentHost/node/agentHostChangesetOperationService.ts": {
@@ -2177,9 +2177,9 @@
 				"percentage": 79.94
 			},
 			"branches": {
-				"covered": 162,
-				"total": 215,
-				"percentage": 75.34
+				"covered": 164,
+				"total": 217,
+				"percentage": 75.57
 			},
 			"functions": {
 				"covered": 45,
@@ -2265,9 +2265,9 @@
 				"percentage": 86.33
 			},
 			"branches": {
-				"covered": 55,
-				"total": 75,
-				"percentage": 73.33
+				"covered": 58,
+				"total": 78,
+				"percentage": 74.35
 			},
 			"functions": {
 				"covered": 12,
@@ -2436,14 +2436,14 @@
 		},
 		"src/vs/platform/agentHost/node/agentHostFileMonitorService.ts": {
 			"statements": {
-				"covered": 159,
+				"covered": 165,
 				"total": 185,
-				"percentage": 85.94
+				"percentage": 89.18
 			},
 			"branches": {
-				"covered": 21,
-				"total": 32,
-				"percentage": 65.62
+				"covered": 22,
+				"total": 34,
+				"percentage": 64.7
 			},
 			"functions": {
 				"covered": 14,
@@ -2451,9 +2451,9 @@
 				"percentage": 100
 			},
 			"lines": {
-				"covered": 159,
+				"covered": 165,
 				"total": 185,
-				"percentage": 85.94
+				"percentage": 89.18
 			}
 		},
 		"src/vs/platform/agentHost/node/agentHostGitHubEndpointService.ts": {
@@ -2502,14 +2502,14 @@
 		},
 		"src/vs/platform/agentHost/node/agentHostGitService.ts": {
 			"statements": {
-				"covered": 868,
+				"covered": 871,
 				"total": 1424,
-				"percentage": 60.95
+				"percentage": 61.16
 			},
 			"branches": {
-				"covered": 167,
-				"total": 245,
-				"percentage": 68.16
+				"covered": 170,
+				"total": 247,
+				"percentage": 68.82
 			},
 			"functions": {
 				"covered": 42,
@@ -2517,9 +2517,9 @@
 				"percentage": 61.76
 			},
 			"lines": {
-				"covered": 868,
+				"covered": 871,
 				"total": 1424,
-				"percentage": 60.95
+				"percentage": 61.16
 			}
 		},
 		"src/vs/platform/agentHost/node/agentHostGitStateService.ts": {
@@ -2788,14 +2788,14 @@
 		},
 		"src/vs/platform/agentHost/node/agentHostReviewService.ts": {
 			"statements": {
-				"covered": 138,
+				"covered": 135,
 				"total": 264,
-				"percentage": 52.27
+				"percentage": 51.13
 			},
 			"branches": {
-				"covered": 20,
-				"total": 26,
-				"percentage": 76.92
+				"covered": 14,
+				"total": 22,
+				"percentage": 63.63
 			},
 			"functions": {
 				"covered": 7,
@@ -2803,9 +2803,9 @@
 				"percentage": 53.84
 			},
 			"lines": {
-				"covered": 138,
+				"covered": 135,
 				"total": 264,
-				"percentage": 52.27
+				"percentage": 51.13
 			}
 		},
 		"src/vs/platform/agentHost/node/agentHostServerMain.ts": {
@@ -2920,14 +2920,14 @@
 		},
 		"src/vs/platform/agentHost/node/agentHostStateManager.ts": {
 			"statements": {
-				"covered": 1532,
+				"covered": 1529,
 				"total": 1669,
-				"percentage": 91.79
+				"percentage": 91.61
 			},
 			"branches": {
-				"covered": 241,
-				"total": 288,
-				"percentage": 83.68
+				"covered": 239,
+				"total": 287,
+				"percentage": 83.27
 			},
 			"functions": {
 				"covered": 64,
@@ -2935,9 +2935,9 @@
 				"percentage": 90.14
 			},
 			"lines": {
-				"covered": 1532,
+				"covered": 1529,
 				"total": 1669,
-				"percentage": 91.79
+				"percentage": 91.61
 			}
 		},
 		"src/vs/platform/agentHost/node/agentHostSyncOperationHandler.ts": {
@@ -3360,14 +3360,14 @@
 		},
 		"src/vs/platform/agentHost/node/claude/claudeAgent.ts": {
 			"statements": {
-				"covered": 1880,
+				"covered": 1882,
 				"total": 2474,
-				"percentage": 75.99
+				"percentage": 76.07
 			},
 			"branches": {
-				"covered": 172,
-				"total": 302,
-				"percentage": 56.95
+				"covered": 176,
+				"total": 305,
+				"percentage": 57.7
 			},
 			"functions": {
 				"covered": 72,
@@ -3375,9 +3375,9 @@
 				"percentage": 75
 			},
 			"lines": {
-				"covered": 1880,
+				"covered": 1882,
 				"total": 2474,
-				"percentage": 75.99
+				"percentage": 76.07
 			}
 		},
 		"src/vs/platform/agentHost/node/claude/claudeAgentSdkService.ts": {
@@ -4333,9 +4333,9 @@
 				"percentage": 63.2
 			},
 			"branches": {
-				"covered": 299,
-				"total": 527,
-				"percentage": 56.73
+				"covered": 297,
+				"total": 525,
+				"percentage": 56.57
 			},
 			"functions": {
 				"covered": 119,
@@ -4834,14 +4834,14 @@
 		},
 		"src/vs/platform/agentHost/node/copilot/copilotAgent.ts": {
 			"statements": {
-				"covered": 3873,
+				"covered": 3857,
 				"total": 4986,
-				"percentage": 77.67
+				"percentage": 77.35
 			},
 			"branches": {
-				"covered": 514,
-				"total": 830,
-				"percentage": 61.92
+				"covered": 501,
+				"total": 815,
+				"percentage": 61.47
 			},
 			"functions": {
 				"covered": 190,
@@ -4849,9 +4849,9 @@
 				"percentage": 82.6
 			},
 			"lines": {
-				"covered": 3873,
+				"covered": 3857,
 				"total": 4986,
-				"percentage": 77.67
+				"percentage": 77.35
 			}
 		},
 		"src/vs/platform/agentHost/node/copilot/copilotAgentSession.ts": {
@@ -4861,9 +4861,9 @@
 				"percentage": 65.65
 			},
 			"branches": {
-				"covered": 495,
-				"total": 802,
-				"percentage": 61.72
+				"covered": 493,
+				"total": 800,
+				"percentage": 61.62
 			},
 			"functions": {
 				"covered": 140,
@@ -5340,14 +5340,14 @@
 		},
 		"src/vs/platform/agentHost/node/copilot/sessionCustomizationDiscovery.ts": {
 			"statements": {
-				"covered": 1111,
+				"covered": 1109,
 				"total": 1222,
-				"percentage": 90.91
+				"percentage": 90.75
 			},
 			"branches": {
-				"covered": 226,
-				"total": 273,
-				"percentage": 82.78
+				"covered": 220,
+				"total": 268,
+				"percentage": 82.08
 			},
 			"functions": {
 				"covered": 36,
@@ -5355,9 +5355,9 @@
 				"percentage": 97.29
 			},
 			"lines": {
-				"covered": 1111,
+				"covered": 1109,
 				"total": 1222,
-				"percentage": 90.91
+				"percentage": 90.75
 			}
 		},
 		"src/vs/platform/agentHost/node/copilot/toolSearchDeferral.ts": {
@@ -5653,9 +5653,9 @@
 				"percentage": 79.29
 			},
 			"branches": {
-				"covered": 22,
-				"total": 25,
-				"percentage": 88
+				"covered": 21,
+				"total": 24,
+				"percentage": 87.5
 			},
 			"functions": {
 				"covered": 12,
@@ -5697,9 +5697,9 @@
 				"percentage": 53.26
 			},
 			"branches": {
-				"covered": 14,
-				"total": 31,
-				"percentage": 45.16
+				"covered": 15,
+				"total": 32,
+				"percentage": 46.87
 			},
 			"functions": {
 				"covered": 4,
@@ -6066,24 +6066,24 @@
 		},
 		"src/vs/platform/agentHost/node/shared/persistSessionMetadata.ts": {
 			"statements": {
-				"covered": 29,
+				"covered": 27,
 				"total": 31,
-				"percentage": 93.54
+				"percentage": 87.09
 			},
 			"branches": {
-				"covered": 3,
-				"total": 4,
-				"percentage": 75
+				"covered": 2,
+				"total": 3,
+				"percentage": 66.66
 			},
 			"functions": {
-				"covered": 2,
+				"covered": 1,
 				"total": 2,
-				"percentage": 100
+				"percentage": 50
 			},
 			"lines": {
-				"covered": 29,
+				"covered": 27,
 				"total": 31,
-				"percentage": 93.54
+				"percentage": 87.09
 			}
 		},
 		"src/vs/platform/agentHost/node/shared/serverToolGroups.ts": {
