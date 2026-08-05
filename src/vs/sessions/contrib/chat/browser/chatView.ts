@@ -7,8 +7,9 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -212,6 +213,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
+		this._setupGettingReadyStatus();
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
 
@@ -243,6 +245,30 @@ export class ChatView extends AbstractChatView {
 			const current = this._currentChatResourceObs.read(reader);
 			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
 			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
+		}));
+	}
+
+	private _setupGettingReadyStatus(): void {
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		const message = localize('chatView.gettingReady', "Getting ready...");
+		this._register(autorun(reader => {
+			const resource = this._currentChatResourceObs.read(reader);
+			const model = chatModel.read(reader);
+			let showGettingReady: boolean;
+			if (!resource) {
+				showGettingReady = false;
+			} else if (!model) {
+				showGettingReady = true;
+			} else {
+				const requests = model.getRequests();
+				const lastRequest = model.lastRequestObs.read(reader);
+				const visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
+				const hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
+					? lastRequest.response?.isIncomplete.read(reader)
+					: undefined;
+				showGettingReady = shouldShowGettingReady(requests.length, visibleRequestCount, hiddenRequestIncomplete);
+			}
+			this._widget.setTranscriptProgress(showGettingReady ? message : undefined);
 		}));
 	}
 
@@ -447,6 +473,10 @@ export class ChatView extends AbstractChatView {
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
 	}
+}
+
+export function shouldShowGettingReady(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
+	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
 }
 
 /**

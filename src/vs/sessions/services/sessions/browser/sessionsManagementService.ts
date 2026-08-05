@@ -8,6 +8,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -78,6 +79,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
+	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -239,6 +241,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSession(resource: URI): ISession | undefined {
+		const unlistedSession = this._unlistedNewSessions.get(resource);
+		if (unlistedSession) {
+			return unlistedSession;
+		}
 		return this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
@@ -380,6 +386,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 		let workspace: ISessionWorkspace | undefined;
+		let sessionTypeId: string | undefined;
+		const requiresWorktreeConfiguration = options?.isolationMode !== undefined
+			|| options?.worktreeBranchTrack !== undefined
+			|| options?.branch !== undefined;
+		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
+			const sessionTypes = candidate.getSessionTypes(folderUri);
+			if (options?.sessionTypeId) {
+				const requested = sessionTypes.find(type => type.id === options.sessionTypeId);
+				return requested && (!requiresWorktreeConfiguration || requested.supportsWorktreeConfiguration === true)
+					? requested.id
+					: undefined;
+			}
+			return (requiresWorktreeConfiguration
+				? sessionTypes.find(type => type.supportsWorktreeConfiguration === true)
+				: sessionTypes[0])?.id;
+		};
 
 		if (options?.providerId) {
 			provider = providers.find(p => p.id === options.providerId);
@@ -390,35 +412,39 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (!workspace) {
 				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
 			}
-			if (options.sessionTypeId && !provider.getSessionTypes(folderUri).some(type => type.id === options.sessionTypeId)) {
-				throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+			sessionTypeId = resolveSessionTypeId(provider);
+			if (!sessionTypeId) {
+				if (requiresWorktreeConfiguration) {
+					throw new Error(`Sessions provider '${options.providerId}' does not support worktree configuration for folder '${folderUri.toString()}'`);
+				}
+				if (options.sessionTypeId) {
+					throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+				}
+				throw new Error(`No session types available for provider '${provider.id}'`);
 			}
 		} else {
-			// Iterate providers and pick the first one that can resolve the folder.
-			// When a specific session type was requested, also require the provider to
-			// advertise that type for the folder.
 			for (const candidate of providers) {
 				const candidateWorkspace = candidate.resolveWorkspace(folderUri);
 				if (!candidateWorkspace) {
 					continue;
 				}
-				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
+				const candidateSessionTypeId = resolveSessionTypeId(candidate);
+				if (!candidateSessionTypeId) {
 					continue;
 				}
 				provider = candidate;
 				workspace = candidateWorkspace;
+				sessionTypeId = candidateSessionTypeId;
 				break;
 			}
 			if (!provider || !workspace) {
-				throw new Error(`No sessions provider can resolve folder '${folderUri.toString()}'`);
+				throw new Error(requiresWorktreeConfiguration
+					? `No sessions provider supports worktree configuration for folder '${folderUri.toString()}'`
+					: `No sessions provider can resolve folder '${folderUri.toString()}'`);
 			}
 		}
-		let sessionTypeId = options?.sessionTypeId;
 		if (!sessionTypeId) {
-			sessionTypeId = provider.getSessionTypes(folderUri)[0]?.id;
-			if (!sessionTypeId) {
-				throw new Error(`No session types available for provider '${provider.id}'`);
-			}
+			throw new Error(`No session types available for provider '${provider.id}'`);
 		}
 		return { provider, sessionTypeId, workspace };
 	}
@@ -687,9 +713,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId);
-		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
-			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
-		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
+		this._unlistedNewSessions.set(session.resource, session);
+		try {
+			try {
+				createOptions?.onSessionCreated?.(session);
+			} catch (error) {
+				provider.deleteNewSession(session.sessionId);
+				throw error;
+			}
+			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
+				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
+			return await this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
+		} finally {
+			this._unlistedNewSessions.delete(session.resource);
+		}
 	}
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
@@ -722,14 +759,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 			}
 			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
-				if (createOptions.isolationMode && provider.setIsolationMode) {
-					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
-				}
-				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
-					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
-				}
-				if (createOptions.branch && provider.setBranch) {
-					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
+				if (provider.setWorktreeConfiguration) {
+					await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
+						isolationMode: createOptions.isolationMode,
+						worktreeBranchTrack: createOptions.worktreeBranchTrack,
+						branch: createOptions.branch,
+					}), token);
+				} else {
+					if (createOptions.isolationMode && provider.setIsolationMode) {
+						await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
+					}
+					if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
+						await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
+					}
+					if (createOptions.branch && provider.setBranch) {
+						await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
+					}
 				}
 			}
 

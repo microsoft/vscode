@@ -202,6 +202,8 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+	/** Whether the request and response should be hidden from the transcript. */
+	hideFromTranscript?: boolean;
 }
 
 export interface IChatQuestion {

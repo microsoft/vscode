@@ -137,7 +137,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
@@ -408,10 +408,27 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}) !== undefined;
 	}
 
-	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
-		const remoteBranch = `origin/${branch}`;
-		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
-		return output !== undefined ? remoteBranch : undefined;
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
+		const branchName = branch
+			.replace(/^refs\/remotes\/origin\//, '')
+			.replace(/^origin\//, '')
+			.replace(/^refs\/heads\//, '');
+		const remoteBranch = `origin/${branchName}`;
+		const remoteRef = `refs/remotes/${remoteBranch}`;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
+		if (output !== undefined) {
+			return remoteBranch;
+		}
+		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName) || branchName.startsWith('refs/')) {
+			return undefined;
+		}
+
+		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
+		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `refs/heads/${branchName}:${remoteRef}`], {
+			timeout: 60_000,
+			throwOnError: true,
+		});
+		return remoteBranch;
 	}
 
 	/**

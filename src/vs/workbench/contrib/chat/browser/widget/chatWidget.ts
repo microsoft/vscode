@@ -12,6 +12,7 @@ import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -299,6 +300,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
 
 	get domNode() { return this.container; }
 
@@ -1177,6 +1179,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	isEmpty(): boolean {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
+	}
+
+	setTranscriptProgress(message: string | undefined): void {
+		if (!this.transcriptProgress) {
+			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
+			container.hidden = true;
+			container.setAttribute('role', 'status');
+			container.setAttribute('aria-live', 'polite');
+			const icon = dom.append(container, $('span'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+			icon.setAttribute('aria-hidden', 'true');
+			const label = dom.append(container, $('span'));
+			this.transcriptProgress = { container, label };
+		}
+		this.transcriptProgress.label.textContent = message ?? '';
+		this.transcriptProgress.container.hidden = message === undefined;
+		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 	}
 
 	/**

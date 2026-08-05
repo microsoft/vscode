@@ -71,6 +71,25 @@ export interface IGitHubPullRequest {
 	readonly mergeableState: string;
 }
 
+export interface IGitHubPullRequestSummary {
+	readonly number: number;
+	readonly title: string;
+	readonly author: IGitHubUser;
+	readonly headRef: string;
+	readonly isDraft: boolean;
+	readonly updatedAt: string;
+	readonly additions: number;
+	readonly deletions: number;
+	readonly reviewRequestedFromViewer: boolean;
+	readonly assignedToViewer: boolean;
+}
+
+export interface IGitHubPullRequestsPage {
+	readonly pullRequests: readonly IGitHubPullRequestSummary[];
+	readonly cursor: string | undefined;
+	readonly hasNextPage: boolean;
+}
+
 export const enum MergeBlockerKind {
 	ChangesRequested = 'changesRequested',
 	CIFailed = 'ciFailed',

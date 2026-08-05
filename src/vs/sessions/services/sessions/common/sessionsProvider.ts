@@ -30,6 +30,15 @@ export interface ISendRequestOptions {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
 	readonly title?: string;
+	/** Hide this request and its response from the chat transcript. */
+	readonly hideFromTranscript?: boolean;
+}
+
+/** Programmatic worktree settings applied together before a new session starts. */
+export interface ISessionWorktreeConfiguration {
+	readonly isolationMode?: string;
+	readonly worktreeBranchTrack?: boolean;
+	readonly branch?: string;
 }
 
 /**
@@ -275,6 +284,11 @@ export interface ISessionsProvider {
 	 * @param mode The isolation mode to set.
 	 */
 	setIsolationMode?(sessionId: string, mode: string): Promise<void>;
+
+	/**
+	 * Apply programmatic worktree settings to a new session as one operation.
+	 */
+	setWorktreeConfiguration?(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void>;
 
 	/**
 	 * Set whether the worktree branch tracks its upstream for a session.

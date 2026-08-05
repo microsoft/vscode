@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NewChatView } from '../../browser/chatView.js';
+import { NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 
@@ -32,5 +32,19 @@ suite('Sessions - Chat View', () => {
 		});
 
 		assert.doesNotThrow(() => view.setVisible(false));
+	});
+
+	test('shows getting ready until a hidden bootstrap completes or visible content appears', () => {
+		assert.deepStrictEqual({
+			empty: shouldShowGettingReady(0, 0, undefined),
+			hiddenPending: shouldShowGettingReady(1, 0, true),
+			hiddenComplete: shouldShowGettingReady(1, 0, false),
+			visiblePending: shouldShowGettingReady(2, 1, true),
+		}, {
+			empty: true,
+			hiddenPending: true,
+			hiddenComplete: false,
+			visiblePending: false,
+		});
 	});
 });

@@ -1109,6 +1109,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				permissionLevel,
 			},
 			attachedContext,
+			hideFromTranscript: options.hideFromTranscript,
 		};
 
 		// Set model/mode/permission state on the chat model before sending

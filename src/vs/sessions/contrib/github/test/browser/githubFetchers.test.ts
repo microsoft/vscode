@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient, GitHubApiError, IGitHubApiRequestOptions } from '../../browser/githubApiClient.js';
@@ -245,6 +246,88 @@ suite('GitHubPRFetcher', () => {
 	});
 });
 
+suite('GitHubPullRequestsFetcher', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps a lightweight page with pagination and diff stats', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			repository: {
+				pullRequests: {
+					nodes: [{
+						number: 7,
+						title: 'Improve sessions',
+						author: { login: 'author', avatarUrl: 'avatar' },
+						headRefName: 'feature',
+						isDraft: true,
+						updatedAt: '2026-07-30T12:00:00Z',
+						additions: 12,
+						deletions: 3,
+					}],
+					pageInfo: { endCursor: 'cursor-1', hasNextPage: true },
+				},
+			},
+		});
+		const fetcher = new GitHubPullRequestsFetcher(mockApi as unknown as GitHubApiClient);
+
+		const page = await fetcher.getPullRequests('microsoft', 'vscode');
+
+		assert.deepStrictEqual(page, {
+			pullRequests: [{
+				number: 7,
+				title: 'Improve sessions',
+				author: { login: 'author', avatarUrl: 'avatar' },
+				headRef: 'feature',
+				isDraft: true,
+				updatedAt: '2026-07-30T12:00:00Z',
+				additions: 12,
+				deletions: 3,
+				reviewRequestedFromViewer: false,
+				assignedToViewer: false,
+			}],
+			cursor: 'cursor-1',
+			hasNextPage: true,
+		});
+		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { owner: 'microsoft', repo: 'vscode', cursor: null });
+	});
+
+	test('loads viewer review and assignment membership with independent small queries', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			search: { nodes: [makePullRequestSearchNode(7), null, makePullRequestSearchNode(9)] },
+		});
+		const fetcher = new GitHubPullRequestsFetcher(mockApi as unknown as GitHubApiClient);
+
+		const reviewRequested = await fetcher.getPullRequestsWaitingForReview('microsoft', 'vscode');
+		mockApi.setNextResponse({
+			search: { nodes: [makePullRequestSearchNode(8), makePullRequestSearchNode(9)] },
+		});
+		const assigned = await fetcher.getPullRequestsAssignedToViewer('microsoft', 'vscode');
+
+		assert.deepStrictEqual({
+			reviewRequested: reviewRequested.map(pullRequest => ({ number: pullRequest.number, reviewRequestedFromViewer: pullRequest.reviewRequestedFromViewer, assignedToViewer: pullRequest.assignedToViewer })),
+			assigned: assigned.map(pullRequest => ({ number: pullRequest.number, reviewRequestedFromViewer: pullRequest.reviewRequestedFromViewer, assignedToViewer: pullRequest.assignedToViewer })),
+			variables: mockApi.graphqlCalls.map(call => call.variables),
+			usesNestedFields: mockApi.graphqlCalls.some(call => call.query.includes('reviewRequests(') || call.query.includes('assignees(')),
+		}, {
+			reviewRequested: [
+				{ number: 7, reviewRequestedFromViewer: true, assignedToViewer: false },
+				{ number: 9, reviewRequestedFromViewer: true, assignedToViewer: false },
+			],
+			assigned: [
+				{ number: 8, reviewRequestedFromViewer: false, assignedToViewer: true },
+				{ number: 9, reviewRequestedFromViewer: false, assignedToViewer: true },
+			],
+			variables: [
+				{ query: 'repo:microsoft/vscode is:pr is:open review-requested:@me sort:updated-desc' },
+				{ query: 'repo:microsoft/vscode is:pr is:open assignee:@me sort:updated-desc' },
+			],
+			usesNestedFields: false,
+		});
+	});
+});
+
 suite('GitHubPRCIFetcher', () => {
 
 	const store = new DisposableStore();
@@ -374,6 +457,19 @@ function makePR(overrides: {
 		mergedAt: undefined,
 		mergeable: overrides.mergeable,
 		mergeableState: overrides.mergeableState,
+	};
+}
+
+function makePullRequestSearchNode(number: number): unknown {
+	return {
+		number,
+		title: `Pull request ${number}`,
+		author: { login: 'author', avatarUrl: '' },
+		headRefName: `feature-${number}`,
+		isDraft: false,
+		updatedAt: '2026-07-30T12:00:00Z',
+		additions: number,
+		deletions: 1,
 	};
 }
 

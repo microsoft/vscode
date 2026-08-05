@@ -99,6 +99,11 @@ export interface ICreateNewSessionOptions {
 	 * programmatic session creation and is not surfaced in the new-session UI.
 	 */
 	readonly worktreeBranchTrack?: boolean;
+	/**
+	 * Invoked after the provider creates the provisional session, before its
+	 * configuration and first request are applied.
+	 */
+	readonly onSessionCreated?: (session: ISession) => void;
 }
 
 /**

@@ -307,6 +307,8 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-hos
    → isNewChatSession context → false
 ```
 
+The repository section's **Create Session from Pull Request** action calls `ISessionsManagementService.createAndSendNewChatRequest` with worktree isolation, the PR head branch, and `worktreeBranchTrack: true`. Headless provider resolution skips session types that do not advertise worktree configuration. It activates the provisional session immediately while worktree setup and the hidden bootstrap turn continue. The top of the chat transcript shows a quiet **Getting ready...** status while its model is loading, has no request, or is running only the hidden bootstrap; the transcript container remains visible for this state even though it has no visible chat rows. The status disappears when that bootstrap completes or any visible request appears. The bootstrap request records the pull request identity, explicitly forbids inspection/tools/file operations, and asks only for a readiness acknowledgement. `hideFromTranscript` marks the request and response as hidden in the live chat model and in Agent Host message metadata, so the bootstrap turn remains available as model history but is omitted from the transcript, including after restore. A visible message submitted while that hidden turn is active is queued rather than steered into the hidden response, ensuring any resulting tools or confirmations belong to a visible request.
+
 Follow-up messages to an existing chat go through
 `SessionsManagementService.sendRequest(session, chat, options)`. The view makes
 the sent chat the active chat by reacting to the send events. When
