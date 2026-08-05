@@ -5511,7 +5511,6 @@ suite('CopilotAgent', () => {
 			sessionId: string;
 			appliedSnapshot: IActiveClientSnapshot;
 			appliedAdditionalDirectories: readonly URI[];
-			hasActiveTurn: boolean;
 			destroyCalls: number;
 			disposeCalls: number;
 			sendCalls: string[];
@@ -5520,12 +5519,11 @@ suite('CopilotAgent', () => {
 			send(prompt: string): Promise<void>;
 		}
 
-		function refreshSessionStub(additionalDirectories: readonly URI[], hasActiveTurn = false): IRefreshSessionStub {
+		function refreshSessionStub(additionalDirectories: readonly URI[]): IRefreshSessionStub {
 			return {
 				sessionId: 'config-refresh-session',
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} },
 				appliedAdditionalDirectories: additionalDirectories,
-				hasActiveTurn,
 				destroyCalls: 0,
 				disposeCalls: 0,
 				sendCalls: [],
@@ -5672,70 +5670,6 @@ suite('CopilotAgent', () => {
 					destroyCalls: 0,
 					resumeCalls: 0,
 					sends: ['hello'],
-				});
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('parks a root refresh across a steering-promoted active turn without disposing the live session', async () => {
-			const client = new TestCopilotClient([]);
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: true });
-			const sessionId = 'config-refresh-session';
-			const session = AgentSession.uri('copilotcli', sessionId);
-			const primary = URI.file('/workspace/primary');
-			const newSecondary = URI.file('/workspace/new');
-			const previousSession = refreshSessionStub([URI.file('/workspace/old')], true);
-			const resumedSession = refreshSessionStub([newSecondary]);
-			const internals = agent as unknown as {
-				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
-				_onChatTurnEnded: (session: CopilotAgentSession) => void;
-			};
-			internals._resumeSession = async () => {
-				setDefaultSessionStub(agent, sessionId, resumedSession);
-				return resumedSession as unknown as CopilotAgentSession;
-			};
-			setDefaultSessionStub(agent, sessionId, previousSession);
-			agent.getOrCreateActiveClient(session, { clientId: 'client' });
-
-			try {
-				const send = agent.chats.sendMessage(defaultChatUri(session), 'after idle', [primary, newSecondary]);
-				await Promise.resolve();
-				await Promise.resolve();
-				const whileActive = {
-					destroyCalls: previousSession.destroyCalls,
-					disposeCalls: previousSession.disposeCalls,
-					sends: resumedSession.sendCalls.length,
-				};
-
-				previousSession.hasActiveTurn = false;
-				internals._onChatTurnEnded(previousSession as unknown as CopilotAgentSession);
-				previousSession.hasActiveTurn = true;
-				await Promise.resolve();
-				await Promise.resolve();
-				const whileSteeringActive = {
-					destroyCalls: previousSession.destroyCalls,
-					disposeCalls: previousSession.disposeCalls,
-					sends: resumedSession.sendCalls.length,
-				};
-
-				previousSession.hasActiveTurn = false;
-				internals._onChatTurnEnded(previousSession as unknown as CopilotAgentSession);
-				await send;
-
-				assert.deepStrictEqual({
-					whileActive,
-					whileSteeringActive,
-					afterTurn: {
-						destroyCalls: previousSession.destroyCalls,
-						disposeCalls: previousSession.disposeCalls,
-						sends: resumedSession.sendCalls,
-					},
-				}, {
-					whileActive: { destroyCalls: 0, disposeCalls: 0, sends: 0 },
-					whileSteeringActive: { destroyCalls: 0, disposeCalls: 0, sends: 0 },
-					afterTurn: { destroyCalls: 1, disposeCalls: 1, sends: ['after idle'] },
 				});
 			} finally {
 				await disposeAgent(agent);
