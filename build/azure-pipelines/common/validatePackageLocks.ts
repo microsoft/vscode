@@ -49,6 +49,10 @@ function normalizeForComparison(value: JsonValue, key?: string): JsonValue {
 		const tarballPathIndex = value.indexOf('/-/');
 		return tarballPathIndex >= 0 ? value.slice(tarballPathIndex) : value;
 	}
+	// Registry mirrors can describe the same tarball with different integrity algorithms (for example, sha1 versus sha512).
+	if (key === 'integrity') {
+		return '<registry integrity>';
+	}
 	if (Array.isArray(value)) {
 		return value.map(item => normalizeForComparison(item));
 	}

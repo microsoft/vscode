@@ -41,12 +41,12 @@ suite('validatePackageLocks', () => {
 	test('reports package metadata removed by a stale npm version', () => {
 		const expected = {
 			packages: {
-				'node_modules/native-musl': { version: '1.0.0', resolved: 'https://registry.npmjs.org/native-musl/-/native-musl-1.0.0.tgz', libc: ['musl'] }
+				'node_modules/native-musl': { version: '1.0.0', resolved: 'https://registry.npmjs.org/native-musl/-/native-musl-1.0.0.tgz', integrity: 'sha1-registry-value', libc: ['musl'] }
 			}
 		};
 		const submitted = {
 			packages: {
-				'node_modules/native-musl': { version: '1.0.0', resolved: 'https://private.example/npm/native-musl/-/native-musl-1.0.0.tgz' }
+				'node_modules/native-musl': { version: '1.0.0', resolved: 'https://private.example/npm/native-musl/-/native-musl-1.0.0.tgz', integrity: 'sha512-public-registry-value' }
 			}
 		};
 
