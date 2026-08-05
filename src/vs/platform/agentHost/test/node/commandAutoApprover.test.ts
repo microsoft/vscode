@@ -523,7 +523,7 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Start-Process notepad }', rules),
 				// Visible separators already rejected nested denied commands.
 				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
-				// Wrong dialect must not recreate the opaque-block bypass.
+				// The wrong dialect demonstrates the opaque-block bypass.
 				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
 			], ['denied', 'denied', 'denied', 'denied', 'approved']);
 		});
