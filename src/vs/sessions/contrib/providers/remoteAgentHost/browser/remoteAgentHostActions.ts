@@ -10,8 +10,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -28,7 +30,7 @@ import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } fro
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
@@ -820,6 +822,7 @@ async function promptToConnectViaTunnel(
 	const authenticationService = accessor.get(IAuthenticationService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
+	const dialogService = accessor.get(IDialogService);
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -863,15 +866,29 @@ async function promptToConnectViaTunnel(
 		return;
 	}
 
-	tunnelPicker.items = tunnels.map(t => ({
-		label: t.name,
-		description: `${t.tunnelId} · protocol v${t.protocolVersion}`,
-		tunnel: t,
+	const deleteTunnelButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+	};
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos.map(tunnel => ({
+		label: tunnel.name,
+		description: tunnel.hostConnectionCount > 0
+			? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+			: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+		buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
+		tunnel,
 	}));
+
+	tunnelPicker.items = toTunnelPickItems(tunnels);
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection
 	const picked = await new Promise<'back' | ITunnelPickItem | undefined>(resolve => {
+		// While the modal delete confirmation is up the picker loses focus and
+		// may hide itself. `isDeleting` suppresses the hide handler for that
+		// window so the pick isn't cancelled, and the picker is re-shown once
+		// the confirmation resolves.
+		let isDeleting = false;
 		store.add(tunnelPicker.onDidTriggerButton(button => {
 			if (button === quickInputService.backButton) {
 				resolve('back');
@@ -879,10 +896,64 @@ async function promptToConnectViaTunnel(
 			}
 		}));
 		store.add(tunnelPicker.onDidAccept(() => {
+			if (isDeleting) {
+				return;
+			}
 			resolve(tunnelPicker.selectedItems[0]);
 			tunnelPicker.hide();
 		}));
+		store.add(tunnelPicker.onDidTriggerItemButton(async event => {
+			if (event.button !== deleteTunnelButton || isDeleting) {
+				return;
+			}
+
+			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
+			isDeleting = true;
+			tunnelPicker.ignoreFocusOut = true;
+			let keepOpen = true;
+			try {
+				const confirmation = await dialogService.confirm({
+					type: 'warning',
+					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
+					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
+					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+				});
+				if (!confirmation.confirmed) {
+					return;
+				}
+
+				tunnelPicker.busy = true;
+				await tunnelService.deleteTunnel(event.item.tunnel);
+				const refreshedTunnels = await tunnelService.listTunnels();
+				if (refreshedTunnels.length === 0) {
+					keepOpen = false;
+					notificationService.info(localize('tunnelNoneFoundAfterDelete', "No dev tunnels with agent host support were found. Start a tunnel with 'code tunnel' on another machine."));
+					return;
+				}
+
+				tunnelPicker.items = toTunnelPickItems(refreshedTunnels);
+			} catch (err) {
+				notificationService.error(localize('tunnelDeleteFailed', "Failed to delete dev tunnel '{0}': {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
+			} finally {
+				tunnelPicker.busy = false;
+				tunnelPicker.ignoreFocusOut = previousIgnoreFocusOut;
+				isDeleting = false;
+				if (keepOpen) {
+					tunnelPicker.show();
+				} else {
+					// The picker may already be hidden behind the confirmation
+					// dialog, in which case `hide()` is a no-op and would never
+					// fire `onDidHide`, so settle the pick explicitly here.
+					resolve(undefined);
+					tunnelPicker.hide();
+					store.dispose();
+				}
+			}
+		}));
 		store.add(tunnelPicker.onDidHide(() => {
+			if (isDeleting) {
+				return;
+			}
 			resolve(undefined);
 			store.dispose();
 		}));

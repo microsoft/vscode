@@ -212,6 +212,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onUsage ??= this._sdkEvent('assistant.usage');
 	}
 
+	private _onModelCallFailure: Event<SessionEventPayload<'model.call_failure'>> | undefined;
+	get onModelCallFailure(): Event<SessionEventPayload<'model.call_failure'>> {
+		return this._onModelCallFailure ??= this._sdkEvent('model.call_failure');
+	}
+
 	private _onAbort: Event<SessionEventPayload<'abort'>> | undefined;
 	get onAbort(): Event<SessionEventPayload<'abort'>> {
 		return this._onAbort ??= this._sdkEvent('abort');

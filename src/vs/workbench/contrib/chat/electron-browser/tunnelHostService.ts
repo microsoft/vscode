@@ -26,6 +26,7 @@ import { ITunnelHostService } from '../common/tunnelHost.js';
 
 export const CONFIGURATION_KEY_MICROSOFT_AUTH = 'remote.tunnels.access.enableMicrosoftAuth';
 export const SHOW_TUNNEL_HOST_OUTPUT_ID = 'sessions.tunnelHost.showOutput';
+export const RENAME_TUNNEL_ID = 'sessions.tunnelHost.renameTunnel';
 
 export class TunnelHostService extends Disposable implements ITunnelHostService {
 	declare readonly _serviceBrand: undefined;
