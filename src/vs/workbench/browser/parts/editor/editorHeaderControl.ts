@@ -71,17 +71,11 @@ export class EditorHeaderControl extends Disposable {
 		}
 	}
 
-	updateBreadcrumbs(changed: boolean): void {
+	handleEditorsChange(changed: boolean): void {
 		if (changed) {
 			this.breadcrumbsControl?.update();
 		} else {
 			this.breadcrumbsControl?.revealLast();
-		}
-	}
-
-	updateBreadcrumbsWhenEmpty(): void {
-		if (!this.groupView.activeEditor) {
-			this.breadcrumbsControl?.update();
 		}
 	}
 

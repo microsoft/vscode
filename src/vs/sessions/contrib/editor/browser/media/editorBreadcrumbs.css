@@ -44,7 +44,7 @@
 	height: 22px;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header .breadcrumbs-in-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before {
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header .breadcrumbs-in-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item:first-of-type::before {
 	display: none;
 }
 

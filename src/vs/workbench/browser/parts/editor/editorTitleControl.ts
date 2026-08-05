@@ -96,7 +96,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleOpenedEditors(didChange: boolean): void {
-		this.headerControl.updateBreadcrumbs(didChange);
+		this.headerControl.handleEditorsChange(didChange);
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -116,7 +116,9 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleClosedEditors(): void {
-		this.headerControl.updateBreadcrumbsWhenEmpty();
+		if (!this.groupView.activeEditor) {
+			this.headerControl.handleEditorsChange(true);
+		}
 	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
