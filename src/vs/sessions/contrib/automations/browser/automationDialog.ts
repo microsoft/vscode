@@ -963,6 +963,7 @@ export function renderForm(
 		updateAutomationSessionTarget();
 		revalidate();
 	}));
+	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => updateAutomationSessionTarget()));
 
 	if (state.folderUri) {
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });

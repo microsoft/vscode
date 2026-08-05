@@ -238,6 +238,45 @@ suite('Automation session draft synchronization', () => {
 			errorCount: 1,
 		});
 	});
+
+	test('retries an unchanged target after draft creation fails', async () => {
+		const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
+		let createCount = 0;
+		let errorCount = 0;
+		const service = upcastPartial<ISessionsManagementService>({
+			automationSession,
+			createAutomationSession: (_folderUri, options) => {
+				if (createCount++ === 0) {
+					throw new Error('provider unavailable');
+				}
+				const session = upcastPartial<ISession>({
+					sessionId: 'automation-retry',
+					providerId: options?.providerId ?? 'provider',
+					sessionType: options?.sessionTypeId ?? 'type',
+				});
+				automationSession.set(session, undefined);
+				return session;
+			},
+			discardAutomationSession: () => automationSession.set(undefined, undefined),
+		});
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++));
+		const target = { kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider', sessionTypeId: 'type' } as const;
+
+		synchronizer.update(target);
+		await synchronizer.waitForSync();
+		synchronizer.update(target);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual({
+			createCount,
+			errorCount,
+			sessionId: automationSession.get()?.sessionId,
+		}, {
+			createCount: 2,
+			errorCount: 1,
+			sessionId: 'automation-retry',
+		});
+	});
 });
 
 suite('Automation workspace trust', () => {
