@@ -463,12 +463,11 @@ interface ICodexSession {
 	 */
 	workingDirectory: URI | undefined;
 	/**
-	 * The full resolved working-directory set handed to the first send (index 0
-	 * = the process root, mirrored in {@link workingDirectory}; the tail carries
-	 * any additional session roots). Populated only when the host-owned send hook
-	 * supplied a set, so the materialization receipt can record the lossless set;
-	 * `undefined` on the resume/restore path (the receipt then emits the singular
-	 * `workingDirectory`).
+	 * The current full working-directory set (index 0 = the process root,
+	 * mirrored in {@link workingDirectory}; the tail carries additional session
+	 * roots). Workspace-folder reconciliation can replace the tail before a
+	 * turn; `turn/start.runtimeWorkspaceRoots` applies the latest set to the
+	 * existing thread.
 	 */
 	workingDirectories?: readonly URI[];
 	readonly multiRootEnabled: boolean;
@@ -2966,7 +2965,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionId,
 			threadId,
 			sessionUri,
-			workingDirectory,
+			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
 			managedWorkingDirectory: undefined,
@@ -3495,15 +3494,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
 		this._ensureModelProviderAuthenticated(session.model);
-		// The host hands us the resolved working directories (index 0 = the process
-		// root) on the first send; adopt index 0 as the codex subprocess cwd before
-		// materialize locks it. The agent stays unaware of worktrees.
+		// The host hands us the complete resolved snapshot (index 0 = the process
+		// root) on every send. Adopt index 0 before first materialization locks the
+		// subprocess cwd; an existing thread keeps its cwd and receives the full
+		// replacement below through native turn/start options.
 		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectories?.[0]);
-		// Record the full set for the materialization receipt OUTSIDE the adoption
-		// path: a prewarm may have already materialized the thread, yet the receipt
-		// is fired on this first send and must still carry the resolved set. Only
-		// assign when the send supplied one, so the resume path keeps emitting the
-		// singular working directory.
+		// Record the full set OUTSIDE the adoption path: a prewarm may have
+		// already materialized the thread, yet the receipt is fired on this first
+		// send and must still carry the resolved set. Replace, rather than merge,
+		// the previous snapshot before any start, resume, or turn request is
+		// constructed. A missing snapshot is retained only for legacy cold-resume
+		// callers that rely on restored metadata.
 		if (workingDirectories) {
 			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
 				? distinctWorkingDirectories([
