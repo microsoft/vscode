@@ -53,7 +53,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -66,7 +66,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('create session triggers sessionAdded notification', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-create-session' });
 
@@ -81,7 +81,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('listSessions returns sessions', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
 
@@ -96,7 +96,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('dispose session sends sessionRemoved notification', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-dispose');
 		await client.call('disposeSession', { channel: sessionUri });
@@ -150,7 +150,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('idle session is released after its last subscriber drops and restores losslessly on re-subscribe', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-release' });
 
@@ -180,7 +180,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('isRead and isArchived flags survive in listSessions after dispatch', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-read-archived-flags');
 
@@ -236,7 +236,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('dispatching isRead=false explicitly persists as false', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 45_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-isread-false');
 
