@@ -150,9 +150,7 @@ export function createTabBarTestContext(container: HTMLElement, options: ITabBar
 		override readonly onDidVisibilityChange = Event.None;
 	};
 
-	// So that actions resolved via @IEditorGroupsService (CloseEditorTabAction, UnpinEditorAction,
-	// CloseOtherEditorTabsInGroupAction) operate on this same model when clicked for real, not the
-	// unrelated group workbenchInstantiationService() stubs by default.
+	// So actions resolved via @IEditorGroupsService operate on this same model when clicked for real, not the unrelated group workbenchInstantiationService() stubs by default.
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 		override getGroup(id: number) { return id === groupView.id ? groupView : undefined; }
 		override get activeGroup() { return groupView; }

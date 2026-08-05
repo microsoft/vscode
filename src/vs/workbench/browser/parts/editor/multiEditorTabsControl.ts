@@ -1631,8 +1631,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, options);
 	}
 
-	// Split out from redrawTab() so an Alt press/release can refresh just the action
-	// items (see updateTabActionsForAltState()) without a full tab bar redraw.
+	// Split out from redrawTab() so updateTabActionsForAltState() can refresh just the action items, not a full tab bar redraw.
 	private redrawTabAction(tabIndex: number, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const options = this.groupsView.partOptions;

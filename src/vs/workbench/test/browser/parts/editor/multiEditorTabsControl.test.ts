@@ -25,9 +25,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 	];
 
 	suiteSetup(() => {
-		// Warm up the ModifierKeyEmitter singleton before the leak tracker starts so its
-		// long-lived DisposableStore (created on first getInstance()) isn't flagged as a
-		// leak of whichever test happens to construct a MultiEditorTabsControl first.
+		// Warm up the singleton before the leak tracker starts, so its long-lived DisposableStore isn't flagged as a leak.
 		ModifierKeyEmitter.getInstance();
 	});
 
@@ -71,9 +69,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 	test('shows Close by default and swaps to Close Other Editors while Alt is held', () => {
 		const { titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
-		// Re-queried fresh each time, not cached: swapping the pushed action rebuilds the
-		// action item's DOM (ActionBar.clear() + push()), so a stale reference from before
-		// the swap would silently keep pointing at the removed node.
+		// Re-queried fresh each time: swapping the pushed action rebuilds the DOM, so a cached reference would go stale.
 		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close'), 'expected the plain Close icon by default');
 
 		pressAlt();
@@ -95,8 +91,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 	test('clicking while Alt is held closes every other non-sticky tab', () => {
 		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
-		// Don't assume which resource ends up rendered at index 1 (the model's
-		// openPositioning setting can reorder tabs on open) — read it back instead.
+		// Don't assume which resource ends up at index 1 (openPositioning can reorder tabs) — read it back instead.
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		const stickyEditor = beforeOrder[0];
 		const clickedEditor = beforeOrder[1];
@@ -113,11 +108,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 	});
 
 	test('closes a tab even if its matches() loosely matches the clicked tab (e.g. Welcome/walkthrough tabs)', () => {
-		// Some editor inputs (e.g. GettingStartedInput, used for the Welcome and walkthrough
-		// tabs) override matches() to return true for *any* instance of the same type, not just
-		// the exact same instance — used elsewhere to reuse a singleton editor pane. The
-		// close-others filter must key off identity, not matches(), or such a tab wrongly
-		// survives whenever the clicked tab happens to be of the same loosely-matching type.
+		// e.g. GettingStartedInput.matches() returns true for any same-type instance; the filter must key off identity, not matches(), or such a tab wrongly survives.
 		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
@@ -125,10 +116,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 		const looselyMatchingEditor = beforeOrder[1];
 		const clickedEditor = beforeOrder[2];
 
-		// Simulate a loosely-matching "singleton" input type by making both editors' matches()
-		// report a match against each other, without touching how they were opened above (opening
-		// two genuinely matches()-colliding inputs would just make the model dedupe them into one
-		// tab, which isn't the scenario being tested here).
+		// Override matches() to simulate loose matching; opening two genuinely colliding inputs would just make the model dedupe them into one tab.
 		const originalMatches = looselyMatchingEditor.matches.bind(looselyMatchingEditor);
 		looselyMatchingEditor.matches = other => other === clickedEditor || originalMatches(other);
 
@@ -143,12 +131,7 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 	});
 
 	test('clicking a sticky tab\'s Unpin button while Alt is held does not close other tabs', () => {
-		// Unpin's actual effect on the model isn't exercised here: unlike the close actions
-		// (which call IEditorGroupsService directly), UnpinEditorAction runs through
-		// ICommandService.executeCommand(), whose target command is only registered by
-		// editorCommands.ts's setup(), never invoked in this lightweight harness. What's in
-		// scope for this suite is that Alt held over the Unpin icon doesn't also fire "close
-		// others" - see the icon-stays-Unpin test above for that half of the guarantee.
+		// Unpin's model effect isn't exercised here (it runs through ICommandService, unregistered in this harness) — this only checks Alt doesn't also trigger close-others.
 		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);

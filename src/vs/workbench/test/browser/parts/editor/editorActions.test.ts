@@ -52,10 +52,7 @@ suite('CloseOtherEditorTabsInGroupAction', () => {
 	});
 
 	test('keys off identity, not matches(), so a loosely-matching editor does not wrongly spare the target', async () => {
-		// Some editor inputs (e.g. GettingStartedInput, used for Welcome/walkthrough tabs)
-		// override matches() to return true for any instance of the same type. Filtering by
-		// matches() instead of reference would incorrectly exclude such an editor from the
-		// close list whenever it happens to loosely-match the target.
+		// e.g. GettingStartedInput.matches() returns true for any same-type instance; filtering by matches() would wrongly exclude it from the close list.
 		const editor1 = disposables.add(new TestTabEditorInput(URI.file('/a.ts'), false));
 		const target = disposables.add(new TestTabEditorInput(URI.file('/b.ts'), false));
 		const looselyMatching = disposables.add(new TestTabEditorInput(URI.file('/c.ts'), false));

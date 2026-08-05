@@ -483,9 +483,7 @@ export class CloseEditorTabAction extends Action {
 	}
 }
 
-// The alt-hold alternative to CloseEditorTabAction on a tab's close button
-// (see MultiEditorTabsControl), not the multi-select-aware closeOtherEditors
-// command: this always keeps exactly the one tab it was invoked on.
+// The alt-hold alternative to CloseEditorTabAction (see MultiEditorTabsControl), not the multi-select-aware closeOtherEditors command.
 export class CloseOtherEditorTabsInGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.closeOtherEditorTabInGroup';
