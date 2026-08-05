@@ -71,9 +71,9 @@ export class NewFileTabAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const sessionsService = accessor.get(ISessionsService);
 		const group = editorGroupsService.mainPart.activeGroup;
-		const workspaceFolder = sessionsService.activeSession.get()?.workspace.get()?.folders[0]?.workingDirectory;
+		const workspace = sessionsService.activeSession.get()?.workspace.get();
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspaceFolder), { pinned: true, index: group.count }, group);
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index: group.count }, group);
 	}
 }
 

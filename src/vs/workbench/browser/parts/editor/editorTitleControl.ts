@@ -148,6 +148,7 @@ export class EditorTitleControl extends Themable {
 	updateEditorLabel(editor: EditorInput): void {
 		this.editorTabsControl.updateEditorLabel(editor);
 		if (this.groupView.activeEditor === editor) {
+			// An active input may change its effective resource without being reopened.
 			this.headerControl.handleEditorsChange(true);
 		}
 	}

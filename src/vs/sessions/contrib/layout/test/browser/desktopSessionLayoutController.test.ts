@@ -365,7 +365,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 		harness.onDidActiveEditorChange.fire();
 		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
@@ -559,7 +559,7 @@ suite('LayoutController (desktop)', () => {
 		// Files detail is revealed and the Files container is opened.
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -588,7 +588,7 @@ suite('LayoutController (desktop)', () => {
 		const restoreGate = new Promise<void>(resolve => { releaseRestore = resolve; });
 		controller.runWithRestore(() => restoreGate);
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 		harness.onDidActiveEditorChange.fire();
 		releaseRestore();
 		await restoreGate;
@@ -668,7 +668,7 @@ suite('LayoutController (desktop)', () => {
 		harness.openedViewContainers = [];
 
 		// The restored managed tab becomes active; the detail must NOT re-reveal.
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -2895,7 +2895,7 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasFilesTab(), false);
 
 		// The user explicitly adds the Files tab via `+` (opens an EmptyFileEditorInput).
-		const userFilesTab = store.add(new EmptyFileEditorInput());
+		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 		openEditor(userFilesTab);
 		harness.activeGroupEditors.push(userFilesTab);
 		harness.onDidEditorsChange.fire();
