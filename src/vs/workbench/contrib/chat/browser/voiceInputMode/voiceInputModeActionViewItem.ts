@@ -35,7 +35,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
@@ -155,11 +155,14 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 		}
 		const controller = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
-		const commandService = accessor.get(ICommandService);
 
 		// Enforce mutual exclusion: if built-in dictation is recording, cancel it
 		// before starting voice capture so the two never record simultaneously.
 		const speechToText = accessor.get(IChatSpeechToTextService);
+		if (speechToText.state !== ChatSpeechToTextState.Idle) {
+			speechToText.cancel();
+		}
+
 		// Capture the key-hold FIRST (synchronously) — it must be requested before any await.
 		const holdMode = keybindingService.enableKeybindingHoldMode(ChatVoiceInputModeToggleListenAction.ID);
 
@@ -171,10 +174,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			if (speechToText.isBusy) {
-				await speechToText.cancel();
-			}
-			await retargetVoiceToCurrentSession(commandService, controller);
+			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -413,6 +413,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
 		}));
+		this._registerActivationKeys(this._dictationCell, () => this._onClickDictation());
 		this._register(addMicButtonContextMenuListener(
 			this._dictationCell,
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
@@ -443,6 +444,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			void this._onClickVoicePowerToggle();
 		}));
+		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle());
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
@@ -491,16 +493,20 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			}
 			this._onClickListen();
 		}));
+		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
+		// Dictation activity: driven directly by the built-in on-device speech-to-text
+		// service so the mic reliably fills while a dictation session is recording or
+		// transcribing (global, not scope-dependent).
 		const dictationActive = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangeState,
-			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat'));
+			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
 		// Model preparation: on first use the on-device model downloads/loads. Swap the
 		// mic for a download affordance while preparing, mirroring the standalone button.
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
-			() => this.chatSpeechToTextService.currentSurface === 'chat' && this.chatSpeechToTextService.isPreparingModel);
+			() => this.chatSpeechToTextService.isPreparingModel);
 		// Sub-state of preparing: `true` only during a confirmed on-disk download
 		// (cache miss), `false` while loading an already-cached model. Drives the
 		// download-vs-spinner glyph below.
@@ -714,6 +720,29 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		} else {
 			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
 		}
+	}
+
+	/**
+	 * Activate a segmented cell from the keyboard. The cells live inside a toolbar's
+	 * `ActionBar`, whose key handler runs the (no-op) placeholder action on Enter/Space
+	 * and calls `preventDefault`/`stopPropagation`, which would otherwise swallow the
+	 * native button activation. Handle Enter/Space here and stop the event before it
+	 * bubbles to the ActionBar so the focused cell's own gesture runs.
+	 */
+	private _registerActivationKeys(cell: HTMLElement, handler: () => void): void {
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_UP, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				handler();
+			}
+		}));
 	}
 
 	private _onClickDictation(): void {

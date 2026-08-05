@@ -101,6 +101,7 @@ export const DICTATION_MODEL_SETTING = 'dictation.model';
 
 export const enum DictationSettingId {
 	ShowTranscript = 'dictation.showTranscript',
+	ShowButton = 'dictation.showButton',
 }
 
 /** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */

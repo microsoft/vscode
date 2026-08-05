@@ -221,17 +221,13 @@ export interface IDockedEditorLayout {
 
 	/**
 	 * Whether the editor's current visible state was produced by an explicit user
-	 * reveal (opening an editor, or toggling the detail panel off) rather than an
-	 * automatic layout/working-set reveal. The single-pane new-session rule (R1)
-	 * uses this to avoid re-hiding an editor the user explicitly asked to show.
+	 * reveal (opening an editor, or toggling the detail panel off).
 	 */
 	isEditorRevealedExplicitly(): boolean;
 
 	/**
-	 * Reveals the (possibly hidden) editor part as an *explicit* user reveal, so
-	 * the automatic single-pane hide rules (R1 / working-set apply) do not undo it.
-	 * Use for deliberate opens like the session-header Changes pill or opening a
-	 * file diff — not for automatic/layout-driven reveals.
+	 * Reveals the (possibly hidden) editor part as an explicit user action. Use for
+	 * deliberate opens like the session-header Changes pill or opening a file diff.
 	 */
 	revealEditorPartExplicitly(): void;
 
@@ -403,7 +399,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	get isSinglePaneLayoutEnabled(): boolean {
 		return false;
 	}
-	/** `true` while the editor's current visible state was produced by an explicit user reveal (opening an editor, or toggling the detail panel off) rather than an automatic layout/working-set reveal. Read by the single-pane new-session rule (R1) so it does not undo an explicit reveal. */
+	/** `true` while the editor's current visible state was produced by an explicit user reveal. */
 	protected _editorRevealedExplicitly = false;
 
 	protected readonly partVisibility: IPartVisibilityState = {
@@ -1860,7 +1856,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	revealEditorPartExplicitly(): void {
-		// Mark the reveal explicit so R1 / the working-set apply do not re-hide it.
+		// Preserve the distinction from automatic layout-driven reveals.
 		// Re-assert the flag even when already visible (the early-return in
 		// setEditorHidden would otherwise skip it).
 		this._editorRevealedExplicitly = true;
@@ -2314,8 +2310,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
 
-		// Track whether this visible state was an explicit user reveal so R1 does
-		// not undo it. Any hide clears it; an automatic reveal leaves it false.
+		// Track whether this visible state was an explicit user reveal.
 		this._editorRevealedExplicitly = !hidden && explicit;
 
 		this._runWithEditorResizeSyncSuspended(() => {

@@ -103,6 +103,8 @@ export class TerminalVoiceSession extends Disposable {
 	private _usingBuiltin = false;
 	/** True while awaiting the built-in engine's final transcript during accept. */
 	private _builtinFinalizing = false;
+	private _sessionTerminalInstanceId: number | undefined;
+	private _sessionTerminalDisposed = false;
 	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
 		if (!TerminalVoiceSession._instance) {
 			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
@@ -123,8 +125,6 @@ export class TerminalVoiceSession extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
-		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 		this._disposables = this._register(new DisposableStore());
 		this._decorationDisposables = this._register(new DisposableStore());
 		this._terminalDictationInProgress = TerminalContextKeys.terminalDictationInProgress.bindTo(contextKeyService);
@@ -133,6 +133,19 @@ export class TerminalVoiceSession extends Disposable {
 	async start(): Promise<void> {
 		this.stop();
 		const activeInstance = this._terminalService.activeInstance;
+		this._sessionTerminalInstanceId = activeInstance?.instanceId;
+		this._sessionTerminalDisposed = false;
+		this._disposables.add(this._terminalService.onDidChangeActiveInstance(instance => {
+			if (instance?.instanceId !== this._sessionTerminalInstanceId) {
+				this.stop();
+			}
+		}));
+		this._disposables.add(this._terminalService.onDidDisposeInstance(instance => {
+			if (instance.instanceId === this._sessionTerminalInstanceId) {
+				this._sessionTerminalDisposed = true;
+				this.stop();
+			}
+		}));
 		if (activeInstance) {
 			TerminalInitialHintContribution.get(activeInstance)?.dispose();
 		}
@@ -319,6 +332,11 @@ export class TerminalVoiceSession extends Disposable {
 			this._finalizeBuiltinThenStop();
 			return;
 		}
+		if (this._builtinFinalizing && !send
+			&& !this._sessionTerminalDisposed
+			&& this._terminalService.activeInstance?.instanceId === this._sessionTerminalInstanceId) {
+			return;
+		}
 		this._setInactive();
 		if (send) {
 			this._acceptTranscriptionScheduler!.cancel();
@@ -341,6 +359,8 @@ export class TerminalVoiceSession extends Disposable {
 		this._terminalDictationInProgress.reset();
 		this._usingBuiltin = false;
 		this._builtinFinalizing = false;
+		this._sessionTerminalInstanceId = undefined;
+		this._sessionTerminalDisposed = false;
 	}
 
 	private _sendText(): void {

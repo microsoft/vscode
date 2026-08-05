@@ -28,7 +28,7 @@ import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDi
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -38,9 +38,8 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
  * Renders a single agent turn's changes as a checkpoint-style summary: a
  * `N files changed +ins -del` header with a "View All File Changes" action, an
  * optional inline resource-label action for the first previewable file the turn
- * produced, and a disclosure that expands to the list of changed files. Preview
- * candidates prefer the turn's file-edit stream so files outside the workspace
- * can appear.
+ * produced outside the workspace, and a disclosure that expands to the list of
+ * changed files. Preview candidates prefer the turn's file-edit stream.
  */
 export class ChatTurnPillsContentPart extends Disposable implements IChatContentPart {
 
@@ -79,13 +78,16 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return { files: diffs.length, insertions, deletions };
 		});
 
-		const previewDiffs = chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? this._diffs;
+		const previewDiffs = chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? constObservable([]);
 		const previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => {
 			const created: IPreviewFile[] = [];
 			const edited: IPreviewFile[] = [];
 			const seen = new Set<string>();
-			const addDiffs = (diffs: readonly IEditSessionEntryDiff[]) => {
+			const addDiffs = (diffs: readonly IChatResponseFileEdit[]) => {
 				for (const diff of diffs) {
+					if (!diff.isOutsideWorkspace) {
+						continue;
+					}
 					const kind = previewKind(diff.modifiedURI);
 					if (!kind) {
 						continue;
@@ -104,7 +106,6 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 				}
 			};
 			addDiffs(previewDiffs.read(reader));
-			addDiffs(this._diffs.read(reader));
 			return [...created, ...edited];
 		});
 

@@ -84,6 +84,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -855,6 +856,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
+	instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
+		register: () => toDisposable(() => { }),
+		reconcile: async () => { },
+	} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
@@ -3158,7 +3163,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Matching workspace',
 				workingDirectories: [c, d],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString(), name: 'First' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'different-workspace-file'),
@@ -3166,7 +3171,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Different workspace',
 				workingDirectories: [a, b],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString(), name: 'Second' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'metadata-less'),
@@ -8629,7 +8634,7 @@ suite('AgentHostChatContribution', () => {
 				undefined,
 				{
 					getInitialSessionConfig: () => ({ isolation: 'folder' }),
-					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } }),
+					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } }),
 				},
 			);
 
@@ -8653,7 +8658,7 @@ suite('AgentHostChatContribution', () => {
 				_meta: agentHostService.createSessionCalls[0]._meta,
 			}, {
 				config: { isolation: 'folder' },
-				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } },
 			});
 		}));
 

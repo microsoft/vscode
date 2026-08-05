@@ -30,6 +30,7 @@ import {
 	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
@@ -262,6 +263,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * `Bash` for Claude.)
 	 */
 	readonly shellToolName: string;
+	/** How file-operation scenarios should drive this provider. */
+	readonly fileOperationStrategy: 'fileTools' | 'shell';
 	/**
 	 * Tool names the provider uses to dispatch a subagent. The first entry
 	 * is used in the subagent-routing prompt; all entries are exempted from
@@ -321,28 +324,6 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/**
-	 * Whether this provider offers file-reading/writing tools of its own.
-	 *
-	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
-	 * tools; do not run a shell command.") cannot be satisfied by a provider
-	 * that only has a shell: it refuses the operation rather than falling back.
-	 * Codex is the current example — its captures contain only `exec_command`.
-	 *
-	 * Scenarios that pin a portable shell command instead are unaffected.
-	 */
-	readonly supportsFileTools: boolean;
-	/**
-	 * Whether this provider's file-manipulation scenarios replay stably when the
-	 * whole suite shares one server.
-	 *
-	 * A provider without file tools performs each of them through its shell, and
-	 * several such turns on one long-lived server hit the shared-server load
-	 * ceiling: the tool-call completion is reported inconsistently and the
-	 * failing scenario moves between runs. Individually they replay fine, so
-	 * this gates the family rather than any single test.
-	 */
-	readonly stableSharedServerFileScenarios?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -814,7 +795,8 @@ export class AgentHostE2EServerLease {
 	private _modelBackedTestsOnCurrentServer = 0;
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
+	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -829,6 +811,7 @@ export class AgentHostE2EServerLease {
 			codexSdkRoot: startOptions.codexSdkRoot,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
+			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -840,6 +823,7 @@ export class AgentHostE2EServerLease {
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
+		this._currentCapiReplay = capiReplay;
 		// Bound both provider-model load and host-owned resource accumulation.
 		if (this._shared && this._server && (
 			this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER
@@ -871,6 +855,46 @@ export class AgentHostE2EServerLease {
 		);
 		await this._client.connect();
 		return { server: this._server, client: this._client };
+	}
+
+	/**
+	 * Restart the target while preserving its isolated home, user data, and the
+	 * replay proxy's consumed exchange sequence. Returns a connected,
+	 * uninitialized client for the caller to initialize with a new client id.
+	 */
+	async restart(): Promise<TestProtocolClient> {
+		const server = this._server;
+		const proxy = server?.capiReplay;
+		const capiReplay = this._currentCapiReplay;
+		if (!server || !proxy || !capiReplay) {
+			throw new Error('[agent-host-e2e] no replay-backed server to restart');
+		}
+
+		this._client?.close();
+		this._client = undefined;
+		await stopServer(server);
+		this._server = undefined;
+
+		try {
+			this._server = await this._target.launch({
+				...this._startOptions,
+				capiReplay,
+				existingCapiReplay: proxy,
+				logLevel: this._isCopilotProvider ? 'trace' : undefined,
+			});
+		} catch (error) {
+			await proxy.close();
+			throw error;
+		}
+
+		const client = new TestProtocolClient(
+			this._server.port,
+			() => this._server?.capiReplay?.takeReplayError(),
+			workingDirectory => this._server?.capiReplay?.setWorkingDirectory(workingDirectory),
+		);
+		await client.connect();
+		this._client = client;
+		return client;
 	}
 
 	/**
