@@ -153,7 +153,9 @@
 	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
 }
 
-.style-override .part.editor .title.two-tab-bars > .tabs-and-actions-container.tabs-border-bottom.wrapping:not(:first-child) {
+/* In two-tab-bars mode the border-block-width rules below own every vertical gutter, so the
+ * container must not add its own top padding to either the pinned or the unpinned row. */
+.style-override .part.editor .title.two-tab-bars > .tabs-and-actions-container {
 	padding-top: 0;
 }
 
