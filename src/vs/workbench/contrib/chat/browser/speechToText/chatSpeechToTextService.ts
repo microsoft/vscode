@@ -36,6 +36,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -132,6 +133,10 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
  * - `mai`: the cloud voice service used by Voice Mode, via {@link IVoiceClientService}.
  */
 type DictationBackend = 'nemo' | 'mai';
+
+export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
+	return isProUser(entitlement) && (!usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal);
+}
 
 /** How long to wait for the voice websocket to connect before failing an MAI session. */
 const MAI_CONNECT_TIMEOUT_MS = 8000;
@@ -274,8 +279,8 @@ export interface IChatSpeechToTextService {
 	switchMicrophone(window: Window & typeof globalThis, deviceId: string): Promise<AnalyserNode | undefined>;
 
 	/**
-	 * Whether on-device speech-to-text is available on this platform. Callers
-	 * gate the dictation UI on this.
+	 * Whether speech-to-text is available for the current Copilot entitlement,
+	 * selected backend, and platform. Callers gate the dictation UI on this.
 	 */
 	readonly isConfigured: boolean;
 
@@ -390,6 +395,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	get state(): ChatSpeechToTextState {
 		return this._state;
 	}
+	private _entitlementCheckScheduled = false;
+	private _startGeneration = 0;
+	private _startInProgress: number | undefined;
 
 	private readonly _recordingContextKey: IContextKey<boolean>;
 	private readonly _configuredContextKey: IContextKey<boolean>;
@@ -425,7 +433,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return false;
 		}
-		if (this._getBackend() === 'mai') {
+		const backend = this._getBackend();
+		if (!this._isEntitledForBackend(backend)) {
+			return false;
+		}
+		if (backend === 'mai') {
 			// The cloud backend needs a configured voice websocket endpoint;
 			// GitHub sign-in and connectivity are validated when a session starts.
 			return !!this._voiceWsUrl();
@@ -490,6 +502,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -501,11 +514,33 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._updateConfiguredContextKey();
 			}
 		}));
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => {
+			if (this._entitlementCheckScheduled) {
+				return;
+			}
+			this._entitlementCheckScheduled = true;
+			queueMicrotask(() => {
+				this._entitlementCheckScheduled = false;
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._updateConfiguredContextKey();
+				const hasActiveOrStartingSession = this._state !== ChatSpeechToTextState.Idle || this._startInProgress !== undefined;
+				const backend = hasActiveOrStartingSession ? this._activeBackend : this._getBackend();
+				if (hasActiveOrStartingSession && !this._isEntitledForBackend(backend)) {
+					this.cancel();
+				}
+			});
+		}));
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
 	private _getBackend(): DictationBackend {
 		return this._configurationService.getValue<string>(DICTATION_MODEL_SETTING) === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
+	}
+
+	private _isEntitledForBackend(backend: DictationBackend): boolean {
+		return isDictationEntitled(this._chatEntitlementService.entitlement, this._chatEntitlementService.isInternal, backend === 'mai');
 	}
 
 	get currentBackend(): string {
@@ -629,7 +664,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async start(window: Window & typeof globalThis, surface: ChatDictationSurface = 'chat'): Promise<void> {
-		if (this._state !== ChatSpeechToTextState.Idle) {
+		if (this._state !== ChatSpeechToTextState.Idle || this._startInProgress !== undefined) {
 			return;
 		}
 		const captureWindow = getMediaCaptureWindow(window);
@@ -640,6 +675,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		const backend = this._getBackend();
 		this._activeBackend = backend;
+
+		if (!this._isEntitledForBackend(backend)) {
+			this._notificationService.warn(backend === 'mai' && this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('chatStt.maiEnterpriseUnavailable', "Cloud speech-to-text is not available for GitHub Copilot Enterprise accounts.")
+				: localize('chatStt.requiresPaidPlan', "Dictation requires a paid GitHub Copilot plan."));
+			return;
+		}
 
 		if (backend === 'nemo' && !this._localTranscription.isSupported) {
 			this._notificationService.notify({
@@ -656,6 +698,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 
+		const startGeneration = ++this._startGeneration;
+		this._startInProgress = startGeneration;
+		try {
+			await this._startEntitled(window, surface, backend, startGeneration);
+		} finally {
+			if (this._startInProgress === startGeneration) {
+				this._startInProgress = undefined;
+			}
+		}
+	}
+
+	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, startGeneration: number): Promise<void> {
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
 		this._sessionPartialUpdates = 0;
@@ -675,11 +729,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		try {
 			stream = await this._acquireStream(captureWindow);
 		} catch (err) {
+			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+				return;
+			}
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] microphone acquisition failed', err);
 			this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
+		}
+		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+			stream.getTracks().forEach(track => track.stop());
+			return;
 		}
 
 		this._mediaStream = stream;
@@ -688,11 +749,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			await this._startBackendSession(captureWindow);
 		} catch (err) {
 			this._teardown();
+			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+				return;
+			}
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start transcription', err);
 			this._notificationService.error(localize('chatStt.connectError', "Could not start speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
+		}
+		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+			this._cancelBackend();
+			this._teardown();
+			return;
 		}
 
 		try {
@@ -703,11 +772,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// down instead of leaking an active recording in the Idle state.
 			this._cancelBackend();
 			this._teardown();
+			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+				return;
+			}
 			this._sessionErrorCode = this._sessionErrorCode || 'capture';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start audio capture', err);
 			this._notificationService.error(localize('chatStt.captureError', "Could not start audio capture for speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
+		}
+		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+			this._cancelBackend();
+			this._teardown();
+			return;
 		}
 		this._setState(ChatSpeechToTextState.Recording);
 		// Only cue "recording started" once we are actually listening. If the
@@ -717,6 +794,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (!this._isPreparingModel) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 		}
+	}
+
+	private _isCurrentEntitledStart(startGeneration: number, backend: DictationBackend): boolean {
+		return startGeneration === this._startGeneration && this._isEntitledForBackend(backend);
 	}
 
 	/** Start the transcription session for the active backend. */
@@ -1321,6 +1402,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	cancel(): void {
 		const wasRecording = this._state === ChatSpeechToTextState.Recording;
+		this._startGeneration++;
 		this._cleanupCts.value?.cancel();
 		this._logSessionTelemetry('cancelled');
 		this._cancelBackend();

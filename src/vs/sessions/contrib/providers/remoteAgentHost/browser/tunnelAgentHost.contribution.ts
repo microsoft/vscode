@@ -335,7 +335,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					protocolVersion: 5,
 					hostConnectionCount: 0,
 				};
-				await this._tunnelService.connect(tunnelInfo, cached.authProvider);
+				await this._tunnelService.connect(tunnelInfo, cached.authProvider, { userInitiated: options.userInitiated });
 				// Re-check after the await: the user may have disconnected this
 				// tunnel while this background connect was already in flight.
 				if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(cached.tunnelId)) {
