@@ -151,7 +151,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		// `chat.speechToText.enabled` kill-switch, so the segment only appears
 		// where clicking it can actually dictate.
 		this.dictationAvailable = observableFromEvent(this,
-			configurationService.onDidChangeConfiguration,
+			Event.any(configurationService.onDidChangeConfiguration, contextKeyService.onDidChangeContext),
 			() => chatSpeechToTextService.isConfigured
 				&& configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false);
 

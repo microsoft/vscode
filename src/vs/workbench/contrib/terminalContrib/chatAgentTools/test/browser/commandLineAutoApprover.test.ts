@@ -101,6 +101,57 @@ suite('CommandLineAutoApprover', () => {
 		strictEqual(await isAutoApproved('sort<input.txt'), true);
 	});
 
+	suite('default sed rules', () => {
+		setup(() => {
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('auto-approves benign substitutions', async () => {
+			const commands = [
+				'sed "s/foo/bar/g" file.txt',
+				'sed -n "1,10p" file.txt',
+				'sed "/err/d" file.txt',
+				'sed "y/abc/xyz/" file.txt',
+				'sed "s/a/b/;s/c/d/" file.txt',
+				'sed "/w/d" file.txt',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => true));
+		});
+
+		test('denies dangerous script forms', async () => {
+			const commands = [
+				'sed -e "s/foo/bar/"',
+				'sed --expression "s/foo/bar/"',
+				'sed "s/foo/bar/e"',
+				'sed "s/foo/bar/w"',
+				'sed "1e id > /tmp/SECURITY_TEST_pwned"',
+				'sed "1w /tmp/SECURITY_TEST_pwned_file" input.txt',
+				'sed "1r /etc/passwd" input.txt',
+				'sed "1W /tmp/x" input.txt',
+				'sed "e id"',
+				'sed "s/a/b/;e id"',
+				'sed "/pat/e id"',
+				'sed -n "1e id" file.txt',
+				'sed 1e id',
+				'sed "s/a/b/; e id"',
+				'sed "s/a/\'/;e id"',
+				'sed /pat/e input.txt',
+				'sed "1 e id"',
+				'sed "1!e id"',
+				'sed "1, 3 w /tmp/x" input.txt',
+				'sed -l 80 "e id" input.txt',
+				'sed --line-length 80 "1w /tmp/x" input.txt',
+				'sed --line-length=80 "1r /etc/passwd" input.txt',
+				'sed "s/a/\\"/;e id" input.txt',
+				'sed "/x/p;//e id" input.txt',
+				'sed e',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+	});
+
 	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', async () => {
 			setAutoApprove({
