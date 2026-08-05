@@ -164,7 +164,7 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: [primary.toString(), retained.toString(), stale.toString()],
-			_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: workspaceFile.toString(), name: 'Demo' }),
+			_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: workspaceFile.toString() }),
 		};
 		const defaultChat = buildDefaultChatUri(session.toString());
 		const state: SessionState = {

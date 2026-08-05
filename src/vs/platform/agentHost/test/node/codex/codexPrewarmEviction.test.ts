@@ -690,7 +690,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const repoC = URI.file('/repo-c');
 
 		try {
-			const created = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const created = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
