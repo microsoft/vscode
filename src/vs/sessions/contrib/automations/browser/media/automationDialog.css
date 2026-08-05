@@ -331,6 +331,27 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.automation-form-new-chat-pickers .new-chat-session-controls {
+	min-width: 0;
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .action-label {
+	height: 16px;
+	padding: 3px 8px;
+	font-size: var(--vscode-agents-fontSize-label2);
+	color: var(--vscode-icon-foreground);
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .action-label > .codicon {
+	width: auto;
+	height: auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .action-label > .codicon-chevron-down {
+	display: none;
+}
+
 /*
  * Hide chips from the embedded chat input's primary toolbar that don't fit
  * the automation dialog's reduced surface:

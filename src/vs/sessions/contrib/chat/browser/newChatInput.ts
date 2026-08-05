@@ -311,9 +311,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
+	/** Moves the provider-contributed session controls into the given container. */
+	renderSessionControls(container: HTMLElement): void {
+		if (!this._sessionControlsContainer) {
+			throw new Error('NewChatInputWidget must be rendered before its session controls.');
+		}
+		container.appendChild(this._sessionControlsContainer);
+	}
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private _sessionControlsContainer: HTMLElement | undefined;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -505,7 +514,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
 			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
+		this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this._sessionControlsContainer, Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 

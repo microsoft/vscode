@@ -984,6 +984,7 @@ export function renderForm(
 	const newChatPickersHost = DOM.append(newChatInputHost, $('.automation-form-new-chat-pickers.chat-secondary-toolbar'));
 	newChatInput.sessionTypePicker.render(newChatPickersHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
 	workspacePicker.render(newChatPickersHost).classList.add('chat-input-picker-item');
+	newChatInput.renderSessionControls(newChatPickersHost);
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
