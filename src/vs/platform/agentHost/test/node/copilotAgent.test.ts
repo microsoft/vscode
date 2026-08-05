@@ -1178,7 +1178,7 @@ suite('CopilotAgent', () => {
 		const session = AgentSession.uri('copilotcli', 'unauth-create');
 		const workingDirectory = URI.file('/workspace');
 		try {
-			const result = await agent.createSession({ session, workingDirectories: workingDirectory ? [workingDirectory] : undefined });
+			const result = await agent.createSession({ session, workingDirectories: [workingDirectory] });
 			assert.ok(result.resolvedWorkingDirectory);
 			assert.deepStrictEqual({
 				session: result.session.toString(),
@@ -3002,36 +3002,38 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('multi-root session forwards additionalDirectories to the SDK session config', async () => {
-			const sessionDataService = disposables.add(new TestSessionDataService());
-			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
-			let capturedConfig: CopilotCreateSessionOptions | undefined;
-			client.createSession = async config => {
-				capturedConfig = config;
-				return new MockCopilotSession() as unknown as CopilotSession;
+		test('create gates the SDK additionalDirectories on the multi-root flag', async () => {
+			const runCreate = async (multiRootEnabled: boolean): Promise<{ workingDirectory: string | undefined; additionalDirectories: string[] | undefined }> => {
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+				let capturedConfig: CopilotCreateSessionOptions | undefined;
+				client.createSession = async config => {
+					capturedConfig = config;
+					return new MockCopilotSession() as unknown as CopilotSession;
+				};
+				const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+				try {
+					configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: multiRootEnabled });
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, m => m.length > 0);
+
+					const repoA = URI.file('/repo-a');
+					const repoB = URI.file('/repo-b');
+					const session = AgentSession.uri('copilotcli', `multi-root-sdk-${multiRootEnabled}`);
+					const result = await agent.createSession({ session, workingDirectories: [repoA, repoB] });
+					await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', [repoA, repoB]);
+					return { workingDirectory: capturedConfig?.workingDirectory, additionalDirectories: capturedConfig?.additionalDirectories };
+				} finally {
+					await disposeAgent(agent);
+				}
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
-			try {
-				configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: true });
-				await agent.authenticate('https://api.github.com', 'token');
-				await waitForState(agent.models, m => m.length > 0);
 
-				const repoA = URI.file('/repo-a');
-				const repoB = URI.file('/repo-b');
-				const session = AgentSession.uri('copilotcli', 'multi-root-sdk');
-				const result = await agent.createSession({ session, workingDirectories: [repoA, repoB] });
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', [repoA, repoB]);
-
-				assert.deepStrictEqual({
-					workingDirectory: capturedConfig?.workingDirectory,
-					additionalDirectories: capturedConfig?.additionalDirectories,
-				}, {
-					workingDirectory: repoA.fsPath,
-					additionalDirectories: [repoB.fsPath],
-				});
-			} finally {
-				await disposeAgent(agent);
-			}
+			const enabled = await runCreate(true);
+			const disabled = await runCreate(false);
+			assert.deepStrictEqual({ enabled, disabled }, {
+				enabled: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [URI.file('/repo-b').fsPath] },
+				disabled: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [] },
+			});
 		});
 
 		test('session plugin enablement is projected from reducer state per session', async () => {
@@ -5692,6 +5694,51 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		test('resume gates the persisted additional roots on the multi-root flag', async () => {
+			const runResume = async (multiRootEnabled: boolean): Promise<string[] | undefined> => {
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-multi-root-`);
+				const secondary = await fs.mkdtemp(`${os.tmpdir()}/resume-multi-root-b-`);
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const session = AgentSession.uri('copilotcli', 's1');
+				const dbRef = sessionDataService.openDatabase(session);
+				try {
+					await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+					await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(workingDirectory).toString(), URI.file(secondary).toString()]));
+				} finally {
+					dbRef.dispose();
+				}
+
+				const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
+				let capturedAdditional: string[] | undefined;
+				client.resumeSession = async (_sessionId, options) => {
+					capturedAdditional = options?.additionalDirectories;
+					return new MockCopilotSession() as unknown as CopilotSession;
+				};
+				const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService });
+				const internals = agent as unknown as AgentInternals;
+				try {
+					configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: multiRootEnabled });
+					await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+					await internals._resumeSession('s1');
+					return capturedAdditional;
+				} finally {
+					await fs.rm(workingDirectory, { recursive: true, force: true });
+					await fs.rm(secondary, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			};
+
+			const enabled = await runResume(true);
+			const disabled = await runResume(false);
+			assert.deepStrictEqual({
+				enabledHasSecondary: (enabled ?? []).length,
+				disabled: disabled ?? [],
+			}, {
+				enabledHasSecondary: 1,
+				disabled: [],
+			});
 		});
 	});
 
