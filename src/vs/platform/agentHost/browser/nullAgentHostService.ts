@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateAutomationParams, CreateTerminalParams, DisposeAutomationParams, FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationsParams, ListAutomationsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, PreviewAutomationScheduleParams, PreviewAutomationScheduleResult, ResolveSessionConfigResult, RunAutomationParams, RunAutomationResult, SessionConfigCompletionsResult, UpdateAutomationParams } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -54,6 +54,14 @@ export class NullAgentHostService implements IAgentHostService {
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(_url: string): Promise<IAgentHostNetworkFetchResult> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
+	async listAutomations(_params?: Omit<ListAutomationsParams, 'channel'>): Promise<ListAutomationsResult> { return { items: [] }; }
+	async listAutomationTriggerDefinitions(_params?: Omit<ListAutomationTriggerDefinitionsParams, 'channel'>): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
+	async createAutomation(_params: CreateAutomationParams): Promise<void> { notSupported(); }
+	async updateAutomation(_params: UpdateAutomationParams): Promise<void> { notSupported(); }
+	async disposeAutomation(_params: DisposeAutomationParams): Promise<void> { notSupported(); }
+	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { return notSupported(); }
+	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return { items: [] }; }
+	async previewAutomationSchedule(_params: Omit<PreviewAutomationScheduleParams, 'channel'>): Promise<PreviewAutomationScheduleResult> { return notSupported(); }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return notSupported(); }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return notSupported(); }

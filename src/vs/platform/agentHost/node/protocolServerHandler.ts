@@ -22,7 +22,7 @@ import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -500,7 +500,7 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
@@ -511,7 +511,7 @@ export class ProtocolServerHandler extends Disposable {
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
-							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}
 						}
@@ -653,6 +653,7 @@ export class ProtocolServerHandler extends Disposable {
 					completionTriggerCharacters: this._config.completionTriggerCharacters,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+					automations: this._agentService.automationCapabilities,
 				},
 			};
 		} catch (error) {
@@ -1450,6 +1451,33 @@ export class ProtocolServerHandler extends Disposable {
 				} satisfies ListSessionsResult['items'][number];
 			});
 			return { items };
+		},
+		listAutomations: async (_client, params) => {
+			return this._agentService.listAutomations(params);
+		},
+		listAutomationTriggerDefinitions: async (_client, params) => {
+			return this._agentService.listAutomationTriggerDefinitions(params);
+		},
+		createAutomation: async (_client, params) => {
+			await this._agentService.createAutomation(params);
+			return null;
+		},
+		updateAutomation: async (_client, params) => {
+			await this._agentService.updateAutomation(params);
+			return null;
+		},
+		disposeAutomation: async (_client, params) => {
+			await this._agentService.disposeAutomation(params);
+			return null;
+		},
+		runAutomation: async (_client, params) => {
+			return this._agentService.runAutomation(params);
+		},
+		fetchAutomationRuns: async (_client, params) => {
+			return this._agentService.fetchAutomationRuns(params);
+		},
+		previewAutomationSchedule: async (_client, params) => {
+			return this._agentService.previewAutomationSchedule(params);
 		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({

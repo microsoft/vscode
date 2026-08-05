@@ -9,7 +9,7 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionChatAddedAction, type SessionChatRemovedAction, type SessionChatUpdatedAction, type SessionDefaultChatChangedAction, type SessionTitleChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionWorkingDirectorySetAction, type SessionWorkingDirectoryRemovedAction, type SessionInputNeededSetAction, type SessionInputNeededRemovedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionMcpServerStartRequestedAction, type SessionMcpServerStopRequestedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChatTurnStartedAction, type ChatDeltaAction, type ChatResponsePartAction, type ChatToolCallStartAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallConfirmedAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallContentChangedAction, type ChatToolCallAuthRequiredAction, type ChatToolCallAuthResolvedAction, type ChatTurnCompleteAction, type ChatTurnCancelledAction, type ChatErrorAction, type ChatActivityChangedAction, type ChatWorkingDirectorySetAction, type ChatWorkingDirectoryRemovedAction, type ChatUsageAction, type ChatReasoningAction, type ChatPendingMessageSetAction, type ChatPendingMessageRemovedAction, type ChatQueuedMessagesReorderedAction, type ChatDraftChangedAction, type ChatInputRequestedAction, type ChatInputAnswerChangedAction, type ChatInputCompletedAction, type ChatTruncatedAction, type ChatTurnsLoadedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetFilesReviewChangedAction, type ChangesetContentChangedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionChatAddedAction, type SessionChatRemovedAction, type SessionChatUpdatedAction, type SessionDefaultChatChangedAction, type SessionTitleChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionWorkingDirectorySetAction, type SessionWorkingDirectoryRemovedAction, type SessionInputNeededSetAction, type SessionInputNeededRemovedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionMcpServerStartRequestedAction, type SessionMcpServerStopRequestedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChatTurnStartedAction, type ChatDeltaAction, type ChatResponsePartAction, type ChatToolCallStartAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallConfirmedAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallContentChangedAction, type ChatToolCallAuthRequiredAction, type ChatToolCallAuthResolvedAction, type ChatTurnCompleteAction, type ChatTurnCancelledAction, type ChatErrorAction, type ChatActivityChangedAction, type ChatWorkingDirectorySetAction, type ChatWorkingDirectoryRemovedAction, type ChatUsageAction, type ChatReasoningAction, type ChatPendingMessageSetAction, type ChatPendingMessageRemovedAction, type ChatQueuedMessagesReorderedAction, type ChatDraftChangedAction, type ChatInputRequestedAction, type ChatInputAnswerChangedAction, type ChatInputCompletedAction, type ChatTruncatedAction, type ChatTurnsLoadedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetFilesReviewChangedAction, type ChangesetContentChangedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction, type AutomationDefinitionChangedAction, type AutomationRunSummarySetAction, type AutomationRunSummaryRemovedAction, type AutomationRunsLoadedAction, type AutomationRunLifecycleChangedAction, type AutomationRunSessionSetAction, type AutomationRunSessionRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunArtifactSetAction, type AutomationRunArtifactRemovedAction, type AutomationRunCancelRequestedAction } from './actions.js';
 
 
 // ─── Root vs Session vs Chat vs Terminal vs Changeset Action Unions ─────────────────
@@ -270,6 +270,53 @@ export type ServerResourceWatchAction =
 	| ResourceWatchChangedAction
 	;
 
+/** Union of all automation-scoped actions. */
+export type AutomationAction =
+	| AutomationDefinitionChangedAction
+	| AutomationRunSummarySetAction
+	| AutomationRunSummaryRemovedAction
+	| AutomationRunsLoadedAction
+	;
+
+/** Union of automation actions that clients may dispatch. */
+export type ClientAutomationAction =
+	never
+	;
+
+/** Union of automation actions that only the server may produce. */
+export type ServerAutomationAction =
+	| AutomationDefinitionChangedAction
+	| AutomationRunSummarySetAction
+	| AutomationRunSummaryRemovedAction
+	| AutomationRunsLoadedAction
+	;
+
+/** Union of all automation-run-scoped actions. */
+export type AutomationRunAction =
+	| AutomationRunLifecycleChangedAction
+	| AutomationRunSessionSetAction
+	| AutomationRunSessionRemovedAction
+	| AutomationRunPrimarySessionChangedAction
+	| AutomationRunArtifactSetAction
+	| AutomationRunArtifactRemovedAction
+	| AutomationRunCancelRequestedAction
+	;
+
+/** Union of automation-run actions that clients may dispatch. */
+export type ClientAutomationRunAction =
+	| AutomationRunCancelRequestedAction
+	;
+
+/** Union of automation-run actions that only the server may produce. */
+export type ServerAutomationRunAction =
+	| AutomationRunLifecycleChangedAction
+	| AutomationRunSessionSetAction
+	| AutomationRunSessionRemovedAction
+	| AutomationRunPrimarySessionChangedAction
+	| AutomationRunArtifactSetAction
+	| AutomationRunArtifactRemovedAction
+	;
+
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
 
 /**
@@ -362,4 +409,15 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.TerminalCommandExecuted]: false,
 	[ActionType.TerminalCommandFinished]: false,
 	[ActionType.ResourceWatchChanged]: false,
+	[ActionType.AutomationDefinitionChanged]: false,
+	[ActionType.AutomationRunSummarySet]: false,
+	[ActionType.AutomationRunSummaryRemoved]: false,
+	[ActionType.AutomationRunsLoaded]: false,
+	[ActionType.AutomationRunLifecycleChanged]: false,
+	[ActionType.AutomationRunSessionSet]: false,
+	[ActionType.AutomationRunSessionRemoved]: false,
+	[ActionType.AutomationRunPrimarySessionChanged]: false,
+	[ActionType.AutomationRunArtifactSet]: false,
+	[ActionType.AutomationRunArtifactRemoved]: false,
+	[ActionType.AutomationRunCancelRequested]: true,
 };

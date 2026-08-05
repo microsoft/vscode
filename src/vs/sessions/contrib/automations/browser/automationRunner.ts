@@ -118,6 +118,11 @@ export class AutomationRunner implements IAutomationRunner {
 			runId = claim.run.id;
 			const run = await this.automationService.updateRun(runId, { status: 'running' }) ?? claim.run;
 
+			if (automation.host) {
+				await this._trackHostRun(automation, run, trigger, startTimeMs, token, dispatched);
+				return;
+			}
+
 			if (token.isCancellationRequested) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run });
 				await this._markCancelled(runId, trigger, automation, startTimeMs);
@@ -204,8 +209,59 @@ export class AutomationRunner implements IAutomationRunner {
 		}
 	}
 
+	private async _trackHostRun(
+		automation: IAutomationDescriptor,
+		run: IAutomationRun,
+		trigger: AutomationRunTrigger,
+		startTimeMs: number,
+		token: CancellationToken,
+		dispatched: DeferredPromise<IAutomationRunDispatch>,
+	): Promise<void> {
+		const runs = this.automationService.runsFor(automation.id);
+		const findRun = () => runs.get().find(candidate => candidate.id === run.id) ?? run;
+		let current = findRun();
+		if (!current.sessionResource && !isTerminalRun(current)) {
+			const updatedRuns = await waitForState(
+				runs,
+				items => {
+					const candidate = items.find(item => item.id === run.id);
+					return !!candidate?.sessionResource || !!candidate && isTerminalRun(candidate);
+				},
+				undefined,
+				token,
+			);
+			current = updatedRuns.find(candidate => candidate.id === run.id) ?? current;
+		}
+		if (current.sessionResource) {
+			await dispatched.complete({ kind: 'started', run: current, sessionResource: current.sessionResource });
+		} else {
+			await dispatched.complete({ kind: 'notStarted', reason: current.status === 'cancelled' ? 'cancelled' : 'error', run: current });
+		}
+		if (!isTerminalRun(current)) {
+			const updatedRuns = await waitForState(
+				runs,
+				items => {
+					const candidate = items.find(item => item.id === run.id);
+					return !!candidate && isTerminalRun(candidate);
+				},
+				undefined,
+				token,
+			);
+			current = updatedRuns.find(candidate => candidate.id === run.id) ?? current;
+		}
+		if (current.status === 'failed') {
+			throw new Error(current.errorMessage ?? localize('automationRunner.sessionFailed', "Agent session failed."));
+		}
+		if (current.status === 'cancelled') {
+			publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
+			return;
+		}
+		publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
+	}
+
 	private async _markCancelled(runId: string, trigger: AutomationRunTrigger, automation: IAutomationDescriptor, startTimeMs: number): Promise<void> {
 		try {
+			await this.automationService.cancelRun?.(runId);
 			if (this.automationService.getActiveRunFor(automation.id)?.id === runId) {
 				await this.automationService.updateRun(runId, {
 					status: 'failed',
@@ -218,4 +274,9 @@ export class AutomationRunner implements IAutomationRunner {
 			this.logService.error(`[AutomationRunner] error recording cancellation for ${automation.id}`, err);
 		}
 	}
+
+}
+
+function isTerminalRun(run: IAutomationRun): boolean {
+	return run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled';
 }

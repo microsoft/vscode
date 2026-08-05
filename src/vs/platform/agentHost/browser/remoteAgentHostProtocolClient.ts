@@ -26,15 +26,16 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateAutomationParams, type CreateTerminalParams, type DisposeAutomationParams, type FetchAutomationRunsParams, type FetchAutomationRunsResult, type ListAutomationsParams, type ListAutomationsResult, type ListAutomationTriggerDefinitionsParams, type ListAutomationTriggerDefinitionsResult, type PreviewAutomationScheduleParams, type PreviewAutomationScheduleResult, type ResolveSessionConfigResult, type RunAutomationParams, type RunAutomationResult, type SessionConfigCompletionsResult, type UpdateAutomationParams } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { AutomationDefinition, AutomationSessionTemplate, AutomationState } from '../common/state/protocol/channels-automation/state.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
@@ -52,6 +53,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+const AHP_AUTOMATION_SCHEME = 'ahp-automation';
 
 /** Initial delay before the first transport-level reconnect attempt. */
 const RECONNECT_INITIAL_DELAY_MS = 1_000;
@@ -807,7 +809,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
 				}
-				this._onDidAction.fire(envelope);
+				this._onDidAction.fire(this._toLocalAutomationEnvelope(envelope));
 			}
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
@@ -817,7 +819,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		} else {
 			let maxSeq = this._serverSeq;
 			for (const snapshot of result.snapshots) {
-				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, snapshot.state, snapshot.fromSeq, preservePending);
+				const state = URI.parse(snapshot.resource).scheme === AHP_AUTOMATION_SCHEME
+					? this._toLocalAutomationState(snapshot.state as AutomationState)
+					: snapshot.state;
+				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, state, snapshot.fromSeq, preservePending);
 				if (snapshot.fromSeq > maxSeq) {
 					maxSeq = snapshot.fromSeq;
 				}
@@ -905,7 +910,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
@@ -922,6 +927,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
 		if (!result.snapshot) {
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
+		}
+		if (resource.scheme === AHP_AUTOMATION_SCHEME) {
+			return {
+				...result.snapshot,
+				state: this._toLocalAutomationState(result.snapshot.state as AutomationState),
+			};
 		}
 		return result.snapshot;
 	}
@@ -950,7 +961,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
@@ -1118,6 +1129,46 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return await this._sendRequest('invokeChangesetOperation', params);
 	}
 
+	listAutomations(params: Omit<ListAutomationsParams, 'channel'> = {}): Promise<ListAutomationsResult> {
+		return this._sendRequest('listAutomations', { channel: ROOT_STATE_URI, ...params });
+	}
+
+	listAutomationTriggerDefinitions(params: Omit<ListAutomationTriggerDefinitionsParams, 'channel'> = {}): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._sendRequest('listAutomationTriggerDefinitions', { channel: ROOT_STATE_URI, ...params });
+	}
+
+	async createAutomation(params: CreateAutomationParams): Promise<void> {
+		await this._sendRequest('createAutomation', {
+			...params,
+			definition: this._toRemoteAutomationDefinition(params.definition),
+		});
+	}
+
+	async updateAutomation(params: UpdateAutomationParams): Promise<void> {
+		await this._sendRequest('updateAutomation', {
+			...params,
+			changes: params.changes.session
+				? { ...params.changes, session: this._toRemoteAutomationSession(params.changes.session) }
+				: params.changes,
+		});
+	}
+
+	async disposeAutomation(params: DisposeAutomationParams): Promise<void> {
+		await this._sendRequest('disposeAutomation', params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._sendRequest('runAutomation', params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._sendRequest('fetchAutomationRuns', params);
+	}
+
+	previewAutomationSchedule(params: Omit<PreviewAutomationScheduleParams, 'channel'>): Promise<PreviewAutomationScheduleResult> {
+		return this._sendRequest('previewAutomationSchedule', { channel: ROOT_STATE_URI, ...params });
+	}
+
 	/**
 	 * Send a request on an `mcp://` AHP side channel. The agent-host
 	 * routes by `params.channel` so we inject it automatically.
@@ -1157,11 +1208,48 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
 	}
 
+	private _toRemoteAutomationDefinition(definition: AutomationDefinition): AutomationDefinition {
+		return { ...definition, session: this._toRemoteAutomationSession(definition.session) };
+	}
+
+	private _toRemoteAutomationSession(session: AutomationSessionTemplate): AutomationSessionTemplate {
+		return {
+			...session,
+			workingDirectories: session.workingDirectories?.map(resource => fromAgentHostUri(URI.parse(resource)).toString()),
+		};
+	}
+
+	private _toLocalAutomationDefinition(definition: AutomationDefinition): AutomationDefinition {
+		return {
+			...definition,
+			session: {
+				...definition.session,
+				workingDirectories: definition.session.workingDirectories?.map(resource => toAgentHostUri(URI.parse(resource), this._connectionAuthority).toString()),
+			},
+		};
+	}
+
+	private _toLocalAutomationState(state: AutomationState): AutomationState {
+		return { ...state, definition: this._toLocalAutomationDefinition(state.definition) };
+	}
+
+	private _toLocalAutomationEnvelope(envelope: ActionEnvelope): ActionEnvelope {
+		return envelope.action.type === ActionType.AutomationDefinitionChanged
+			? {
+				...envelope,
+				action: {
+					...envelope.action,
+					definition: this._toLocalAutomationDefinition(envelope.action.definition),
+				},
+			}
+			: envelope;
+	}
+
 	/**
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {
@@ -1325,7 +1413,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			switch (msg.method) {
 				case 'action': {
 					// Protocol envelope → VS Code envelope (superset of action types)
-					const envelope = msg.params;
+					const envelope = this._toLocalAutomationEnvelope(msg.params);
 					this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
 					this._onDidAction.fire(envelope);
 					break;
@@ -1333,6 +1421,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				case 'root/sessionAdded':
 				case 'root/sessionRemoved':
 				case 'root/sessionSummaryChanged':
+				case 'root/automationAdded':
+				case 'root/automationRemoved':
+				case 'root/automationSummaryChanged':
 				case 'root/progress':
 				case 'auth/required': {
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);

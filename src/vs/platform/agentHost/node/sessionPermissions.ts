@@ -22,7 +22,7 @@ import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/c
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
+import { ConfirmationOptionKind, type ConfirmationOption, type ToolInput } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
 	isAhpChatChannel,
@@ -45,7 +45,7 @@ export interface IToolApprovalEvent {
 	readonly session: URI;
 	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
-	readonly toolInput?: string;
+	readonly toolInput?: ToolInput;
 	readonly requestSandboxBypass?: boolean;
 	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
 }
@@ -258,6 +258,10 @@ export class SessionPermissionManager extends Disposable {
 	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
+		if (e.toolInput !== undefined && typeof e.toolInput !== 'string') {
+			return undefined;
+		}
+
 		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
 		// state manager returns that chat's *effective* working-directory set
 		// (its own subset override when present, else the session's full set —
@@ -309,7 +313,7 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 6. Shell auto-approval
-		if (e.permissionKind === 'shell' && e.toolInput) {
+		if (e.permissionKind === 'shell' && typeof e.toolInput === 'string') {
 			// Terminal-rule analysis needs an explicit shell dialect. Producers
 			// that omit `shellLanguage` (or fail to correlate one) must prompt.
 			if (!e.shellLanguage) {
@@ -339,7 +343,7 @@ export class SessionPermissionManager extends Disposable {
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
 	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
-		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
+		if (e.permissionKind !== 'shell' || typeof e.toolInput !== 'string' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
 			return false;
 		}
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {

@@ -150,6 +150,8 @@ export interface IAutomationStore {
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
 	/** Deletes a retained run history entry; missing IDs are ignored. */
 	deleteRun(runId: string): Promise<void>;
+	/** Requests cancellation when the run authority supports it. */
+	cancelRun?(runId: string): Promise<void>;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;

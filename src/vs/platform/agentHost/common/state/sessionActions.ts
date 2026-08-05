@@ -71,6 +71,17 @@ export {
 	type AnnotationsEntrySetAction,
 	type AnnotationsEntryRemovedAction,
 	type ResourceWatchChangedAction,
+	type AutomationDefinitionChangedAction,
+	type AutomationRunSummarySetAction,
+	type AutomationRunSummaryRemovedAction,
+	type AutomationRunsLoadedAction,
+	type AutomationRunLifecycleChangedAction,
+	type AutomationRunSessionSetAction,
+	type AutomationRunSessionRemovedAction,
+	type AutomationRunPrimarySessionChangedAction,
+	type AutomationRunArtifactSetAction,
+	type AutomationRunArtifactRemovedAction,
+	type AutomationRunCancelRequestedAction,
 	type StateAction,
 } from './protocol/actions.js';
 
@@ -81,6 +92,9 @@ export {
 	type SessionSummaryChangedParams,
 	type ProgressParams,
 	type AuthRequiredParams,
+	type AutomationAddedParams,
+	type AutomationRemovedParams,
+	type AutomationSummaryChangedParams,
 } from './protocol/notifications.js';
 
 /**
@@ -95,6 +109,9 @@ export const NotificationType = {
 	SessionSummaryChanged: 'root/sessionSummaryChanged',
 	Progress: 'root/progress',
 	AuthRequired: 'auth/required',
+	AutomationAdded: 'root/automationAdded',
+	AutomationRemoved: 'root/automationRemoved',
+	AutomationSummaryChanged: 'root/automationSummaryChanged',
 } as const;
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
@@ -133,8 +150,8 @@ import type {
 	RootConfigChangedAction,
 } from './protocol/actions.js';
 
-import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
-import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, ClientChangesetAction as IClientChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_ } from './protocol/action-origin.generated.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams, AutomationAddedParams, AutomationRemovedParams, AutomationSummaryChangedParams } from './protocol/notifications.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, ClientChangesetAction as IClientChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_, AutomationAction as IAutomationAction_, AutomationRunAction as IAutomationRunAction_, ClientAutomationRunAction as IClientAutomationRunAction_ } from './protocol/action-origin.generated.js';
 
 /**
  * Discriminated union of all server→client protocol notifications other than
@@ -147,7 +164,10 @@ export type ProtocolNotification =
 	| ({ type: 'root/sessionRemoved' } & SessionRemovedParams)
 	| ({ type: 'root/sessionSummaryChanged' } & SessionSummaryChangedParams)
 	| ({ type: 'root/progress' } & ProgressParams)
-	| ({ type: 'auth/required' } & AuthRequiredParams);
+	| ({ type: 'auth/required' } & AuthRequiredParams)
+	| ({ type: 'root/automationAdded' } & AutomationAddedParams)
+	| ({ type: 'root/automationRemoved' } & AutomationRemovedParams)
+	| ({ type: 'root/automationSummaryChanged' } & AutomationSummaryChangedParams);
 
 export type RootAction = IRootAction_;
 export type SessionAction = ISessionAction_;
@@ -162,6 +182,9 @@ export type ChangesetAction = IChangesetAction_;
 export type ClientChangesetAction = IClientChangesetAction_;
 export type AnnotationsAction = IAnnotationsAction_;
 export type ClientAnnotationsAction = IClientAnnotationsAction_;
+export type AutomationAction = IAutomationAction_;
+export type AutomationRunAction = IAutomationRunAction_;
+export type ClientAutomationRunAction = IClientAutomationRunAction_;
 
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
@@ -228,4 +251,12 @@ export function isChangesetAction(action: StateAction): action is ChangesetActio
 
 export function isAnnotationsAction(action: StateAction): action is AnnotationsAction {
 	return action.type.startsWith('annotations/');
+}
+
+export function isAutomationAction(action: StateAction): action is AutomationAction {
+	return action.type.startsWith('automation/');
+}
+
+export function isAutomationRunAction(action: StateAction): action is AutomationRunAction {
+	return action.type.startsWith('automationRun/');
 }

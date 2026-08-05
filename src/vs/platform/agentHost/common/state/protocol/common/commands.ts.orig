@@ -9,7 +9,6 @@
 import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
-import type { AutomationExecutionLifetime, AutomationScheduleKind } from '../channels-automation/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
 
@@ -266,45 +265,7 @@ export interface InitializeResult {
 	 * @see {@link /specification/telemetry-channel | Telemetry Channel}
 	 */
 	telemetry?: TelemetryCapabilities;
-	/** Host automation support. Absence means unsupported. */
-	automations?: AutomationCapabilities;
 }
-
-/** @category Commands */
-export interface AutomationCapabilities {
-	execution: AutomationExecutionCapabilities;
-	create?: AutomationCreateCapability;
-	schedules?: AutomationScheduleCapabilities;
-	runCancellation?: AutomationRunCancellationCapability;
-	schedulePreview?: AutomationSchedulePreviewCapability;
-	runHistoryLimit?: number;
-}
-
-/** @category Commands */
-export interface AutomationExecutionCapabilities {
-	lifetime: AutomationExecutionLifetime;
-}
-
-/** @category Commands */
-export interface AutomationCreateCapability { }
-
-/** @category Commands */
-export interface AutomationScheduleCapabilities {
-	kinds: AutomationScheduleKind[];
-	cron?: AutomationCronScheduleCapability;
-}
-
-/** @category Commands */
-export interface AutomationCronScheduleCapability {
-	dialect: 'unix5';
-	minIntervalMinutes?: number;
-}
-
-/** @category Commands */
-export interface AutomationRunCancellationCapability { }
-
-/** @category Commands */
-export interface AutomationSchedulePreviewCapability { }
 
 // ─── ping ────────────────────────────────────────────────────────────────────
 

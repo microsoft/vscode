@@ -19,13 +19,13 @@ import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_A
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
-import { ProviderAutomationService } from './providerAutomationService.js';
 import { BrowserAutomationStorageService } from './automationStorageService.js';
 import { AutomationToolsContribution } from './automationTools.js';
 import { IAutomationStorageService } from '../common/automationStorageService.js';
+import { CompositeAutomationService } from './compositeAutomationService.js';
 
 registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
-registerSingleton(IAutomationService, ProviderAutomationService, InstantiationType.Delayed);
+registerSingleton(IAutomationService, CompositeAutomationService, InstantiationType.Delayed);
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 

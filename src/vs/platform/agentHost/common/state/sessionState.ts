@@ -48,6 +48,8 @@ import {
 	type ToolResultTextContent,
 	type UsageInfo,
 	type Message,
+	type AutomationState,
+	type AutomationRunState,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
@@ -100,7 +102,8 @@ export {
 	type ToolResultTerminalContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
-	type Message
+	type Message,
+	type AutomationDefinition, type AutomationRunState, type AutomationRunSummary, type AutomationState, type AutomationSummary, type AutomationTrigger,
 } from './protocol/state.js';
 
 /**
@@ -925,6 +928,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	Automation,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -934,6 +939,8 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.Automation]: AutomationState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------

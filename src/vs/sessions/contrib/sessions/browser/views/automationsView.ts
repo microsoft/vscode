@@ -830,8 +830,10 @@ function runStatusIcon(s: AutomationRunStatus): { iconId: string; spin: boolean 
 	switch (s) {
 		case 'pending': return { iconId: 'circle-outline', spin: false };
 		case 'running': return { iconId: 'sync', spin: true };
+		case 'blocked': return { iconId: 'account', spin: false };
 		case 'completed': return { iconId: 'check', spin: false };
 		case 'failed': return { iconId: 'error', spin: false };
+		case 'cancelled': return { iconId: 'circle-slash', spin: false };
 	}
 }
 
@@ -839,8 +841,10 @@ function getRunStatusLabel(status: AutomationRunStatus): string {
 	switch (status) {
 		case 'pending': return localize('automationRunPending', "Pending");
 		case 'running': return localize('automationRunRunning', "Running");
+		case 'blocked': return localize('automationRunBlocked', "Needs input");
 		case 'completed': return localize('automationRunCompleted', "Completed");
 		case 'failed': return localize('automationRunFailed', "Failed");
+		case 'cancelled': return localize('automationRunCancelled', "Cancelled");
 	}
 }
 

@@ -254,7 +254,7 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 }
 
 function isDue(automation: IAutomationDescriptor, now: Date): boolean {
-	if (!automation.enabled || !automation.nextRunAt) {
+	if (automation.host || !automation.enabled || !automation.nextRunAt) {
 		return false;
 	}
 	const next = Date.parse(automation.nextRunAt);

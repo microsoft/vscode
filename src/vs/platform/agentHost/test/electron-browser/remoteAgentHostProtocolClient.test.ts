@@ -64,6 +64,8 @@ const syncTestConfigurationNode = {
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { toAgentHostUri } from '../../common/agentHostUri.js';
+import type { AutomationState } from '../../common/state/protocol/channels-automation/state.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -351,6 +353,54 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+	});
+
+	test('automation definitions translate remote working directory URIs in both directions', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const remoteFolder = URI.file('/remote/workspace');
+		const localFolder = toAgentHostUri(remoteFolder, 'test.example__1234');
+		const resource = URI.parse('ahp-automation:/test');
+		const definition = {
+			title: 'Remote automation',
+			message: { text: 'Run', origin: { kind: MessageKind.User } },
+			session: { provider: 'copilot', workingDirectories: [localFolder.toString()] },
+			enabled: true,
+			triggers: [],
+		};
+
+		const creation = client.createAutomation({ channel: resource.toString(), definition });
+		const createRequest = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createAutomation')!;
+		assert.deepStrictEqual((createRequest.params as { definition: typeof definition }).definition.session.workingDirectories, [remoteFolder.toString()]);
+		transport.fireMessage({ jsonrpc: '2.0', id: createRequest.id, result: null });
+		await creation;
+
+		const subscription = client.subscribe(resource);
+		const subscribeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'subscribe')!;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: subscribeRequest.id,
+			result: {
+				snapshot: {
+					resource: resource.toString(),
+					state: {
+						resource: resource.toString(),
+						definition: { ...definition, session: { ...definition.session, workingDirectories: [remoteFolder.toString()] } },
+						revision: 1,
+						runs: [],
+						operations: ['update', 'dispose', 'run'],
+						createdAt: '2026-01-01T00:00:00.000Z',
+						modifiedAt: '2026-01-01T00:00:00.000Z',
+					},
+					fromSeq: 0,
+				},
+			},
+		});
+		const snapshot = await subscription;
+
+		assert.deepStrictEqual((snapshot.state as AutomationState).definition.session.workingDirectories, [localFolder.toString()]);
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
@@ -2303,6 +2353,58 @@ suite('RemoteAgentHostProtocolClient', () => {
 				subRef.dispose();
 				client.dispose();
 			});
+		});
+
+		test('snapshot reconnect keeps automation working directories remote-qualified', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+			const resource = URI.parse('ahp-automation:/test');
+			const backendFolder = URI.file('/remote/workspace');
+			const localFolder = toAgentHostUri(backendFolder, 'test.example__1234').toString();
+			const state = {
+				resource: resource.toString(),
+				definition: {
+					title: 'Remote automation',
+					message: { text: 'Run', origin: { kind: MessageKind.User } },
+					session: { provider: 'copilot', workingDirectories: [backendFolder.toString()] },
+					enabled: true,
+					triggers: [],
+				},
+				revision: 1,
+				runs: [],
+				operations: ['update', 'dispose', 'run'],
+				createdAt: '2026-01-01T00:00:00.000Z',
+				modifiedAt: '2026-01-01T00:00:00.000Z',
+			};
+			const subscription = client.getSubscription<AutomationState>(StateComponents.Automation, resource, 'test');
+			const subscribe = await waitForRequest(transports[0], 'subscribe');
+			transports[0].fireMessage({
+				jsonrpc: '2.0',
+				id: subscribe.id,
+				result: { snapshot: { resource: resource.toString(), state, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				result: {
+					type: ReconnectResultType.Snapshot,
+					snapshots: [{ resource: resource.toString(), state, fromSeq: 42 }],
+				},
+			});
+			await flushMicrotasks();
+
+			assert.deepStrictEqual(subscription.object.value instanceof Error ? undefined : subscription.object.value?.definition.session.workingDirectories, [localFolder]);
+			subscription.dispose();
+			client.dispose();
 		});
 
 		test('transport drop during reconnect RPC re-schedules instead of hanging', async function () {

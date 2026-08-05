@@ -9,11 +9,11 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
-import { terminalReducer } from './protocol/reducers.js';
-import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import { automationReducer, automationRunReducer, terminalReducer } from './protocol/reducers.js';
+import type { AutomationAction, AutomationRunAction, RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
@@ -666,7 +666,37 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription;
+export class AutomationStateSubscription extends BaseAgentSubscription<AutomationState> {
+
+	constructor(private readonly _automationUri: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
+		return automationReducer(state, action as AutomationAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.channel === this._automationUri && envelope.action.type.startsWith('automation/');
+	}
+}
+
+export class AutomationRunStateSubscription extends BaseAgentSubscription<AutomationRunState> {
+
+	constructor(private readonly _runUri: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: AutomationRunState, action: StateAction): AutomationRunState {
+		return automationRunReducer(state, action as AutomationRunAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.channel === this._runUri && envelope.action.type.startsWith('automationRun/');
+	}
+}
+
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationStateSubscription | AutomationRunStateSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -989,7 +1019,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -1136,6 +1166,10 @@ export class AgentSubscriptionManager extends Disposable {
 				return new ChangesetStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Annotations:
 				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.Automation:
+				return new AutomationStateSubscription(key, this._clientId, this._log);
+			case StateComponents.AutomationRun:
+				return new AutomationRunStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
