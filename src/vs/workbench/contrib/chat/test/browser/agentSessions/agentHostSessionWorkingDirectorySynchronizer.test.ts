@@ -87,7 +87,7 @@ class TestConnection extends mock<IAgentConnection>() {
 	override readonly rootState: IAgentSubscription<RootState>;
 	override readonly initializeResult;
 
-	constructor(private readonly subscription: MutableSessionSubscription, provider = 'claude', protocolVersion: string | null = '0.7.0') {
+	constructor(private readonly subscription: MutableSessionSubscription, provider = 'claude', protocolVersion: string | null = '0.7.0', immutablePrimary = true) {
 		super();
 		this.initializeResult = observableValue(this, protocolVersion ? { protocolVersion } as InitializeResult : undefined);
 		this.rootState = {
@@ -97,7 +97,7 @@ class TestConnection extends mock<IAgentConnection>() {
 					displayName: provider,
 					description: '',
 					models: [],
-					capabilities: { multipleWorkingDirectories: { immutablePrimary: true } },
+					capabilities: immutablePrimary ? { multipleWorkingDirectories: { immutablePrimary: true } } : {},
 				}],
 			} as unknown as RootState,
 			verifiedValue: undefined,
@@ -205,6 +205,30 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			effective: [primary.toString(), retained.toString(), added.toString()],
 			confirmed: [primary.toString(), retained.toString(), stale.toString()],
 		});
+	});
+
+	test('does not remove the immutable primary when it leaves the workspace', async () => {
+		const synchronizer = createSynchronizer(true, [retained]);
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+	});
+
+	test('does not reconcile without the immutable-primary capability', async () => {
+		const synchronizer = createSynchronizer();
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription, 'claude', '0.7.0', false);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+
+		assert.deepStrictEqual(connection.dispatched, []);
 	});
 
 	test('subscription refresh converges without another workspace event or user send', async () => {
