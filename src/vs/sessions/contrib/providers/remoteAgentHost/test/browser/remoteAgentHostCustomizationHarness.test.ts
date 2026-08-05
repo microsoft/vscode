@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -244,6 +245,33 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 		assert.notStrictEqual(items[0].itemKey, items[1].itemKey);
+	});
+
+	test('provider uses draft agents before session customizations hydrate', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const fileService = new class extends mock<IFileService>() { };
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'test-authority',
+			undefined,
+			undefined,
+			fileService,
+			new NullLogService(),
+			createTestCustomAgentsService(connection, []),
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/reviewer.agent.md',
+			uri: 'file:///workspace/.github/agents/reviewer.agent.md',
+			name: 'Reviewer',
+			description: 'Review workspace changes',
+		}]));
+
+		const agents = await provider.provideCustomAgents(testSessionResource);
+
+		assert.deepStrictEqual(agents.map(agent => ({ name: agent.name, description: agent.description })), [{
+			name: 'Reviewer',
+			description: 'Review workspace changes',
+		}]);
 	});
 
 	test('provider keeps client-synced entries distinct from host-owned entries', async () => {

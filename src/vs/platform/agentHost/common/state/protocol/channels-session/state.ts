@@ -172,9 +172,12 @@ export interface SessionState extends SessionMetadata {
 	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
 	 * identifier the client needs to respond. A client answers by dispatching the
 	 * ordinary `chat/*` action to that chat's channel — see
-	 * {@link SessionInputRequest} for the per-variant response path. A present,
-	 * non-empty list implies {@link SessionStatus.InputNeeded} on
-	 * {@link SessionSummary.status}.
+	 * {@link SessionInputRequest} for the per-variant response path. A list
+	 * holding any entry other than
+	 * {@link SessionInputRequestKind.ToolClientExecution} implies
+	 * {@link SessionStatus.InputNeeded} on {@link SessionSummary.status};
+	 * client-execution entries are work delegated to a client rather than a
+	 * prompt, so they leave the session's activity unchanged.
 	 *
 	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
 	 * chats raise requests and removes them with `session/inputNeededRemoved`
@@ -1242,7 +1245,7 @@ export interface McpOAuthClient {
  * Reusable MCP authentication challenge — the RFC 9728 discovery info a
  * client needs to obtain a token and push it via the `authenticate` command.
  * Deliberately carries **no token**: this describes what is being asked for,
- * never the ****** itself.
+ * never the bearer token itself.
  *
  * Shared by two independent state machines that describe the same OAuth
  * challenge from different vantage points:
@@ -1276,7 +1279,7 @@ export interface McpAuthRequirement {
 	resource: ProtectedResourceMetadata;
 	/**
 	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: ******"…"` header (or `scopes_supported`
+	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
 	 * fallback). Authoritative for the next authorization request — clients
 	 * MUST NOT assume any subset/superset relationship to
 	 * `resource.scopes_supported`.

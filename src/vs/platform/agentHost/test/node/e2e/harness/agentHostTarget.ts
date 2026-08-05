@@ -21,7 +21,7 @@
  */
 
 import { startRealServer, type IServerHandle } from '../../serverIntegrationTestHelpers.js';
-import type { CapiReplayMode } from './capiReplayProxy.js';
+import type { CapiReplayMode, CapiReplayProxy } from './capiReplayProxy.js';
 
 export interface IAgentHostTargetLaunchOptions {
 	/** Absolute path to a home directory the implementation must confine provider config to. */
@@ -30,12 +30,16 @@ export interface IAgentHostTargetLaunchOptions {
 	readonly userDataDir: string;
 	/** Record/replay proxy configuration fronting the model boundary. */
 	readonly capiReplay: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly real?: boolean };
+	/** Existing replay proxy whose consumed exchange sequence must survive a target restart. */
+	readonly existingCapiReplay?: CapiReplayProxy;
 	/** Optional dev override for a locally installed Claude SDK root. */
 	readonly claudeSdkRoot?: string;
 	/** Optional dev override for a locally installed Codex SDK root. */
 	readonly codexSdkRoot?: string;
 	/** Optional agent-host log level (`--log <level>`); `trace` also raises the bundled SDK/CLI to its most verbose. */
 	readonly logLevel?: string;
+	/** Optional environment overrides for implementation lifecycle test hooks. */
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -63,9 +67,11 @@ export const vscodeAgentHostTarget: IAgentHostTarget = {
 			homeDir: options.homeDir,
 			userDataDir: options.userDataDir,
 			capiReplay: options.capiReplay,
+			existingCapiReplay: options.existingCapiReplay,
 			claudeSdkRoot: options.claudeSdkRoot,
 			codexSdkRoot: options.codexSdkRoot,
 			logLevel: options.logLevel,
+			env: options.env,
 		});
 	},
 };

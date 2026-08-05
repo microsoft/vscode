@@ -329,6 +329,20 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('CMD delayed-expansion redirect destinations require confirmation', async () => {
+		const delayedExpansion = shellEvent('echo hi >!APPDATA!\\outside.txt', 'bash');
+		const literalExclamation = shellEvent('echo hi >important!.txt', 'bash');
+		assert.deepStrictEqual({
+			delayedApproval: await permissions.getAutoApproval(delayedExpansion, sessionUri),
+			delayedRuleResolvable: permissions.isAutoApproveRuleResolvable(delayedExpansion, sessionUri),
+			literalApproval: await permissions.getAutoApproval(literalExclamation, sessionUri),
+		}, {
+			delayedApproval: undefined,
+			delayedRuleResolvable: false,
+			literalApproval: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
 	test('missing shell language disables terminal rules and rule suggestions', async () => {
 		const event = shellEvent('Get-ChildItem', undefined);
 		assert.deepStrictEqual({

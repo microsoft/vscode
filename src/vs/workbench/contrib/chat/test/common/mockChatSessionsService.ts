@@ -276,7 +276,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
-		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		const requires = this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		return typeof requires === 'function' ? requires() : !!requires;
 	}
 
 	supportsDelegationForSessionType(chatSessionType: string): boolean {
