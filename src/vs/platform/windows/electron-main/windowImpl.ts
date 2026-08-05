@@ -861,8 +861,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://*.vsassets.io/*'];
 		if (this.productService.extensionsGallery?.serviceUrl) {
-			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
-			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
+			// Use WHATWG URL so that .host gives "hostname:port" without userinfo.
+			// URI.parse().authority follows RFC 3986 and includes userinfo when present
+			// (e.g. "user:pass@host:port"), which Electron's URL pattern validator rejects.
+			const serviceUrl = new URL(this.productService.extensionsGallery.serviceUrl);
+			urls.push(`${serviceUrl.protocol}//${serviceUrl.host}/*`);
 		}
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
