@@ -101,6 +101,37 @@ suite('CommandLineAutoApprover', () => {
 		strictEqual(await isAutoApproved('sort<input.txt'), true);
 	});
 
+	suite('default sed rules', () => {
+		setup(() => {
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('auto-approves benign substitutions', async () => {
+			strictEqual(await isAutoApproved('sed "s/foo/bar/g" file.txt'), true);
+		});
+
+		test('denies dangerous script forms', async () => {
+			const commands = [
+				'sed -e "s/foo/bar/"',
+				'sed --expression "s/foo/bar/"',
+				'sed "s/foo/bar/e"',
+				'sed "s/foo/bar/w"',
+				'sed "1e id > /tmp/SECURITY_TEST_pwned"',
+				'sed "1w /tmp/SECURITY_TEST_pwned_file" input.txt',
+				'sed "1r /etc/passwd" input.txt',
+				'sed "1W /tmp/x" input.txt',
+				'sed "e id"',
+				'sed "s/a/b/;e id"',
+				'sed "/pat/e id"',
+				'sed -n "1e id" file.txt',
+				'sed 1e id',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+	});
+
 	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', async () => {
 			setAutoApprove({

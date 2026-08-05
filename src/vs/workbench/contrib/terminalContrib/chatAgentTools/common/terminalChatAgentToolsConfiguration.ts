@@ -300,18 +300,25 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
+			// - standalone `e`: Execute a shell command from the sed script
+			// - standalone `r`/`R`: Read arbitrary files into the stream
+			// - standalone `w`/`W`: Write pattern space to arbitrary files
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
-			// - `;W` Write first line of pattern space to file
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
+			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329028
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-			'/^sed\\b.*;W/': false,
+			// Quoted positional script whose first command is e/r/R/w/W (optional address)
+			'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'"])/': false,
+			// Same dangerous commands after `;` or `{` inside a quoted script
+			'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"][^\'"]*[;{](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'";}])/': false,
+			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`)
+			'/^sed\\b(?:\\s+-\\S+)*\\s+(?:(?:\\d+|\\$)(?:,(?:\\d+|\\$))?)?[erRwW]\\s/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are

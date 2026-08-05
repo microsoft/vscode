@@ -639,10 +639,16 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 	rg: true,
 	'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
+	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329028
 	sed: true,
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-	'/^sed\\b.*;W/': false,
+	// Quoted positional script whose first command is e/r/R/w/W (optional address)
+	'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'"])/': false,
+	// Same dangerous commands after `;` or `{` inside a quoted script
+	'/^sed\\b(?:\\s+-\\S+)*\\s+[\'"][^\'"]*[;{](?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/)(?:,(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])+\\/))?)?[erRwW](?:\\s|[\'";}])/': false,
+	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`)
+	'/^sed\\b(?:\\s+-\\S+)*\\s+(?:(?:\\d+|\\$)(?:,(?:\\d+|\\$))?)?[erRwW]\\s/': false,
 	'/^sort\\b(?!-)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,
