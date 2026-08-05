@@ -43,7 +43,8 @@ export interface IAgentModelPricingMeta {
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		/** ISO 8601 end date; absent for open-ended promotions. */
+		readonly endsAt?: string;
 		readonly message: string;
 	};
 }
@@ -87,8 +88,13 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 	const rawPromo = meta.promo;
 	if (rawPromo && typeof rawPromo === 'object' && !Array.isArray(rawPromo)) {
 		const p = rawPromo as Record<string, unknown>;
-		if (typeof p.id === 'string' && typeof p.discountPercent === 'number' && typeof p.endsAt === 'string' && typeof p.message === 'string') {
-			result.promo = { id: p.id, discountPercent: p.discountPercent, endsAt: p.endsAt, message: p.message };
+		if (typeof p.id === 'string' && typeof p.discountPercent === 'number' && typeof p.message === 'string') {
+			result.promo = {
+				id: p.id,
+				discountPercent: p.discountPercent,
+				message: p.message,
+				...(typeof p.endsAt === 'string' ? { endsAt: p.endsAt } : {}),
+			};
 		}
 	}
 	return result;
@@ -175,8 +181,8 @@ function normalizePromo(billing: Record<string, unknown>): ICAPIModelBilling['pr
 		: typeof raw.ends_at === 'string' ? raw.ends_at
 			: undefined;
 	const message = typeof raw.message === 'string' ? raw.message : undefined;
-	if (id && typeof discountPercent === 'number' && endsAt && message) {
-		return { id, discountPercent, endsAt, message };
+	if (id && typeof discountPercent === 'number' && message) {
+		return { id, discountPercent, message, ...(endsAt ? { endsAt } : {}) };
 	}
 	return undefined;
 }
@@ -195,7 +201,8 @@ export interface ICAPIModelBilling {
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		/** ISO 8601 end date; absent for open-ended promotions. */
+		readonly endsAt?: string;
 		readonly message: string;
 	};
 	readonly tokenPrices?: {
