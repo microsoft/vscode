@@ -280,6 +280,8 @@ export interface IEditorGroupMenuIds {
 	readonly headerPrimary?: MenuId;
 	/** Menu whose actions render as the trailing (right) header toolbar. */
 	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
 	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
 	readonly editorActions?: MenuId;
 	/** Menu shown when right-clicking the empty tab-bar area. */

@@ -79,7 +79,7 @@
 /* Diff-stats item (rich "N files +X -Y" rendering) styling, keyed off the item's
  * own marker class so it applies in both the classic internal changes-editor
  * header and the single-pane editor-group header (where it renders inside
- * `.editor-group-header-primary`). It remains fully interactive/clickable, so no
+ * `.editor-group-header-primary-actions`). It remains fully interactive/clickable, so no
  * hover-background override is needed here -- it keeps the normal toolbar hover. */
 .changes-diff-stats-action-rich {
 	flex: 1 1 auto;

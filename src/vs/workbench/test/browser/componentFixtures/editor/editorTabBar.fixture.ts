@@ -15,7 +15,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -369,6 +370,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IContextKeyService, contextKeyService);
+
+	if (options.headerMenuIds) {
+		instantiationService.stub(IMenuService, disposableStore.add(instantiationService.createInstance(MenuService)));
+	}
 
 	if (options.breadcrumbs) {
 		instantiationService.stub(IBreadcrumbsService, new BreadcrumbsService());
