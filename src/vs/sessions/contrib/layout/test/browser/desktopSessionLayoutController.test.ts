@@ -2737,6 +2737,73 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual({ bChangesOpenedActive: bActiveCalls.length }, { bChangesOpenedActive: 0 });
 	});
 
+	test('[managed tabs / session switch] does not publish workspace from a superseded reconcile', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'), {
+			workspace: {
+				uri: URI.file('/repo/a'),
+				label: 'a',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/repo/a'), workingDirectory: URI.file('/repo/a'), name: 'a', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}
+		});
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+
+		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
+		const publishedWorkspaces: string[] = [];
+		store.add(filesTab.onDidChangeLabel(() => {
+			const label = filesTab.workspace?.label;
+			if (label) {
+				publishedWorkspaces.push(label);
+			}
+		}));
+
+		let releaseClose!: () => void;
+		const closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+		let gateArmed = true;
+		harness.onCloseEditors = () => {
+			if (gateArmed) {
+				gateArmed = false;
+				return closeGate;
+			}
+			return undefined;
+		};
+
+		const sessionB = makeSession(URI.parse('session:b'), {
+			workspace: {
+				uri: URI.file('/repo/b'),
+				label: 'b',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/repo/b'), workingDirectory: URI.file('/repo/b'), name: 'b', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}
+		});
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+
+		const sessionC = makeSession(URI.parse('session:c'), {
+			workspace: {
+				uri: URI.file('/repo/c'),
+				label: 'c',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/repo/c'), workingDirectory: URI.file('/repo/c'), name: 'c', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}
+		});
+		harness.activeSessionObs.set(sessionC, undefined);
+		releaseClose();
+		await settle();
+
+		assert.deepStrictEqual(publishedWorkspaces, ['c']);
+	});
+
 	test('[managed tabs / details-only] a details-only reveal restores the docked inputs even when one was closed', async () => {
 		createSinglePaneController({
 			activateAux: true,

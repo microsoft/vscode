@@ -274,10 +274,10 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure
 			// only after this, so a group left empty by the cleanup counts as empty.
 			await this._closeForeignChangesEditors(group, changesResource);
-			this._updateFilesEditors(group, target.workspace);
 			if (generation !== this._generation) {
 				return;
 			}
+			this._updateFilesEditors(group, target.workspace);
 
 			// [2] Decide which docked inputs to open, from the trigger + group state.
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
