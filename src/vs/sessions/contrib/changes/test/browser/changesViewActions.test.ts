@@ -22,6 +22,32 @@ import { ChangesetHasOperationsContext } from '../../browser/changesViewService.
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('primary header actions gate themselves to the single-pane Changes editor', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'chatEditing.versionsPicker' || item.command.id === 'workbench.changesView.action.viewChanges');
+
+		assert.deepStrictEqual(items.map(item => {
+			const when = item.when?.serialize() ?? '';
+			return {
+				id: item.command.id,
+				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			};
+		}), [
+			{
+				id: 'chatEditing.versionsPicker',
+				hasActiveEditorGate: true,
+				hasSinglePaneConfigGate: true,
+			},
+			{
+				id: 'workbench.changesView.action.viewChanges',
+				hasActiveEditorGate: true,
+				hasSinglePaneConfigGate: true,
+			},
+		]);
+	});
+
 	test('collapse all diffs is contributed to the single-pane editor header (right)', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)

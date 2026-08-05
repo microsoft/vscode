@@ -1072,6 +1072,17 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(minimumWidth, SESSIONS_LIST_MINIMUM_WIDTH);
 	});
 
+	test('single-pane editor part hosts breadcrumbs in the group header (scoped to the Agents Window)', () => {
+		// Breadcrumbs render inside the full-width header row between the tab bar
+		// and the editor content only in the single-pane Agents Window. The classic
+		// editor part must keep its default (below-tabs) placement.
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => { showHeader?: boolean; menuIds?: unknown };
+		const options = getOptions.call({});
+
+		assert.strictEqual(options.showHeader, true);
+		assert.ok(options.menuIds, 'single-pane group view still contributes menuIds');
+	});
+
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, windowWidth: 1000, hasAppliedInitialEditorSplit: true, dockedWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 
