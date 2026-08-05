@@ -296,7 +296,11 @@ export interface ILanguageModelChatMetadata {
 	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
 	 * Presentation-only; it does not affect model selection or routing.
 	 */
-	readonly modelGroup?: { readonly id: string };
+	readonly modelGroup?: {
+		readonly id: string;
+		/** Identifies a first-party provider group that must remain distinct from user-configured groups with the same name. */
+		readonly source?: 'chatgptSubscription';
+	};
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -692,12 +696,16 @@ export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelCha
 	const originalMetadata = metadata.byokModelIdentifier ? languageModelsService.lookupLanguageModel(originalIdentifier) : metadata;
 	const providerVendor = originalMetadata?.vendor ?? metadata.modelGroup?.id ?? metadata.vendor;
 	const providerName = getLanguageModelProviderDisplayName(languageModelsService, providerVendor);
+	const identifierSuffix = originalMetadata?.id;
+	const modelName = identifierSuffix && metadata.name.endsWith(` (${identifierSuffix})`)
+		? metadata.name.slice(0, -identifierSuffix.length - 3)
+		: metadata.name;
 	const groupName = languageModelsService.getLanguageModelGroups(providerVendor)
 		.find(group => group.modelIdentifiers.includes(originalIdentifier))
 		?.group?.name;
 	return groupName && groupName !== providerName
-		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, metadata.name)
-		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, metadata.name);
+		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, modelName)
+		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, modelName);
 }
 
 export interface IModelControlEntry {

@@ -11,7 +11,8 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
+import { DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 
 /**
  * The two mutually-exclusive voice input modes exposed in the chat input.
@@ -54,10 +55,10 @@ export interface IVoiceInputModeService {
 	/** The currently selected mode (persisted). */
 	readonly selectedMode: IObservable<VoiceInputMode>;
 
-	/** Whether live Voice Mode is available (feature enabled). */
+	/** Whether live Voice Mode is enabled and its chat-input control is visible. */
 	readonly voiceAvailable: IObservable<boolean>;
 
-	/** Whether dictation is available (a speech provider is registered). */
+	/** Whether dictation is configured and its chat-input control is visible. */
 	readonly dictationAvailable: IObservable<boolean>;
 
 	/** Whether Voice Mode runs hands-free (auto-listen) vs manual push-to-talk. */
@@ -137,7 +138,8 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 
 		this.voiceAvailable = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,
-			() => configurationService.getValue<boolean>('agents.voice.enabled') === true);
+			() => configurationService.getValue<boolean>('agents.voice.enabled') === true
+				&& configurationService.getValue<boolean>(AgentsVoiceSettingId.ShowButton) !== false);
 
 		// The dictation segment drives built-in on-device dictation
 		// (`workbench.action.chat.toggleSpeechToText`). `isConfigured` already
@@ -146,7 +148,8 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		// where clicking it can actually dictate.
 		this.dictationAvailable = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,
-			() => chatSpeechToTextService.isConfigured);
+			() => chatSpeechToTextService.isConfigured
+				&& configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false);
 
 		// Hands-free mirrors the voice controller's auto-listen source of truth
 		// (`agents.voice.handsFree`, default true). In manual (non-hands-free)

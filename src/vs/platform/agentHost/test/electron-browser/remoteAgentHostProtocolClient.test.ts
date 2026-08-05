@@ -429,6 +429,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const creation = client.createSession({
 			provider: 'copilot',
 			session,
+			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
 			fork: { session: source, turnIndex: 2, turnId: 'turn-2' },
 			progressToken: 'progress-token',
 		});
@@ -437,6 +438,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			hasKey(message, { method: true }) && message.method === 'createSession');
 		assert.deepStrictEqual(request?.params, {
 			channel: session.toString(),
+			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
 			provider: 'copilot',
 			workingDirectories: undefined,
 			fork: { session: source.toString(), turnId: 'turn-2' },
