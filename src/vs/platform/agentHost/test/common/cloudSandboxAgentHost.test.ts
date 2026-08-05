@@ -77,4 +77,17 @@ suite('isRetryableCloudSandboxError', () => {
 			{ transport: true, statusless: true, authNotReady: true },
 		);
 	});
+
+	test('an answered request is distinguishable from an unanswered one', () => {
+		// Opening a connection retries only when Mission Control never replied. `_throwForStatus`
+		// is the sole source of CloudSandboxRequestError and always carries the replied status, so
+		// the type alone separates "refused" from "no answer".
+		assert.deepStrictEqual(
+			{
+				refused: new CloudSandboxRequestError(500, 'HTTP 500') instanceof CloudSandboxRequestError,
+				transport: new Error('Fetch timeout: 10000ms') instanceof CloudSandboxRequestError,
+			},
+			{ refused: true, transport: false },
+		);
+	});
 });
