@@ -93,6 +93,9 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
+	// Swallows one leftover blur from the interaction that opened this widget (#329110)
+	private ignoreNextBlur = false;
+
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
@@ -346,7 +349,9 @@ export class QuickInputController extends Disposable {
 			this.previousFocusElement = dom.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
-			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
+			if (this.ignoreNextBlur) {
+				this.ignoreNextBlur = false;
+			} else if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(QuickInputHideReason.Blur);
 			}
 			this.inQuickInputContext.set(false);
@@ -766,6 +771,10 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+
+		// Reset one tick after FocusTracker's own blur delay (dom.ts#FocusTracker) so a same-wave blur is caught, not raced
+		this.ignoreNextBlur = true;
+		disposableTimeout(() => disposableTimeout(() => this.ignoreNextBlur = false, 0, this._store), 0, this._store);
 	}
 
 	isVisible(): boolean {

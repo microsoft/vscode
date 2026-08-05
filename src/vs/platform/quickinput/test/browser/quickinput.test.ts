@@ -384,6 +384,98 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 
+	test('blur landing in the same tick the picker opens is ignored once (issue #329110)', () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const instantiationService = new TestInstantiationService();
+			instantiationService.stub(IThemeService, new TestThemeService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+			instantiationService.stub(IListService, store.add(new ListService()));
+			instantiationService.stub(ILayoutService, {
+				_serviceBrand: undefined,
+				activeContainer: fixture,
+				onDidLayoutContainer: Event.None,
+				getContainer: () => fixture,
+			});
+			instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
+			instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+			instantiationService.stub(IKeybindingService, {
+				mightProducePrintableCharacter() { return false; },
+				softDispatch() { return NoMatchingKb; },
+			});
+
+			// A controller with `ignoreFocusOut` off, so blur-to-close is actually
+			// exercised (the shared `controller` in `setup()` has it hardcoded on).
+			const blurringController: QuickInputController = store.add(instantiationService.createInstance(
+				QuickInputController,
+				{
+					container: fixture,
+					idPrefix: 'blurTestQuickInput',
+					ignoreFocusOut() { return false; },
+					returnFocus() { },
+					backKeybindingLabel() { return undefined; },
+					setContextKey() { return undefined; },
+					linkOpenerDelegate(content: unknown) { },
+					hoverDelegate: {
+						showHover(options: unknown, focus: unknown) {
+							return undefined;
+						},
+						delay: 200
+					},
+					styles: {
+						button: unthemedButtonStyles,
+						countBadge: unthemedCountStyles,
+						inputBox: unthemedInboxStyles,
+						toggle: unthemedToggleStyles,
+						keybindingLabel: unthemedKeybindingLabelOptions,
+						list: unthemedListStyles,
+						progressBar: unthemedProgressBarOptions,
+						widget: {
+							quickInputBackground: undefined,
+							quickInputForeground: undefined,
+							quickInputTitleBackground: undefined,
+							widgetBorder: undefined,
+							widgetShadow: undefined,
+						},
+						pickerGroup: {
+							pickerGroupBorder: undefined,
+							pickerGroupForeground: undefined,
+						}
+					}
+				}
+			));
+			blurringController.layout({ height: 20, width: 40 }, 0);
+
+			// Stand-in for the gear icon that regains focus while the menu that
+			// triggered this picker is tearing down.
+			const trigger = document.createElement('button');
+			fixture.appendChild(trigger);
+			store.add(toDisposable(() => trigger.remove()));
+			trigger.focus();
+
+			const quickpick = store.add(blurringController.createQuickPick());
+			quickpick.show();
+
+			// Same-tick leftover focus churn from the interaction that opened
+			// the picker (see `ignoreNextBlur` in QuickInputController).
+			trigger.focus();
+			clock.tick(0);
+
+			assert.strictEqual(blurringController.isVisible(), true, 'picker must survive a blur landing in the same tick it opened');
+
+			// A later, genuine blur must still dismiss it as normal.
+			const input = fixture.querySelector<HTMLInputElement>('.quick-input-widget .monaco-inputbox input')!;
+			input.focus();
+			trigger.focus();
+			clock.tick(0);
+
+			assert.strictEqual(blurringController.isVisible(), false, 'a later, unrelated blur must still close the picker');
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('isKeyModified - returns false when no modifiers are pressed', () => {
 		assert.strictEqual(isKeyModified(NO_KEY_MODS), false);
 		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: false }), false);
