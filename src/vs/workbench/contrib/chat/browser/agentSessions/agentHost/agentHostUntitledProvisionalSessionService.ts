@@ -464,7 +464,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (first === undefined || second === undefined) {
 			return first === second;
 		}
-		return first.length === second.length && first.every((directory, index) => isEqual(directory, second[index]));
+		if (!this._sameUri(first[0], second[0])) {
+			return false;
+		}
+		const firstAdditional = new ResourceSet(first.slice(1));
+		const secondAdditional = new ResourceSet(second.slice(1));
+		return firstAdditional.size === secondAdditional.size && [...firstAdditional].every(directory => secondAdditional.has(directory));
 	}
 
 	private _newProvisionalUri(provider: string): URI {
