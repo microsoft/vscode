@@ -262,7 +262,7 @@ type ManagedSettingsFetchTelemetryClassification = {
 	rateLimitBackoffActive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'True when the request was short-circuited because a prior rate-limit Retry-After window was still active.' };
 };
 
-class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
+export class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
 	private _defaultAccount: IDefaultAccountData | null = null;
 	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount?.defaultAccount ?? null; }
@@ -908,7 +908,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);
 		const data = await this.requestManagedSettings(sessions);
-		return { data, fetchedAt: Date.now() };
+		return { data: data ?? cachedManagedSettings?.data, fetchedAt: Date.now() };
 	}
 
 	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {

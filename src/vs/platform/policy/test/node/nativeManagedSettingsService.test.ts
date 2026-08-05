@@ -133,6 +133,29 @@ suite('NativeManagedSettingsService', () => {
 		assert.deepStrictEqual({ managedSettings: service.managedSettings, watcherCreateCount }, { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }, watcherCreateCount: 1 });
 	});
 
+	test('retries watcher creation after initialization fails', async () => {
+		let watcherCreateCount = 0;
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
+			watcherCreateCount++;
+			if (watcherCreateCount === 1) {
+				throw new Error('initial watcher creation failed');
+			}
+			callback({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+			return Disposable.None;
+		};
+
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		await assert.rejects(service.initialize());
+
+		assert.deepStrictEqual({
+			managedSettings: await service.initialize(),
+			watcherCreateCount,
+		}, {
+			managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
+			watcherCreateCount: 2,
+		});
+	});
+
 	test('removes raw managed settings whose definitions are no longer watched', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const otherManagedSettingKey = 'permissions.otherManagedSetting';
