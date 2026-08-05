@@ -25,12 +25,14 @@ suite('Terminal chat agent tools configuration', () => {
 		TerminalChatAgentToolsSettingId.AutoApprove,
 		TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
 		TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+		TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 	];
 	const workspaceValues: Record<string, unknown> = {
 		[TerminalChatAgentToolsSettingId.EnableAutoApprove]: false,
 		[TerminalChatAgentToolsSettingId.AutoApprove]: { '/.*/': true },
 		[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: true,
 		[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: 'never',
+		[TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible]: { '/.*/': true },
 	};
 
 	suiteSetup(() => {

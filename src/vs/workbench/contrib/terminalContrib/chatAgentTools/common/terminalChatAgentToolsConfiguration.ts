@@ -810,6 +810,7 @@ for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {
+		...(id === TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible ? { restricted: true } : {}),
 		deprecated: true,
 		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
 	};
