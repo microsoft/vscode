@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,6 +20,7 @@ import { TerminalCapability, type ICwdDetectionCapability } from '../../../../..
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
@@ -25,6 +28,7 @@ import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -96,6 +100,8 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	createProcessCount = 0;
+
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -104,6 +110,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			onPtyHostRestart: Event.None,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
+			getShellEnvironment: async () => ({}),
 			createProcess: async (
 				shellLaunchConfig: IShellLaunchConfig,
 				cwd: string,
@@ -113,9 +120,25 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				env: IProcessEnvironment,
 				options: ITerminalProcessOptions,
 				shouldPersist: boolean
-			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			) => {
+				this.createProcessCount++;
+				return this._register(new TestTerminalChildProcess(shouldPersist));
+			},
 			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
+	}
+}
+
+class TestTerminalWorkspaceTrustRequestService extends mock<IWorkspaceTrustRequestService>() {
+	requestCount = 0;
+
+	constructor(private readonly _result: Promise<boolean>) {
+		super();
+	}
+
+	override requestWorkspaceTrust(): Promise<boolean> {
+		this.requestCount++;
+		return this._result;
 	}
 }
 
@@ -154,11 +177,119 @@ suite('Workbench - TerminalInstance', () => {
 			return instance;
 		}
 
+		async function createTerminalInstanceForTrust(shellLaunchConfig: IShellLaunchConfig, trustResult: Promise<boolean>): Promise<{
+			instance: TerminalInstance;
+			terminalInstanceService: TestTerminalInstanceService;
+			workspaceTrustRequestService: TestTerminalWorkspaceTrustRequestService;
+		}> {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							commandsToSkipShell: [],
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
+			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+			instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly remoteAuthority = 'ssh-remote+test';
+			});
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService(trustResult);
+			instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, shellLaunchConfig));
+			await instance.xtermReadyPromise;
+			return { instance, terminalInstanceService, workspaceTrustRequestService };
+		}
+
+		function createProcess(instance: TerminalInstance): Promise<void> {
+			return (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
+		}
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			// Wait for the terminal instance to resolve shell launch config env.
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+
+		test('remote resolver terminal bypasses workspace trust request', async () => {
+			const trustResult = new DeferredPromise<boolean>();
+			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isRemoteResolverTerminal: true,
+				isTransient: true
+			}, trustResult.p);
+
+			await createProcess(instance);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount,
+				persistedResolverFlag: instance.shellLaunchConfig.isRemoteResolverTerminal
+			}, {
+				trustRequestCount: 0,
+				createProcessCount: 1,
+				persistedResolverFlag: undefined
+			});
+			instance.dispose();
+		});
+
+		test('ordinary local terminal waits for workspace trust in a remote workspace', async () => {
+			const trustResult = new DeferredPromise<boolean>();
+			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, trustResult.p);
+
+			const processCreation = createProcess(instance);
+			await timeout(0);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0
+			});
+			trustResult.complete(true);
+			await processCreation;
+			instance.dispose();
+		});
+
+		test('unflagged terminal still requests workspace trust before creating its process', async () => {
+			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, Promise.resolve(true));
+
+			await createProcess(instance);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 1
+			});
+			instance.dispose();
 		});
 
 		test('should preserve title for task terminals', async () => {

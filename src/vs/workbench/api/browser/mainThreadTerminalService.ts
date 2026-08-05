@@ -156,6 +156,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			extHostTerminalId,
 			forceShellIntegration: launchConfig.forceShellIntegration,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
+			isRemoteResolverTerminal: launchConfig.isRemoteResolverTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 			isTransient: launchConfig.isTransient,

@@ -628,6 +628,12 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
+	 * Whether this terminal is used to bootstrap a remote authority resolver. This is consumed by
+	 * the terminal instance and must not be forwarded to or persisted by the pty host.
+	 */
+	isRemoteResolverTerminal?: boolean;
+
+	/**
 	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
 	icon?: TerminalIcon;

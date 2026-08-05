@@ -376,6 +376,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onLineData = this._onLineData.event;
 
 	readonly sessionId = generateUuid();
+	private readonly _isRemoteResolverTerminal: boolean;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -411,6 +412,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	) {
 		super();
 
+		this._isRemoteResolverTerminal = this._shellLaunchConfig.isRemoteResolverTerminal === true;
+		delete this._shellLaunchConfig.isRemoteResolverTerminal;
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 
@@ -1602,7 +1605,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
-		const trusted = await this._trust();
+		const trusted = this._isRemoteResolverTerminal || await this._trust();
 		// Allow remote terminals in a remote workspace to be created when trust is denied, but
 		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
 		const isRemoteTerminal = !!this.remoteAuthority;
