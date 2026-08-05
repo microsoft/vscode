@@ -11,6 +11,7 @@ import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMe
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
+import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -184,6 +185,25 @@ suite('Agent host _meta readers', () => {
 
 		test('ignores a wrong-typed identifier value', () => {
 			assert.strictEqual(readAgentModelByokIdentifier(model({ byokModelIdentifier: 42 })), undefined);
+		});
+	});
+
+	suite('agent model source meta', () => {
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a source id through _meta', () => {
+			const meta = createAgentModelSourceMeta('chatgptSubscription');
+			assert.deepStrictEqual(meta, { modelSourceId: 'chatgptSubscription' });
+			assert.strictEqual(readAgentModelSourceId(model(meta)), 'chatgptSubscription');
+		});
+
+		test('omits unknown sources and ignores invalid values', () => {
+			assert.strictEqual(createAgentModelSourceMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
 		});
 	});
 

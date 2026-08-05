@@ -522,8 +522,16 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 			assert.strictEqual(getToolKind('task'), 'subagent');
 		});
 
-		test('returns undefined for view', () => {
-			assert.strictEqual(getToolKind('view'), undefined);
+		test('returns read for file reads', () => {
+			assert.deepStrictEqual([
+				getToolKind('view'),
+				getToolKind('str_replace_editor', { command: 'view' }),
+				getToolKind('str_replace_editor', { command: 'str_replace' }),
+			], [
+				'read',
+				'read',
+				undefined,
+			]);
 		});
 
 		test('returns search for glob', () => {
