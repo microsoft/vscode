@@ -163,6 +163,16 @@ class SessionsSetUpWidget extends Disposable {
 				return;
 			}
 			this._accountResolved = true;
+			// A `_usableWithoutGitHub` change during the unresolved window was
+			// ignored above. If the agent ended up usable, replay it now so a
+			// signed-out user is let in rather than stranded on a sign-in dialog
+			// nothing else retires — the web path has no post-resolution re-check
+			// of its own (the native paths re-read usability after they await the
+			// account). While not usable, the initial setup flow still owns the
+			// dialog, so there is nothing to replay.
+			if (this._usableWithoutGitHub.get()) {
+				this._onUsableWithoutGitHubChanged(true);
+			}
 		});
 
 		if (isWeb) {
