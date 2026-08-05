@@ -963,7 +963,7 @@ export function renderForm(
 		undefined,
 		workspaceControlsVisible,
 	));
-	isolationGroup.render(DOM.append(newChatPickersHost, $('span')));
+	isolationGroup.render(DOM.append(newChatPickersHost, $('span.automation-form-isolation-group-host')));
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {

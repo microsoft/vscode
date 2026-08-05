@@ -332,7 +332,22 @@
 }
 
 .automation-form-new-chat-pickers .new-chat-session-controls {
+	flex: 1 1 auto;
 	min-width: 0;
+	overflow: hidden;
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .monaco-toolbar,
+.automation-form-new-chat-pickers .new-chat-session-controls .monaco-action-bar,
+.automation-form-new-chat-pickers .new-chat-session-controls .actions-container {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .action-item,
+.automation-form-new-chat-pickers .new-chat-session-controls .action-label {
+	min-width: 30px;
+	overflow: hidden;
 }
 
 .automation-form-new-chat-pickers .new-chat-session-controls .action-label {
@@ -340,6 +355,13 @@
 	padding: 3px 8px;
 	font-size: var(--vscode-agents-fontSize-label2);
 	color: var(--vscode-icon-foreground);
+}
+
+.automation-form-new-chat-pickers .new-chat-session-controls .sessions-chat-dropdown-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .automation-form-new-chat-pickers .new-chat-session-controls .action-label > .codicon {
@@ -675,6 +697,12 @@
  * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
  * compact label text and codicons, icon-foreground color, no border.
  */
+.automation-form-prompt-host .automation-form-isolation-group-host {
+	display: flex;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
 	display: inline-flex;
 	align-items: center;
