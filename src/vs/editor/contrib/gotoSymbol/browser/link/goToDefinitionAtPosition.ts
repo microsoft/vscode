@@ -211,7 +211,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				}
 
 				const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
-				textEditorModel.tokenization.tokenizeIfCheap(startLineNumber);
+				textEditorModel.tokenization.forceTokenization(startLineNumber);
 				const languageId = textEditorModel.getLanguageIdAtPosition(startLineNumber, result.range.startColumn);
 				this.addDecoration(
 					linkRange,

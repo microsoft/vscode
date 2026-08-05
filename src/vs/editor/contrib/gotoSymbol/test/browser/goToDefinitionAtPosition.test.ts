@@ -51,8 +51,6 @@ suite('Go to Definition at Position', () => {
 		}));
 
 		const targetModel = disposables.add(instantiateTextModel(instantiationService, '<script>\nconst word = 1;\n</script>', outerLanguageId, undefined, targetUri));
-		// The reported issue occurs in an open document whose embedded language has already been tokenized.
-		targetModel.tokenization.forceTokenization(2);
 		instantiationService.set(ITextModelService, new class extends mock<ITextModelService>() {
 			override async createModelReference() {
 				return new ImmortalReference(new class extends mock<IResolvedTextEditorModel>() {
