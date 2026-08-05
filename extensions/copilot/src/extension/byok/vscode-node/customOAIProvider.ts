@@ -64,6 +64,8 @@ interface _CustomOAIModelConfig {
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
+	/** This is called 'extra_body' in OpenAI api */
+	extraBody?: Record<string, Object>,
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
@@ -149,6 +151,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			thinking: modelConfiguration?.thinking ?? false,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
+			extraBody: modelConfiguration?.extraBody,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
