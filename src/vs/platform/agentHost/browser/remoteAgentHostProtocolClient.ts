@@ -38,7 +38,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, MIGRATE_LEGACY_COPILOT_CLI_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -388,6 +388,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 				this._updateSystemProxyEnabled();
 			}
+			if (e.affectsConfiguration(MIGRATE_LEGACY_COPILOT_CLI_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateMigrateLegacyCopilotCliEnabled();
+			}
 			if (e.affectsConfiguration(AgentHostCopilotMultiRootEnabledSettingId)) {
 				if (this._state.kind !== AgentHostClientState.Connected) {
 					return;
@@ -650,6 +656,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 			this._applyReconnectResult(result);
 
+			// Re-push renderer-owned config on reconnect too: a reconnected host may
+			// be a freshly restarted process that never received these values (the
+			// reconnect result itself carries none), which would otherwise leave
+			// early-read config like the migrate flag at its host-side default.
+			this._forwardClientConfig();
+
 			// Drain the outbox BEFORE the transition so listeners reacting to
 			// {@link onDidChangeConnectionState} that synchronously dispatch see
 			// state=Connected and go direct, landing after the drained outbox
@@ -710,6 +722,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			const directory = result.defaultDirectory;
 			this._defaultDirectory = typeof directory === 'string' ? URI.parse(directory).path : URI.revive(directory).path;
 		}
+		this._forwardClientConfig();
+	}
+
+	/**
+	 * Push the renderer-owned config values the host mirrors (telemetry level,
+	 * proxy discovery, migrate flag, …) as `RootConfigChanged` actions. Called on
+	 * initial connect AND on reconnect: a reconnected host may be a freshly
+	 * restarted process (or one that lost these values), and re-pushing is a cheap
+	 * no-op when nothing changed. Without this, a value read early — like the
+	 * migrate flag in `listSessions` — can be missing after a window reload.
+	 */
+	private _forwardClientConfig(): void {
 		this._updateTelemetryLevel();
 		this._updateEditTelemetryEnabled();
 		this._updateSessionSyncEnabled();
@@ -718,6 +742,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._updateAutoReplyEnabled();
 		this._updatePreferLongContextEnabled();
 		this._updateSystemProxyEnabled();
+		this._updateMigrateLegacyCopilotCliEnabled();
 		this._updateCopilotMultiRootEnabled();
 		this._updateClaudeMultiRootEnabled();
 		this._updateCodexMultiRootEnabled();
@@ -1570,6 +1595,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSystemProxyEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
+	private _updateMigrateLegacyCopilotCliEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(MIGRATE_LEGACY_COPILOT_CLI_SETTING_ID) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: enabled },
 		}, this._clientId, 0);
 	}
 

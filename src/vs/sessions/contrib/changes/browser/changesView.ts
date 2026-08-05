@@ -30,7 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,10 +39,13 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
@@ -95,6 +98,10 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const DIFF_STATS_ACTION_ID = 'workbench.changesView.action.viewChanges';
+const singlePaneChangesEditorHeader = ContextKeyExpr.and(
+	SinglePaneLayoutEnabledContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
+);
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 
 /** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
@@ -447,14 +454,8 @@ export class ChangesActionsBar extends Disposable {
 
 }
 
-// --- Editor header menus (single-pane): the Changes editor declares
-// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats + code review,
-// left) and Menus.SessionsEditorHeaderSecondary (diff/view-mode actions, right), and
-// the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
-// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
-// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
-// The custom action view items below are registered globally by menu id so the
-// header toolbars render them.
+// --- Editor header menus (single-pane): actions contribute to the group-owned
+// primary/secondary header menus and gate themselves to the Changes editor.
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
@@ -1833,7 +1834,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ActiveSessionContextKeys.HasGitRepository,
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ActiveSessionContextKeys.HasGitRepository),
 			}],
 		});
 	}
@@ -1930,7 +1931,7 @@ class ChangesDiffStatsAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.hasAgentSessionChanges
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ChatContextKeys.hasAgentSessionChanges)
 			}],
 		});
 	}

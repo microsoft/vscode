@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -219,6 +220,8 @@ export interface IGitHubInfo {
 	readonly owner: string;
 	/** GitHub repository name. */
 	readonly repo: string;
+	/** Pull requests associated with this session, most recent first. */
+	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 	/** Pull request associated with this session, if any. */
 	readonly pullRequest?: {
 		/** Pull request number. */
@@ -237,6 +240,20 @@ export interface IGitHubInfo {
 	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
 	 */
 	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub pull request associated with a session. */
+export interface IGitHubPullRequestRef {
+	/** GitHub repository owner of the pull request. */
+	readonly owner: string;
+	/** GitHub repository name of the pull request. */
+	readonly repo: string;
+	/** Pull request number. */
+	readonly number: number;
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the last known PR state. */
+	readonly icon?: ThemeIcon;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -838,6 +855,12 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&

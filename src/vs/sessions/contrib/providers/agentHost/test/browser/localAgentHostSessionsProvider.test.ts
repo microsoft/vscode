@@ -351,7 +351,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -1416,7 +1416,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
 			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
@@ -4816,16 +4815,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+			_meta: {
+				github: {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequestUrls: [
+						'https://github.com/owner/repo/pull/42',
+						'https://github.com/owner/repo/pull/41',
+					]
+				}
+			},
 		});
 
 		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
 		const sub = autorun(reader => { gitHubInfoObs.read(reader); });
 		await timeout(0);
 
-		const pullRequest = gitHubInfoObs.get()?.pullRequest;
-		assert.strictEqual(pullRequest?.number, 42, 'PR is detected from the GitHub state URL');
-		assert.deepStrictEqual(pullRequest?.icon, computePullRequestIcon(GitHubPullRequestState.Open), 'a default open-PR icon is shown immediately while the live model is empty');
+		const gitHubInfo = gitHubInfoObs.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => ({
+				number: pullRequest.number,
+				uri: pullRequest.uri.toString(),
+				icon: pullRequest.icon,
+			}))
+		}, {
+			activePullRequest: {
+				number: 42,
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			pullRequests: [
+				{
+					number: 42,
+					uri: 'https://github.com/owner/repo/pull/42',
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				},
+				{
+					number: 41,
+					uri: 'https://github.com/owner/repo/pull/41',
+					icon: undefined,
+				},
+			]
+		});
 		sub.dispose();
 	}));
 

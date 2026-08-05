@@ -3158,7 +3158,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Matching workspace',
 				workingDirectories: [c, d],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString(), name: 'First' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: firstWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'different-workspace-file'),
@@ -3166,7 +3166,7 @@ suite('AgentHostChatContribution', () => {
 				modifiedTime: 2000,
 				summary: 'Different workspace',
 				workingDirectories: [a, b],
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString(), name: 'Second' }),
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: secondWorkspaceFile.toString() }),
 			});
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'metadata-less'),
@@ -8629,7 +8629,7 @@ suite('AgentHostChatContribution', () => {
 				undefined,
 				{
 					getInitialSessionConfig: () => ({ isolation: 'folder' }),
-					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } }),
+					getInitialSessionMetadata: () => ({ multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } }),
 				},
 			);
 
@@ -8653,7 +8653,7 @@ suite('AgentHostChatContribution', () => {
 				_meta: agentHostService.createSessionCalls[0]._meta,
 			}, {
 				config: { isolation: 'folder' },
-				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace', name: 'Demo' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///workspace/demo.code-workspace' } },
 			});
 		}));
 
