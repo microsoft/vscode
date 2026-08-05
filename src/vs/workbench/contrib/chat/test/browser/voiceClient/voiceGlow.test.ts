@@ -4,37 +4,83 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Color } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity } from '../../../browser/voiceClient/voiceGlow.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
+import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
+import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
+import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a themed subtle glow for connected idle voice mode', () => {
-		const idleStyle = computeVoiceGlowStyle('idle', 0.4, false);
+	test('only the talking states glow', () => {
+		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
+		assert.deepStrictEqual(
+			states.filter(isGlowingVoiceState),
+			['listening', 'speaking']
+		);
+	});
+
+	test('derives the speaking accent from the theme base color', () => {
+		const base = Color.fromHex('#58A6FF');
+		const colors = resolveVoiceGlowColors({ getColor: id => id === chatVoiceGlowBaseColor ? base : undefined });
 		assert.deepStrictEqual(
 			{
-				borderColor: idleStyle.borderColor,
-				boxShadow: idleStyle.boxShadow.replace('12.600000000000001', '12.6'),
+				listening: colors.listening.toString(),
+				speakingHue: Math.round(colors.speaking.hsla.h),
 			},
 			{
-				borderColor: 'color-mix(in srgb, var(--vscode-foreground) 42%, transparent)',
-				boxShadow: '0 0 12.6px color-mix(in srgb, var(--vscode-foreground) 24.8%, transparent), inset 0 0 4.41px color-mix(in srgb, var(--vscode-foreground) 12.4%, transparent)'
+				listening: base.toString(),
+				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
 			}
 		);
 	});
 
-	test('breathes the idle glow intensity over time', () => {
-		assert.deepStrictEqual(
-			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => Number(readIdleVoiceGlowIntensity(timestamp).toFixed(3))),
-			[0.4, 0.55, 0.25]
-		);
+	test('an explicitly themed state wins over the derived hue', () => {
+		const pinned = Color.fromHex('#FF00AA');
+		const colors = resolveVoiceGlowColors({
+			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
+		});
+		assert.strictEqual(colors.speaking.toString(), pinned.toString());
 	});
 
-	test('renders a static idle glow midpoint when motion is reduced', () => {
+	test('the dictation microphone paints the listening rim color', () => {
+		// Two things must hold: the tuning itself (hue nudge, saturation floor,
+		// per-theme lightness) and the fact that dictation and Voice Mode arrive
+		// at it from their own tokens. Snapshotting the resolved values pins the
+		// former — comparing the two paths alone would cancel it out.
+		const base = Color.fromHex('#58A6FF');
+		// Deliberately under the saturation floor, so the clamp is exercised.
+		const washedOut = Color.fromHex('#7A8B99');
+		const theme = (type: ColorScheme, accent: Color) => ({
+			type,
+			getColor: (id: string) => id === chatVoiceGlowBaseColor || id === chatDictationActiveMicGlow ? accent : undefined,
+		});
+		const resolve = (type: ColorScheme, kind: GlowThemeKind, accent: Color) => {
+			const scheme = theme(type, accent);
+			const format = (color: Color) => {
+				const rim = resolveVoiceRimAccent(color, 'cool', kind);
+				return `${rim.hue.toFixed(1)} ${rim.saturation}% ${rim.lightness}%`;
+			};
+			return {
+				mic: format(resolveDictationMicAccent(scheme as IColorTheme)!),
+				voiceMode: format(resolveVoiceGlowColors(scheme).listening),
+			};
+		};
+
 		assert.deepStrictEqual(
-			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => readIdleVoiceGlowIntensity(timestamp, true)),
-			[0.4, 0.4, 0.4]
+			{
+				dark: resolve(ColorScheme.DARK, 'dark', base),
+				light: resolve(ColorScheme.LIGHT, 'light', base),
+				washedOut: resolve(ColorScheme.DARK, 'dark', washedOut),
+			},
+			{
+				dark: { mic: '202.0 96% 56%', voiceMode: '202.0 96% 56%' },
+				light: { mic: '202.0 96% 72%', voiceMode: '202.0 96% 72%' },
+				washedOut: { mic: '197.0 70% 56%', voiceMode: '197.0 70% 56%' },
+			}
 		);
 	});
 });

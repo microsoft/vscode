@@ -12,6 +12,14 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Default on-device model used for dictation. */
+export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-3.5-asr-streaming-0.6b';
+
+export interface ILocalTranscriptionModelImportResult {
+	readonly model: string;
+	readonly version: number;
+}
+
 /** Lifecycle of the downloaded transcription model. */
 export const enum LocalTranscriptionModelState {
 	/** Model has not been requested yet. */
@@ -30,8 +38,19 @@ export interface ILocalTranscriptionModelStatus {
 	readonly state: LocalTranscriptionModelState;
 	/** Overall download progress in [0, 1] while `Downloading`. */
 	readonly progress?: number;
-	/** Short error identifier when `state === Error`. */
+	/**
+	 * Whether model files were actually fetched from the network (a cache miss)
+	 * during this preparation, as opposed to loaded from the on-disk cache. Set
+	 * on the `Ready` status. Used for download telemetry.
+	 */
+	readonly downloaded?: boolean;
+	/** Human-readable error message when `state === Error` (for UI/logging). */
 	readonly error?: string;
+	/**
+	 * Allowlisted, low-cardinality error identifier when `state === Error`
+	 * (e.g. `network`, `notFound`, `memory`), safe to send as telemetry.
+	 */
+	readonly errorCode?: string;
 }
 
 export interface ILocalTranscriptionResult {
@@ -39,12 +58,25 @@ export interface ILocalTranscriptionResult {
 	readonly text: string;
 	/** True for the final result emitted after `stop`. */
 	readonly isFinal: boolean;
+	/**
+	 * The leading portion of `text` that Foundry has already finalized (its
+	 * endpointed segments). The remainder of `text` is the still-in-progress
+	 * interim tail. Lets the renderer stop shimmering finalized text as soon as
+	 * a segment is endpointed — including the last one during a trailing silence
+	 * — instead of waiting for a later interim to confirm it stopped changing.
+	 */
+	readonly finalizedText?: string;
 }
 
+
 /**
- * On-device speech-to-text using a downloaded Whisper model (transformers.js +
- * onnxruntime-node). Runs in a utility process. A single transcription session
- * is active at a time (dictation is a singleton in the renderer).
+ * On-device speech-to-text using a downloaded model. Transcription runs through
+ * Microsoft's Foundry Local streaming ASR engine (onnxruntime + onnxruntime-genai
+ * native runtime), which handles decoding, VAD and endpointing internally. The
+ * default model is NVIDIA's multilingual Nemotron 3.5 streaming RNN-T. The model
+ * is chosen by the `dictation.model` setting. Runs in a utility process. A
+ * single transcription session is active at a time (dictation is a singleton
+ * in the renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -54,9 +86,9 @@ export interface ILocalTranscriptionService {
 
 	/**
 	 * Whether on-device transcription can run in this environment. False on web
-	 * (no utility process) and on desktop platforms/architectures without an
-	 * onnxruntime-node binary. When false, dictation is unavailable — there is
-	 * no cloud fallback.
+	 * (no utility process) and on desktop platforms/architectures without a
+	 * Foundry Local native runtime. When false, dictation is unavailable — there
+	 * is no cloud fallback.
 	 */
 	readonly isSupported: boolean;
 
@@ -70,10 +102,39 @@ export interface ILocalTranscriptionService {
 	getModelStatus(): Promise<ILocalTranscriptionModelStatus>;
 
 	/**
-	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
-	 * transcription session. `cacheDir` is where model files are stored.
+	 * Imports the default on-device model from an official Foundry Local expansion
+	 * pack or a prepared model directory into `cacheDir`.
 	 */
-	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string }): Promise<void>;
+	importModel(options: { readonly sourcePath: string; readonly cacheDir: string }): Promise<ILocalTranscriptionModelImportResult>;
+
+	/**
+	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
+	 * transcription session. `cacheDir` is where model files are stored. `model`
+	 * selects the on-device Foundry Local model; when omitted the service default
+	 * is used. `language` optionally hints the spoken language.
+	 *
+	 * `proxyUrl`/`noProxy` bridge VS Code's `http.proxy`/`http.noProxy` settings
+	 * into this utility process: when set, they are applied as the standard proxy
+	 * environment variables before any download, so all provisioning legs — the
+	 * addon tarball and NuGet core libraries (our own fetches) and the native
+	 * Foundry Local *model* download — route through the proxy. When they are
+	 * omitted, the process's inherited OS environment proxy vars still apply.
+	 *
+	 * `proxyStrictSSL === false` (VS Code's `http.proxyStrictSSL`) disables TLS
+	 * certificate verification for the JavaScript download legs. `proxyAuthorization`
+	 * (VS Code's `http.proxyAuthorization`, a `Basic <base64>` value) is folded into
+	 * the proxy URL's credentials so both our fetches and the native model download
+	 * authenticate to the proxy. TLS-intercepting proxies otherwise rely on the CA
+	 * being in the OS trust store (matching `@vscode/proxy-agent` and the desktop
+	 * app).
+	 *
+	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
+	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
+	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
+	 * CDN for this host's target. When omitted (local dev builds), the runtime
+	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
+	 */
+	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string; readonly runtimeUrlTemplate?: string; readonly runtimeVersion?: string }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

@@ -8,8 +8,16 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+
+/** Raised when unattended session creation targets a workspace that requires trust. */
+export class WorkspaceNotTrustedError extends Error {
+	constructor() {
+		super('Workspace not trusted');
+		this.name = 'WorkspaceNotTrustedError';
+	}
+}
 
 /**
  * Options for sending a request through the sessions management service.
@@ -85,6 +93,12 @@ export interface ICreateNewSessionOptions {
 	 * Skipped if the provider does not implement the setter.
 	 */
 	readonly branch?: string;
+	/**
+	 * Optional branch tracking preference to apply via
+	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
+	 * programmatic session creation and is not surfaced in the new-session UI.
+	 */
+	readonly worktreeBranchTrack?: boolean;
 }
 
 /**
@@ -116,6 +130,10 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/**
+	 * The exact options object the send was started with, so callers can
+	 * correlate a fire-and-forget (background) send with its completion.
+	 */
 	readonly options: ISendRequestOptions;
 }
 
@@ -205,9 +223,19 @@ export interface ISessionsManagementService {
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
 	/**
-	 * Get all session types from all registered providers.
+	 * Get all session types from all registered providers, deduplicated by
+	 * {@link ISessionType.id} (first provider wins). Use
+	 * {@link getAllProviderSessionTypes} when provider identity matters.
 	 */
 	getAllSessionTypes(): ISessionType[];
+
+	/**
+	 * Get every (provider × session type) pair from all registered providers,
+	 * without collapsing types that share an id. Two providers can offer the
+	 * same id while differing in properties that matter — e.g. only one of them
+	 * being usable without GitHub.
+	 */
+	getAllProviderSessionTypes(): IProviderSessionType[];
 
 	/**
 	 * Get all session types that can serve the given workspace URI, across all
@@ -225,12 +253,22 @@ export interface ISessionsManagementService {
 	 */
 	getQuickChatSessionTypes(): IProviderSessionType[];
 
+	/** Whether the requested workspace session target is currently advertised. */
+	isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean;
+
+	/** Whether the requested quick-chat target is currently advertised. */
+	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean;
+
 	/**
-	 * Resolve a workspace URI to a workspace using the first provider whose
-	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
-	 * when no registered provider can resolve the URI.
+	 * Resolve a workspace URI to a workspace. When `preferredProviderId` is
+	 * given, that provider is tried first (matching the provider-selection
+	 * rules {@link createNewSession} applies for the same options) so the
+	 * resolution reflects the provider that would actually be used to create
+	 * a session; otherwise iterates registered providers and returns the
+	 * first whose {@link ISessionsProvider.resolveWorkspace} succeeds.
+	 * Returns `undefined` when no provider can resolve the URI.
 	 */
-	resolveWorkspace(workspaceUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
+	resolveWorkspace(workspaceUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
 	 * Fires when available session types change (providers added/removed).
@@ -282,6 +320,12 @@ export interface ISessionsManagementService {
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
+	/**
+	 * Fires when {@link createNewSession} replaces the current in-progress
+	 * draft with another new-session draft (New Session → New Session).
+	 * Draft graduation uses {@link onDidReplaceSession} instead.
+	 */
+	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	// -- New Session --
 
@@ -342,6 +386,18 @@ export interface ISessionsManagementService {
 	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
+	 * Create a side chat from an existing chat's turn, inheriting the source
+	 * chat's model/agent selection. Used by the `/btw` command. Throws if the
+	 * session's provider does not support side chats
+	 * ({@link ISessionCapabilities.supportsSideChat}).
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to branch from.
+	 * @param turnId The ID of the turn to branch from.
+	 */
+	createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
+
+	/**
 	 * Discard the in-progress new session, disposing it through its provider to
 	 * release the eagerly-acquired backend session.
 	 *
@@ -375,6 +431,12 @@ export interface ISessionsManagementService {
 	 * stranded draft) if the send fails.
 	 */
 	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
+
+	/**
+	 * Create a workspace-less quick chat and send a request without navigating
+	 * into it. The quick chat appears in the sessions list after commit.
+	 */
+	createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -431,5 +493,32 @@ export interface ISessionsManagementService {
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
+
+/**
+ * The `providerId`/`sessionTypeId` to seed a new session with when carrying the
+ * harness over from an existing session, or an empty object when it should not
+ * be carried over. Designed to be spread into a {@link ICreateNewSessionOptions}
+ * literal alongside the caller's own `folderUri`.
+ *
+ * "New Session" gestures default to the harness the user is currently working
+ * in, but a harness can stop being advertised while one of its sessions is
+ * still open — e.g. the extension-host Copilot CLI once
+ * `chat.agents.copilotCli.hideExtensionHost` is on. Inheriting it then makes
+ * session creation fail (the provider no longer offers the type), which drops
+ * the folder and leaves the composer on an agent the harness picker doesn't
+ * list. Contributing nothing lets the folder's preferred harness serve the new
+ * session instead.
+ */
+export function inheritableSessionTarget(
+	sessionsManagementService: ISessionsManagementService,
+	session: Pick<ISession, 'providerId' | 'sessionType'> | undefined,
+	folderUri: URI | undefined,
+): Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
+	if (!session || !folderUri) {
+		return {};
+	}
+	const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
+	return sessionsManagementService.isNewSessionTargetAvailable(folderUri, target) ? target : {};
+}
 
 //#endregion

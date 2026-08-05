@@ -91,7 +91,7 @@ export type VoiceToolApprovalEvent = {
 export type VoiceToolApprovalClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when the voice backend approves or rejects a tool confirmation.';
-	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (approve_confirmation, reject_confirmation).' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (respond_to_session).' };
 	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or denial (false).' };
 };
 
@@ -115,4 +115,26 @@ export type VoiceLatencyClassification = {
 	comment: 'Fired after a complete voice turn (user speaks → assistant responds). Measures latency.';
 	timeToFirstTranscriptionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Milliseconds from pttDown to first partial transcription received.' };
 	endToEndTurnMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Milliseconds from pttUp to first audio response chunk.' };
+};
+
+export type VoiceNarrationDeferredEvent = {
+	kind: string;
+	reason: string;
+};
+export type VoiceNarrationDeferredClassification = {
+	owner: 'meganrogge';
+	comment: 'Fired client-side when a requested narration cannot play now and is queued for a later retry (no narration text is logged).';
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the deferred narration was a response, confirmation prompt, or checkpoint.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why it was deferred: busy (narration_ack busy) or interrupted (narration_interrupted).' };
+};
+
+export type VoiceNarrationDroppedEvent = {
+	kind: string;
+	reason: string;
+};
+export type VoiceNarrationDroppedClassification = {
+	owner: 'meganrogge';
+	comment: 'Fired client-side when a requested narration is dropped without being played (no narration text is logged).';
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dropped narration was a response, confirmation prompt, or checkpoint.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why it was dropped: invalid (narration_ack invalid), stale (no longer the current narratable item), or session_changed (user switched away from the session).' };
 };

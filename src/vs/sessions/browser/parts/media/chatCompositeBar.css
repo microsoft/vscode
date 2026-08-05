@@ -276,7 +276,9 @@
 	display: none;
 }
 
-.chat-composite-bar-new-chat .action-item .action-label {
+/* Include the tab-row owner to outrank `.monaco-action-bar .action-item .codicon`,
+ * which otherwise resets this button's width and height from 26px to 16px. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat .action-item .action-label {
 	box-sizing: border-box;
 	width: 26px;
 	height: 26px;
@@ -294,37 +296,6 @@
 }
 
 .chat-composite-bar-new-chat .action-item .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-/* Chat tab bar action menu (e.g. the Conversations dropdown) grouped with the
-	New Chat button right after the tab strip. */
-.chat-composite-bar-tabs-row > .chat-composite-bar-action-menu {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	margin-left: 4px;
-}
-
-.chat-composite-bar-action-menu .action-item .action-label {
-	box-sizing: border-box;
-	width: 26px;
-	height: 26px;
-	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-action-menu .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-action-menu .action-item .action-label:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -387,11 +358,10 @@
 }
 
 /* Lock icon for read-only (non-interactive) chats, shown before the label.
-	The element carries the `codicon` class, whose base rule
-	`.codicon[class*='codicon-'] { display: inline-block }` has specificity (0,2,0),
-	so these hide/show rules are scoped to the tab to win on specificity —
-	otherwise the lock would show on every tab regardless of read-only state. */
-.chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
+	Include the tab-strip owner to outrank
+	`.monaco-workbench .codicon[class*='codicon-']`, which otherwise resets the
+	compact 12px lock to 16px when the workbench stylesheet loads later. */
+.session-chat-tabs-bar .chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
 	display: none;
 	flex-shrink: 0;
 	align-items: center;
@@ -435,7 +405,9 @@
 	height: 22px;
 }
 
-.chat-composite-bar-tab-input.monaco-inputbox .input {
+/* Include the tab owner to outrank `.monaco-inputbox > .ibwrapper > .input`,
+ * which otherwise restores the base 4px 6px padding around the rename input. */
+.chat-composite-bar-tab .chat-composite-bar-tab-input.monaco-inputbox .input {
 	font-family: inherit;
 	font-weight: inherit;
 	font-size: inherit;
@@ -504,7 +476,10 @@
 	background-color: var(--vscode-list-warningForeground);
 }
 
-.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+/* Include the tab-strip owner to outrank
+ * `.monaco-workbench .codicon[class*='codicon-']` and keep the in-progress
+ * indicator at the compact 12px size. */
+.session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 

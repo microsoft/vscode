@@ -13,10 +13,13 @@ import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
+	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
+	AgentHostCodexMultiRootEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
+	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
@@ -92,6 +95,30 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 		},
+		[AgentHostCopilotMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.copilotAgent.multiRootEnabled', "When enabled, Copilot agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
+			// Hidden from the Settings UI while the feature is dogfooded internally.
+			// Still settable via `settings.json`; flip `default` (e.g. to
+			// `product.quality !== 'stable'`) to enable it for a build channel.
+			included: false,
+		},
+		[AgentHostClaudeMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.claudeAgent.multiRootEnabled', "When enabled, Claude agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
+			// Hidden from the Settings UI while the feature is dogfooded internally.
+			// Still settable via `settings.json`; flip `default` (e.g. to
+			// `product.quality !== 'stable'`) to enable it for a build channel.
+			included: false,
+		},
+		[AgentHostCodexMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
+			included: false,
+		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
@@ -118,17 +145,17 @@ configurationRegistry.registerConfiguration({
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
-			default: true,
+			default: false,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. Enabling takes effect without restarting the agent host."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			// Allow the default to be overridden by an experiment. Uses `startup`
-			// (matching the sibling agent-host settings) since the agent host
-			// process must be restarted for a change to take effect anyway.
+			// to match the sibling agent-host provider settings.
 			experiment: { mode: 'startup' },
 			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
@@ -139,7 +166,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.agentHost.codexAgent.enabled.policy',
-						value: nls.localize('chat.agentHost.codexAgent.enabled.policy', "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex SDK. Uses your existing Copilot subscription."),
+						value: nls.localize('chat.agentHost.codexAgent.enabled.policy', "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex. Usage can be routed through GitHub Copilot or authenticated directly with an OpenAI account."),
 					}
 				}
 			},

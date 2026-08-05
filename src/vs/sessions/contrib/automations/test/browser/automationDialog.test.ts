@@ -20,9 +20,12 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
+import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -95,6 +98,7 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		hour: 9,
 		minute: 0,
 		day: 1,
+		isQuickChat: false,
 		folderUri: FOLDER,
 		providerId: 'default-copilot',
 		sessionTypeId: 'copilotcli',
@@ -105,6 +109,110 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 	};
 }
 
+function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
+	return {
+		uri: FOLDER,
+		label: 'Workspace',
+		icon: Codicon.folder,
+		folders: [{ root: FOLDER, workingDirectory: FOLDER, name: 'Workspace', description: undefined }],
+		requiresWorkspaceTrust,
+		isVirtualWorkspace: false,
+	};
+}
+
+suite('Automation workspace trust', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rejects an unresolved workspace using the preferred provider', async () => {
+		const resolveRequests: Array<{ folderUri: string; preferredProviderId: string | undefined }> = [];
+		const trustRequests: ResourceTrustRequestOptions[] = [];
+		const result = await canSelectAutomationWorkspace(
+			FOLDER,
+			'preferred',
+			upcastPartial<ISessionsManagementService>({
+				resolveWorkspace: (folderUri, preferredProviderId) => {
+					resolveRequests.push({ folderUri: folderUri.toString(), preferredProviderId });
+					return undefined;
+				},
+			}),
+			upcastPartial<IWorkspaceTrustRequestService>({
+				requestResourcesTrust: async options => {
+					trustRequests.push(options);
+					return true;
+				},
+			}),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			resolveRequests,
+			trustRequestCount: trustRequests.length,
+		}, {
+			result: false,
+			resolveRequests: [{ folderUri: FOLDER.toString(), preferredProviderId: 'preferred' }],
+			trustRequestCount: 0,
+		});
+	});
+
+	test('accepts a workspace that does not require trust without prompting', async () => {
+		const trustRequests: ResourceTrustRequestOptions[] = [];
+		const result = await canSelectAutomationWorkspace(
+			FOLDER,
+			'preferred',
+			upcastPartial<ISessionsManagementService>({
+				resolveWorkspace: () => ({ providerId: 'preferred', workspace: createWorkspace(false) }),
+			}),
+			upcastPartial<IWorkspaceTrustRequestService>({
+				requestResourcesTrust: async options => {
+					trustRequests.push(options);
+					return false;
+				},
+			}),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			trustRequestCount: trustRequests.length,
+		}, {
+			result: true,
+			trustRequestCount: 0,
+		});
+	});
+
+	for (const trustResult of [true, false, undefined]) {
+		test(`returns ${trustResult === true ? 'true when trust is granted' : 'false when trust is ' + (trustResult === false ? 'declined' : 'cancelled')}`, async () => {
+			const trustRequests: ResourceTrustRequestOptions[] = [];
+			const result = await canSelectAutomationWorkspace(
+				FOLDER,
+				'preferred',
+				upcastPartial<ISessionsManagementService>({
+					resolveWorkspace: () => ({ providerId: 'preferred', workspace: createWorkspace(true) }),
+				}),
+				upcastPartial<IWorkspaceTrustRequestService>({
+					requestResourcesTrust: async options => {
+						trustRequests.push(options);
+						return trustResult;
+					},
+				}),
+			);
+
+			assert.deepStrictEqual({
+				result,
+				trustRequests: trustRequests.map(request => ({
+					uri: request.uri.toString(),
+					message: request.message,
+				})),
+			}, {
+				result: trustResult === true,
+				trustRequests: [{
+					uri: FOLDER.toString(),
+					message: 'An agent session will be able to read files, run commands, and make changes in this folder.',
+				}],
+			});
+		});
+	}
+});
+
 suite('Automation branch picker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -114,6 +222,7 @@ suite('Automation branch picker', () => {
 		readonly failOpenRepositoryOnce?: boolean;
 		readonly providerInitiallyUnavailable?: boolean;
 		readonly revalidate?: () => void;
+		readonly visible?: boolean;
 	}): {
 		readonly container: HTMLElement;
 		readonly state: IFormState;
@@ -143,6 +252,7 @@ suite('Automation branch picker', () => {
 			]),
 		});
 		const actionWidgetService = new RecordingActionWidgetService();
+		const visible = observableValue('repositoryControlsVisible', options?.visible ?? true);
 		let openRepositoryAttempts = 0;
 		let providerAvailable = !options?.providerInitiallyUnavailable;
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
@@ -166,6 +276,7 @@ suite('Automation branch picker', () => {
 					label: 'Copilot',
 					icon: Codicon.copilot,
 					supportsWorktreeConfiguration: state.sessionTypeId === 'copilotcli',
+					authRequirement: SessionTypeAuthRequirement.GitHub,
 				},
 			}] : [],
 		}));
@@ -177,10 +288,11 @@ suite('Automation branch picker', () => {
 			action,
 			state,
 			model,
-			Event.None,
+			model.folderUriObs,
 			Event.None,
 			options?.revalidate ?? (() => { }),
 			undefined,
+			visible,
 		));
 		const container = document.createElement('div');
 		item.render(container);
@@ -336,24 +448,22 @@ suite('Automation branch picker', () => {
 
 	test('explains that Worktree is unavailable while branches load', async () => {
 		const refs = new DeferredPromise<Awaited<ReturnType<IGitRepository['getRefs']>>>();
-		const { container, actionWidgetService } = createItem({
+		const { container } = createItem({
 			state: createFormState({ isolationMode: 'workspace' }),
 			getRefs: async () => refs.p,
 		});
 		await timeout(0);
-		const isolationTrigger = container.querySelector<HTMLElement>('.automation-form-isolation-chip');
-		assert.ok(isolationTrigger);
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 
-		isolationTrigger.click();
 		assert.deepStrictEqual({
-			labels: actionWidgetService.labels,
-			details: actionWidgetService.details,
+			checked: checkbox.getAttribute('aria-checked'),
+			disabled: checkbox.getAttribute('aria-disabled'),
 		}, {
-			labels: ['Worktree', 'Folder'],
-			details: ['Local branches are loading.', undefined],
+			checked: 'false',
+			disabled: 'true',
 		});
 
-		actionWidgetService.hide(true);
 		await refs.complete([{ type: GitRefType.Head, name: 'main' }]);
 	});
 
@@ -403,14 +513,16 @@ suite('Automation branch picker', () => {
 		});
 		await timeout(0);
 
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 		assert.deepStrictEqual({
 			mode: model.isolationMode,
 			branch: model.persistedBranch,
-			label: container.querySelector('.automation-form-isolation-label')?.textContent,
+			checked: checkbox.getAttribute('aria-checked'),
 		}, {
 			mode: 'workspace',
 			branch: undefined,
-			label: 'Folder',
+			checked: 'false',
 		});
 	});
 
@@ -470,6 +582,7 @@ suite('Automation branch picker', () => {
 			nameError: undefined,
 			promptError: undefined,
 			folderError: undefined,
+			sessionTypeError: undefined,
 			branchError: undefined,
 		};
 		const form = document.createElement('form');
@@ -481,12 +594,154 @@ suite('Automation branch picker', () => {
 		assert.strictEqual(validation.branchError, undefined);
 	});
 
+	test('allows a workspace-less target without a folder and still requires a session type', () => {
+		const state = createFormState({ isQuickChat: true, folderUri: undefined, isolationMode: undefined, branch: undefined });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+		const form = document.createElement('form');
+
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+		const validTarget = { ...validation };
+		state.providerId = undefined;
+		state.sessionTypeId = undefined;
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+
+		assert.deepStrictEqual({
+			validTarget,
+			missingTarget: validation,
+		}, {
+			validTarget: {
+				nameError: undefined,
+				promptError: undefined,
+				folderError: undefined,
+				sessionTypeError: undefined,
+				branchError: undefined,
+			},
+			missingTarget: {
+				nameError: undefined,
+				promptError: undefined,
+				folderError: undefined,
+				sessionTypeError: 'Session type is required.',
+				branchError: undefined,
+			},
+		});
+	});
+
+	test('allows workspace-backed legacy targets without a provider id', () => {
+		const state = createFormState({ providerId: undefined, isolationMode: 'workspace' });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+
+		updateSaveButtonState(undefined, state, validation, document.createElement('form'), () => 'prompt', () => undefined);
+
+		assert.deepStrictEqual(validation, {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		});
+	});
+
+	test('hides repository controls for workspace-less targets', async () => {
+		const state = createFormState({
+			isQuickChat: true,
+			folderUri: undefined,
+			isolationMode: 'worktree',
+			branch: 'feature/stale',
+		});
+		const { container, model } = createItem({ state, visible: false });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			display: container.style.display,
+			ariaHidden: container.getAttribute('aria-hidden'),
+			folderUri: model.folderUri,
+			isolationMode: state.isolationMode,
+			branch: model.persistedBranch,
+		}, {
+			display: 'none',
+			ariaHidden: 'true',
+			folderUri: undefined,
+			isolationMode: undefined,
+			branch: undefined,
+		});
+	});
+
+	test('reloads repository state when returning to workspace mode', async () => {
+		const state = createFormState({
+			isQuickChat: true,
+			folderUri: undefined,
+			isolationMode: undefined,
+			branch: undefined,
+		});
+		const { container, model, getOpenRepositoryAttempts } = createItem({ state, visible: true });
+		await timeout(0);
+
+		assert.strictEqual(getOpenRepositoryAttempts(), 0);
+		model.setQuickChat(false, FOLDER);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			attempts: getOpenRepositoryAttempts(),
+			folderUri: model.folderUri?.toString(),
+			branch: container.querySelector('.automation-form-branch-name')?.textContent,
+			supportsWorktreeConfiguration: model.supportsWorktreeConfiguration,
+		}, {
+			attempts: 1,
+			folderUri: FOLDER.toString(),
+			branch: 'main',
+			supportsWorktreeConfiguration: true,
+		});
+	});
+
 	test('allows focus in mobile picker sheets', () => {
 		const sheet = document.createElement('div');
 		sheet.classList.add('mobile-picker-sheet');
 		const item = sheet.appendChild(document.createElement('button'));
 
 		assert.strictEqual(isAutomationDialogPopupTarget(item), true);
+	});
+
+	test('resolves a legacy model identifier to the selected concrete target', () => {
+		const legacyIdentifier = 'copilotcli/gpt-5.6-sol';
+		const concreteIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
+		const unrelatedIdentifier = 'other/gpt-5.6-sol';
+		const modelIds = [legacyIdentifier, unrelatedIdentifier];
+		const models = new Map<string, ILanguageModelChatMetadata>([
+			[legacyIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'copilotcli' })],
+			[concreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'agent-host-copilotcli' })],
+			[unrelatedIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'other' })],
+		]);
+		const languageModelsService = upcastPartial<ILanguageModelsService>({
+			getLanguageModelIds: () => modelIds,
+			lookupLanguageModel: identifier => models.get(identifier),
+		});
+
+		const beforeConcreteTargetArrives = resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli');
+		modelIds.push(concreteIdentifier);
+
+		assert.deepStrictEqual({
+			beforeConcreteTargetArrives,
+			afterConcreteTargetArrives: resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			alreadyConcrete: resolveAutomationModelIdentifier(languageModelsService, concreteIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			unrelated: resolveAutomationModelIdentifier(languageModelsService, unrelatedIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+		}, {
+			beforeConcreteTargetArrives: legacyIdentifier,
+			afterConcreteTargetArrives: concreteIdentifier,
+			alreadyConcrete: concreteIdentifier,
+			unrelated: unrelatedIdentifier,
+		});
 	});
 });
 

@@ -8,6 +8,8 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -43,8 +45,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
-	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
@@ -85,6 +85,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
+		restricted: true,
 		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 		type: 'boolean',
 		default: true,
@@ -102,6 +103,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		restricted: true,
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
@@ -218,25 +220,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Safe and common sub-commands
 
-			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-
-			// git grep
-			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-			// - See notes on `grep`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-
-			// git branch
-			// - `-d`, `-D`, `--delete`: Prevent branch deletion
-			// - `-m`, `-M`: Prevent branch renaming
-			// - `--force`: Generally dangerous
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+			...gitAutoApproveRules,
 
 			// docker - readonly sub-commands
 			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
@@ -247,26 +231,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #region PowerShell
 
-			'Get-ChildItem': true,
-			'Get-Content': true,
-			'Get-Date': true,
-			'Get-Random': true,
-			'Get-Location': true,
-			'Set-Location': true,
-			'Write-Host': true,
-			'Write-Output': true,
-			'Out-String': true,
-			'Split-Path': true,
-			'Join-Path': true,
-			'Start-Sleep': true,
-			'Where-Object': true,
-
-			// Blanket approval of safe verbs
-			'/^Select-[a-z0-9]/i': true,
-			'/^Measure-[a-z0-9]/i': true,
-			'/^Compare-[a-z0-9]/i': true,
-			'/^Format-[a-z0-9]/i': true,
-			'/^Sort-[a-z0-9]/i': true,
+			...powershellAutoApproveRules,
 
 			// #endregion
 
@@ -353,7 +318,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   blocked currently
 			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
 			//   of service.
-			sort: true,
+			'/^sort\\b(?!-)/': true,
 			'/^sort\\b.*\\s-(o|S)\\b/': false,
 
 			// tree
@@ -423,6 +388,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
+		restricted: true,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
@@ -438,6 +404,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
+		restricted: true,
 		type: 'string',
 		enum: ['never', 'outsideWorkspace', 'all'],
 		enumDescriptions: [
@@ -843,26 +810,8 @@ for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {
+		...(id === TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible ? { restricted: true } : {}),
 		deprecated: true,
 		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
 	};
 }
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.fileSystemLinux.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.fileSystemMac.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
-};
-
-terminalChatAgentToolsConfiguration[AgentSandboxSettingId.DeprecatedAgentSandboxEnabled] = {
-	type: 'boolean',
-	deprecated: true,
-	included: false,
-	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-};

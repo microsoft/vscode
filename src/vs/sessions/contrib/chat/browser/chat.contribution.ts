@@ -11,12 +11,13 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './nullChatTipService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
+import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -88,15 +89,19 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
 		// A quick chat never contributes its folder — it is workspace-less by
 		// intent (any scratch working directory must not seed the workspace
 		// composer), so it always falls to the New Session composer's folder picker.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		// Inherit the active session's harness so the new session defaults to
+		// the kind the user is working in — but only while the folder still
+		// offers it (see `inheritableSessionTarget`).
 		sessionsService.openNewSession({
-			folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
-			providerId: activeSession?.providerId,
-			sessionTypeId: activeSession?.sessionType,
+			folderUri,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
 		});
 	}
 }

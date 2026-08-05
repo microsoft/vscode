@@ -73,12 +73,17 @@ export interface SessionMetadata {
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
+	 * The working directories the session's agent has tool access to, as
+	 * maintained by the `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` actions. Directories are equal peers
+	 * except when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
+	 * entry is then a fixed process root). Individual chats MAY restrict to a
+	 * subset via {@link ChatSummary.workingDirectories | their own
+	 * `workingDirectories`}; a chat that sets none operates against this full
+	 * set.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -167,9 +172,12 @@ export interface SessionState extends SessionMetadata {
 	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
 	 * identifier the client needs to respond. A client answers by dispatching the
 	 * ordinary `chat/*` action to that chat's channel — see
-	 * {@link SessionInputRequest} for the per-variant response path. A present,
-	 * non-empty list implies {@link SessionStatus.InputNeeded} on
-	 * {@link SessionSummary.status}.
+	 * {@link SessionInputRequest} for the per-variant response path. A list
+	 * holding any entry other than
+	 * {@link SessionInputRequestKind.ToolClientExecution} implies
+	 * {@link SessionStatus.InputNeeded} on {@link SessionSummary.status};
+	 * client-execution entries are work delegated to a client rather than a
+	 * prompt, so they leave the session's activity unchanged.
 	 *
 	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
 	 * chats raise requests and removes them with `session/inputNeededRemoved`
@@ -181,7 +189,7 @@ export interface SessionState extends SessionMetadata {
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
 	 * For example, a `git` key may provide extra git metadata about the session's
-	 * workingDirectory.
+	 * working directories.
 	 */
 	_meta?: Record<string, unknown>;
 }
@@ -406,9 +414,9 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `workingDirectory`: the session-level **default**. Individual chats MAY
- *   override via {@link ChatSummary.workingDirectory}; aggregating these up
- *   is meaningless and SHOULD NOT be attempted.
+ * - `workingDirectories`: the session-level set. Individual chats MAY restrict
+ *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
+ *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
  *   per-chat changeset stats or report the most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
@@ -1218,6 +1226,22 @@ export interface McpServerReadyState {
 }
 
 /**
+ * A pre-registered OAuth client that clients use instead of dynamic client
+ * registration when resolving an MCP authentication challenge.
+ *
+ * @category MCP Server State
+ */
+export interface McpOAuthClient {
+	/** OAuth client identifier registered with the authorization server. */
+	clientId: string;
+	/**
+	 * OAuth client secret for a confidential client. Absence means the client is
+	 * public and uses a secretless flow such as authorization code with PKCE.
+	 */
+	clientSecret?: string;
+}
+
+/**
  * Reusable MCP authentication challenge — the RFC 9728 discovery info a
  * client needs to obtain a token and push it via the `authenticate` command.
  * Deliberately carries **no token**: this describes what is being asked for,
@@ -1241,6 +1265,11 @@ export interface McpServerReadyState {
 export interface McpAuthRequirement {
 	/** Why authentication is required. */
 	reason: McpAuthRequiredReason;
+	/**
+	 * Pre-registered OAuth client to use for authorization. When present, clients
+	 * MUST use these credentials instead of dynamic client registration.
+	 */
+	oauthClient?: McpOAuthClient;
 	/**
 	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
 	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
