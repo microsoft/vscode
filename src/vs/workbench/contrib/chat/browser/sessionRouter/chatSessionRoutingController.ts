@@ -268,6 +268,12 @@ export class ChatSessionRoutingController extends Disposable {
 		this._submitCts.value?.cancel();
 		this._pendingSend.clear();
 
+		// Immediately reflect that the request was accepted so the send button
+		// greys out while routing runs (it is intercepted off-model, so the
+		// widget's own submit state never changes). Cleared when the submission
+		// resolves, is cancelled, or the user edits the draft.
+		this.host.widget.input.setSubmitPending(true);
+
 		// The host cancels the in-flight submission on teardown so we never
 		// dispatch after close.
 		const cts = new CancellationTokenSource();
@@ -304,6 +310,7 @@ export class ChatSessionRoutingController extends Disposable {
 		this._submitCts.value?.cancel();
 		this._submitCts.clear();
 		this._pendingSend.clear();
+		this.host.widget.input.setSubmitPending(false);
 	}
 
 	/** Run the router, degrading to an empty ranking on failure/cancellation. */
@@ -507,12 +514,18 @@ export class ChatSessionRoutingController extends Disposable {
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
 			// No surface to host the badge — fall back to an immediate dispatch.
+			// The dispatch clears the input (which clears the pending state); do it
+			// eagerly too so the send button never stays greyed if dispatch fails.
+			this.host.widget.input.setSubmitPending(false);
 			void this._dispatchTo(target, submittedInput, utterance, attachedContext, cts.token);
 			return;
 		}
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
+		// Re-enable sending once this pending send goes away for any reason
+		// (dismiss, escape, typing-cancel, or a superseding submission).
+		store.add(toDisposable(() => this.host.widget.input.setSubmitPending(false)));
 		this._pendingSend.value = store;
 
 		if (target.kind === 'new' && results.length === 0) {

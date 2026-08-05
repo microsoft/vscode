@@ -193,6 +193,9 @@ export class ChatSubmitAction extends SubmitAction {
 			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
+			// A submission that is being routed/dispatched off-model (omni-chat)
+			// disables sending until it resolves or the draft changes.
+			ChatContextKeys.inputSubmitPending.negate(),
 		);
 
 		super({

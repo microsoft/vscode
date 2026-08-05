@@ -502,6 +502,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private inputEditorHasSendableContent: IContextKey<boolean>;
+	private inputSubmitPending: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 	private currentlyEditingInputKey!: IContextKey<boolean>;
@@ -840,6 +841,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
+		this.inputSubmitPending = ChatContextKeys.inputSubmitPending.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);
@@ -2265,6 +2267,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
+	/**
+	 * Toggle the "submit pending" state. While pending, the input reflects that a
+	 * submitted request is still being routed/dispatched (e.g. omni-chat routing,
+	 * where submission is intercepted and handled off-model) so the send button is
+	 * disabled until the submission resolves or the draft changes. Any input content
+	 * change clears this automatically.
+	 */
+	setSubmitPending(pending: boolean): void {
+		this.inputSubmitPending.set(pending);
+	}
+
 	private _updateInputContentContextKeys(): void {
 		const inputHasText = !!this._inputEditor?.getModel()?.getValue().trim();
 		this.inputEditorHasText.set(inputHasText);
@@ -3128,6 +3141,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			this._updateInputContentContextKeys();
+
+			// A submitted request was pending (e.g. omni-chat routing) but the draft
+			// changed: the user is editing again, so re-enable sending.
+			this.inputSubmitPending.set(false);
 
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();
