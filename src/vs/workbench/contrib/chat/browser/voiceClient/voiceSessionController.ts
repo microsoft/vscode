@@ -743,6 +743,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _telemetryPttUpMs: number | undefined;
 	private _telemetryFirstTranscriptionMs: number | undefined;
 	private _telemetryTtsInterrupted = false;
+	private _entitlementCheckScheduled = false;
 
 	// --- Transcript persistence (local-only) ---
 	/** Cached GitHub login resolved on connect; used as transcript partition key. */
@@ -793,9 +794,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		super();
 
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			if (!isVoiceEntitled(this.chatEntitlementService)) {
-				this.disconnect();
+			if (this._entitlementCheckScheduled) {
+				return;
 			}
+			this._entitlementCheckScheduled = true;
+			queueMicrotask(() => {
+				this._entitlementCheckScheduled = false;
+				if (!this._store.isDisposed && !isVoiceEntitled(this.chatEntitlementService)) {
+					this.disconnect();
+				}
+			});
 		}));
 
 		// Track the focused chat session so we can defer voice responses that

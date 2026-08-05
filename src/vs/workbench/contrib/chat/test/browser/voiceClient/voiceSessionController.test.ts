@@ -234,6 +234,13 @@ class MutableTestChatEntitlementService extends TestChatEntitlementService {
 		this.entitlement = entitlement;
 		this._onDidChangeEntitlement.fire();
 	}
+
+	transitionEntitlement(intermediate: ChatEntitlement, final: ChatEntitlement): void {
+		this.entitlement = intermediate;
+		this._onDidChangeEntitlement.fire();
+		this.entitlement = final;
+		this._onDidChangeEntitlement.fire();
+	}
 }
 
 class InternalTestChatEntitlementService extends MutableTestChatEntitlementService {
@@ -593,8 +600,33 @@ suite('VoiceSessionController', () => {
 		controller['_isConnected'].set(true, undefined);
 
 		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
 
 		assert.strictEqual(controller.isConnected.get(), false);
+	});
+
+	test('stays connected across a paid-to-paid entitlement transition', async () => {
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.transitionEntitlement(ChatEntitlement.Unresolved, ChatEntitlement.Business);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(controller.isConnected.get(), true);
 	});
 
 	test('restricts Voice Mode for external Enterprise users but allows internal staff', async () => {
