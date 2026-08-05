@@ -36,9 +36,10 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
-import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { AnythingQuickAccessProvider, type IAnythingQuickPickItem } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
@@ -440,7 +441,7 @@ interface IContextPickItemItem extends IQuickPickItem {
 }
 
 /** These are the types we get from "platform QP" */
-type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
+type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IAnythingQuickPickItem;
 
 function isIContextPickItemItem(obj: unknown): obj is IContextPickItemItem {
 	return (
@@ -462,6 +463,10 @@ function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithRe
 	return (
 		isObject(obj)
 		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
+}
+
+function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: BrowserEditorInput } {
+	return (obj as IAnythingQuickPickItem | undefined)?.editor instanceof BrowserEditorInput;
 }
 
 
@@ -612,7 +617,12 @@ export class AttachContextAction extends Action2 {
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+		if (isAnythingQuickPickItemWithBrowserEditor(pick)) {
+			const entry = await chatAttachmentResolveService.resolveEditorAttachContext(pick.editor);
+			if (entry) {
+				toAttach.push(entry);
+			}
+		} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {
