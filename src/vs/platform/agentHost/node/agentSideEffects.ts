@@ -96,6 +96,8 @@ export interface IAgentSideEffectsOptions {
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	/** Get the GitHub repository token used to fetch issue and pull request context. */
 	readonly getGitHubToken?: () => string | undefined;
+	/** Get the configured GitHub host used to validate issue and pull request URLs. */
+	readonly getGitHubHost?: () => string | undefined;
 	/** GitHub REST client used to fetch issue and pull request context. */
 	readonly octoKitService?: IAgentHostOctoKitService;
 	/** CAPI service used for Copilot utility title generation. */
@@ -244,6 +246,7 @@ export class AgentSideEffects extends Disposable {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
 			getGitHubToken: this._options.getGitHubToken,
+			getGitHubHost: this._options.getGitHubHost,
 			octoKitService: this._options.octoKitService,
 			copilotApiService: this._options.copilotApiService,
 		}));

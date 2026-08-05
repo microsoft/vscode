@@ -536,6 +536,7 @@ export class AgentService extends Disposable implements IAgentService {
 					scopes: this._gitHubEndpointService.getRepoResource().scopes_supported,
 				});
 			},
+			getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			octoKitService: agentHostOctoKitService,
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),

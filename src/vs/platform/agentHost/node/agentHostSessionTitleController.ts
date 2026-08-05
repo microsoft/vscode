@@ -26,7 +26,7 @@ const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
-const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 
 /**
  * Soft upper bound, in characters, for the first-turn context fed to the
@@ -34,6 +34,7 @@ const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\
  * small model's context window while leaving room for the prompt scaffolding.
  */
 const MAX_TITLE_CONTEXT_CHARS = 20000;
+const MAX_GITHUB_CONTEXT_REFERENCES = Math.floor(MAX_TITLE_CONTEXT_CHARS / MAX_GITHUB_CONTEXT_BODY_CHARS);
 
 type GitHubReferenceKind = 'issue' | 'pull request';
 
@@ -53,6 +54,7 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
+	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
 	readonly octoKitService?: IAgentHostOctoKitService;
 	readonly copilotApiService?: ICopilotApiService;
@@ -459,12 +461,14 @@ export class AgentHostSessionTitleController extends Disposable {
 	private _parseGitHubReferences(text: string): IGitHubReference[] {
 		const references: IGitHubReference[] = [];
 		const seen = new Set<string>();
+		const configuredHost = this._normalizeGitHubHost(this._options.getGitHubHost?.() ?? 'github.com');
 		for (const match of text.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+			const host = match.groups?.host;
 			const owner = match.groups?.owner;
 			const repo = match.groups?.repo;
 			const rawKind = match.groups?.kind;
 			const number = Number(match.groups?.number);
-			if (!owner || !repo || (rawKind !== 'issues' && rawKind !== 'pull') || !Number.isSafeInteger(number) || number <= 0) {
+			if (!host || this._normalizeGitHubHost(host) !== configuredHost || !owner || !repo || (rawKind !== 'issues' && rawKind !== 'pull') || !Number.isSafeInteger(number) || number <= 0) {
 				continue;
 			}
 			const kind: GitHubReferenceKind = rawKind === 'issues' ? 'issue' : 'pull request';
@@ -474,8 +478,16 @@ export class AgentHostSessionTitleController extends Disposable {
 			}
 			seen.add(key);
 			references.push({ owner, repo, number, kind });
+			if (references.length === MAX_GITHUB_CONTEXT_REFERENCES) {
+				break;
+			}
 		}
 		return references;
+	}
+
+	private _normalizeGitHubHost(host: string): string {
+		const normalizedHost = host.toLowerCase();
+		return normalizedHost === 'www.github.com' ? 'github.com' : normalizedHost;
 	}
 
 	private _formatGitHubContexts(contexts: readonly IGitHubReferenceContext[]): string {
@@ -493,7 +505,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			remainingBodyBudget -= body.length;
 			return this._formatGitHubContext(context.reference, context.value, body);
 		});
-		return `${heading}${sections.join('\n\n')}`;
+		return truncateMiddle(`${heading}${sections.join('\n\n')}`, MAX_TITLE_CONTEXT_CHARS);
 	}
 
 	private _formatGitHubContext(reference: IGitHubReference, value: GitHubIssueOrPullRequest, body: string): string {

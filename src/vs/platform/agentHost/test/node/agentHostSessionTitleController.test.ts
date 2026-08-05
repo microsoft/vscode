@@ -124,6 +124,7 @@ suite('AgentHostSessionTitleController', () => {
 		octoKitService = new TestAgentHostOctoKitService(),
 		getGitHubToken = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
+		getGitHubHost = () => 'github.com',
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -147,6 +148,7 @@ suite('AgentHostSessionTitleController', () => {
 			sessionDataService: createSessionDataService(db),
 			getGitHubCopilotToken,
 			getGitHubToken,
+			getGitHubHost,
 			gitHubContextRequestTimeout,
 			octoKitService,
 			copilotApiService,
@@ -214,6 +216,53 @@ suite('AgentHostSessionTitleController', () => {
 				'The body of the pull request is:',
 				'Pull request body',
 			].join('\n'),
+		});
+	});
+
+	test('seedTitleFromFirstMessage only fetches links from the configured GitHub host', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#456', { title: 'Enterprise issue', body: 'Enterprise body' });
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService, () => 'github-token', undefined, () => 'github.enterprise.test');
+		const prompt = 'Compare https://github.com/microsoft/vscode/issues/123 with https://github.enterprise.test/microsoft/vscode/issues/456';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: octoKitService.calls.map(call => call.number),
+			hasGitHubIssue: userMessage.includes('microsoft/vscode#123'),
+			hasEnterpriseIssue: userMessage.includes('The title of the issue is: Enterprise issue'),
+		}, {
+			calls: [456],
+			hasGitHubIssue: false,
+			hasEnterpriseIssue: true,
+		});
+	});
+
+	test('seedTitleFromFirstMessage fetches at most ten GitHub references', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		const links: string[] = [];
+		for (let number = 1; number <= 11; number++) {
+			octoKitService.responses.set(`microsoft/vscode#${number}`, { title: `Issue ${number}`, body: `Body ${number}` });
+			links.push(`https://github.com/microsoft/vscode/issues/${number}`);
+		}
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+
+		controller.seedTitleFromFirstMessage(session.toString(), links.join(' '));
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: octoKitService.calls.map(call => call.number),
+			hasTenthContext: userMessage.includes('The title of the issue is: Issue 10'),
+			hasEleventhContext: userMessage.includes('The title of the issue is: Issue 11'),
+		}, {
+			calls: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+			hasTenthContext: true,
+			hasEleventhContext: false,
 		});
 	});
 
@@ -292,6 +341,30 @@ suite('AgentHostSessionTitleController', () => {
 			hasEnd: body.includes('end'),
 		}, {
 			bodyLength: 2_000,
+			hasStart: true,
+			hasTruncationMarker: true,
+			hasEnd: true,
+		});
+	});
+
+	test('seedTitleFromFirstMessage caps the fully formatted GitHub context', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: `start${'x'.repeat(30_000)}end`, body: '' });
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
+		assert.deepStrictEqual({
+			contextLength: context.length,
+			hasStart: context.includes('start'),
+			hasTruncationMarker: context.includes('\n...\n'),
+			hasEnd: context.includes('end'),
+		}, {
+			contextLength: 20_000,
 			hasStart: true,
 			hasTruncationMarker: true,
 			hasEnd: true,
