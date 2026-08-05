@@ -176,6 +176,16 @@
 	border-block: var(--vscode-spacing-size40) solid transparent;
 }
 
+/* Keep 24px fills inside 32px hit targets while avoiding an 8px double gutter
+ * between separate pinned and unpinned rows. */
+.style-override.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:first-child .tabs-container > .tab {
+	border-block-width: var(--vscode-spacing-size60) var(--vscode-spacing-size20);
+}
+
+.style-override.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:not(:first-child) .tabs-container > .tab {
+	border-block-width: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+}
+
 .style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
 }
