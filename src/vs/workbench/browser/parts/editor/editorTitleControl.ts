@@ -146,7 +146,10 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
-		return this.editorTabsControl.updateEditorLabel(editor);
+		this.editorTabsControl.updateEditorLabel(editor);
+		if (this.groupView.activeEditor === editor) {
+			this.headerControl.handleEditorsChange(true);
+		}
 	}
 
 	updateEditorDirty(editor: EditorInput): void {

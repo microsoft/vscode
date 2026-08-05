@@ -24,7 +24,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
-import { EmptyFileEditorInput } from '../../browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -43,7 +43,15 @@ suite('Sessions - Editor Contribution', () => {
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
+		const workspaceFolder = URI.file('/repo/worktree');
 		stubEditorGroupCount(instantiationService, 7);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({
+				workspace: constObservable({
+					folders: [{ workingDirectory: workspaceFolder }]
+				})
+			} as IActiveSession);
+		});
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -58,9 +66,36 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
 			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
+			resource: editor.resource?.toString(),
 			pinned: options?.pinned,
 			index: options?.index
-		})), [{ isEmptyFileEditor: true, pinned: true, index: 7 }]);
+		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+	});
+
+	test('empty file editor updates its workspace folder resource', () => {
+		const input = store.add(new EmptyFileEditorInput(URI.file('/repo/first')));
+		const other = store.add(new EmptyFileEditorInput());
+		input.setWorkspaceFolderResource(URI.file('/repo/other'));
+
+		assert.deepStrictEqual({
+			resource: input.resource?.toString(),
+			matchesAnotherEmptyInput: input.matches(other)
+		}, {
+			resource: URI.file('/repo/other').toString(),
+			matchesAnotherEmptyInput: true
+		});
+	});
+
+	test('empty file editor serializer preserves the workspace folder', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const serializer = new EmptyFileEditorSerializer();
+		const input = store.add(new EmptyFileEditorInput(URI.file('/repo/worktree')));
+		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
+		if (restored) {
+			store.add(restored);
+		}
+
+		assert.strictEqual(restored?.resource?.toString(), input.resource?.toString());
 	});
 
 	test('new search tab action opens a new search editor', async () => {

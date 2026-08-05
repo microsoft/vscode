@@ -45,6 +45,7 @@ const FILES_TAB_OPTIONS: IEditorOptions = { pinned: true, inactive: true, preser
  */
 interface IManagedTabsTarget {
 	readonly changesSessionResource: URI | undefined;
+	readonly workspaceFolder: URI | undefined;
 	readonly wantsChangesTab: boolean;
 	readonly wantsFilesTab: boolean;
 }
@@ -213,11 +214,11 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		const read = <T>(obs: IObservable<T>): T => reader ? obs.read(reader) : obs.get();
 		const session = read(this._sessionsService.activeSession);
 		const isQuickChat = session?.isQuickChat ? read(session.isQuickChat) : false;
-		const hasWorkspace = !!session && !!read(session.workspace);
-		if (!session || isQuickChat || !hasWorkspace) {
-			return { changesSessionResource: undefined, wantsChangesTab: false, wantsFilesTab: false };
+		const workspace = session ? read(session.workspace) : undefined;
+		if (!session || isQuickChat || !workspace) {
+			return { changesSessionResource: undefined, workspaceFolder: undefined, wantsChangesTab: false, wantsFilesTab: false };
 		}
-		return { changesSessionResource: session.resource, wantsChangesTab: true, wantsFilesTab: true };
+		return { changesSessionResource: session.resource, workspaceFolder: workspace.folders[0]?.workingDirectory, wantsChangesTab: true, wantsFilesTab: true };
 	}
 
 	private _queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
@@ -272,6 +273,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure
 			// only after this, so a group left empty by the cleanup counts as empty.
 			await this._closeForeignChangesEditors(group, changesResource);
+			this._updateFilesEditors(group, target.workspaceFolder);
 			if (generation !== this._generation) {
 				return;
 			}
@@ -290,7 +292,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 			// [3] Keep Files active by default for a new-session view.
 			if (openFilesFirst) {
-				await this._openFilesTab(group);
+				await this._openFilesTab(group, target.workspaceFolder);
 				if (generation !== this._generation) {
 					return;
 				}
@@ -305,7 +307,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 			// [5] Open the Files placeholder after Changes for created sessions.
 			if (openFiles && !openFilesFirst) {
-				await this._openFilesTab(group);
+				await this._openFilesTab(group, target.workspaceFolder);
 				if (generation !== this._generation) {
 					return;
 				}
@@ -343,10 +345,10 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		return true;
 	}
 
-	private async _openFilesTab(group: IEditorGroup): Promise<void> {
+	private async _openFilesTab(group: IEditorGroup, workspaceFolder: URI | undefined): Promise<void> {
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput), FILES_TAB_OPTIONS, group);
+			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput, workspaceFolder), FILES_TAB_OPTIONS, group);
 		} finally {
 			suppression.dispose();
 		}
@@ -366,6 +368,14 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		});
 		if (foreign.length > 0) {
 			await this._closeManagedEditors(group, foreign);
+		}
+	}
+
+	private _updateFilesEditors(group: IEditorGroup, workspaceFolder: URI | undefined): void {
+		for (const editor of group.editors) {
+			if (editor instanceof EmptyFileEditorInput) {
+				editor.setWorkspaceFolderResource(workspaceFolder);
+			}
 		}
 	}
 

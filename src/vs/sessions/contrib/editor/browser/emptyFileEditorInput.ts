@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -18,8 +19,21 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.emptyFile';
 	static readonly ICON = Codicon.files;
 
+	constructor(
+		private workspaceFolderResource: URI | undefined = undefined,
+	) {
+		super();
+	}
+
 	override get resource(): URI | undefined {
-		return undefined;
+		return this.workspaceFolderResource;
+	}
+
+	setWorkspaceFolderResource(resource: URI | undefined): void {
+		if (!isEqual(this.workspaceFolderResource, resource)) {
+			this.workspaceFolderResource = resource;
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	override get typeId(): string {
@@ -62,10 +76,22 @@ export class EmptyFileEditorSerializer implements IEditorSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		return this.canSerialize(editorInput) ? '' : undefined;
+		if (!this.canSerialize(editorInput)) {
+			return undefined;
+		}
+		return editorInput.resource ? JSON.stringify({ workspaceFolder: editorInput.resource.toString() }) : '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, _serializedEditor: string): EditorInput {
-		return instantiationService.createInstance(EmptyFileEditorInput);
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		if (!serializedEditor) {
+			return instantiationService.createInstance(EmptyFileEditorInput);
+		}
+		try {
+			const data = JSON.parse(serializedEditor) as { workspaceFolder?: string };
+			const workspaceFolderResource = data.workspaceFolder ? URI.parse(data.workspaceFolder) : undefined;
+			return instantiationService.createInstance(EmptyFileEditorInput, workspaceFolderResource);
+		} catch {
+			return undefined;
+		}
 	}
 }

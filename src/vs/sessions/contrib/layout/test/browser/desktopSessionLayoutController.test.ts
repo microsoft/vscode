@@ -2515,7 +2515,48 @@ suite('LayoutController (desktop)', () => {
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
 
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
+		assert.deepStrictEqual({
+			hasChangesTab: hasChangesTab(),
+			filesResource: filesTab?.resource?.toString()
+		}, {
+			hasChangesTab: true,
+			filesResource: URI.file('/repo').toString()
+		});
+	});
+
+	test('[managed tabs] updates the Files root when the active session changes', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const first = makeSession(URI.parse('session:1'), {
+			workspace: {
+				uri: URI.file('/repo/first'),
+				label: 'first',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/repo'), workingDirectory: URI.file('/repo/first'), name: 'first', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false
+			}
+		});
+		const second = makeSession(URI.parse('session:2'), {
+			workspace: {
+				uri: URI.file('/repo/second'),
+				label: 'second',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/repo'), workingDirectory: URI.file('/repo/second'), name: 'second', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false
+			}
+		});
+
+		harness.activeSessionObs.set(first, undefined);
+		await settle();
+		harness.activeSessionObs.set(second, undefined);
+		await settle();
+
+		const filesTabs = harness.activeGroupEditors.filter(e => e instanceof EmptyFileEditorInput);
+		assert.deepStrictEqual(filesTabs.map(editor => editor.resource?.toString()), [URI.file('/repo/second').toString()]);
 	});
 
 	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {
