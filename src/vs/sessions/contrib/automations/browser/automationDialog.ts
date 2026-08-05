@@ -948,6 +948,11 @@ export function renderForm(
 	}));
 	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
 	newChatInput.render(newChatInputHost, promptHost);
+	const newChatInputEditor = newChatInput.inputEditor;
+	if (!newChatInputEditor) {
+		throw new Error('NewChatInputWidget did not create its input editor.');
+	}
+	newChatInputEditor.getModel()?.setValue(initialPrompt);
 	const newChatPickersHost = DOM.append(newChatInputHost, $('.automation-form-new-chat-pickers.chat-secondary-toolbar'));
 	newChatInput.sessionTypePicker.render(newChatPickersHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
 	workspacePicker.render(newChatPickersHost).classList.add('chat-input-picker-item');
@@ -1041,7 +1046,7 @@ export function renderForm(
 		});
 	}
 
-	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
+	disposables.add(newChatInputEditor.onDidChangeModelContent(() => {
 		revalidate();
 	}));
 
@@ -1084,7 +1089,7 @@ export function renderForm(
 	}));
 
 	return {
-		getPrompt: () => chatInput.inputEditor.getValue(),
+		getPrompt: () => newChatInputEditor.getValue(),
 		getMode: () => chatInput.currentModeObs.get().id,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
 		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
