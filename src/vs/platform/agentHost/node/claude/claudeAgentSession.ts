@@ -23,7 +23,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { areWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
+import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
@@ -485,7 +485,7 @@ export class ClaudeAgentSession extends Disposable {
 			this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 		}
 		const currentWorkingDirectories = this.workingDirectories;
-		if (!areWorkingDirectoriesEqual(previousWorkingDirectories, currentWorkingDirectories, true)) {
+		if (!areSessionWorkingDirectoriesEqual(previousWorkingDirectories, currentWorkingDirectories)) {
 			this._watchCustomizations(currentWorkingDirectories);
 		}
 		if (!this.workingDirectory) {
@@ -785,7 +785,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._pendingResumeSessionAt !== undefined
-			|| !areWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories, false)) {
+			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
@@ -800,7 +800,7 @@ export class ClaudeAgentSession extends Disposable {
 			throw new Error(`Cannot change Claude session primary working directory: ${this.sessionId}`);
 		}
 		const desiredAdditionalDirectories = workingDirectories.slice(1);
-		if (areWorkingDirectoriesEqual(this._desiredAdditionalDirectories, desiredAdditionalDirectories, false)) {
+		if (areAdditionalWorkingDirectoriesEqual(this._desiredAdditionalDirectories, desiredAdditionalDirectories)) {
 			return;
 		}
 		this._desiredAdditionalDirectories = desiredAdditionalDirectories;

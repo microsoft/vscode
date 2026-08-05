@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { areWorkingDirectoriesEqual, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
+import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
 
 suite('Session working directories', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -15,21 +15,21 @@ suite('Session working directories', () => {
 	const primary = 'file:///workspace/primary';
 	const secondary = 'file:///workspace/secondary';
 
-	test('compares equal-peer working directories as a set', () => {
+	test('compares additional working directories as an unordered set', () => {
 		const first = [URI.file('/workspace/a'), URI.file('/workspace/b')];
 		const second = [URI.file('/workspace/b'), URI.file('/workspace/a')];
 
-		assert.strictEqual(areWorkingDirectoriesEqual(first, second, false), true);
+		assert.strictEqual(areAdditionalWorkingDirectoriesEqual(first, second), true);
 	});
 
-	test('compares an immutable primary positionally and additional directories as a set', () => {
+	test('compares the session primary positionally and additional directories as a set', () => {
 		const first = [URI.file('/workspace/primary'), URI.file('/workspace/a'), URI.file('/workspace/b')];
 		const reorderedAdditional = [URI.file('/workspace/primary'), URI.file('/workspace/b'), URI.file('/workspace/a')];
 		const changedPrimary = [URI.file('/workspace/a'), URI.file('/workspace/primary'), URI.file('/workspace/b')];
 
 		assert.deepStrictEqual([
-			areWorkingDirectoriesEqual(first, reorderedAdditional, true),
-			areWorkingDirectoriesEqual(first, changedPrimary, true),
+			areSessionWorkingDirectoriesEqual(first, reorderedAdditional),
+			areSessionWorkingDirectoriesEqual(first, changedPrimary),
 		], [true, false]);
 	});
 

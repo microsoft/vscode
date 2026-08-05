@@ -10,32 +10,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { ActionType, type SessionWorkingDirectoryAction } from './sessionActions.js';
 
 /**
- * Compares two working-directory lists. `hasImmutablePrimary` describes the
- * lists being passed: when `true` their first entry is a fixed process root and
- * is compared by position, while the remaining directories are compared as an
- * unordered set. Pass `false` for lists whose entries are all equal peers —
- * including additional-directory tails that already exclude the primary.
+ * Compares two additional (non-primary) working-directory lists. A session's
+ * additional directories are unordered peers, so only membership matters.
  */
-export function areWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined, hasImmutablePrimary: boolean): boolean {
+export function areAdditionalWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
 	if (!first || !second) {
 		return first === second;
 	}
-	if (hasImmutablePrimary && !extUri.isEqual(first[0], second[0])) {
-		return false;
-	}
-	const offset = hasImmutablePrimary ? 1 : 0;
 	const toKey = (directory: URI) => extUri.getComparisonKey(directory);
-	const firstSet = new ResourceSet(first.slice(offset), toKey);
-	const secondSet = new ResourceSet(second.slice(offset), toKey);
+	const firstSet = new ResourceSet(first, toKey);
+	const secondSet = new ResourceSet(second, toKey);
 	return firstSet.size === secondSet.size && [...firstSet].every(directory => secondSet.has(directory));
+}
+
+/**
+ * Compares two complete session working-directory sets, where index 0 is the
+ * session's primary process root and the remaining entries are unordered peers.
+ */
+export function areSessionWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
+	if (!first || !second) {
+		return first === second;
+	}
+	return extUri.isEqual(first[0], second[0])
+		&& areAdditionalWorkingDirectoriesEqual(first.slice(1), second.slice(1));
 }
 
 /**
  * Validates and canonicalizes a working-directory delta against the session's
  * current host-side URI identities. The returned spelling is safe for the
- * exact-string session reducer. `hasImmutablePrimary` carries the same meaning
- * as in {@link areWorkingDirectoriesEqual}: the first entry of
- * `workingDirectories` is a fixed process root that cannot be removed.
+ * exact-string session reducer. `hasImmutablePrimary` reflects the owning
+ * agent's capability: when `true` the first entry of `workingDirectories` is a
+ * fixed process root that cannot be removed.
  */
 export function resolveSessionWorkingDirectoryAction(
 	action: SessionWorkingDirectoryAction,

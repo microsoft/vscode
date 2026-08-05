@@ -62,7 +62,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { areWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
+import { areSessionWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
 import { withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -73,7 +73,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
@@ -452,17 +452,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const desired = this._computeEntryWorkingDirectories(entry);
 		return generation
 			&& this._sameUri(generation.workingDirectory, entry.workingDirectory)
-			&& this._sameWorkingDirectories(entry.provider, generation.workingDirectories, desired)
+			&& areSessionWorkingDirectoriesEqual(generation.workingDirectories, desired)
 			? generation
 			: undefined;
 	}
 
 	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
 		return first === undefined || second === undefined ? first === second : isEqual(first, second);
-	}
-
-	private _sameWorkingDirectories(provider: string, first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
-		return areWorkingDirectoriesEqual(first, second, hasImmutablePrimaryWorkingDirectory(this._agentHostService.rootState.value, provider));
 	}
 
 	private _newProvisionalUri(provider: string): URI {
@@ -513,7 +509,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				|| entry.disposed
 				|| entry.configVersion !== configVersion
 				|| !this._sameUri(entry.workingDirectory, workingDirectory)
-				|| !this._sameWorkingDirectories(entry.provider, this._computeEntryWorkingDirectories(entry), workingDirectories)) {
+				|| !areSessionWorkingDirectoriesEqual(this._computeEntryWorkingDirectories(entry), workingDirectories)) {
 				await this._disposeBackend(created, 'obsolete provisional candidate');
 				continue;
 			}
@@ -636,7 +632,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				if (oldEntry.configVersion !== configVersion
 					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
-					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
+					|| !areSessionWorkingDirectoriesEqual(this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
 						this._restoreImportedConversation(newSessionResource, imported);
