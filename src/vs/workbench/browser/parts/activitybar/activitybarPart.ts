@@ -58,10 +58,8 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Gutter reserved on the left and bottom edges under the floating panels
-	 * experiment so the activity bar aligns with the floating cards (it stays
-	 * flush with the title bar, so no top gutter). Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
+	 * Base gutter reserved around the activity bar under the floating panels
+	 * experiment. Must match the margins applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
@@ -94,7 +92,7 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 	}
 
-	/** Leading gutter reserved beside the part when the floating panels experiment is enabled. */
+	/** Extra space reserved around the part when the floating panels experiment is enabled. */
 	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -266,13 +264,18 @@ export class ActivitybarPart extends Part {
 	override layout(width: number, height: number): void {
 		super.layout(width, height, 0, 0);
 
-		if (!this.content) {
-			return; // not created yet
+		if (!this.compositeBar.value) {
+			return;
 		}
 
-		const { top, bottom } = this.getFloatingGutters();
-		const contentWidth = Math.max(0, width - this.floatingGutter);
-		const contentHeight = Math.max(0, height - top - bottom);
+		// When the floating panels experiment is enabled, reserve a gutter on the
+		// left and bottom so the activity bar lines up with the floating cards (it
+		// stays flush with the title bar, so no top gutter). The grid column is grown
+		// by the same amount (see minimum/maximumWidth) and the matching margins are
+		// applied in CSS (`.floating-panels .part.activitybar`).
+		const gutter = this.floatingGutter;
+		const contentWidth = Math.max(0, width - gutter);
+		const contentHeight = Math.max(0, height - gutter);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
