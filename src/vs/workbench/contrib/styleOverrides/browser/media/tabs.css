@@ -67,12 +67,13 @@
 	row-gap: 0;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab > .tab-fill {
+.style-override.monaco-workbench .part.editor .tabs-container > .tab > .tab-fill {
 	display: block;
 	position: absolute;
 	inset: 0 var(--vscode-spacing-size20);
 	z-index: 0;
 	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
 	pointer-events: none;
 }
 
@@ -195,39 +196,32 @@
 	display: none !important;
 }
 
-/* The fill shares the tab action button's opaque background so the two blend seamlessly. */
-.style-override .part.editor .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
+/* The fill shares the tab action button's opaque background so the two blend seamlessly. High
+ * contrast themes keep the fill transparent and communicate state through its stroke instead. */
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
 	background-color: var(--modern-ui-editor-tab-action-hover-background);
 }
 
-.style-override .part.editor .tabs-container > .tab.selected:not(.active) > .tab-fill {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active) > .tab-fill {
 	background-color: var(--vscode-tab-selectedBackground);
 }
 
-.style-override .part.editor .tabs-container > .tab.active > .tab-fill {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active > .tab-fill {
 	background-color: var(--modern-ui-editor-tab-action-active-background);
 }
 
-.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
-.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
-	display: block !important;
-	z-index: 6;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	width: auto !important;
-	height: auto !important;
+/* The selected / multi-selected stroke hugs the pill, so it lives on the fill rather than the
+ * full-height tab box. */
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-fill,
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
 	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent !important;
-	box-sizing: border-box;
 }
 
-.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-fill {
 	--tab-border-top-color: var(--vscode-tab-selectedBorderTop) !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
 	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
 }
 
@@ -483,21 +477,16 @@
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
-:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):not(:focus) {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder) !important;
-	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):not(:focus) > .tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder) !important;
 }
 
-:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):not(:focus):hover {
-	background-color: transparent !important;
-	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder) !important;
-	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):not(:focus):hover > .tab-fill {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder) !important;
 }
 
-:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:focus {
-	background-color: transparent !important;
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
-	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:focus > .tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
 }
 
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):focus:hover {
