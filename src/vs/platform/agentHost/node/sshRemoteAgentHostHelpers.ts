@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { createRemoteAgentHostState, parseRemoteAgentHostState } from '../common/remoteAgentHostMetadata.js';
 
@@ -263,7 +264,9 @@ export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: 
 
 /** Redact connection tokens from log output. */
 export function redactToken(text: string): string {
-	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
+	return text
+		.replace(/\?tkn=[^\s&]+/g, '?tkn=***')
+		.replace(/\btoken=\S+/g, 'token=***');
 }
 
 /**
@@ -292,6 +295,60 @@ export function extractAgentHostWebSocketURL(text: string): { url: string; host:
 	};
 }
 
+/** Endpoint reported by `code agent host`, as the desktop should dial it. */
+export interface IAgentHostEndpoint {
+	/** Dial host, unbracketed even when it is an IPv6 literal. */
+	readonly host: string;
+	readonly port: number;
+	readonly token: string | undefined;
+}
+
+const AGENT_HOST_ENDPOINT_MARKER = '__VSCODE_AGENT_HOST_ENDPOINT__';
+// Requires the newline: a buffer that ends mid-line would otherwise parse as
+// though it were complete, latching a truncated port or token.
+const AGENT_HOST_ENDPOINT_LINE_RE = new RegExp(`${AGENT_HOST_ENDPOINT_MARKER}[ \\t]+([^\\r\\n]*)\\r?\\n`);
+
+/**
+ * Parse the machine-readable endpoint line `code agent host` prints alongside
+ * its banner (see `REMOTE_PLATFORM.md` section 4). Returns `undefined` when the
+ * line is absent, carries a version this build does not understand, or is
+ * malformed - in each case the caller falls back to the human banner, which
+ * means loopback.
+ */
+export function parseAgentHostEndpointLine(text: string): IAgentHostEndpoint | undefined {
+	const match = text.match(AGENT_HOST_ENDPOINT_LINE_RE);
+	if (!match) {
+		return undefined;
+	}
+
+	const fields = new Map<string, string>();
+	for (const field of match[1].trim().split(/\s+/)) {
+		const eq = field.indexOf('=');
+		if (eq > 0) {
+			fields.set(field.slice(0, eq), field.slice(eq + 1));
+		}
+	}
+
+	if (fields.get('v') !== '1') {
+		return undefined;
+	}
+
+	const host = fields.get('host');
+	const port = Number(fields.get('port'));
+	if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) {
+		return undefined;
+	}
+	// A zone index cannot survive into a URL authority: neither the raw `%`
+	// nor the RFC 6874 `%25` form parses, so such an endpoint is unusable and
+	// the caller is better served falling back to the banner.
+	if (host.indexOf('%') !== -1) {
+		return undefined;
+	}
+
+	const token = fields.get('token');
+	return { host, port, token: token || undefined };
+}
+
 /**
  * Path to the per-quality agent host lockfile written by `code agent host`.
  *
@@ -310,11 +367,39 @@ export function getAgentHostLockfile(serverDataFolderName: string, quality: stri
 }
 
 /**
+ * Options for one remote execution. `description` names the operation in a
+ * short, secret-free phrase and stands in for the raw command wherever a
+ * failure is reported (REMOTE_PLATFORM.md section 7.3).
+ */
+export interface ISshExecOptions {
+	readonly description: string;
+	readonly ignoreExitCode?: boolean;
+}
+
+/**
  * Abstraction over SSH command execution to enable testing without a real SSH connection.
  */
 export interface ISshExec {
-	(command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }>;
+	(command: string, opts: ISshExecOptions): Promise<{ stdout: string; stderr: string; code: number }>;
 }
+
+/**
+ * The safe descriptions carried by {@link ISshExecOptions}. Shared so that
+ * every platform reports the same diagnosis for the same operation.
+ */
+export const sshOperation = {
+	detectPlatform: localize('sshOpDetectPlatform', "detect the operating system"),
+	checkCli: localize('sshOpCheckCli', "check for an installed VS Code CLI"),
+	touchCli: localize('sshOpTouchCli', "refresh the VS Code CLI timestamp"),
+	verifyCli: localize('sshOpVerifyCli', "verify the installed VS Code CLI"),
+	installCli: localize('sshOpInstallCli', "install the VS Code CLI"),
+	pruneClis: localize('sshOpPruneClis', "remove outdated VS Code CLI installations"),
+	findClis: localize('sshOpFindClis', "look for an existing VS Code CLI"),
+	launchAgentHost: localize('sshOpLaunchAgentHost', "launch the agent host"),
+	readAgentHostState: localize('sshOpReadState', "read the agent host state"),
+	writeAgentHostState: localize('sshOpWriteState', "record the agent host state"),
+	stopAgentHost: localize('sshOpStopAgentHost', "stop the agent host"),
+} as const;
 
 export type FindRunningAgentHostResult =
 	| { readonly kind: 'notFound' }
@@ -331,7 +416,7 @@ export async function findRunningAgentHost(
 	quality: string,
 ): Promise<FindRunningAgentHostResult> {
 	const stateFile = getAgentHostLockfile(serverDataFolderName, quality);
-	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { ignoreExitCode: true });
+	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { description: sshOperation.readAgentHostState, ignoreExitCode: true });
 	if (code !== 0 || !stdout.trim()) {
 		return { kind: 'notFound' };
 	}
@@ -345,15 +430,15 @@ export async function findRunningAgentHost(
 	const state = parseRemoteAgentHostState(parsed);
 	if (!state) {
 		logService.info(`${LOG_PREFIX} Invalid agent host state file ${stateFile}, removing`);
-		await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
+		await exec(`rm -f ${stateFile}`, { description: sshOperation.stopAgentHost, ignoreExitCode: true });
 		return { kind: 'notFound' };
 	}
 
 	// Verify the PID is still alive
-	const { code: killCode } = await exec(`kill -0 ${state.pid} 2>/dev/null`, { ignoreExitCode: true });
+	const { code: killCode } = await exec(`kill -0 ${state.pid} 2>/dev/null`, { description: sshOperation.readAgentHostState, ignoreExitCode: true });
 	if (killCode !== 0) {
 		logService.info(`${LOG_PREFIX} Stale agent host state in ${stateFile} (PID ${state.pid} not running), cleaning up`);
-		await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
+		await exec(`rm -f ${stateFile}`, { description: sshOperation.stopAgentHost, ignoreExitCode: true });
 		return { kind: 'notFound' };
 	}
 
@@ -416,7 +501,7 @@ export async function writeAgentHostState(
 	// Use a subshell with restrictive umask (077) so the file is created with
 	// owner-only permissions (0600), protecting the connection token.
 	// The CLI itself stores its token file with the same permissions.
-	const result = await exec(`mkdir -p $(dirname ${stateFile}) && rm -f ${stateFile} && (umask 077 && printf %s ${shellEscape(json)} > ${stateFile})`, { ignoreExitCode: true });
+	const result = await exec(`mkdir -p $(dirname ${stateFile}) && rm -f ${stateFile} && (umask 077 && printf %s ${shellEscape(json)} > ${stateFile})`, { description: sshOperation.writeAgentHostState, ignoreExitCode: true });
 	if (result.code !== 0) {
 		logService.warn(`${LOG_PREFIX} Failed to write agent host state to ${stateFile} (exit code ${result.code})${result.stderr ? `: ${result.stderr.trim()}` : ''}`);
 		return;
@@ -434,7 +519,7 @@ export async function cleanupRemoteAgentHost(
 	quality: string,
 ): Promise<void> {
 	const stateFile = getAgentHostLockfile(serverDataFolderName, quality);
-	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { ignoreExitCode: true });
+	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { description: sshOperation.readAgentHostState, ignoreExitCode: true });
 	if (code === 0 && stdout.trim()) {
 		let state: { readonly pid: number } | undefined;
 		try {
@@ -442,8 +527,8 @@ export async function cleanupRemoteAgentHost(
 		} catch { /* ignore parse errors */ }
 		if (state) {
 			logService.info(`${LOG_PREFIX} Killing remote agent host PID ${state.pid} (from ${stateFile})`);
-			await exec(`kill ${state.pid} 2>/dev/null`, { ignoreExitCode: true });
+			await exec(`kill ${state.pid} 2>/dev/null`, { description: sshOperation.stopAgentHost, ignoreExitCode: true });
 		}
 	}
-	await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
+	await exec(`rm -f ${stateFile}`, { description: sshOperation.stopAgentHost, ignoreExitCode: true });
 }

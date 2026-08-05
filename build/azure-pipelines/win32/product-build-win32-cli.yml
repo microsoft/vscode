@@ -13,7 +13,7 @@ jobs:
     pool:
       name: 1es-windows-2022-x64
       os: windows
-    timeoutInMinutes: 90
+    timeoutInMinutes: 120
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
@@ -82,6 +82,23 @@ jobs:
               RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
             ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
               RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT:NO"
+            CFLAGS: "/guard:cf /Qspectre"
+
+      # The CLI has `#[cfg(windows)]` code paths (job object breakaway, icacls
+      # based ACL restriction) whose tests cannot run on the Linux CLI job.
+      # Only the x64 job runs them: the arm64 job cross-compiles on the same
+      # x64 pool, so its host tests would be a duplicate of these.
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - script: cargo test --target x86_64-pc-windows-msvc
+          displayName: 🧪 Test x86_64-pc-windows-msvc
+          workingDirectory: $(Build.SourcesDirectory)/cli
+          env:
+            CARGO_NET_GIT_FETCH_WITH_CLI: true
+            RUSTC_WRAPPER: sccache
+            SCCACHE_DIR: $(Pipeline.Workspace)/sccache
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/include
+            RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
             CFLAGS: "/guard:cf /Qspectre"
 
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:

@@ -445,6 +445,10 @@ pub enum CodeError {
 	AsyncPipeListenerFailed(std::io::Error),
 	#[error("could not create singleton lock file: {0:?}")]
 	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not publish the agent host lockfile, refusing to start an undiscoverable agent host: {0}")]
+	AgentHostMetadataWriteFailed(String),
+	#[error("refusing to use the running agent host: {0}. Remove that file and the agent host lockfile, then start the agent host again to mint fresh credentials")]
+	AgentHostInsecureCredentials(String),
 	#[error("could not read singleton lock file: {0:?}")]
 	SingletonLockfileReadFailed(rmp_serde::decode::Error),
 	#[error("the process holding the singleton lock file (pid={0}) exited")]

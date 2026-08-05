@@ -18,6 +18,7 @@ pub use is_integrated::*;
 pub mod app_lock;
 pub mod extract_safety;
 pub mod file_lock;
+pub mod file_permissions;
 pub mod os;
 pub mod tar;
 pub mod zipper;

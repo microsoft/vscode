@@ -181,6 +181,15 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 export const connectionTokenCookieName = 'vscode-tkn';
 export const connectionTokenQueryName = 'tkn';
 
+/**
+ * Format `host:port` as a URL authority, bracketing IPv6 literals so the
+ * result parses as a URL.
+ */
+export function formatHostPortAuthority(host: string, port: number | string): string {
+	const needsBrackets = host.indexOf(':') !== -1 && host.indexOf('[') === -1;
+	return `${needsBrackets ? `[${host}]` : host}:${port}`;
+}
+
 class RemoteAuthoritiesImpl {
 	private readonly _hosts: { [authority: string]: string | undefined } = Object.create(null);
 	private readonly _ports: { [authority: string]: number | undefined } = Object.create(null);

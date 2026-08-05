@@ -14,7 +14,7 @@
 
 import { Emitter, Event } from '../../base/common/event.js';
 import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
-import { connectionTokenQueryName } from '../../base/common/network.js';
+import { connectionTokenQueryName, formatHostPortAuthority } from '../../base/common/network.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import type * as wsTypes from 'ws';
@@ -198,7 +198,7 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 	private _buildUrl(): string {
 		const host = this._endpoint.host ?? 'localhost';
 		const port = this._endpoint.port ?? '0';
-		let url = `ws://${host}:${port}`;
+		let url = `ws://${formatHostPortAuthority(host, port)}`;
 		if (this._endpoint.connectionToken) {
 			url += `?${connectionTokenQueryName}=${encodeURIComponent(this._endpoint.connectionToken)}`;
 		}

@@ -18,7 +18,7 @@ use crate::log;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host_lockfile, AgentHostConfig, AgentHostLockfileDecision, AgentHostManager,
-	AgentHostSidecar, LoopbackAuth,
+	AgentHostBinding, AgentHostSidecar, LoopbackAuth, AGENT_HOST_TOKEN_FILE_NAME, dial_host_for_bound,
 };
 use crate::tunnels::agent_host_metadata::remove_agent_host_metadata;
 use crate::tunnels::code_server::CodeServerArgs;
@@ -76,11 +76,24 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	let started = Instant::now();
 	let lockfile_path = ctx.paths.agent_host_lockfile();
 
-	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path);
+	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path, ctx.paths.root());
+
+	if let AgentHostLockfileDecision::RefuseInsecure { reason } = &decision {
+		// Deliberately not `code agent kill`: that reads its target PID from
+		// the very lockfile just judged untrustworthy, so it would act on
+		// data another account may control.
+		ctx.log.result(format!(
+			"Refusing to use the running agent host: {reason}.\n\
+			 Remove that file and the agent host lockfile at {}, then start the agent host again to mint fresh credentials.",
+			lockfile_path.display()
+		));
+		return Ok(2);
+	}
 
 	if let AgentHostLockfileDecision::Reuse {
 		pid,
 		host,
+		dial_host: recorded_dial_host,
 		port,
 		token,
 		tunnel_name,
@@ -121,11 +134,14 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 		print_reuse_banner(
 			&ctx.log,
 			started,
-			*pid,
-			host.as_deref(),
-			*port,
-			token.as_deref(),
-			tunnel_name.as_deref(),
+			RunningSupervisor {
+				pid: *pid,
+				host: host.as_deref(),
+				dial_host: recorded_dial_host.as_deref(),
+				port: *port,
+				token: token.as_deref(),
+				tunnel_name: tunnel_name.as_deref(),
+			},
 		);
 		return Ok(0);
 	}
@@ -174,11 +190,26 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	if !args.without_connection_token {
 		if let Some(p) = args.connection_token_file.as_deref() {
-			let token = fs::read_to_string(PathBuf::from(p))
+			let token_path = PathBuf::from(p);
+			// A caller-supplied file is the live credential just as much as
+			// the one we mint, so it has to meet the same bar. It is not
+			// tightened on the caller's behalf: the path is theirs, and a
+			// token that was already readable by other accounts cannot be
+			// made secret again by changing the file's permissions now.
+			if !crate::util::file_permissions::is_restricted_to_owner(&token_path)
+				.map_err(CodeError::CouldNotReadConnectionTokenFile)?
+			{
+				return Err(CodeError::AgentHostInsecureCredentials(format!(
+					"the connection token file at {} is readable by other users on this machine",
+					token_path.display()
+				))
+				.into());
+			}
+			let token = fs::read_to_string(&token_path)
 				.map_err(CodeError::CouldNotReadConnectionTokenFile)?;
 			args.connection_token = Some(token.trim().to_string());
 		} else {
-			let token_path = ctx.paths.root().join("agent-host-token");
+			let token_path = ctx.paths.root().join(AGENT_HOST_TOKEN_FILE_NAME);
 			let token = mint_connection_token(&token_path, args.connection_token.clone())
 				.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
 			args.connection_token = Some(token);
@@ -253,11 +284,14 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	let sidecar = AgentHostSidecar::bind_tcp(
 		ctx.log.clone(),
 		manager.clone(),
-		listen_addr,
-		args.host.clone(),
-		loopback_auth,
-		tunnel_name.clone(),
-		ctx.paths.agent_host_lockfile(),
+		AgentHostBinding {
+			addr: listen_addr,
+			host_label: args.host.clone(),
+			loopback_auth,
+			connection_token_file: args.connection_token_file.clone(),
+			tunnel_name: tunnel_name.clone(),
+			lockfile_path: ctx.paths.agent_host_lockfile(),
+		},
 	)
 	.await?;
 	let bound_port = sidecar.bound_addr().port();
@@ -282,6 +316,16 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.as_deref()
 		.map(|t| format!("?tkn={t}"))
 		.unwrap_or_default();
+
+	// Emitted before the banner: a consumer scanning the stream must never
+	// see the banner's `ws://localhost:<port>` - which is printed regardless
+	// of the real bind address - without this line already present, or it
+	// would settle for loopback.
+	output::print_agent_host_endpoint_line(
+		&dial_host_for_bound(sidecar.bound_addr().ip()),
+		bound_port,
+		args.connection_token.as_deref(),
+	);
 
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
 	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, &tunnel_name) {
@@ -344,17 +388,37 @@ fn resolve_listen_addr(args: &AgentHostArgs) -> Result<SocketAddr, AnyError> {
 	Ok(SocketAddr::new(ip, args.port))
 }
 
-fn print_reuse_banner(
-	log: &log::Logger,
-	started: Instant,
+/// An already-running supervisor found by a second invocation, as recorded
+/// in its lockfile. Older lockfiles omit some fields.
+struct RunningSupervisor<'a> {
 	pid: u32,
-	host: Option<&str>,
+	/// The `--host` label the supervisor was started with.
+	host: Option<&'a str>,
+	/// The address the listener actually bound. Preferred over `host`.
+	dial_host: Option<&'a str>,
 	port: u16,
-	token: Option<&str>,
-	tunnel_name: Option<&str>,
-) {
+	token: Option<&'a str>,
+	tunnel_name: Option<&'a str>,
+}
+
+fn print_reuse_banner(log: &log::Logger, started: Instant, supervisor: RunningSupervisor<'_>) {
+	let RunningSupervisor {
+		pid,
+		host,
+		dial_host: recorded_dial_host,
+		port,
+		token,
+		tunnel_name,
+	} = supervisor;
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = token.map(|t| format!("?tkn={t}")).unwrap_or_default();
+	// Before the banner; see the note in `run_supervisor`. The recorded
+	// address is preferred because it is what the listener actually bound;
+	// a lockfile from an older CLI only has the `--host` label to go on.
+	let dial = recorded_dial_host
+		.map(str::to_string)
+		.unwrap_or_else(|| dial_host(host).to_string());
+	output::print_agent_host_endpoint_line(&dial, port, token);
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
 	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, tunnel_name) {
 		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
@@ -523,20 +587,27 @@ pub async fn ensure_supervisor_running(
 	log: &log::Logger,
 ) -> Result<ActiveAgentHost, AnyError> {
 	let lockfile_path = launcher_paths.agent_host_lockfile();
-	if let AgentHostLockfileDecision::Reuse {
-		pid,
-		host,
-		port,
-		token,
-		..
-	} = classify_agent_host_lockfile(log, &lockfile_path)
-	{
-		return Ok(ActiveAgentHost {
+	match classify_agent_host_lockfile(log, &lockfile_path, launcher_paths.root()) {
+		AgentHostLockfileDecision::Reuse {
 			pid,
 			host,
 			port,
 			token,
-		});
+			..
+		} => {
+			return Ok(ActiveAgentHost {
+				pid,
+				host,
+				port,
+				token,
+			});
+		}
+		// Starting a rival supervisor would leave the untrusted one running
+		// and listening, so surface the problem instead.
+		AgentHostLockfileDecision::RefuseInsecure { reason } => {
+			return Err(CodeError::AgentHostInsecureCredentials(reason).into());
+		}
+		AgentHostLockfileDecision::SpawnFresh => {}
 	}
 
 	info!(
@@ -594,7 +665,7 @@ pub async fn ensure_supervisor_running(
 		}
 	}
 
-	match classify_agent_host_lockfile(log, &lockfile_path) {
+	match classify_agent_host_lockfile(log, &lockfile_path, launcher_paths.root()) {
 		AgentHostLockfileDecision::Reuse {
 			pid,
 			host,
@@ -607,6 +678,9 @@ pub async fn ensure_supervisor_running(
 			port,
 			token,
 		}),
+		AgentHostLockfileDecision::RefuseInsecure { reason } => {
+			Err(CodeError::AgentHostInsecureCredentials(reason).into())
+		}
 		AgentHostLockfileDecision::SpawnFresh => Err(CodeError::CouldNotListenOnInterface(
 			std::io::Error::other("agent host supervisor signalled ready but lockfile is missing"),
 		)
@@ -629,11 +703,8 @@ pub struct ActiveAgentHost {
 }
 
 impl ActiveAgentHost {
-	/// Loopback address callers should dial to reach this supervisor.
-	/// Maps IPv4/IPv6 wildcards (`0.0.0.0` / `::`) to the corresponding
-	/// loopback; passes specific hosts (e.g. `::1`, `localhost`,
-	/// `10.0.0.5`) through unchanged. Missing host (older lockfile)
-	/// falls back to IPv4 loopback to preserve the prior behaviour.
+	/// Address callers should dial to reach this supervisor. See
+	/// [`dial_host`].
 	pub fn dial_host(&self) -> &str {
 		dial_host(self.host.as_deref())
 	}
@@ -650,10 +721,15 @@ impl ActiveAgentHost {
 	}
 }
 
-/// See [`ActiveAgentHost::dial_host`].
+/// Address to dial a supervisor that is bound to `bound`. Wildcards map
+/// to the loopback of the matching family (`0.0.0.0` -> `127.0.0.1`,
+/// `::` / `[::]` -> `::1`); specific hosts (e.g. `::1`, `localhost`,
+/// `10.0.0.5`) pass through unchanged, and are never bracketed. A missing
+/// host (lockfile written by an older CLI) falls back to IPv4 loopback.
 pub fn dial_host(bound: Option<&str>) -> &str {
 	match bound {
-		Some("0.0.0.0") | Some("::") | Some("[::]") | None => "127.0.0.1",
+		Some("::") | Some("[::]") => "::1",
+		Some("0.0.0.0") | None => "127.0.0.1",
 		Some(other) => other,
 	}
 }
@@ -717,7 +793,20 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 	file_options.mode(0o600);
 	let mut file = file_options.open(path)?;
 
-	if prefer_token.is_none() {
+	// Sampled before the file is tightened, because tightening tells us
+	// nothing about who could read it up to this point.
+	let was_protected = crate::util::file_permissions::is_restricted_to_owner(path)?;
+
+	// Applied on every call, not only when the token is written. A token file
+	// created before this existed keeps whatever it inherited for as long as
+	// it survives, and the common path returns an existing token below without
+	// rewriting it - so repairing only on write would never reach those.
+	crate::util::file_permissions::restrict_to_owner(path)?;
+
+	// An existing token is only reusable if it was already protected. One
+	// that was readable by other accounts may have been taken already, and
+	// tightening the file afterwards does not un-leak it, so it is replaced.
+	if prefer_token.is_none() && was_protected {
 		let mut token = String::new();
 		file.read_to_string(&mut token)?;
 		let token = token.trim();
@@ -774,5 +863,18 @@ mod tests {
 		let token = mint_connection_token(&path, Some("override".to_string())).unwrap();
 		assert_eq!(token, "override");
 		assert_eq!(fs::read_to_string(&path).unwrap(), "override");
+	}
+
+	#[test]
+	fn dial_host_maps_wildcards_to_matching_family_loopback() {
+		assert_eq!(dial_host(Some("0.0.0.0")), "127.0.0.1");
+		assert_eq!(dial_host(Some("::")), "::1");
+		assert_eq!(dial_host(Some("[::]")), "::1");
+
+		// Older lockfiles omit the host; assume the IPv4 loopback default
+		assert_eq!(dial_host(None), "127.0.0.1");
+
+		// A specific bind address is dialable as-is
+		assert_eq!(dial_host(Some("10.0.0.5")), "10.0.0.5");
 	}
 }

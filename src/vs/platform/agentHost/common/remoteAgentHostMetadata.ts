@@ -26,6 +26,12 @@ export interface IRemoteAgentHostState {
 	 */
 	readonly host?: string;
 	readonly connectionToken?: string | null;
+	/**
+	 * Absolute path of the file the supervisor's connection token was minted
+	 * into. Absent for a tokenless supervisor and for lockfiles written
+	 * before this field existed.
+	 */
+	readonly connectionTokenFile?: string;
 	readonly protocolVersion: string;
 	readonly quality?: string;
 	readonly tunnelName?: string;
@@ -36,6 +42,7 @@ export function createRemoteAgentHostState(options: {
 	readonly port: number;
 	readonly host?: string;
 	readonly connectionToken: string | undefined;
+	readonly connectionTokenFile?: string;
 	readonly quality?: string;
 	readonly tunnelName?: string;
 }): IRemoteAgentHostState {
@@ -45,6 +52,7 @@ export function createRemoteAgentHostState(options: {
 		port: options.port,
 		host: options.host,
 		connectionToken: options.connectionToken ?? null,
+		connectionTokenFile: options.connectionTokenFile,
 		protocolVersion: PROTOCOL_VERSION,
 		quality: options.quality,
 		tunnelName: options.tunnelName,
@@ -72,6 +80,9 @@ export function parseRemoteAgentHostState(raw: unknown): IRemoteAgentHostState |
 	if (obj.connectionToken !== undefined && obj.connectionToken !== null && typeof obj.connectionToken !== 'string') {
 		return undefined;
 	}
+	if (obj.connectionTokenFile !== undefined && typeof obj.connectionTokenFile !== 'string') {
+		return undefined;
+	}
 	if (typeof obj.protocolVersion !== 'string') {
 		return undefined;
 	}
@@ -88,6 +99,7 @@ export function parseRemoteAgentHostState(raw: unknown): IRemoteAgentHostState |
 		port: obj.port,
 		host: obj.host as string | undefined,
 		connectionToken: (obj.connectionToken as string | null | undefined) ?? null,
+		connectionTokenFile: obj.connectionTokenFile as string | undefined,
 		protocolVersion: obj.protocolVersion,
 		quality: obj.quality,
 		tunnelName: obj.tunnelName,

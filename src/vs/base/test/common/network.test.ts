@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FileAccess, Schemas } from '../../common/network.js';
+import { FileAccess, formatHostPortAuthority, Schemas } from '../../common/network.js';
 import { isWeb } from '../../common/platform.js';
 import { isEqual } from '../../common/resources.js';
 import { URI } from '../../common/uri.js';
@@ -68,5 +68,21 @@ suite('network', () => {
 		const originalRemoteUri = URI.file('network.test.ts').with({ scheme: Schemas.vscodeRemote });
 		const browserUri = FileAccess.uriToBrowserUri(originalRemoteUri);
 		assert.notStrictEqual(originalRemoteUri.scheme, browserUri.scheme);
+	});
+
+	test('formatHostPortAuthority brackets only bare IPv6 literals', () => {
+		assert.deepStrictEqual([
+			formatHostPortAuthority('127.0.0.1', 1234),
+			formatHostPortAuthority('::1', 1234),
+			formatHostPortAuthority('[::1]', 1234),
+			formatHostPortAuthority('example.com', 1234),
+			formatHostPortAuthority('localhost', '0'),
+		], [
+			'127.0.0.1:1234',
+			'[::1]:1234',
+			'[::1]:1234',
+			'example.com:1234',
+			'localhost:0',
+		]);
 	});
 });

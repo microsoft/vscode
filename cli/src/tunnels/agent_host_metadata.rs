@@ -33,6 +33,20 @@ pub struct AgentHostMetadata {
 	pub host: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub connection_token: Option<String>,
+	/// Absolute path of the file the supervisor's connection token was
+	/// minted into. Recorded so a process deciding whether to reuse this
+	/// supervisor can check *that* file's permissions rather than guessing
+	/// a location - `--connection-token-file` can place it anywhere.
+	/// Absent for a tokenless supervisor and for lockfiles written before
+	/// this field existed.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub connection_token_file: Option<String>,
+	/// Address callers should dial, resolved from what the listener actually
+	/// bound rather than from the `--host` label. A label like `localhost`
+	/// can resolve differently in two processes, so recording it verbatim
+	/// would let a client reach for an address nothing is listening on.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub dial_host: Option<String>,
 	pub protocol_version: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub quality: Option<String>,
@@ -48,6 +62,8 @@ impl AgentHostMetadata {
 			port,
 			host: None,
 			connection_token: None,
+			connection_token_file: None,
+			dial_host: None,
 			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			quality: None,
 			tunnel_name: None,
@@ -68,23 +84,20 @@ pub fn read_agent_host_metadata(path: &Path) -> io::Result<Option<AgentHostMetad
 }
 
 pub fn write_agent_host_metadata(path: &Path, metadata: &AgentHostMetadata) -> io::Result<()> {
-	#[cfg(not(windows))]
-	use std::os::unix::fs::PermissionsExt;
-
 	let parent = path.parent().unwrap_or_else(|| Path::new("."));
 	fs::create_dir_all(parent)?;
-	#[cfg(not(windows))]
-	fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+	crate::util::file_permissions::restrict_to_owner(parent)?;
 
 	let mut temp = tempfile::NamedTempFile::new_in(parent)?;
-	#[cfg(not(windows))]
-	temp.as_file()
-		.set_permissions(fs::Permissions::from_mode(0o600))?;
+	// Restrict before the contents are written, so the token is never briefly
+	// readable at the parent directory's permissions.
+	crate::util::file_permissions::restrict_to_owner(temp.path())?;
 	temp.write_all(serde_json::to_string(metadata)?.as_bytes())?;
 	temp.flush()?;
 	temp.persist(path).map_err(|err| err.error)?;
-	#[cfg(not(windows))]
-	fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+	// `persist` can land on an existing file and keep its permissions, so
+	// re-assert them.
+	crate::util::file_permissions::restrict_to_owner(path)?;
 	Ok(())
 }
 

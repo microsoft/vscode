@@ -21,6 +21,7 @@ import {
 	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	isValidFallbackCLIPath,
+	parseAgentHostEndpointLine,
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
@@ -430,6 +431,81 @@ suite('SSH Remote Agent Host Helpers', () => {
 				redactToken('?tkn=one and ?tkn=two'),
 				'?tkn=*** and ?tkn=***'
 			);
+		});
+
+		test('redacts the token field of the endpoint line', () => {
+			assert.strictEqual(
+				redactToken('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=::1 port=1234 token=secret123'),
+				'__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=::1 port=1234 token=***'
+			);
+		});
+	});
+
+	suite('parseAgentHostEndpointLine', () => {
+		test('parses a line with a token', () => {
+			assert.deepStrictEqual(
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=10.1.2.3 port=1234 token=abc\n'),
+				{ host: '10.1.2.3', port: 1234, token: 'abc' }
+			);
+		});
+
+		test('parses an IPv6 host without a token', () => {
+			assert.deepStrictEqual(
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=::1 port=1234\n'),
+				{ host: '::1', port: 1234, token: undefined }
+			);
+		});
+
+		test('finds the line among surrounding output', () => {
+			const output = [
+				'Local: ws://localhost:1234?tkn=abc',
+				'__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=fe80::1 port=1234 token=abc',
+				'__VSCODE_AGENT_HOST_READY__',
+			].join('\n');
+			assert.deepStrictEqual(
+				parseAgentHostEndpointLine(output),
+				{ host: 'fe80::1', port: 1234, token: 'abc' }
+			);
+		});
+
+		test('ignores unknown keys so fields can be added', () => {
+			assert.deepStrictEqual(
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=1 future=x\n'),
+				{ host: '127.0.0.1', port: 1, token: undefined }
+			);
+		});
+
+		test('rejects an unknown version, a malformed line and a missing line', () => {
+			assert.deepStrictEqual([
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=2 host=127.0.0.1 port=1234\n'),
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 port=1234\n'),
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=0\n'),
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=99999\n'),
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=nope\n'),
+				// A zone index cannot be expressed in a URL authority.
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=fe80::1%eth0 port=1234\n'),
+				parseAgentHostEndpointLine('ws://localhost:1234?tkn=abc'),
+			], [undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+		});
+
+		test('ignores a line that has not arrived in full', () => {
+			// The buffer grows chunk by chunk, so a partial line must not be
+			// mistaken for a complete one - that would latch a truncated port
+			// or token and clear the start-up timeout.
+			const complete = '__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=10.1.2.3 port=31545 token=abcdef\n';
+			assert.deepStrictEqual([
+				parseAgentHostEndpointLine(complete.slice(0, complete.indexOf('port=') + 8)),
+				parseAgentHostEndpointLine(complete.slice(0, -4)),
+				parseAgentHostEndpointLine(complete.trimEnd()),
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__\nv=1 host=evil.example.com port=9\n'),
+				parseAgentHostEndpointLine(complete),
+			], [
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				{ host: '10.1.2.3', port: 31545, token: 'abcdef' },
+			]);
 		});
 	});
 
