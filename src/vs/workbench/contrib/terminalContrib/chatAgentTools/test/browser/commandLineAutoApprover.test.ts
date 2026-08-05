@@ -106,6 +106,7 @@ suite('CommandLineAutoApprover', () => {
 				'sort input.txt',
 				'sort --check input.txt',
 				'sort --check=quiet input.txt',
+				'sort "--check" input.txt',
 				'sort --buffer-size=1K input.txt',
 				'sort<input.txt',
 			];
@@ -122,6 +123,12 @@ suite('CommandLineAutoApprover', () => {
 				'sort --compress-p=/bin/sh input.txt',
 				'sort --com=/bin/sh input.txt',
 				'sort --co=/bin/sh input.txt',
+				'sort "--compress-program=/bin/sh" input.txt',
+				'sort \'--compress-prog=/bin/sh\' input.txt',
+				'sort \\-\\-compress-program=/bin/sh input.txt',
+				'sort --compress-program\\=/bin/sh input.txt',
+				'sort --"compress-program=/bin/sh" input.txt',
+				'sort $\'--compress-program=/bin/sh\' input.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});

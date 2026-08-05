@@ -14,6 +14,7 @@ export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 
 	// GNU sort accepts unique long-option abbreviations. `--co` is the shortest unique
-	// abbreviation for `--compress-program`; deny it and every longer spelling.
-	'/^sort\\b.*\\s--co\\S*/': false,
+	// abbreviation for `--compress-program`; deny it and every longer spelling. Ignore
+	// shell quote and escape syntax within the prefix since the shell removes it.
+	'/^sort\\b.*\\s(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*-(?:\\$?[\'"]|\\\\)*c(?:\\$?[\'"]|\\\\)*o/': false,
 };
