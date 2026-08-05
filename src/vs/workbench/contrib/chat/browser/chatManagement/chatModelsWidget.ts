@@ -503,6 +503,7 @@ interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly providerIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly sourceDescription: HTMLElement;
 	readonly modelStatusIcon: HTMLElement;
 	readonly deprecationLinkContainer: HTMLElement;
 	readonly deprecationLink: Link;
@@ -529,6 +530,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const providerIcon = DOM.append(nameContainer, $('.model-provider-icon'));
 		providerIcon.setAttribute('aria-hidden', 'true');
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
+		const sourceDescription = DOM.append(nameContainer, $('.model-source-description'));
+		sourceDescription.style.display = 'none';
 		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
 		deprecationLinkContainer.style.display = 'none';
 		const deprecationLink = disposables.add(this.instantiationService.createInstance(Link, deprecationLinkContainer, { label: '', href: '' }, {}));
@@ -538,6 +541,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			statusIcon,
 			providerIcon,
 			nameLabel,
+			sourceDescription,
 			modelStatusIcon,
 			deprecationLinkContainer,
 			deprecationLink,
@@ -550,6 +554,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		DOM.clearNode(templateData.modelStatusIcon);
 		templateData.providerIcon.className = 'model-provider-icon';
 		templateData.providerIcon.style.display = 'none';
+		templateData.sourceDescription.textContent = '';
+		templateData.sourceDescription.style.display = 'none';
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
@@ -560,6 +566,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		if (entry.sourcePresentation?.icon) {
 			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(entry.sourcePresentation.icon));
 			templateData.providerIcon.style.display = '';
+		}
+		if (entry.sourcePresentation?.description) {
+			templateData.sourceDescription.textContent = entry.sourcePresentation.description;
+			templateData.sourceDescription.style.display = '';
 		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
@@ -1082,7 +1092,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.sourcePresentation?.description ?? '';
+		templateData.providerElement.textContent = '';
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IProviderColumnTemplateData): void {

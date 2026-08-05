@@ -26,6 +26,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private modelsByVendor = new Map<string, string[]>();
 	private modelGroups = new Map<string, ILanguageModelsGroup[]>();
 	private hiddenModelIds = new Set<string>();
+	readonly setModelsHiddenCalls: { readonly modelIdentifiers: readonly string[]; readonly hidden: boolean }[] = [];
 
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
@@ -178,10 +179,16 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	isModelHidden(modelIdentifier: string): boolean { return this.hiddenModelIds.has(modelIdentifier); }
 	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
 	setModelHidden(modelIdentifier: string, hidden: boolean): void {
-		if (hidden) {
-			this.hiddenModelIds.add(modelIdentifier);
-		} else {
-			this.hiddenModelIds.delete(modelIdentifier);
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
+		this.setModelsHiddenCalls.push({ modelIdentifiers: [...modelIdentifiers], hidden });
+		for (const modelIdentifier of modelIdentifiers) {
+			if (hidden) {
+				this.hiddenModelIds.add(modelIdentifier);
+			} else {
+				this.hiddenModelIds.delete(modelIdentifier);
+			}
 		}
 	}
 	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
@@ -448,7 +455,13 @@ suite('ChatModelsViewModel', () => {
 		assert.ok(subscriptionGroup && isLanguageModelProviderEntry(subscriptionGroup));
 
 		model.toggleGroupHidden(subscriptionGroup);
-		assert.deepStrictEqual(service.getHiddenModelIds(), ['codex:gpt-5.6']);
+		assert.deepStrictEqual({
+			hiddenModelIds: service.getHiddenModelIds(),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			hiddenModelIds: ['codex:gpt-5.6'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['codex:gpt-5.6'], hidden: true }],
+		});
 	});
 
 	test('should filter by provider name (vendor ID and display name)', () => {

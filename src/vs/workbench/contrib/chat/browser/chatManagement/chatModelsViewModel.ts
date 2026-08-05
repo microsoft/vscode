@@ -532,16 +532,11 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	toggleGroupHidden(entry: ILanguageModelProviderEntry): void {
-		const hidden = !entry.hidden;
-		for (const model of this.getModelsForGroup(entry)) {
-			this.languageModelsService.setModelHidden(model.identifier, hidden);
-		}
+		this.languageModelsService.setModelsHidden(this.getModelsForGroup(entry).map(model => model.identifier), !entry.hidden);
 	}
 
 	setModelsHidden(entries: readonly ILanguageModelEntry[], hidden: boolean): void {
-		for (const entry of entries) {
-			this.languageModelsService.setModelHidden(entry.model.identifier, hidden);
-		}
+		this.languageModelsService.setModelsHidden(entries.map(entry => entry.model.identifier), hidden);
 	}
 
 	private refreshVisibility(): void {

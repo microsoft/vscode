@@ -399,7 +399,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -429,6 +429,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getLanguageModelIds: () => options?.languageModelIds ?? [],
 		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
 		hasResolvedVendor: () => true,
+		isModelHidden: (modelId: string) => options?.hiddenLanguageModelIds?.has(modelId) ?? false,
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: options?.languageModelVisibilityChanges ?? Event.None,
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -1624,6 +1627,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
 		});
+	});
+
+	test('getModelsSnapshot excludes hidden models and announces visibility changes', () => {
+		const matchingModel = { ...createTestLanguageModel('matching'), targetChatSessionType: 'agent-host-copilotcli' };
+		const hiddenLanguageModelIds = new Set(['matching']);
+		const visibilityChanges = disposables.add(new Emitter<void>());
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['matching'],
+			lookupLanguageModel: id => id === 'matching' ? matchingModel : undefined,
+			hiddenLanguageModelIds,
+			languageModelVisibilityChanges: visibilityChanges.event,
+		});
+		fireSessionAdded(agentHost, 'hidden-model-catalog', { title: 'Hidden Model Catalog Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Hidden Model Catalog Session');
+		assert.ok(session);
+
+		let changes = 0;
+		disposables.add(provider.onDidChangeModels(() => changes++));
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models, []);
+
+		hiddenLanguageModelIds.delete('matching');
+		visibilityChanges.fire();
+		assert.strictEqual(changes, 1);
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
 	});
 
 	test('getModelsSnapshot canonicalizes a matching logical-session model identifier', () => {

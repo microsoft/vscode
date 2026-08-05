@@ -649,6 +649,11 @@ export interface ILanguageModelsService {
 	setModelHidden(modelIdentifier: string, hidden: boolean): void;
 
 	/**
+	 * Hide or show multiple exact model identifiers in the chat model picker.
+	 */
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void;
+
+	/**
 	 * Hide or show every model in a (vendor, groupName) bucket.
 	 */
 	setGroupHidden(vendor: string, groupName: string, hidden: boolean): void;
@@ -2375,9 +2380,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	setGroupHidden(vendor: string, groupName: string, hidden: boolean): void {
+		this.setModelsHidden(this._getModelIdsInGroup(vendor, groupName), hidden);
+	}
+
+	setModelHidden(modelIdentifier: string, hidden: boolean): void {
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
 		let changed = false;
-		const modelIds = this._getModelIdsInGroup(vendor, groupName);
-		for (const id of modelIds) {
+		for (const id of modelIdentifiers) {
 			if (hidden) {
 				if (!this._hiddenModelIds.has(id)) {
 					this._hiddenModelIds.add(id);
@@ -2386,22 +2398,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 			} else if (this._hiddenModelIds.delete(id)) {
 				changed = true;
 			}
-		}
-		if (changed) {
-			this._saveVisibility();
-			this._onDidChangeModelVisibility.fire();
-		}
-	}
-
-	setModelHidden(modelIdentifier: string, hidden: boolean): void {
-		let changed = false;
-		if (hidden) {
-			if (!this._hiddenModelIds.has(modelIdentifier)) {
-				this._hiddenModelIds.add(modelIdentifier);
-				changed = true;
-			}
-		} else if (this._hiddenModelIds.delete(modelIdentifier)) {
-			changed = true;
 		}
 		if (changed) {
 			this._saveVisibility();
