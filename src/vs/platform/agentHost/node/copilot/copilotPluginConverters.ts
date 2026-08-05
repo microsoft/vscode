@@ -13,6 +13,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import type { ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -113,6 +114,21 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 // Custom agents
 // ---------------------------------------------------------------------------
 
+const CustomAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ReasoningEffortLevel[];
+type CustomAgentReasoningEffort = (typeof CustomAgentReasoningEfforts)[number];
+
+function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
+	return CustomAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
+}
+
+/**
+ * The runtime accepts `max`, but the pinned SDK's declared union lags behind.
+ * Forward supported runtime values unchanged, matching session-level handling.
+ */
+function toSdkCustomAgentReasoningEffort(effort: CustomAgentReasoningEffort): CustomAgentConfig['reasoningEffort'] {
+	return effort as CustomAgentConfig['reasoningEffort'];
+}
+
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
@@ -121,6 +137,7 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
  *  - `description` is forwarded verbatim.
  *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
  *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
@@ -145,6 +162,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
+				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
 				if (infer === undefined && disableModelInvocation === true) {
@@ -160,6 +178,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					name,
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
+					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort: toSdkCustomAgentReasoningEffort(reasoningEffort) } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(infer !== undefined ? { infer } : {}),
