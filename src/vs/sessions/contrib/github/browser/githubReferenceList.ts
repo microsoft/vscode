@@ -17,34 +17,84 @@ export interface IGitHubReferenceListEntry {
 	readonly ariaLabel?: string;
 }
 
-/** Renders GitHub references as keyboard-accessible `<icon> #<number> <title>` rows. */
-export function createGitHubReferenceListElement<T extends IGitHubReferenceListEntry>(entries: readonly T[], onDidSelect: (entry: T) => void): HTMLElement {
-	const listElement = $('.sessions-github-reference-list', { role: 'list' });
+interface IGitHubReferenceListRow<T> {
+	entry: T;
+	readonly item: HTMLElement;
+	readonly button: HTMLButtonElement;
+	readonly icon: HTMLElement;
+	readonly number: HTMLElement;
+	readonly title: HTMLElement;
+}
 
-	for (const entry of entries) {
-		const item = append(listElement, $('.sessions-github-reference-list-item', { role: 'listitem' }));
-		const row = append(item, $('button.sessions-github-reference-list-entry', { type: 'button' }));
-		if (entry.ariaLabel) {
-			row.setAttribute('aria-label', entry.ariaLabel);
+/** A GitHub reference list whose rows can update without replacing focused buttons. */
+export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
+
+	readonly element = $('.sessions-github-reference-list', { role: 'list' });
+	private readonly _rows: IGitHubReferenceListRow<T>[] = [];
+
+	constructor(entries: readonly T[], private readonly _onDidSelect: (entry: T) => void) {
+		this.update(entries);
+	}
+
+	update(entries: readonly T[]): void {
+		for (let index = 0; index < entries.length; index++) {
+			const entry = entries[index];
+			const row = this._rows[index] ?? this._createRow(entry);
+			row.entry = entry;
+			this._updateRow(row);
 		}
-		row.onclick = event => {
-			event.preventDefault();
-			event.stopPropagation();
-			onDidSelect(entry);
-		};
 
-		const icon = append(row, $(`span.sessions-github-reference-list-entry-icon${ThemeIcon.asCSSSelector(entry.icon)}`, { 'aria-hidden': 'true' }));
-		if (entry.icon.color) {
-			icon.style.color = asCssVariable(entry.icon.color.id);
-		}
-
-		append(row, $('span.sessions-github-reference-list-entry-number', undefined, `#${entry.number}`));
-
-		if (entry.title) {
-			const titleElement = append(row, $('span.sessions-github-reference-list-entry-title', undefined, entry.title));
-			titleElement.title = entry.title;
+		for (let index = this._rows.length - 1; index >= entries.length; index--) {
+			this._rows[index].item.remove();
+			this._rows.splice(index, 1);
 		}
 	}
 
-	return listElement;
+	private _createRow(entry: T): IGitHubReferenceListRow<T> {
+		const item = append(this.element, $('.sessions-github-reference-list-item', { role: 'listitem' }));
+		const button = append(item, document.createElement('button'));
+		button.className = 'sessions-github-reference-list-entry';
+		button.type = 'button';
+		const row: IGitHubReferenceListRow<T> = {
+			entry,
+			item,
+			button,
+			icon: append(button, $('span.sessions-github-reference-list-entry-icon', { 'aria-hidden': 'true' })),
+			number: append(button, $('span.sessions-github-reference-list-entry-number')),
+			title: append(button, $('span.sessions-github-reference-list-entry-title')),
+		};
+		button.onclick = event => {
+			event.preventDefault();
+			event.stopPropagation();
+			this._onDidSelect(row.entry);
+		};
+		this._rows.push(row);
+		return row;
+	}
+
+	private _updateRow(row: IGitHubReferenceListRow<T>): void {
+		const entry = row.entry;
+		if (entry.ariaLabel) {
+			row.button.setAttribute('aria-label', entry.ariaLabel);
+		} else {
+			row.button.removeAttribute('aria-label');
+		}
+
+		row.icon.className = `sessions-github-reference-list-entry-icon ${ThemeIcon.asClassName(entry.icon)}`;
+		if (entry.icon.color) {
+			row.icon.style.color = asCssVariable(entry.icon.color.id);
+		} else {
+			row.icon.style.removeProperty('color');
+		}
+
+		row.number.textContent = `#${entry.number}`;
+		row.title.textContent = entry.title ?? '';
+		row.title.title = entry.title ?? '';
+		row.title.hidden = !entry.title;
+	}
+}
+
+/** Renders GitHub references as keyboard-accessible `<icon> #<number> <title>` rows. */
+export function createGitHubReferenceListElement<T extends IGitHubReferenceListEntry>(entries: readonly T[], onDidSelect: (entry: T) => void): HTMLElement {
+	return new GitHubReferenceList(entries, onDidSelect).element;
 }

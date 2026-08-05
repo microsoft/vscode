@@ -32,7 +32,7 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
-import { createGitHubReferenceListElement } from './githubReferenceList.js';
+import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';
 import { IPullRequestIconCache } from './pullRequestIconCache.js';
 import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
@@ -48,6 +48,10 @@ interface IPullRequestIdentity {
 	readonly owner: string;
 	readonly repo: string;
 	readonly number: number;
+}
+
+interface IPullRequestListEntry extends IGitHubReferenceListEntry {
+	readonly uri: URI;
 }
 
 // --- Open Pull Request action
@@ -107,6 +111,7 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
 	private readonly _pullRequestsObs: IObservable<readonly IResolvedSessionPullRequest[]>;
+	private _pullRequestList: GitHubReferenceList<IPullRequestListEntry> | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -203,7 +208,8 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 		}));
 
 		this._register(autorun(reader => {
-			this._pullRequestsObs.read(reader);
+			const pullRequests = this._pullRequestsObs.read(reader);
+			this._pullRequestList?.update(this._getPullRequestListEntries(pullRequests));
 			this.updateLabel();
 			this.updateTooltip();
 		}));
@@ -276,29 +282,49 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 			return;
 		}
 
-		const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => ({
+		const list = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
+			this._hoverService.hideHover();
+			this._openerService.open(entry.uri, { openExternal: true });
+		});
+		list.element.onkeydown = event => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				event.stopPropagation();
+				this._hoverService.hideHover();
+			}
+		};
+		this._pullRequestList = list;
+
+		const hover = this._hoverService.showInstantHover({
+			content: list.element,
+			target,
+			position: { hoverPosition: HoverPosition.BELOW },
+			persistence: { sticky: true, hideOnKeyDown: false },
+			appearance: { showPointer: false, skipFadeInAnimation: true },
+			trapFocus: true,
+			onDidHide: () => {
+				if (this._pullRequestList === list) {
+					this._pullRequestList = undefined;
+				}
+			},
+		}, true);
+		if (!hover) {
+			this._pullRequestList = undefined;
+		}
+	}
+
+	private _getRepositoryUri(ref: { readonly owner: string; readonly repo: string }): URI {
+		return URI.parse(`https://github.com/${ref.owner}/${ref.repo}`);
+	}
+
+	private _getPullRequestListEntries(pullRequests: readonly IResolvedSessionPullRequest[]): readonly IPullRequestListEntry[] {
+		return pullRequests.map(({ ref, pullRequest, icon, status }) => ({
 			number: ref.number,
 			title: pullRequest?.title,
 			icon,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
 		}));
-
-		this._hoverService.showInstantHover({
-			content: createGitHubReferenceListElement(entries, entry => {
-				this._hoverService.hideHover();
-				this._openerService.open(entry.uri, { openExternal: true });
-			}),
-			target,
-			position: { hoverPosition: HoverPosition.BELOW },
-			persistence: { sticky: true, hideOnKeyDown: true },
-			appearance: { showPointer: false, skipFadeInAnimation: true },
-			trapFocus: true,
-		}, true);
-	}
-
-	private _getRepositoryUri(ref: { readonly owner: string; readonly repo: string }): URI {
-		return URI.parse(`https://github.com/${ref.owner}/${ref.repo}`);
 	}
 }
 

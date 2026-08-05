@@ -1314,12 +1314,23 @@ export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState 
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
+function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
+	const normalizedUrls = urls.map(url => {
+		const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const groups = match?.groups;
+		return groups
+			? `https://github.com/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			: url;
+	});
+	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+}
+
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
 export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
-	const pullRequestUrls = [
+	const pullRequestUrls = normalizeSessionPullRequestUrls([
 		pullRequestUrl,
-		...(gitHubState?.pullRequestUrls ?? []).filter(url => url !== pullRequestUrl)
-	].slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+		...(gitHubState?.pullRequestUrls ?? [])
+	]);
 
 	return {
 		pullRequestUrls,
@@ -1417,7 +1428,7 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			? [raw['pullRequestUrl']]
 			: [];
 	if (pullRequestUrls.length > 0) {
-		result.pullRequestUrls = distinct(pullRequestUrls).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
 	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
