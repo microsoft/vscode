@@ -148,7 +148,23 @@ export interface UsageInfoMeta {
 	 * `promptTokenDetails`.
 	 */
 	contextAttribution?: IContextAttributionData;
+	/**
+	 * Per-model token totals accumulated across every model call in the turn,
+	 * including calls made by subagents and the summarization call a compaction
+	 * performs. Unlike {@link UsageInfo.inputTokens}, which describes only the
+	 * most recent model call, these are whole-turn sums, so clients can report
+	 * what a completed turn consumed in aggregate.
+	 */
+	turnTokenTotals?: readonly ITurnTokenTotal[];
 	[key: string]: unknown;
+}
+
+/** Whole-turn token consumption attributed to a single model. */
+export interface ITurnTokenTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
 }
 
 export interface IAutoModeResolvedInfo {
@@ -234,7 +250,47 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (contextAttribution) {
 		result.contextAttribution = contextAttribution;
 	}
+	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
+	if (turnTokenTotals) {
+		result.turnTokenTotals = turnTokenTotals;
+	}
 	return result;
+}
+
+/**
+ * Reads whole-turn per-model token totals, dropping rows that are not fully
+ * formed. Returns `undefined` when no usable row survives, so callers can treat
+ * "absent" and "present but meaningless" identically.
+ */
+function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const totals: ITurnTokenTotal[] = [];
+	for (const item of value) {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			continue;
+		}
+		const raw = item as Record<string, unknown>;
+		if (typeof raw['model'] !== 'string' || !raw['model']
+			|| !isTokenCount(raw['inputTokens'])
+			|| !isTokenCount(raw['cachedTokens'])
+			|| !isTokenCount(raw['outputTokens'])
+		) {
+			continue;
+		}
+		totals.push({
+			model: raw['model'],
+			inputTokens: raw['inputTokens'],
+			cachedTokens: raw['cachedTokens'],
+			outputTokens: raw['outputTokens'],
+		});
+	}
+	return totals.length > 0 ? totals : undefined;
+}
+
+function isTokenCount(value: unknown): value is number {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -1094,12 +1150,10 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
-const MAX_WORKSPACE_NAME_LENGTH = 512;
 
 /** Multi-root workspace provenance attached by the creating client. */
 export interface ISessionMultiRootMetadata {
 	readonly workspaceFile: string;
-	readonly name?: string;
 }
 
 /** Reads validated multi-root workspace provenance from session metadata. */
@@ -1138,10 +1192,6 @@ function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMeta
 	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
 		return undefined;
 	}
-	const name = raw.name;
-	if (name !== undefined && (typeof name !== 'string' || name.length > MAX_WORKSPACE_NAME_LENGTH)) {
-		return undefined;
-	}
 	try {
 		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
 			return undefined;
@@ -1149,7 +1199,7 @@ function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMeta
 	} catch {
 		return undefined;
 	}
-	return name === undefined ? { workspaceFile: raw.workspaceFile } : { workspaceFile: raw.workspaceFile, name };
+	return { workspaceFile: raw.workspaceFile };
 }
 
 /** Latest known prompt-cache state for the model active in an agent session. */
@@ -1465,6 +1515,25 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * `_meta` key marking a session as an un-adopted legacy Copilot CLI session
+ * surfaced (only under the migrate setting) as adoptable. Clients read it to
+ * avoid passively subscribing to — and thereby migrating — the session before
+ * the user opens it. Cleared implicitly once the session is adopted (it no
+ * longer surfaces as adoptable).
+ */
+export const SESSION_META_EHCLI_ADOPTABLE_KEY = 'ehcliAdoptable';
+
+/** Whether the session is an un-adopted legacy Copilot CLI session surfaced as adoptable. */
+export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true;
+}
+
+/** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
+export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

@@ -170,6 +170,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
+	getAllProviderSessionTypes(): IProviderSessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }

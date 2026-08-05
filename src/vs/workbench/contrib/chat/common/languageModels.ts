@@ -296,7 +296,11 @@ export interface ILanguageModelChatMetadata {
 	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
 	 * Presentation-only; it does not affect model selection or routing.
 	 */
-	readonly modelGroup?: { readonly id: string };
+	readonly modelGroup?: {
+		readonly id: string;
+		/** Identifies a first-party provider group that must remain distinct from user-configured groups with the same name. */
+		readonly source?: 'chatgptSubscription';
+	};
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service

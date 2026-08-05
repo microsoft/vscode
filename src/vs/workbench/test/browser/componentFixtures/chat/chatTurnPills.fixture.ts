@@ -9,7 +9,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
-import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
+import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
@@ -34,10 +34,23 @@ function fileDiff(name: string, added: number, removed: number, created: boolean
 	return { originalURI, modifiedURI, added, removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
 }
 
-function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatResponseFileChangesService {
+function externalFileDiff(name: string, added: number, removed: number, created: boolean): IEditSessionEntryDiff {
+	const modifiedURI = URI.file(`/home/user/${name}`);
+	const originalURI = created ? modifiedURI : URI.file(`/home/user/.original/${name}`);
+	return { originalURI, modifiedURI, added, removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
+}
+
+function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[], externalDiffs: readonly IEditSessionEntryDiff[]): IChatResponseFileChangesService {
+	const fileEdits: readonly IChatResponseFileEdit[] = [
+		...diffs.map(diff => ({ ...diff, isOutsideWorkspace: false })),
+		...externalDiffs.map(diff => ({ ...diff, isOutsideWorkspace: true })),
+	];
 	return new class extends mock<IChatResponseFileChangesService>() {
 		override getChangesForRequest() {
 			return constObservable(diffs);
+		}
+		override getFileEditsForRequest() {
+			return constObservable(fileEdits);
 		}
 	}();
 }
@@ -48,6 +61,7 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 
 interface IRenderTurnPillsOptions {
 	readonly diffs: readonly IEditSessionEntryDiff[];
+	readonly externalDiffs?: readonly IEditSessionEntryDiff[];
 	readonly setting?: ChatTurnStatusPillsSetting;
 	/** When `true`, the changed-files disclosure is expanded. */
 	readonly expanded?: boolean;
@@ -62,7 +76,7 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 			// Broad chat service graph: IContextMenuService, IEditorService and the
 			// ResourceLabels dependencies the preview action needs.
 			registerChatFixtureServices(reg);
-			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(options.diffs));
+			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(options.diffs, options.externalDiffs ?? []));
 		},
 	});
 
@@ -124,7 +138,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview_Markdown: defineComponentFixture({
+		WorkspaceMarkdown_NoPreview: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				diffs: [
 					fileDiff('README.md', 20, 0, true),
@@ -133,28 +147,37 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		// Expanded list showing the per-row "Preview" action on the markdown row
-		// (edited `.ts`/`.css` and HTML rows have no preview action).
-		ChangesAndPreview_Expanded: defineComponentFixture({
+		ChangesAndExternalPreview_Markdown: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				diffs: [fileDiff('app.ts', 8, 3, false)],
+				externalDiffs: [externalFileDiff('README.md', 20, 0, true)],
+			}),
+		}),
+
+		// The external README remains in the preview pill and out of the expanded
+		// workspace changes list.
+		ChangesAndExternalPreview_Expanded: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				expanded: true,
 				diffs: [
-					fileDiff('README.md', 20, 0, true),
 					fileDiff('index.html', 30, 4, true),
 					fileDiff('app.ts', 8, 3, false),
 					fileDiff('styles.css', 4, 1, false),
 				],
+				externalDiffs: [externalFileDiff('README.md', 20, 0, true)],
 			}),
 		}),
 
-		// With several previewable files only the first is offered.
-		ChangesAndPreview_MultiplePreviewable: defineComponentFixture({
+		// With several external Markdown files, the created file is primary.
+		ChangesAndExternalPreview_MultipleMarkdown: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				diffs: [
 					fileDiff('app.ts', 8, 3, false),
-					fileDiff('README.md', 20, 0, true),
 					fileDiff('index.html', 30, 4, true),
-					fileDiff('CHANGELOG.md', 6, 1, false),
+				],
+				externalDiffs: [
+					externalFileDiff('README.md', 20, 0, true),
+					externalFileDiff('CHANGELOG.md', 6, 1, false),
 				],
 			}),
 		}),
@@ -162,10 +185,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		LegacyPreviewOptionEnablesAll: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				setting: { preview: true },
-				diffs: [
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('app.ts', 8, 3, false),
-				],
+				diffs: [fileDiff('app.ts', 8, 3, false)],
+				externalDiffs: [externalFileDiff('README.md', 20, 0, true)],
 			}),
 		}),
 
@@ -195,18 +216,18 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview: defineComponentFixture({
+		ChangesAndExternalPreview: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
 				turnStatusPills: true,
 				messages: [
 					{
-						user: 'Add a README describing the project',
+						user: 'Create a Markdown handoff note in my home folder',
 						assistant: [
-							{ kind: 'markdown', text: 'I added a `README.md` with an overview, setup steps, and usage notes, and linked it from the docs index.' },
+							{ kind: 'markdown', text: 'I added `/home/user/session-notes.md` with the handoff details and updated `app.ts` in the workspace.' },
 						],
 						fileChanges: [
-							{ name: 'README.md', added: 42, removed: 0, created: true },
-							{ name: 'docs/index.md', added: 4, removed: 1, created: false },
+							{ name: 'session-notes.md', added: 42, removed: 0, created: true, isOutsideWorkspace: true },
+							{ name: 'app.ts', added: 4, removed: 1, created: false },
 						],
 					},
 				],

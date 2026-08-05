@@ -166,6 +166,7 @@ suite('Dictation onboarding', () => {
 
 		const analyser = new class extends mock<AnalyserNode>() {
 			override readonly fftSize = 256;
+			override getByteTimeDomainData(): void { }
 		};
 		await banner.refreshMicrophones(analyser, async deviceId => {
 			selectedDeviceIds.push(deviceId);
@@ -266,15 +267,17 @@ suite('Dictation onboarding', () => {
 		service.show();
 		service.show();
 
+		const microphonePicker = host.container.querySelector<HTMLElement>('.dictation-onboarding-picker');
 		assert.deepStrictEqual(
 			{
 				visible: host.container.classList.contains('has-dictation-onboarding'),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
-				microphonePickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				microphonePickerHidden: microphonePicker?.hidden,
+				microphonePickerDisplay: microphonePicker && dom.getWindow(microphonePicker).getComputedStyle(microphonePicker).display,
 			},
-			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true });
+			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true, microphonePickerDisplay: 'none' });
 	});
 
 	test('reset shows the introduction on the next dictation', () => {

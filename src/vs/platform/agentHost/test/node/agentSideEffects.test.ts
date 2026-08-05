@@ -1867,6 +1867,10 @@ suite('AgentSideEffects', () => {
 					result: { success: true, pastTenseMessage: 'Read file' },
 				},
 			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-2', duration: 1000 },
+			});
 
 			assert.deepStrictEqual(
 				telemetryService.events.filter(event => event.eventName === 'languageModelToolInvoked').map(event => event.eventName),
@@ -4218,7 +4222,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 
-		test('SessionConfigChanged emits chat.modeChange for effective mode transitions without duplicate echoes', () => {
+		test('SessionConfigChanged emits agentHost.executionModeChanged for effective mode transitions without duplicate echoes', () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
 				schema: platformSessionSchema.toProtocol(),
@@ -4249,38 +4253,35 @@ suite('AgentSideEffects', () => {
 				replace: true,
 			});
 
-			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.modeChange'), [{
-				eventName: 'chat.modeChange',
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged'), [{
+				eventName: 'agentHost.executionModeChanged',
 				data: {
 					provider: 'mock',
 					agentSessionId: 'session-1',
 					isSubagentSession: false,
-					fromMode: 'interactive',
-					mode: 'plan',
-					requestCount: 1,
-					storage: 'builtin',
+					previousMode: 'interactive',
+					newMode: 'plan',
+					turnCount: 1,
 				},
 			}, {
-				eventName: 'chat.modeChange',
+				eventName: 'agentHost.executionModeChanged',
 				data: {
 					provider: 'mock',
 					agentSessionId: 'session-1',
 					isSubagentSession: false,
-					fromMode: 'plan',
-					mode: 'autopilot',
-					requestCount: 1,
-					storage: 'builtin',
+					previousMode: 'plan',
+					newMode: 'autopilot',
+					turnCount: 1,
 				},
 			}, {
-				eventName: 'chat.modeChange',
+				eventName: 'agentHost.executionModeChanged',
 				data: {
 					provider: 'mock',
 					agentSessionId: 'session-1',
 					isSubagentSession: false,
-					fromMode: 'autopilot',
-					mode: 'interactive',
-					requestCount: 1,
-					storage: 'builtin',
+					previousMode: 'autopilot',
+					newMode: 'interactive',
+					turnCount: 1,
 				},
 			}]);
 		});
@@ -4978,6 +4979,10 @@ suite('AgentSideEffects', () => {
 			return stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [];
 		}
 
+		function sessionStatus() {
+			return stateManager.getSessionState(sessionUri.toString())?.status;
+		}
+
 		test('chat input request mirrors its unresolved response part and is removed on completion', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -5181,7 +5186,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
-		test('auto-approved tool call is kept out of the session inputNeeded queue', () => {
+		test('auto-approved tool call still surfaces its client execution without flagging input needed', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -5203,7 +5208,15 @@ suite('AgentSideEffects', () => {
 				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1',
 				toolCallId: 'tc-auto', approved: true, confirmed: ToolCallConfirmationReason.Setting,
 			});
-			assert.deepStrictEqual(sessionInputNeeded(), [], 'no client-execution entry while Running');
+
+			// The client still has to run the call, so it must be discoverable
+			// from the session channel — but it is not a user prompt, so the
+			// session must not present as "input needed".
+			assert.deepStrictEqual(
+				sessionInputNeeded().map(r => ({ kind: r.kind, clientId: r.kind === SessionInputRequestKind.ToolClientExecution ? r.clientId : undefined })),
+				[{ kind: SessionInputRequestKind.ToolClientExecution, clientId: 'client-1' }],
+			);
+			assert.strictEqual(sessionStatus(), SessionStatus.InProgress, 'auto-approved client execution must not present as input needed');
 		});
 
 		test('auto-approved tool still surfaces a genuine result confirmation', () => {
