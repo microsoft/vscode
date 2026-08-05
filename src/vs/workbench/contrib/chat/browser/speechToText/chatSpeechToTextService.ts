@@ -35,6 +35,7 @@ import { ChatMessageRole, ILanguageModelsService } from '../../common/languageMo
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -131,6 +132,10 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
  * - `mai`: the cloud voice service used by Voice Mode, via {@link IVoiceClientService}.
  */
 type DictationBackend = 'nemo' | 'mai';
+
+export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
+	return isProUser(entitlement) && (!usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal);
+}
 
 /** How long to wait for the voice websocket to connect before failing an MAI session. */
 const MAI_CONNECT_TIMEOUT_MS = 8000;
@@ -273,8 +278,8 @@ export interface IChatSpeechToTextService {
 	switchMicrophone(window: Window & typeof globalThis, deviceId: string): Promise<AnalyserNode | undefined>;
 
 	/**
-	 * Whether on-device speech-to-text is available on this platform. Callers
-	 * gate the dictation UI on this.
+	 * Whether speech-to-text is available for the current Copilot entitlement,
+	 * selected backend, and platform. Callers gate the dictation UI on this.
 	 */
 	readonly isConfigured: boolean;
 
@@ -424,7 +429,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return false;
 		}
-		if (this._getBackend() === 'mai') {
+		const backend = this._getBackend();
+		if (!isDictationEntitled(this._chatEntitlementService.entitlement, this._chatEntitlementService.isInternal, backend === 'mai')) {
+			return false;
+		}
+		if (backend === 'mai') {
 			// The cloud backend needs a configured voice websocket endpoint;
 			// GitHub sign-in and connectivity are validated when a session starts.
 			return !!this._voiceWsUrl();
@@ -489,6 +498,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -498,6 +508,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(DICTATION_MODEL_SETTING)) {
 				this._updateConfiguredContextKey();
+			}
+		}));
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => {
+			this._updateConfiguredContextKey();
+			if (!this.isConfigured && this._state !== ChatSpeechToTextState.Idle) {
+				this.cancel();
 			}
 		}));
 	}
@@ -638,6 +654,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		const backend = this._getBackend();
 		this._activeBackend = backend;
+
+		if (!isDictationEntitled(this._chatEntitlementService.entitlement, this._chatEntitlementService.isInternal, backend === 'mai')) {
+			this._notificationService.warn(backend === 'mai' && this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('chatStt.maiEnterpriseUnavailable', "Cloud speech-to-text is not available for GitHub Copilot Enterprise accounts.")
+				: localize('chatStt.requiresPaidPlan', "Dictation requires a paid GitHub Copilot plan."));
+			return;
+		}
 
 		if (backend === 'nemo' && !this._localTranscription.isSupported) {
 			this._notificationService.notify({
