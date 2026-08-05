@@ -379,6 +379,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 	}
 
+	readonly canDeleteTunnels = true;
+
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
 		const auth = await this._getToken(false);
 		if (!auth) {

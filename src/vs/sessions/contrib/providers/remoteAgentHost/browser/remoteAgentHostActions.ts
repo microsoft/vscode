@@ -872,12 +872,10 @@ async function promptToConnectViaTunnel(
 	};
 	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos.map(tunnel => ({
 		label: tunnel.name,
-		description: `${tunnel.tunnelId} · ` + (
-			tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "Online")
-				: localize('tunnelPickOffline', "Offline")
-		),
-		buttons: [deleteTunnelButton],
+		description: tunnel.hostConnectionCount > 0
+			? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+			: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+		buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
 		tunnel,
 	}));
 

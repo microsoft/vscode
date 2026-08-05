@@ -239,12 +239,17 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	}
 
 	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void> {
-		this._closeTunnelConnections(tunnelId, 'deleting');
-
 		const client = await this._createManagementClient(token, authProvider);
 		const tunnel: Tunnel = { tunnelId, clusterId };
 		this._logService.info(`${LOG_PREFIX} Deleting tunnel ${tunnelId} in cluster ${clusterId}...`);
 		await client.deleteTunnel(tunnel);
+
+		// Tear the relays down only once the tunnel is actually gone. Closing
+		// them first reports a disconnect while the tunnel is still cached,
+		// which lets an auto-reconnect be scheduled against a tunnel that is
+		// midway through being deleted — and needlessly drops a live
+		// connection if the delete then fails.
+		this._closeTunnelConnections(tunnelId, 'deleting');
 		this._logService.info(`${LOG_PREFIX} Deleted tunnel ${tunnelId}`);
 	}
 

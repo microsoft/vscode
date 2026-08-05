@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, normalizeTunnelName, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from '../common/remoteTunnel.js';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, normalizeTunnelName, tunnelNameFromHostname, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from '../common/remoteTunnel.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -501,7 +501,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	private _getTunnelName(): string | undefined {
-		return normalizeTunnelName(this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname()) || undefined;
+		const configured = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME);
+		return (configured ? normalizeTunnelName(configured) : tunnelNameFromHostname(hostname())) || undefined;
 	}
 
 	private _restoreMode(): TunnelMode {

@@ -84,6 +84,7 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 	getCachedTunnels(): ICachedTunnel[] { return this._cached; }
 	async listTunnels(): Promise<ITunnelInfo[]> { return []; }
+	readonly canDeleteTunnels = true;
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
 		this._cached = [{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, authProvider }, ...this._cached.filter(cached => cached.tunnelId !== tunnel.tunnelId)];

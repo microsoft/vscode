@@ -416,6 +416,9 @@ export interface ITunnelAgentHostService {
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
 
+	/** Whether {@link deleteTunnel} is supported by this implementation. */
+	readonly canDeleteTunnels: boolean;
+
 	/** Delete a dev tunnel and remove it from the local tunnel cache. */
 	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
 

@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogger, ILoggerService } from '../../log/common/log.js';
 import { localize } from '../../../nls.js';
-import { CONFIGURATION_KEY_HOST_NAME, normalizeTunnelName } from '../../remoteTunnel/common/remoteTunnel.js';
+import { CONFIGURATION_KEY_HOST_NAME, normalizeTunnelName, tunnelNameFromHostname } from '../../remoteTunnel/common/remoteTunnel.js';
 import {
 	ITunnelAgentHostHostingService,
 	PROTOCOL_VERSION_TAG_PREFIX,
@@ -235,7 +235,8 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 	 * Get the sanitized tunnel name from configuration or OS hostname.
 	 */
 	private _getTunnelName(): string {
-		return normalizeTunnelName(this._configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname()) || 'vscode';
+		const configured = this._configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME);
+		return (configured ? normalizeTunnelName(configured) : tunnelNameFromHostname(hostname())) || 'vscode';
 	}
 
 	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft'): Promise<TunnelManagementHttpClient> {

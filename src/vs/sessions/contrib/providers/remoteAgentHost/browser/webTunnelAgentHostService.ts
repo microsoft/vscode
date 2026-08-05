@@ -208,6 +208,10 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		}
 	}
 
+	get canDeleteTunnels(): boolean {
+		return !!this._discoveryProvider?.deleteTunnel;
+	}
+
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
 		const provider = this._discoveryProvider;
 		if (!provider?.deleteTunnel) {
