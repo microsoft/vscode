@@ -125,26 +125,23 @@ function installHeaders() {
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is safe to construct the path
 	// to that executable
-	const node_gyp = process.platform === 'win32'
-		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+	const node_gyp = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
-	// A shell is only required to launch the .cmd shim on Windows. Running the
-	// node-gyp binary directly on other platforms keeps repo paths that contain
-	// spaces intact (a shell would split them on whitespace).
-	const shell = process.platform === 'win32';
-
+	// Run node-gyp through the current node executable without a shell so that
+	// every path is passed as a discrete argument. This keeps repo paths that
+	// contain spaces intact on all platforms (a shell would split them on
+	// whitespace, and on Windows the .cmd shim has the same problem).
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell });
+		child_process.execFileSync(process.execPath, [node_gyp, 'install', '--dist-url', local.disturl, local.target]);
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell });
+		child_process.execFileSync(process.execPath, [node_gyp, 'install', '--dist-url', remote.disturl, remote.target]);
 	}
 
 	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
