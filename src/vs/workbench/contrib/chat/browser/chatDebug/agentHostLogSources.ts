@@ -414,8 +414,8 @@ export async function findRelevantCopilotLogs(
 		.map(child => ({ path: `copilot-logs/${child.name}`, resource: child.resource, size: child.size }));
 	const files: ICopilotLogFile[] = [];
 	const candidateLogs = processLogs
-		.filter(child => child.size <= MAX_COPILOT_LOG_SCAN_FILE_SIZE)
-		.slice(0, MAX_COPILOT_LOG_SCAN_FILES);
+		.slice(0, MAX_COPILOT_LOG_SCAN_FILES)
+		.filter(child => child.size <= MAX_COPILOT_LOG_SCAN_FILE_SIZE);
 	if (rawSessionId) {
 		for (const candidate of candidateLogs) {
 			try {

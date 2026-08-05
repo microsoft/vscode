@@ -10,18 +10,32 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IStat } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { findRelevantCopilotLogs } from '../../browser/chatDebug/agentHostLogSources.js';
+import { findRelevantCopilotLogs, MAX_COPILOT_LOG_SCAN_FILE_SIZE } from '../../browser/chatDebug/agentHostLogSources.js';
+
+class TestLogFileSystemProvider extends InMemoryFileSystemProvider {
+	readonly oversizedResources = new Set<string>();
+
+	override async stat(resource: URI): Promise<IStat> {
+		const stat = await super.stat(resource);
+		return this.oversizedResources.has(resource.toString())
+			? { ...stat, size: MAX_COPILOT_LOG_SCAN_FILE_SIZE + 1 }
+			: stat;
+	}
+}
 
 suite('AgentHostLogSources', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logsDir = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
 	let fileService: FileService;
+	let fileSystemProvider: TestLogFileSystemProvider;
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileSystemProvider = disposables.add(new TestLogFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, fileSystemProvider));
 		await fileService.createFolder(logsDir);
 	});
 
@@ -74,5 +88,18 @@ suite('AgentHostLogSources', () => {
 		const logs = await findRelevantCopilotLogs(logsDir, 'session-1', fileService, new NullLogService());
 
 		assert.deepStrictEqual(logs.map(log => log.path), ['copilot-logs/recent-9.log']);
+	});
+
+	test('applies the scan size limit within the 10 most recent process logs', async () => {
+		await writeLog('oldest.log', 'session-1');
+		for (let index = 0; index < 9; index++) {
+			await writeLog(`recent-${index}.log`, 'another session');
+		}
+		await writeLog('oversized.log', 'another session');
+		fileSystemProvider.oversizedResources.add(URI.joinPath(logsDir, 'oversized.log').toString());
+
+		const logs = await findRelevantCopilotLogs(logsDir, 'session-1', fileService, new NullLogService());
+
+		assert.deepStrictEqual(logs.map(log => log.path), ['copilot-logs/oversized.log']);
 	});
 });
