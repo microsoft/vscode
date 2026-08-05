@@ -309,7 +309,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
-			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329028
+			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,

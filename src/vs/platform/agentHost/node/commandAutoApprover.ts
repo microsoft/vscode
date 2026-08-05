@@ -639,7 +639,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 	rg: true,
 	'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
-	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329028
+	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 	sed: true,
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
