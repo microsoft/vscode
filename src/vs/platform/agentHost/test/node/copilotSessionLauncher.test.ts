@@ -16,13 +16,14 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
+import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -574,5 +575,19 @@ suite('getCopilotReasoningEffort', () => {
 			],
 			['medium', 'xhigh', 'medium', 'high', undefined]
 		);
+	});
+
+	// The model picker's options are `supportedReasoningEfforts.filter(isCopilotReasoningEffort)`,
+	// so any tier this guard rejects silently disappears from the picker — that is how `'max'`
+	// went missing. The guard must therefore recognize every canonical tier; re-introducing a
+	// narrower private allow-list here has to fail.
+	test('recognizes every canonical reasoning-effort tier so none is dropped from the picker', () => {
+		assert.deepStrictEqual({
+			accepted: reasoningEffortLevels.filter(isCopilotReasoningEffort),
+			rejectsUnknown: isCopilotReasoningEffort('turbo'),
+		}, {
+			accepted: [...reasoningEffortLevels],
+			rejectsUnknown: false,
+		});
 	});
 });
