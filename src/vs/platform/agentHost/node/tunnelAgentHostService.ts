@@ -238,18 +238,18 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		return results;
 	}
 
+	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void> {
+		this._closeTunnelConnections(tunnelId, 'deleting');
+
+		const client = await this._createManagementClient(token, authProvider);
+		const tunnel: Tunnel = { tunnelId, clusterId };
+		this._logService.info(`${LOG_PREFIX} Deleting tunnel ${tunnelId} in cluster ${clusterId}...`);
+		await client.deleteTunnel(tunnel);
+		this._logService.info(`${LOG_PREFIX} Deleted tunnel ${tunnelId}`);
+	}
+
 	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult> {
-		// Tear down any existing connection to this tunnel first.
-		// Each connect() call creates a fresh relay with its own protocol
-		// session, so the old one must be closed to avoid conflicts.
-		for (const [id, conn] of this._connections) {
-			if (conn.address === `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`) {
-				this._logService.info(`${LOG_PREFIX} Closing existing relay for tunnel ${tunnelId} before reconnecting`);
-				this._connections.delete(id);
-				conn.dispose();
-				break;
-			}
-		}
+		this._closeTunnelConnections(tunnelId, 'reconnecting');
 
 		const client = await this._createManagementClient(token, authProvider);
 		const connectionId = generateUuid();
@@ -521,6 +521,17 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			mgmt.ManagementApiVersions.Version20230927preview,
 			async () => authHeader,
 		);
+	}
+
+	private _closeTunnelConnections(tunnelId: string, operation: 'deleting' | 'reconnecting'): void {
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+		for (const [connectionId, connection] of this._connections) {
+			if (connection.address === address) {
+				this._logService.info(`${LOG_PREFIX} Closing existing relay for tunnel ${tunnelId} before ${operation}`);
+				this._connections.delete(connectionId);
+				connection.dispose();
+			}
+		}
 	}
 
 	private _parseTunnelInfo(tunnel: Tunnel): ITunnelInfo | undefined {

@@ -85,5 +85,19 @@ export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
 export const CONFIGURATION_KEY_HOST_NAME = CONFIGURATION_KEY_PREFIX + '.hostNameOverride';
 export const CONFIGURATION_KEY_PREVENT_SLEEP = CONFIGURATION_KEY_PREFIX + '.preventSleep';
 
+/** Maximum length of a dev tunnel name, matching `MAX_TUNNEL_NAME_LENGTH` in the CLI's `cli/src/tunnels/dev_tunnels.rs`. */
+export const MAX_TUNNEL_NAME_LENGTH = 20;
+
+/**
+ * Normalize a machine name into a dev tunnel name, matching the normalization
+ * the CLI performs in `cli/src/tunnels/dev_tunnels.rs` (notably the
+ * `to_ascii_lowercase()` calls). Both `code tunnel` and in-editor remote
+ * session hosting must derive the same name for a given machine, otherwise
+ * they register two dev tunnels that differ only by casing.
+ */
+export function normalizeTunnelName(name: string): string {
+	return name.replace(/^-+/g, '').replace(/[^\w-]/g, '').substring(0, MAX_TUNNEL_NAME_LENGTH).toLowerCase();
+}
+
 export const LOG_ID = 'remoteTunnelService';
 export const LOGGER_NAME = localize('remoteTunnelLog', "Remote Tunnel Service");

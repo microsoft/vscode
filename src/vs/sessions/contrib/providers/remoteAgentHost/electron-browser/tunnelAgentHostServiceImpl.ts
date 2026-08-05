@@ -379,6 +379,17 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 	}
 
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
+		const auth = await this._getToken(false);
+		if (!auth) {
+			throw new Error('No authentication available');
+		}
+
+		this._logService.info(`${LOG_PREFIX} Deleting tunnel '${tunnel.name}' (${tunnel.tunnelId})`);
+		await this._mainService.deleteTunnel(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		this.removeCachedTunnel(tunnel.tunnelId);
+	}
+
 	async disconnect(address: string): Promise<void> {
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
 		this._onDidChangeTunnels.fire();
