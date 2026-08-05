@@ -948,18 +948,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	 * Hides optional title bar toolbars when showing them would push the trailing window controls off-screen (#303222).
 	 */
 	private updateTitleBarToolBarOverflow(): void {
-		for (const element of [this.centerAdjacentToolBarElement, this.updateToolBarElement]) {
-			if (!element) {
-				continue;
-			}
+		const centerAdjacentToolBarElement = this.centerAdjacentToolBarElement?.classList.contains('has-no-actions') ? undefined : this.centerAdjacentToolBarElement;
+		const updateToolBarElement = this.updateToolBarElement?.classList.contains('has-no-actions') ? undefined : this.updateToolBarElement;
 
-			if (element.classList.contains('has-no-actions')) {
-				element.classList.remove('overflowing');
-				continue;
-			}
+		this.centerAdjacentToolBarElement?.classList.remove('overflowing');
+		this.updateToolBarElement?.classList.remove('overflowing');
 
-			element.classList.remove('overflowing');
-			element.classList.toggle('overflowing', this.rootContainer.scrollWidth > this.rootContainer.clientWidth);
+		if (this.rootContainer.scrollWidth <= this.rootContainer.clientWidth) {
+			return;
+		}
+
+		centerAdjacentToolBarElement?.classList.add('overflowing');
+		if (this.rootContainer.scrollWidth > this.rootContainer.clientWidth) {
+			updateToolBarElement?.classList.add('overflowing');
 		}
 	}
 

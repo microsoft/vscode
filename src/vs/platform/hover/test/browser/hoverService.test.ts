@@ -203,7 +203,8 @@ suite('HoverService', () => {
 
 		test('should constrain a right-aligned hover to the available width', () => {
 			const target = createTarget();
-			target.getBoundingClientRect = () => new DOMRect(100, 100, 50, 20);
+			let targetLeft = 100;
+			target.getBoundingClientRect = () => new DOMRect(targetLeft, 100, 50, 20);
 			const hover = showHover('Constrained right aligned hover', target, {
 				position: {
 					hoverPosition: HoverPosition.BELOW,
@@ -218,13 +219,16 @@ suite('HoverService', () => {
 			});
 
 			hoverWidget.layout();
+			const constrainedMaxWidth = hoverWidget.domNode.style.maxWidth;
+			targetLeft = 300;
+			hoverWidget.layout();
 
 			assert.deepStrictEqual({
-				x: hoverWidget.x,
-				maxWidth: hoverWidget.domNode.style.maxWidth
+				constrainedMaxWidth,
+				restoredMaxWidth: hoverWidget.domNode.style.maxWidth
 			}, {
-				x: 2,
-				maxWidth: '146px'
+				constrainedMaxWidth: '146px',
+				restoredMaxWidth: ''
 			});
 			hover.dispose();
 		});
