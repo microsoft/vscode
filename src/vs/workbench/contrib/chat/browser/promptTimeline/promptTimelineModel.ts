@@ -399,6 +399,7 @@ export class PromptTimelineModel extends Disposable {
 		// ordered, so the search stops at the first request below the viewport top
 		// instead of walking the whole (potentially long) transcript on every scroll.
 		const scrollTop = this.widget.scrollTop;
+		const isScrolledToBottom = scrollTop + this.widget.viewportHeight >= this.widget.scrollHeight - 2;
 		const threshold = 24;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
@@ -409,7 +410,7 @@ export class PromptTimelineModel extends Disposable {
 				if (top === undefined) {
 					continue;
 				}
-				if (top > scrollTop + threshold) {
+				if (!isScrolledToBottom && top > scrollTop + threshold) {
 					break;
 				}
 				activeRequestId = item.id;

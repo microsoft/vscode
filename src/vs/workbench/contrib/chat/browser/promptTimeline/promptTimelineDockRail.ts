@@ -122,9 +122,12 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 			}
 		}));
 
-		// Once the pointer is browsing the flyout itself, the row under it is the subject; drop the
-		// dot-driven preview so only one row reads as highlighted.
-		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, () => this._setPreview(-1)));
+		// Keep row and dot feedback paired whichever side of the dock the pointer enters from.
+		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, e => {
+			const target = e.target as Node | null;
+			const rowIndex = target === null ? -1 : this._rows.findIndex(row => row.button.contains(target));
+			this._setPreview(rowIndex);
+		}));
 
 		// Touch + click + keyboard toggle on the handle (iOS needs both click and tap per Sessions guidance).
 		this._register(Gesture.addTarget(this._rest));
