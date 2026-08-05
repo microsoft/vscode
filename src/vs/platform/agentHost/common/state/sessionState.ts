@@ -42,6 +42,7 @@ import {
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
+	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -92,7 +93,7 @@ export {
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolCallContributor,
-	type ToolDefinition, type ToolResultContent,
+	type ToolDefinition, type ToolInput, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type TerminalCommandResult,
 	type ToolResultSubagentContent,
@@ -587,6 +588,7 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	if (!result.content || result.content.length === 0) {
 		return undefined;
 	}
+
 	const textParts: ToolResultTextContent[] = [];
 	for (const c of result.content) {
 		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
@@ -597,6 +599,11 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
+}
+
+/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
+export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
+	return typeof toolInput === 'string' ? toolInput : undefined;
 }
 
 /**

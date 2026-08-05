@@ -188,7 +188,7 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual(actual, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group: 'secondary',
+			group: 'secondary/2_viewMode',
 			order: 20,
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
@@ -199,7 +199,7 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group: 'secondary',
+			group: 'secondary/2_viewMode',
 			order: 20,
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
