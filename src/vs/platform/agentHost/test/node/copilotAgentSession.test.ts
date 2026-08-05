@@ -3374,6 +3374,42 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
 		});
 
+		test('syncs sandbox when the session approval level changes', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+			await session.send('hello', undefined, 'turn-1');
+
+			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
+			await timeout(0);
+
+			setConfigValue(SessionConfigKey.AutoApprove, 'default');
+			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				sandboxConfigs: mockSession.sandboxConfigUpdates,
+			}, {
+				permissionModes: ['off', 'on', 'off'],
+				sandboxConfigs: [
+					{
+						enabled: true,
+						allowBypass: true,
+						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+					},
+					{ enabled: false },
+					{
+						enabled: true,
+						allowBypass: true,
+						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+					},
+				],
+			});
+		});
+
 		test('ignores approval changes for other sessions', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },

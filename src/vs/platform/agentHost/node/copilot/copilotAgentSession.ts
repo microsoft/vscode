@@ -3023,6 +3023,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
 		try {
 			await this.syncPermissionMode('config-change');
+			await this._applyEffectiveSandboxConfig();
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change; aborting active turn`);
 			try {
