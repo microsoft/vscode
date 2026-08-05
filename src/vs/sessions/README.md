@@ -38,7 +38,7 @@ When adding features to the Agents Window:
 1. **Core workbench code** (layout, parts, services) goes under `browser/` or `services/`
 2. **Feature contributions** (views, actions, editors) go under `contrib/<featureName>/browser/`
 3. **Session providers** go under `contrib/providers/<providerName>/browser/`
-4. Register contributions, including desktop-only channel contributions, by importing them in `sessions.desktop.main.ts` (or `sessions.common.main.ts` for browser-compatible code)
+4. Register contributions by importing them in `sessions.desktop.main.ts` (or `sessions.common.main.ts` for browser-compatible code)
 5. Non-provider `contrib/*` modules **must not** import from `contrib/providers/*` — see [LAYERS.md](LAYERS.md)
 6. Update the layout spec ([LAYOUT.md](LAYOUT.md)) for any layout changes
 7. Update the sessions spec ([SESSIONS.md](SESSIONS.md)) when changing provider interfaces or data flow
