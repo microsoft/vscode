@@ -181,6 +181,26 @@ suite('Task event replay', () => {
 			['t1', 't2', 't3']);
 	});
 
+	test('reports truncation from an epoch whose reassembler was replaced by a restart', () => {
+		// The restart installs a fresh reassembler, so the incomplete group from the first epoch is
+		// no longer buffered — the loss has to be remembered or the transcript reads as whole.
+		const chat = defaultChat(SESSION_A);
+		const partial = chunkedEvents(SESSION_A, 2, chat, turnStarted('t2', 'lost to the restart'), 2)[0];
+
+		const history = replayTaskAhpEvents([
+			...completedTurn(SESSION_A, 0, chat, 't1', 'before restart'),
+			partial,
+			...completedTurn(SESSION_A, 0, chat, 't3', 'after restart'),
+		]);
+
+		assert.deepStrictEqual(
+			{
+				truncated: history?.truncated,
+				turns: [...(history?.sessions[0].chats.get(chat)?.turns ?? [])].map(t => t.id),
+			},
+			{ truncated: true, turns: ['t1', 't3'] });
+	});
+
 	test('fails closed on a sequence gap rather than showing a hole as complete', () => {
 		const chat = defaultChat(SESSION_A);
 		assert.throws(() => replayTaskAhpEvents([

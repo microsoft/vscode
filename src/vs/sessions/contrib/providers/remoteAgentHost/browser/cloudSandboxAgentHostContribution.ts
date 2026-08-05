@@ -440,6 +440,14 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (this._readOnlyHandlers.has(sessionType)) {
 			return true;
 		}
+		// The connect can register the live handler for this session type at any await between
+		// starting it and observing its outcome, and registering a second content provider throws.
+		// This check and the registration below are synchronous, so nothing can interleave between
+		// them. A live provider means the session is already served, which is the better outcome.
+		if (this._chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
+			this._logService.trace(`${LOG_PREFIX} ${sessionType} already has a content provider; leaving it to serve the session.`);
+			return true;
+		}
 		if (!env.taskId) {
 			this._logService.warn(`${LOG_PREFIX} No task id for ${address}; cannot serve history read-only.`);
 			return false;
@@ -466,7 +474,13 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	 * screen observe this and disable their composer in place, without needing a reopen.
 	 */
 	private _settleReadOnly(sessionType: string, address: string): void {
-		this._readOnlyInstances.get(sessionType)?.markReadOnly();
+		const handler = this._readOnlyInstances.get(sessionType);
+		if (!handler) {
+			// The live handler owns this session type, so there is nothing being served from
+			// history to settle — and forcing the host read-only here would be wrong.
+			return;
+		}
+		handler.markReadOnly();
 		// The transcript is real, but there is no host left to send to.
 		this._providerInstances.get(address)?.setReadOnly(true);
 	}

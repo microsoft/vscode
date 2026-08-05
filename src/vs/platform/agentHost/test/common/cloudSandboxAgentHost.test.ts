@@ -79,9 +79,9 @@ suite('isRetryableCloudSandboxError', () => {
 	});
 
 	test('an answered request is distinguishable from an unanswered one', () => {
-		// Opening a connection retries only when Mission Control never replied. `_throwForStatus`
-		// is the sole source of CloudSandboxRequestError and always carries the replied status, so
-		// the type alone separates "refused" from "no answer".
+		// `_throwForStatus` is the sole source of CloudSandboxRequestError and always carries the
+		// replied status, so the type alone separates "Mission Control refused" from "no answer" —
+		// which is what lets a caller report a refusal rather than an inconclusive timeout.
 		assert.deepStrictEqual(
 			{
 				refused: new CloudSandboxRequestError(500, 'HTTP 500') instanceof CloudSandboxRequestError,

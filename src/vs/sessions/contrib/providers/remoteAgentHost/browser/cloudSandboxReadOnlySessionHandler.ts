@@ -3,22 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Serves a cloud sandbox session's conversation when its sandbox can no longer be reached.
-//
-// The normal path registers `AgentHostSessionHandler` against a live AHP connection. Once a managed
-// sandbox's compute is deleted that connection can never be established again, and without a
-// content provider the session simply refuses to open — the user loses a conversation Mission
-// Control is still holding.
-//
-// This provider fills that gap: it replays Mission Control's persisted AHP frames and renders them
-// through the very same `turnsToHistory` adapter the live handler uses, so a dead session looks
-// exactly like a live one apart from being read-only.
+// Serves a cloud sandbox session's conversation from Mission Control's persisted AHP frames when
+// its sandbox can no longer be reached, rendering them through the same `turnsToHistory` adapter
+// the live handler uses.
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -157,8 +152,19 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}
 
 		if (replayed?.truncated) {
-			// Surfaced rather than silently presented as a complete transcript.
+			// A partial tail must not read as a complete transcript, so say so in the conversation
+			// itself — a log line is invisible to the person reading it.
 			this._logService.warn(`${LOG_PREFIX} History for task ${this._config.taskId} is truncated; the final exchange may be incomplete.`);
+			history.push({
+				type: 'response',
+				parts: [{
+					kind: 'warning',
+					content: new MarkdownString(localize(
+						'cloudSandbox.truncatedHistory',
+						"This conversation is incomplete. Its recorded history ends mid-response, so the last exchange may be missing.")),
+				}],
+				participant: this._config.agentId,
+			});
 		}
 
 		this._logService.info(`${LOG_PREFIX} Opened ${sessionResource.toString()} read-only with ${history.length} history item(s) from ${chat?.turns.length ?? 0} turn(s); chats=[${[...session.chats.keys()].join(', ')}], default=${session.defaultChat}.`);

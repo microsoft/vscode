@@ -78,6 +78,8 @@ interface ISessionReplayState {
 	modifiedAt: string;
 	nextSeq: number;
 	reassembler: Reassembler;
+	/** Whether an earlier mirror epoch ended with a chunk group that never completed. */
+	abandonedChunkGroup: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,7 +176,7 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 
 		let entry = sessions.get(session);
 		if (!entry) {
-			entry = { envelopes: [], modifiedAt: at, nextSeq: seq, reassembler: new Reassembler() };
+			entry = { envelopes: [], modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
 			sessions.set(session, entry);
 		}
 		entry.modifiedAt = at;
@@ -186,7 +188,10 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 		}
 		if (startsRestartEpoch) {
 			// Mission Control re-hosted the session on a fresh mirror process. Keep the fold so far,
-			// but never carry a half-assembled chunk group across process lifetimes.
+			// but never carry a half-assembled chunk group across process lifetimes. A group still
+			// buffered at the restart is an action the previous epoch never finished emitting, so
+			// remember it — replacing the reassembler is what would otherwise lose that fact.
+			entry.abandonedChunkGroup ||= entry.reassembler.inFlightGroupCount > 0;
 			entry.nextSeq = seq;
 			entry.reassembler = new Reassembler();
 		}
@@ -280,9 +285,9 @@ export function replayTaskAhpEvents(events: readonly unknown[]): IReplayedTaskHi
 	let truncated = false;
 	for (const [session, entry] of decoded) {
 		sessions.push(foldSession(session, entry));
-		// Counts *any* group left buffered, including one abandoned mid-stream. A restart epoch
-		// installs a fresh reassembler, so pre-restart groups correctly stop counting.
-		truncated ||= entry.reassembler.inFlightGroupCount > 0;
+		// Counts *any* group left buffered, including one abandoned mid-stream, plus groups a
+		// restart epoch left unfinished before its reassembler was replaced.
+		truncated ||= entry.abandonedChunkGroup || entry.reassembler.inFlightGroupCount > 0;
 	}
 	return { sessions, truncated };
 }
