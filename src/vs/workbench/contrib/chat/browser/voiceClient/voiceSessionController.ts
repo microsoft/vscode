@@ -4586,15 +4586,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._lastNarratedText.delete(this._sessionKey(sessionId));
 	}
 
+	private _isOmniRoutedSession(sessionId: string | undefined): boolean {
+		return !!sessionId
+			&& !!this._targetOmniRoute
+			&& this._isSameSession(this._targetSession.get()?.toString(), sessionId);
+	}
+
 	/** Whether a response for `sessionId` should defer: true unless it is the
-	 *  session currently shown to the user (untagged audio → play). A reply the
-	 *  user is awaiting is NOT exempted: if they switched away before it arrived,
-	 *  it is deferred like any other background narration and flushed on return. */
+	 *  session currently shown to the user or selected through omni-chat
+	 *  (untagged audio → play). A non-omni reply the user is awaiting is NOT
+	 *  exempted: if they switched away before it arrived, it is deferred like
+	 *  any other background narration and flushed on return. */
 	private _shouldDeferForSession(sessionId: string | undefined): boolean {
 		if (!sessionId) {
 			return false;
 		}
-		return !this._isSameSession(this._shownSessionId(), sessionId);
+		return !this._isOmniRoutedSession(sessionId) && !this._isSameSession(this._shownSessionId(), sessionId);
 	}
 
 	/** True when one of the session's buffered responses is the SAME stream as
@@ -5457,7 +5464,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._STATE_CHANGE_SETTLE_MS);
 	}
 
-	/** React to a session reaching a narratable state. If it's the shown session, speak it now; a completed reply on a background session instead shows the sessions-list pending indicator and is read when focused. A new turn (`thinking`) clears both the dedup and any stale pending indicator. */
+	/** React to a session reaching a narratable state. If it's the shown or omni-routed session, speak it now; a completed reply on another background session instead shows the sessions-list pending indicator and is read when focused. A new turn (`thinking`) clears both the dedup and any stale pending indicator. */
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
 		if (currentState === 'idle' || currentState === 'waiting_for_confirmation') {
@@ -5477,7 +5484,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// their normal visual state but do not speak through this connection.
 			return;
 		}
-		if (!this._isSameSession(sessionId, shownNow)) {
+		if (!this._isOmniRoutedSession(sessionId) && !this._isSameSession(sessionId, shownNow)) {
 			// Background session. A completed reply must not play now: show the
 			// sessions-list indicator and remember the summary so focusing the
 			// session reads it (mirrors the confirmation indicator, which is

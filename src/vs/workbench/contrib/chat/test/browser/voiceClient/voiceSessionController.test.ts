@@ -3846,6 +3846,54 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(session.omni_route, 'new_session');
 	});
 
+	test('plays responses for an omni-routed target without a pending indicator', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+
+		voiceClientService.fireAudioResponse({
+			audio: 'omni response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			responseId: 'omni-response',
+			transcript: 'Omni response.',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			deferredResponses: (Reflect.get(controller, '_deferredResponses') as Map<string, unknown>).size,
+			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
+		}, {
+			playedAudio: ['omni response'],
+			deferredResponses: 0,
+			pendingResponses: 0,
+		});
+	});
+
+	test('narrates a completed omni-routed response when its session is not shown', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		controller.setTargetSession(resource, 'new_session');
+
+		handleStateChange.call(controller, resource.toString(), 'idle', undefined, 'The omni task is complete.', 'vscode-chat://different-session');
+
+		assert.deepStrictEqual({
+			narrations: voiceClientService.requests.map(request => ({ sessionId: request.sessionId, kind: request.kind, text: request.text })),
+			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
+		}, {
+			narrations: [{ sessionId: resource.toString(), kind: 'response', text: 'The omni task is complete.' }],
+			pendingResponses: 0,
+		});
+	});
+
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
 		// Queue semantics applied uniformly: approve the command you were asked
 		// about, then answer the questions.
