@@ -4,23 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAgentModelInfo } from '../../common/agentService.js';
+import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
 /**
- * Model-selection id provider token for Copilot-CAPI routing (the `proxy`
- * transport). This is the default: a bare, un-prefixed id decodes to it, so
- * every model id persisted before per-session provider selection existed keeps
- * routing through the proxy with no migration.
+ * Re-exported so node callers (this module's SDK/transport helpers and their
+ * tests) keep importing the provider tokens from one place, while the tokens
+ * themselves live in `common` for the browser picker contribution to share. See
+ * {@link CLAUDE_PROVIDER_COPILOT} / {@link CLAUDE_PROVIDER_ANTHROPIC}.
  */
-export const CLAUDE_PROVIDER_COPILOT = 'copilot';
-
-/**
- * Model-selection id provider token for the user's own Anthropic account (the
- * `native` transport — API key or Claude subscription).
- */
-export const CLAUDE_PROVIDER_ANTHROPIC = 'anthropic';
+export { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT };
 
 /**
  * Prefix that marks a {@link ModelSelection.id} as carrying an explicit
@@ -128,8 +123,11 @@ export function resolveClaudeSessionTransport(inputs: {
  * (`proxy`) list and the native Anthropic (`native`) list — into the single flat
  * catalog the picker renders. Each model's id is rewritten to a
  * provider-qualified {@link toClaudeModelSelectionId} so selecting a row carries
- * the transport with it, and so the same model offered by both providers yields
- * two distinct, separately selectable rows rather than colliding.
+ * the transport with it, and its `provider` is re-stamped with the same transport
+ * token ({@link CLAUDE_PROVIDER_COPILOT} / {@link CLAUDE_PROVIDER_ANTHROPIC}) so
+ * the picker buckets it under the matching group — the same model offered by both
+ * providers thus yields two distinct, separately selectable rows in two groups
+ * rather than colliding.
  *
  * Proxy models come first to preserve the picker's `models[0]`-is-default
  * convention for the common (Copilot) case. Every other field is passed through
@@ -144,7 +142,7 @@ export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], nati
 	];
 }
 
-/** Re-id each model with its provider-qualified selection id, leaving all other fields intact. */
+/** Re-id each model with its provider-qualified selection id and re-stamp its `provider` with the same token, leaving all other fields intact. */
 function withQualifiedProvider(models: readonly IAgentModelInfo[], provider: string): IAgentModelInfo[] {
-	return models.map(model => ({ ...model, id: toClaudeModelSelectionId(provider, model.id) }));
+	return models.map(model => ({ ...model, id: toClaudeModelSelectionId(provider, model.id), provider }));
 }

@@ -58,14 +58,17 @@ suite('claudeModelSelection', () => {
 		const model = (id: string, name: string, supportsVision = false): IAgentModelInfo =>
 			({ provider: CLAUDE_AGENT_PROVIDER_ID, id, name, supportsVision });
 
-		test('lists proxy models first, qualifies each id by its provider, preserves every other field', () => {
+		test('lists proxy models first, qualifies each id + stamps each provider by transport, preserves every other field', () => {
 			const merged = mergeClaudeModelCatalogs(
 				[model('claude-opus-4-8', 'Claude Opus 4.8', true)],
 				[model('claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5')],
 			);
+			// The input carries the harness provider (`claude`); the merge re-stamps each
+			// model with its transport provider so the picker groups Copilot-routed and
+			// native Anthropic models into separate buckets.
 			assert.deepStrictEqual(merged, [
-				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=copilot:claude-opus-4-8', name: 'Claude Opus 4.8', supportsVision: true },
-				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=anthropic:claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', supportsVision: false },
+				{ provider: CLAUDE_PROVIDER_COPILOT, id: '@provider=copilot:claude-opus-4-8', name: 'Claude Opus 4.8', supportsVision: true },
+				{ provider: CLAUDE_PROVIDER_ANTHROPIC, id: '@provider=anthropic:claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', supportsVision: false },
 			]);
 		});
 

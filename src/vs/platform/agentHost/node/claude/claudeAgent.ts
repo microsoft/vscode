@@ -97,10 +97,13 @@ interface IClaudeModelSupports {
 
 /**
  * Project a {@link CCAModel} into the agent host's
- * {@link IAgentModelInfo} surface. The returned `provider` is the
- * agent's id (`'claude'`) — clients filter the root state's model list
- * by provider, so this must match {@link ClaudeAgent.id}, NOT the
- * upstream `vendor: 'Anthropic'` field.
+ * {@link IAgentModelInfo} surface. The returned `provider` defaults to the
+ * agent's id (`'claude'`), NOT the upstream `vendor: 'Anthropic'` field — the
+ * chat model picker *groups* (does not filter) the model list by `provider`, so
+ * a single, un-merged catalog buckets under the harness. When per-session
+ * provider selection is on, {@link mergeClaudeModelCatalogs} re-stamps each model
+ * with its transport provider (`copilot`/`anthropic`) to split the picker into a
+ * Copilot group and an Anthropic group.
  */
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
 	const supports = m.capabilities?.supports;

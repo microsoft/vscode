@@ -10,7 +10,8 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, CLAUDE_AGENT_PROVIDER_ID, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CLAUDE_PROVIDER_ANTHROPIC } from '../../../../../../platform/agentHost/common/claudeProviders.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -318,6 +319,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
 		const vendorDescriptors = [
 			{ vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined },
+			...(agent.provider === CLAUDE_AGENT_PROVIDER_ID ? [{
+				// Native Anthropic models (per-session provider selection) are stamped
+				// `provider: CLAUDE_PROVIDER_ANTHROPIC` by the agent host's merged catalog;
+				// register the matching vendor so the picker labels their group "Anthropic".
+				// Copilot-routed Claude models group under the global `copilot` vendor. Dormant
+				// while the feature is off — no Claude model carries this provider then.
+				vendor: CLAUDE_PROVIDER_ANTHROPIC,
+				displayName: localize('agentHostModelProvider.anthropic', "Anthropic"),
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+			}] : []),
 		];
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors(vendorDescriptors, []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], vendorDescriptors)));
