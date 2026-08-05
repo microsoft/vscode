@@ -335,6 +335,10 @@ export class ContextView extends Disposable {
 		const anchor = getAnchorRect(this.delegate!.getAnchor());
 		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
 		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
+		this.view.classList.toggle('fixed', this.useFixedPosition);
+		this.view.style.top = '0px';
+		this.view.style.left = '0px';
+		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
@@ -345,33 +349,9 @@ export class ContextView extends Disposable {
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		this.view.classList.toggle('fixed', this.useFixedPosition);
 
-		// For absolute positioning, we need to find the actual containing block
-		// (the nearest positioned ancestor) and calculate the offset relative to it.
-		// Using the container's position would be incorrect if the container has
-		// position: static (the default), as the containing block would be different.
-		let positionOffset: { top: number; left: number };
-		if (this.useFixedPosition) {
-			// For fixed positioning, we need to adjust for the view's current position
-			positionOffset = DOM.getDomNodePagePosition(this.view);
-		} else {
-			// For absolute positioning, find the actual containing block using offsetParent
-			const offsetParent = this.view.offsetParent;
-			if (offsetParent && DOM.isHTMLElement(offsetParent)) {
-				positionOffset = DOM.getDomNodePagePosition(offsetParent);
-			} else {
-				// When there's no offsetParent, the containing block is the initial containing block (viewport)
-				positionOffset = { top: 0, left: 0 };
-			}
-		}
-
-		// Account for container scroll when positioning the context view
-		const containerScrollTop = this.container!.scrollTop || 0;
-		const containerScrollLeft = this.container!.scrollLeft || 0;
-
-		this.view.style.top = `${top - positionOffset.top + containerScrollTop}px`;
-		this.view.style.left = `${left - positionOffset.left + containerScrollLeft}px`;
+		this.view.style.top = `${top - positioningOrigin.top}px`;
+		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
 	}
 

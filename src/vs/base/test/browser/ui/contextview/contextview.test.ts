@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, getWindow } from '../../../../browser/dom.js';
+import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
 import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -96,46 +96,117 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
-	test('positions absolute view relative to the containing block when the container is position: static', () => {
-		// The containing block for an absolutely positioned element is the nearest
-		// positioned ancestor (offsetParent), which is not necessarily the container
-		// the context view is appended to. When the container is position: static
-		// (the default) and sits offset inside a positioned ancestor, positioning the
-		// view relative to the container instead of the ancestor pushed it off-screen.
-		const ancestor = $('.ancestor');
-		ancestor.style.position = 'relative';
-
-		// A spacer offsets the (statically positioned) container inside the ancestor,
-		// so the container's page position differs from the containing block's.
+	test('positions absolute view when the container is position: static', () => {
+		const host = $('.host');
 		const spacer = $('.spacer');
 		spacer.style.height = '60px';
+		const container = $('.container');
+		host.append(spacer, container);
+		document.body.appendChild(host);
 
-		const container = $('.container'); // position: static (default)
-		ancestor.appendChild(spacer);
-		ancestor.appendChild(container);
-		document.body.appendChild(ancestor);
-
-		const anchorY = 100;
 		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
 		contextView.show({
-			getAnchor: () => ({ x: 0, y: anchorY, width: 0, height: 0 }),
+			getAnchor: () => ({ x: 100, y: 100, width: 1, height: 1 }),
 			render: view => {
-				view.textContent = 'x';
+				view.style.width = '10px';
+				view.style.height = '10px';
 				return null;
 			}
 		});
 
-		// The view must render at the anchor's page position. Anchoring it to the
-		// container (60px lower) instead of the containing block would render it
-		// ~60px too high.
-		const viewTop = contextView.getViewElement().getBoundingClientRect().top;
-		assert.ok(
-			Math.abs(viewTop - anchorY) <= 8,
-			`expected view to render near anchor y=${anchorY}, got ${viewTop}`
-		);
+		const position = getDomNodePagePosition(contextView.getViewElement());
+		assert.deepStrictEqual({
+			left: Math.round(position.left),
+			top: Math.round(position.top)
+		}, {
+			left: 100,
+			top: 101
+		});
+
+		contextView.dispose();
+		host.remove();
+	});
+
+	test('positions absolute view in a bordered scrolling containing block', () => {
+		const ancestor = $('.ancestor');
+		ancestor.style.position = 'relative';
+		ancestor.style.border = '10px solid transparent';
+		ancestor.style.overflow = 'scroll';
+		ancestor.style.width = '200px';
+		ancestor.style.height = '200px';
+
+		const container = $('.container');
+		container.style.width = '500px';
+		container.style.height = '500px';
+		ancestor.appendChild(container);
+		document.body.appendChild(ancestor);
+		ancestor.scrollLeft = 30;
+		ancestor.scrollTop = 40;
+
+		const ancestorPosition = getDomNodePagePosition(ancestor);
+		const anchor = {
+			x: ancestorPosition.left + 100,
+			y: ancestorPosition.top + 100,
+			width: 1,
+			height: 1
+		};
+		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
+		contextView.show({
+			getAnchor: () => anchor,
+			render: view => {
+				view.style.width = '10px';
+				view.style.height = '10px';
+				return null;
+			}
+		});
+
+		const position = getDomNodePagePosition(contextView.getViewElement());
+		assert.deepStrictEqual({
+			scrollLeft: ancestor.scrollLeft,
+			scrollTop: ancestor.scrollTop,
+			left: Math.round(position.left),
+			top: Math.round(position.top)
+		}, {
+			scrollLeft: 30,
+			scrollTop: 40,
+			left: Math.round(anchor.x),
+			top: Math.round(anchor.y + anchor.height)
+		});
 
 		contextView.dispose();
 		ancestor.remove();
+	});
+
+	test('relayouts fixed view from the positioning origin', () => {
+		const container = $('.container');
+		document.body.appendChild(container);
+
+		let anchorY = 100;
+		const contextView = new ContextView(container, ContextViewDOMPosition.FIXED);
+		contextView.show({
+			getAnchor: () => ({ x: 100, y: anchorY, width: 1, height: 1 }),
+			render: view => {
+				view.textContent = 'x';
+				view.style.width = '10px';
+				view.style.height = '10px';
+				return null;
+			}
+		});
+
+		anchorY = 200;
+		contextView.layout();
+
+		const position = getDomNodePagePosition(contextView.getViewElement());
+		assert.deepStrictEqual({
+			left: Math.round(position.left),
+			top: Math.round(position.top)
+		}, {
+			left: 100,
+			top: 201
+		});
+
+		contextView.dispose();
+		container.remove();
 	});
 
 	test('menu motion does not retain a containing block for submenus (#326248)', () => {
