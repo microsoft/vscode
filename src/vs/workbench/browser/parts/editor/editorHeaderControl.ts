@@ -7,6 +7,7 @@ import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView } from './editor.js';
@@ -141,24 +142,25 @@ export class EditorHeaderControl extends Disposable {
 
 		const store = new DisposableStore();
 		const scopedInstantiationService = this.groupView.activeEditorPane?.scopedInstantiationService ?? this.instantiationService;
-		const toolbarOptions = {
+		const createToolbarOptions = (ariaLabel: string) => ({
+			ariaLabel,
 			menuOptions: {
 				arg: EditorResourceAccessor.getOriginalUri(this.groupView.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
 				shouldForwardArgs: true,
 			},
 			highlightToggledItems: true,
 			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
-		};
+		});
 		if (headerPrimaryMenuId) {
-			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, toolbarOptions));
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"))));
 			store.add(toolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		if (headerSecondaryMenuId) {
-			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, toolbarOptions));
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"))));
 			store.add(toolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		if (headerLayoutMenuId) {
-			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, toolbarOptions));
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"))));
 			store.add(toolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;

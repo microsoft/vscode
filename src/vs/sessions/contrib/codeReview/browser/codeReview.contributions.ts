@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -90,10 +91,14 @@ class RunSessionCodeReviewAction extends Action2 {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const resource = URI.isUri(sessionResource)
+		const candidateResource = URI.isUri(sessionResource)
 			? sessionResource
 			: sessionsService.activeSession.get()?.resource;
+		const resource = candidateResource
+			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
+			: undefined;
 		if (!resource) {
 			return;
 		}

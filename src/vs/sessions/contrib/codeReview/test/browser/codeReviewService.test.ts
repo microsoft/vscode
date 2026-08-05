@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -26,7 +28,9 @@ import { SessionChangesEditorInput } from '../../../changes/browser/sessionChang
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 
 suite('CodeReviewService', () => {
@@ -305,7 +309,7 @@ suite('CodeReviewService', () => {
 
 suite('Code Review Contributions', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Run Code Review is right-inline when visible and first in overflow when collapsed', () => {
 		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
@@ -371,6 +375,38 @@ suite('Code Review Contributions', () => {
 			item.when?.serialize().includes(SessionIsCreatedContext.key),
 			true,
 		);
+	});
+
+	test('Run Code Review resolves a Changes editor resource to its owning session', async () => {
+		const sessionResource = URI.parse('session:test');
+		const editorResource = URI.parse('changes-multi-diff-source:test');
+		const session = {
+			resource: sessionResource,
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		} as ISession;
+		let sentQuery: string | undefined;
+		const testInstantiationService = store.add(new TestInstantiationService());
+		testInstantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSession(resource: URI): ISession | undefined {
+				return resource.toString() === sessionResource.toString() ? session : undefined;
+			}
+			override async sendNewChatRequest(_session: ISession, options: ISendRequestOptions): Promise<void> {
+				sentQuery = options.query;
+			}
+		});
+		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getSessionResource(resource: URI): URI | undefined {
+				return resource.toString() === editorResource.toString() ? sessionResource : undefined;
+			}
+		});
+		const command = CommandsRegistry.getCommand('sessions.codeReview.run');
+		assert.ok(command);
+
+		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, editorResource));
+
+		assert.strictEqual(sentQuery, '/code-review');
 	});
 });
 
