@@ -9,46 +9,81 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { completeWin32UpdateAttempt, Win32UpdateAttempt } from '../../electron-main/win32UpdateAttempt.js';
 
 suite('Win32UpdateAttempt', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses unique control files and completes only the current attempt once', () => {
+	test('uses isolated control files for each attempt', () => {
+		const firstProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'first-process-id');
+		const nextProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'next-process-id');
+
+		assert.deepStrictEqual({
+			firstProcessControlFiles: [
+				path.basename(firstProcessAttempt.updateFilePath),
+				path.basename(firstProcessAttempt.progressFilePath),
+				path.basename(firstProcessAttempt.cancelFilePath)
+			],
+			nextProcessControlFiles: [
+				path.basename(nextProcessAttempt.updateFilePath),
+				path.basename(nextProcessAttempt.progressFilePath),
+				path.basename(nextProcessAttempt.cancelFilePath)
+			]
+		}, {
+			firstProcessControlFiles: [
+				'CodeSetup-insider-next-first-process-id.flag',
+				'update-progress-first-process-id',
+				'cancel-first-process-id.flag'
+			],
+			nextProcessControlFiles: [
+				'CodeSetup-insider-next-next-process-id.flag',
+				'update-progress-next-process-id',
+				'cancel-next-process-id.flag'
+			]
+		});
+
+		firstProcessAttempt.complete();
+		nextProcessAttempt.complete();
+	});
+
+	test('completion is idempotent and cancels the attempt', () => {
+		const attempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'attempt-id');
+		let cancellationCount = 0;
+		store.add(attempt.cancellationTokenSource.token.onCancellationRequested(() => cancellationCount++));
+
+		const firstCompletion = attempt.complete();
+		const secondCompletion = attempt.complete();
+
+		assert.deepStrictEqual({
+			firstCompletion,
+			secondCompletion,
+			isActive: attempt.isActive,
+			isCancellationRequested: attempt.cancellationTokenSource.token.isCancellationRequested,
+			cancellationCount
+		}, {
+			firstCompletion: true,
+			secondCompletion: false,
+			isActive: false,
+			isCancellationRequested: true,
+			cancellationCount: 1
+		});
+	});
+
+	test('only the current attempt can be completed', () => {
 		const currentAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'current-id');
 		const staleAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'stale-id');
 
 		const staleCompleted = completeWin32UpdateAttempt(currentAttempt, staleAttempt);
+		const missingCompleted = completeWin32UpdateAttempt(undefined, currentAttempt);
 		const currentCompleted = completeWin32UpdateAttempt(currentAttempt, currentAttempt);
-		const lateCompletion = completeWin32UpdateAttempt(currentAttempt, currentAttempt);
 
 		assert.deepStrictEqual({
-			currentControlFiles: [
-				path.basename(currentAttempt.updateFilePath),
-				path.basename(currentAttempt.progressFilePath),
-				path.basename(currentAttempt.cancelFilePath)
-			],
-			staleControlFiles: [
-				path.basename(staleAttempt.updateFilePath),
-				path.basename(staleAttempt.progressFilePath),
-				path.basename(staleAttempt.cancelFilePath)
-			],
 			staleCompleted,
+			missingCompleted,
 			currentCompleted,
-			lateCompletion,
 			currentActive: currentAttempt.isActive,
 			staleActive: staleAttempt.isActive
 		}, {
-			currentControlFiles: [
-				'CodeSetup-insider-next-current-id.flag',
-				'update-progress-current-id',
-				'cancel-current-id.flag'
-			],
-			staleControlFiles: [
-				'CodeSetup-insider-next-stale-id.flag',
-				'update-progress-stale-id',
-				'cancel-stale-id.flag'
-			],
 			staleCompleted: false,
+			missingCompleted: false,
 			currentCompleted: true,
-			lateCompletion: false,
 			currentActive: false,
 			staleActive: true
 		});
