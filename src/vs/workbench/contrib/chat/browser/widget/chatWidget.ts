@@ -93,6 +93,7 @@ import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnly
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
+import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 
 const $ = dom.$;
 
@@ -325,6 +326,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
 	private _isInputOnboardingVisible = false;
+	private _isInputNotificationVisible = false;
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -483,7 +485,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 
-		this.readOnlyBanner = viewOptions.isSessionsWindow ? undefined : this._register(instantiationService.createInstance(ChatReadOnlyBanner));
+		this.readOnlyBanner = viewOptions.isSessionsWindow
+			? undefined
+			: this._register(instantiationService.createInstance(
+				ChatReadOnlyBanner,
+				viewOptions.readOnlyBannerAtTop ? localize('chatReadOnlyBanner.message', "This chat is read-only") : undefined,
+			));
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
@@ -817,15 +824,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
-			if (this.readOnlyBanner) {
+			if (this.readOnlyBanner && !this.viewOptions.readOnlyBannerAtTop) {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+			if (this.readOnlyBanner && this.viewOptions.readOnlyBannerAtTop) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
+			if (this.readOnlyBanner && this.viewOptions.readOnlyBannerAtTop) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
-			if (this.readOnlyBanner) {
+			if (this.readOnlyBanner && !this.viewOptions.readOnlyBannerAtTop) {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
@@ -1226,7 +1239,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
-		if (this.isInputOnboardingVisible()) {
+		if (this.isGettingStartedTipSuppressed()) {
 			this.clearGettingStartedTip();
 			return;
 		}
@@ -1288,7 +1301,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private setInputOnboardingVisible(visible: boolean): void {
 		this._isInputOnboardingVisible = visible;
-		if (visible) {
+		this.updateGettingStartedTipVisibility();
+	}
+
+	private setInputNotificationVisible(visible: boolean): void {
+		this._isInputNotificationVisible = visible;
+		this.updateGettingStartedTipVisibility();
+	}
+
+	private isGettingStartedTipSuppressed(): boolean {
+		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+	}
+
+	private updateGettingStartedTipVisibility(): void {
+		if (this.isGettingStartedTipSuppressed()) {
 			this.clearGettingStartedTip();
 		} else if (this.isEmpty()) {
 			this.renderGettingStartedTipIfNeeded();
@@ -2089,6 +2115,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2574,6 +2601,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
+		}
+
+		if (!options?.preserveInput) {
+			// preserveInput submissions (e.g. /compact or programmatic maintenance
+			// requests) leave the input draft untouched, so they must not stop an
+			// unrelated dictation and flush its final transcript into that draft.
+			await stopDictationForEditor(this.inputEditor);
 		}
 
 		if (this.viewModel) {

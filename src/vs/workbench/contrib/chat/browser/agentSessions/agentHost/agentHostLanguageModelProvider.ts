@@ -77,7 +77,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const tooltip = isAuto
 					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined;
-				const modelGroup = AgentHostLanguageModelProvider._modelGroupFor(m);
+				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				return {
 					identifier: `${this._vendor}:${m.id}`,
@@ -157,16 +157,21 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * Derives the picker group id for a model — the vendor its models are bucketed
-	 * under. BYOK models are surfaced by the agent host under the `vendor/id` selection
+	 * under. BYOK models are surfaced by the agent host under the `vendor/[group/]id` selection
 	 * id (see `resolveByokSessionConfig`), so their upstream vendor is the id prefix;
 	 * native harness models have no prefix and group under their `provider` (the harness,
 	 * e.g. `copilotcli`). The picker resolves the display name from the vendor registry —
 	 * no name mapping lives here.
 	 */
-	private static _modelGroupFor(model: SessionModelInfo): { id: string } | undefined {
+	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
 		const slash = model.id.indexOf('/');
 		const groupVendorId = slash > 0 ? model.id.slice(0, slash) : model.provider;
-		return groupVendorId ? { id: groupVendorId } : undefined;
+		if (!groupVendorId) {
+			return undefined;
+		}
+		return this._sessionType === 'agent-host-codex' && model.provider === 'chatgpt'
+			? { id: groupVendorId, source: 'chatgptSubscription' }
+			: { id: groupVendorId };
 	}
 
 	async sendChatRequest(): Promise<never> {

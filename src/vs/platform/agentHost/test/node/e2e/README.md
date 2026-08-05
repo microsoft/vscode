@@ -105,7 +105,8 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
-| `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots, resolved relative to the entry point that registered the test. |
+| `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
+| `providers/copilotPromptsE2E.integrationTest.ts` | The prompt boundary: the system prompt and tool schemas the bundled Copilot CLI assembles, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
@@ -286,6 +287,38 @@ The AHP update preserves the executable `clientToServer` input and replaces only
 `AGENT_HOST_UPDATE_SNAPSHOTS=1` records both boundaries in one run. The AHP recorder coalesces streamed `chat/responsePart` + `chat/delta` traffic into final semantic content, so live CAPI chunking and replay-generated chunking produce the same snapshot. `AGENT_HOST_REPLAY_RECORD=1` updates only LLM fixtures.
 
 The update scope is the tests selected by the command. Running a whole provider file intentionally re-records every test in that file, so provider-default model changes can produce broad fixture diffs. Add `--grep "<test title>"` when only one scenario needs updating. Record-only scenarios such as abort are excluded from combined updates.
+
+### Prompt snapshots
+
+`providers/copilotPromptsE2E.integrationTest.ts` pins what the bundled Copilot CLI actually gives the model: the assembled system prompt, the tool definitions, and the turn messages with the context the CLI injects around them (`<current_datetime>`, `<system_reminder>`).
+
+It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails.
+
+Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
+
+The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
+
+The model catalog is the same trade. The CLI inlines the whole `/models` list into the `Task` tool's schema, as a count and a per-model listing, so left verbatim a single new entry in `capiStubs.ts` would rewrite every baseline — including those of models nobody snapshots. The labels survive, so the catalog vanishing from the prompt, or changing shape, still fails.
+
+`SNAPSHOT_MODELS` holds one entry per model family. It includes the families in the Copilot extension's `agentPrompt.spec.tsx` that reach the model under replay, plus newer families supported by the Agent Host. Families sharing a dialect largely produce the same prompt — the CLI does not branch it per model within a dialect, and the host contributes the same sections to every model — so several baselines are near-identical by construction. They are kept per family anyway so a future per-model divergence shows up against the family that introduced it.
+
+Every model is selected explicitly. Sending no selection is deliberately not pinned: the CLI would then pick from the stub catalog by its own ranking, so the baseline would record a property of this suite's fixture rather than the product, and would move whenever a higher-ranked model was added to or removed from `capiStubs.ts`.
+
+The prompt is the CLI's product, not the host's — it is compiled into the `@github/copilot` native binary and only becomes observable when the CLI serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository.
+
+Accept a new baseline with the same flag the AHP snapshots use, then review the diff:
+
+```bash
+AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts
+```
+
+Two constraints when adding a model:
+
+1. **It must appear in `harness/capiStubs.ts`'s stub catalog.** A model absent from `/models` is rejected before the CLI builds a request, and the test fails with no captured body.
+2. **It needs a committed fixture** at `captures/copilotcli-<slugified-test-title>.yaml`, because a replayed turn still has to be answered. Match the fixture dialect to the model's stub endpoint: `/responses` uses `dialect: responses`, while `/v1/messages` uses `dialect: anthropic`.
+
+A diff here means the CLI changed (an SDK bump) or the host changed what it hands the CLI. Editing the repository instructions does not, by design. The host's own contribution is included: `resolveSystemMessageConfig` in `node/copilot/prompts/promptRegistry.ts` composes sections that land in this prompt verbatim, so the baseline covers them end to end. What it does *not* reach is a per-model contributor gated behind host configuration — the E2E harness has no seam for setting root config, so those gates stay covered by `test/node/agentHostPromptRegistry.test.ts`.
 
 1. The proxy forwards all traffic to real CAPI (`AGENT_HOST_RECORD_CAPI_URL`, default `https://api.githubcopilot.com`) and GitHub (`AGENT_HOST_RECORD_GITHUB_URL`, default `https://api.github.com`).
 2. Auth: `GITHUB_TOKEN` (preferred) or `gh auth token`. The GitHub token is used directly as the CAPI bearer credential (same pattern as the `@github/copilot` CLI). It lives only in request headers and is **never** written to fixtures.
@@ -474,16 +507,16 @@ The **Protocol symbols** column lists what each row is responsible for; check `c
 
 | Area | Status | Protocol symbols |
 |---|---|---|
-| Client-hosted filesystem (reverse requests) | migrated — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` still uncovered |
+| Client-hosted filesystem (reverse requests) | migrated — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` covered |
 | Turn history paging | migrated — `suites/protocolContractsSuite.ts` | `fetchTurns`, `chat/turnsLoaded` — covered |
 | Reconnect and multi-client fan-out | partly migrated — `suites/protocolContractsSuite.ts` covers `reconnect`; fan-out across several live clients is still only in `multiClient` | `reconnect` — covered |
-| Changeset lifecycle | migrated — `suites/changesetSuite.ts` | 5 of 8 `changeset/*` covered; `fileSet`, `fileRemoved`, `operationStatusChanged` still uncovered |
+| Changeset lifecycle | migrated — `suites/changesetSuite.ts` | `operationStatusChanged` covered; `fileSet` and `fileRemoved` remain uncovered |
 | OTLP export | still only in `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` uncovered |
 | Liveness | migrated — `suites/protocolContractsSuite.ts` | `ping` — covered |
 
 Changeset lifecycle followed. `suites/changesetSuite.ts` covers status, content, review state, the operations a changeset advertises, and the catalog in the conformance tier, driving real git-backed edits through host-executed bang commands so no scenario crosses the model boundary. The frozen suite's version could not be copied: it drives a mock agent with the magic prompt `terminal-edit:<path>`, which no other AHP implementation would understand.
 
-The three remaining `changeset/*` actions need scenarios this suite does not yet reach: `fileSet` / `fileRemoved` are the incremental per-file updates (the bulk `contentChanged` path is what a fresh session emits), and `operationStatusChanged` needs an invoked operation — `commit` and `discard-changes` are the two that run without network access.
+The two remaining `changeset/*` actions need scenarios this suite does not yet reach: `fileSet` / `fileRemoved` are the incremental per-file updates (the bulk `contentChanged` path is what a fresh session emits). `operationStatusChanged` is covered through the discard operation.
 
 The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
 

@@ -40,8 +40,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	 * Steers the agent toward its own file tools instead of a shell command.
 	 *
 	 * These tests assert that a *file operation* happened, not that a shell ran.
-	 * Left to choose, providers diverge: Claude and Codex already reach for their
-	 * file tools here, while Copilot reaches for `bash` — and whichever POSIX
+	 * Left to choose, providers diverge: Claude reaches for its file tools,
+	 * Copilot reaches for `bash`, and Codex has no provider-native file tools.
+	 * Whichever POSIX
 	 * command it happens to emit is then frozen into the fixture and cannot
 	 * replay on Windows. Asking for the file tool removes the platform coupling
 	 * and exercises the more meaningful path.

@@ -70,6 +70,14 @@
 	border-bottom-right-radius: 0;
 }
 
+.style-override .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.style-override .part.statusbar > .right-items > .statusbar-item.visible-background-color-neighbor {
+	margin-right: var(--vscode-spacing-size40);
+}
+
 /*
  * Compact combo controls — a left/right pair that merges into one pill — give
  * the whole combo a single hover tint (painted inline on every sub-item's label

@@ -17,6 +17,7 @@ export const CODEX_SDK_ROOT = resolveCodexSdkRoot();
 export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Codex',
 	provider: 'codex',
+	modelProviders: ['copilot'],
 	scheme: 'codex',
 	shellToolName: 'shell',
 	subagentToolNames: [],
