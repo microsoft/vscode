@@ -10,6 +10,7 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Range } from '../../../../common/core/range.js';
+import { InputMode } from '../../../../common/inputMode.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
@@ -419,6 +420,30 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('replacing part of a line still reindents that line\'s remainder', () => {
+
+		// the paste replaces the leading whitespace of `old()`, so the trailing line of the
+		// range is that line's remainder, which lost its indentation and has to get it back
+
+		const model = createTextModel([
+			'function f() {',
+			'    old()',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', autoIndentOnPaste: false, serviceCollection }, editor => {
+			editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			editor.updateOptions({ autoIndentOnPaste: true });
+			editor.setSelection(new Selection(2, 1, 2, 5));
+			editor.trigger('keyboard', 'paste', { text: 'foo\n', pasteOnNewLine: false });
+			assert.deepStrictEqual({ text: model.getValue(), selection: editor.getSelection() }, {
+				text: ['function f() {', '    foo', '    old()', '}'].join('\n'),
+				selection: new Selection(3, 5, 3, 5)
+			});
+		});
+	});
+
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 
 		const model = createTextModel('', languageId, {});
@@ -461,7 +486,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16));
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16), false);
 			assert.strictEqual(model.getValue(), pasteText);
 		});
 	});
@@ -490,7 +515,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(1, 1, 11, 2));
+			autoIndentOnPasteController.trigger(new Range(1, 1, 11, 2), false);
 			assert.strictEqual(model.getValue(), pasteText);
 		});
 	});
@@ -510,7 +535,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const text = ', null';
 			viewModel.paste(text, true, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			autoIndentOnPasteController.trigger(new Range(2, 6, 2, 11));
+			autoIndentOnPasteController.trigger(new Range(2, 6, 2, 11), false);
 			assert.strictEqual(model.getValue(), [
 				'const linkHandler = new Class(a, b, c,',
 				'    d, null)'
@@ -537,7 +562,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const text = 'IMacLinuxKeyMapping';
 			viewModel.paste(text, true, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			autoIndentOnPasteController.trigger(new Range(5, 24, 5, 43));
+			autoIndentOnPasteController.trigger(new Range(5, 24, 5, 43), false);
 			assert.strictEqual(model.getValue(), [
 				'class A {',
 				'    /**',
@@ -565,7 +590,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n');
 			viewModel.paste(text, true, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 22));
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 22), false);
 			assert.strictEqual(model.getValue(), text);
 		});
 	});
@@ -601,7 +626,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			editor.setSelection(new Selection(2, 10, 2, 15));
 			viewModel.paste('which', true, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			autoIndentOnPasteController.trigger(new Range(2, 1, 2, 28));
+			autoIndentOnPasteController.trigger(new Range(2, 1, 2, 28), false);
 			assert.strictEqual(model.getValue(), initialText);
 		});
 	});
@@ -650,7 +675,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4));
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4), false);
 			assert.strictEqual(model.getValue(), text);
 		});
 	});
@@ -676,7 +701,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(2, 1, 5, 1));
+			autoIndentOnPasteController.trigger(new Range(2, 1, 5, 1), false);
 
 			// notes:
 			// why is line 3 not indented to the same level as line 2?
@@ -718,7 +743,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
-			autoIndentOnPasteController.trigger(new Range(2, 5, 5, 6));
+			autoIndentOnPasteController.trigger(new Range(2, 5, 5, 6), false);
 			assert.strictEqual(model.getValue(), [
 				'() => {',
 				'    () => {',
@@ -748,7 +773,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
-			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 2));
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 2), false);
 			assert.strictEqual(model.getValue(), [
 				'function makeSub(a,b) {',
 				'subsent = sent.substring(a,b);',
@@ -809,7 +834,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(2, 1, 3, 15));
+			autoIndentOnPasteController.trigger(new Range(2, 1, 3, 15), false);
 			assert.strictEqual(model.getValue(), [
 				'function bar() {',
 				'    // comment',
@@ -1474,6 +1499,141 @@ suite('Auto Indent On Type - Ruby', () => {
 	});
 });
 
+suite('Auto Indent On Paste - Ruby', () => {
+
+	const languageId = Language.Ruby;
+	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService], [ILanguageConfigurationService, languageConfigurationService]
+		);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const fixture of [
+		{
+			name: 'issue #143573: pasting multi-line code does not reindent the line after the paste',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 1, 2, 1),
+			text: 'def bar\nend\n',
+			after: ['    def foo; end', '    def bar', '    end', '    def baz; end'],
+			cursor: new Selection(4, 1, 4, 1)
+		},
+		{
+			name: 'issue #143573: pasting into an array literal does not move the closing bracket',
+			before: ['array = [', '  "foo",', ']'], selection: new Selection(3, 1, 3, 1),
+			text: '"bar",\n"baz",\n', after: ['array = [', '  "foo",', '  "bar",', '  "baz",', ']'],
+			cursor: new Selection(5, 1, 5, 1)
+		},
+		{
+			name: 'issue #143573: a whitespace only line after the paste keeps its indentation',
+			before: ['def foo', '    ', 'end'], selection: new Selection(2, 1, 2, 1),
+			text: 'bar\nbaz\n', after: ['def foo', '    bar', '    baz', '    ', 'end'],
+			cursor: new Selection(4, 1, 4, 1)
+		},
+		{
+			name: 'issue #143573: the remainder of a split line is still reindented',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 5, 2, 5),
+			text: 'def bar\nend\n', after: ['    def foo; end', '    def bar', '    end', '    def baz; end'],
+			cursor: new Selection(4, 5, 4, 5)
+		},
+		{
+			name: 'whole-line clipboard paste at column one preserves the following line',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 1, 2, 1),
+			text: '    if condition\n', pasteOnNewLine: true,
+			after: ['    def foo; end', '    if condition', '    def baz; end'],
+			cursor: new Selection(3, 1, 3, 1)
+		},
+		{
+			name: 'whole-line clipboard paste at an indented cursor preserves the following line',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 5, 2, 5),
+			text: '    if condition\n', pasteOnNewLine: true,
+			after: ['    def foo; end', '    if condition', '    def baz; end'],
+			cursor: new Selection(3, 5, 3, 5)
+		},
+		{
+			name: 'a selection starting mid-line and ending at column one preserves the following line',
+			before: ['    def foo; end', '    replace_me', '    def baz; end'],
+			selection: new Selection(2, 5, 3, 1), text: 'if condition\n',
+			after: ['    def foo; end', '    if condition', '    def baz; end'],
+			cursor: new Selection(3, 1, 3, 1)
+		},
+		{
+			name: 'overtype paste still indents the line remainder',
+			before: ['def foo', '    old_call', 'end'], selection: new Selection(2, 1, 2, 1),
+			text: 'bar\n', overtype: true, after: ['def foo', '    bar', '    old_call', 'end'],
+			cursor: new Selection(3, 5, 3, 5)
+		},
+		{
+			name: 'whole-line clipboard paste preserves the following line in overtype mode',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 5, 2, 5),
+			text: '    if condition\n', pasteOnNewLine: true, overtype: true,
+			after: ['    def foo; end', '    if condition', '    def baz; end'],
+			cursor: new Selection(3, 5, 3, 5)
+		},
+		{
+			name: 'CRLF paste preserves the following line',
+			before: ['    def foo; end', '    def baz; end'], selection: new Selection(2, 1, 2, 1),
+			text: 'def bar\r\nend\r\n', eol: '\r\n',
+			after: ['    def foo; end', '    def bar', '    end', '    def baz; end'],
+			cursor: new Selection(4, 1, 4, 1)
+		},
+		{
+			name: 'an empty following line retains existing indentation and cursor behavior',
+			before: ['def foo', '', 'end'], selection: new Selection(2, 1, 2, 1),
+			text: 'bar\nbaz\n', after: ['def foo', '    bar', '    baz', '    ', 'end'],
+			cursor: new Selection(4, 1, 4, 1)
+		},
+		{
+			name: 'matching pasted text without a trailing newline is still reindented',
+			before: ['def foo', '        old_call', 'end'], selection: new Selection(2, 1, 2, 17),
+			text: 'bar\n        old_call', after: ['def foo', '    bar', '    old_call', 'end'],
+			cursor: new Selection(3, 13, 3, 13)
+		},
+		{
+			name: 'column paste still reindents a different line matching the original end line',
+			before: ['def foo', '   old_call', 'old_call', 'end'], selection: new Selection(2, 1, 2, 1),
+			text: 'bar\n', isBlock: true, after: ['def foo', '    bar   old_call', '    old_call', 'end'],
+			cursor: new Selection(3, 5, 3, 5)
+		}
+	]) {
+		test(fixture.name, () => {
+			const eol = fixture.eol ?? '\n';
+			const model = disposables.add(createTextModel(fixture.before.join(eol), languageId, {}));
+			const previousInputMode = InputMode.getInputMode();
+			try {
+				if (fixture.overtype) {
+					InputMode.setInputMode('overtype');
+				}
+				withTestCodeEditor(model, { autoIndent: 'full', autoIndentOnPaste: false, overtypeOnPaste: true, serviceCollection }, editor => {
+					editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+					editor.updateOptions({ autoIndentOnPaste: true });
+					editor.setSelection(fixture.selection);
+					editor.trigger('keyboard', 'paste', {
+						text: fixture.text, pasteOnNewLine: fixture.pasteOnNewLine ?? false, isBlock: fixture.isBlock ?? false
+					});
+					assert.deepStrictEqual({ text: model.getValue(), selection: editor.getSelection() }, {
+						text: fixture.after.join(eol), selection: fixture.cursor
+					});
+				});
+			} finally {
+				InputMode.setInputMode(previousInputMode);
+			}
+		});
+	}
+});
+
 suite('Auto Indent On Type - PHP', () => {
 
 	const languageId = Language.PHP;
@@ -1573,7 +1733,7 @@ suite('Auto Indent On Paste - Go', () => {
 			const text = '  ';
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
-			autoIndentOnPasteController.trigger(new Range(3, 1, 3, 3));
+			autoIndentOnPasteController.trigger(new Range(3, 1, 3, 3), false);
 			assert.strictEqual(model.getValue(), [
 				'var s = `',
 				'quick  brown',
@@ -1729,6 +1889,64 @@ suite('Auto Indent On Type - HTML', () => {
 				'  ',
 				'</pre>',
 			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Paste - PHP', () => {
+
+	const languageId = Language.PHP;
+	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #221574: replacing a line does not reindent the closing tag below it', () => {
+
+		// https://github.com/microsoft/vscode/issues/221574
+		// the reporter's file is a php template, where `</div>` matches neither the increase
+		// nor the decrease pattern, so the closing tag inherits the pasted line's indentation
+
+		const model = createTextModel([
+			'\t\t\t<button type="button">Peruuta</button>',
+			'\t\t\t<input type="submit" value="Hyväksy" disabled>',
+			'\t\t</div>',
+		].join('\n'), languageId, { insertSpaces: false });
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', autoIndentOnPaste: false, serviceCollection }, editor => {
+			// the whole input line, trailing line break included, is replaced by the paste
+			editor.setSelection(new Selection(2, 1, 3, 1));
+			const text = '<input type="submit" id="hyvaksy_nappi" value="Hyväksy" disabled>\n';
+			editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			editor.updateOptions({ autoIndentOnPaste: true });
+			editor.trigger('keyboard', 'paste', { text, pasteOnNewLine: false });
+			assert.deepStrictEqual({ text: model.getValue(), selection: editor.getSelection() }, {
+				text: [
+					'\t\t\t<button type="button">Peruuta</button>',
+					'\t\t\t<input type="submit" id="hyvaksy_nappi" value="Hyväksy" disabled>',
+					'\t\t</div>',
+				].join('\n'),
+				selection: new Selection(3, 1, 3, 1)
+			});
 		});
 	});
 });
