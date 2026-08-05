@@ -247,6 +247,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		container.classList.add('sessions-account-titlebar-widget');
 		container.setAttribute('role', 'button');
 		container.tabIndex = 0;
+		this._register(addDisposableListener(container, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				event.stopPropagation();
+				this.showCombinedPanel();
+			}
+		}));
 
 		this.avatarElement = append(container, $('img.sessions-account-titlebar-widget-avatar', { alt: localize('accountAvatarAltFallback', "Account profile image"), draggable: 'false' })) as HTMLImageElement;
 		this.avatarElement.decoding = 'async';
@@ -312,6 +319,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.add(`kind-${state.kind}`);
 		this.container.classList.toggle('menu-visible', this.isMenuVisible);
 		this.container.setAttribute('aria-label', state.ariaLabel);
+		this.container.setAttribute('aria-expanded', String(this.isMenuVisible));
 
 		const badgeKey = getAccountTitleBarBadgeKey(state);
 		if (badgeKey !== this.lastBadgeKey) {
