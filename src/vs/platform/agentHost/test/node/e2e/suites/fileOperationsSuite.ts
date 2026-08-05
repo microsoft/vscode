@@ -11,7 +11,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
-import type { ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
+import type { ChatToolCallCompleteAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -429,22 +429,34 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const sessionUri = await createRealSession(context.client, config, `coverage-spaces-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
+		const shellCommand = `node -e "process.stdout.write(require('fs').readFileSync('file with spaces.txt','utf8'))"`;
 		const prompt = fileOperationPrompt(
 			context,
 			'Read "file with spaces.txt" and reply with its exact contents only.',
-			`node -e "process.stdout.write(require('fs').readFileSync('file with spaces.txt','utf8'))"`,
+			shellCommand,
 			'Then reply with its exact output only.',
 		);
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-spaces', prompt, 1);
 		assert.match(result.responseText, /SPACED_VALUE/);
-		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
-			turnId: 'turn-spaces',
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: [/SPACED_VALUE/],
-			success: true,
-		});
+		if (config.fileOperationStrategy === 'shell') {
+			const chatUri = buildDefaultChatUri(sessionUri);
+			const ready = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
+				.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolInput === shellCommand)?.action;
+			const completed = ready && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+				.some(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolCallId === ready.toolCallId);
+			assert.deepStrictEqual({ toolInput: ready?.toolInput, completed }, { toolInput: shellCommand, completed: true });
+		} else {
+			assertToolCallCompleteText(context.client, {
+				channel: buildDefaultChatUri(sessionUri),
+				turnId: 'turn-spaces',
+				toolNames: fileReadToolNames(config.provider),
+				workspace,
+				expected: [/SPACED_VALUE/],
+				success: true,
+			});
+		}
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 }

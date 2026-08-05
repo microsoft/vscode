@@ -166,6 +166,14 @@ export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
 	state.agentMessagePartCount = 0;
 }
 
+export function finalizeCodexTurnMapState(state: ICodexSessionMapState, unresolvedToolMessage: string): (SessionAction | ChatAction)[] {
+	const preflightFlush = flushPendingPreflight(state);
+	const orphanedToolCallActions = completeOrphanedToolCalls(state, unresolvedToolMessage);
+	const deferredResponseActions = flushDeferredResponseActions(state);
+	resetCodexTurnMapState(state);
+	return [...preflightFlush, ...orphanedToolCallActions, ...deferredResponseActions];
+}
+
 /**
  * Emit and clear any deferred sandbox pre-flight completion (see
  * {@link ICodexSessionMapState.pendingPreflight}). Returns `[]` when nothing is
@@ -197,6 +205,22 @@ function flushDeferredResponseActions(state: ICodexSessionMapState): (SessionAct
 
 function hasOpenCommandExecution(state: ICodexSessionMapState): boolean {
 	return [...state.itemToToolCall.values()].some(entry => entry.toolName === 'shell');
+}
+
+function completeOrphanedToolCalls(state: ICodexSessionMapState, errorMessage: string): (SessionAction | ChatAction)[] {
+	const orphanedToolCalls = [...state.itemToToolCall.values()];
+	state.itemToToolCall.clear();
+	return orphanedToolCalls.map(entry => ({
+		type: ActionType.ChatToolCallComplete,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		result: {
+			success: false,
+			pastTenseMessage: `Stopped ${entry.toolName}`,
+			content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
+			error: { message: errorMessage },
+		},
+	}));
 }
 
 /**
@@ -1051,8 +1075,6 @@ export function mapTurnCompleted(
 	// sandbox pre-flight (see ICodexSessionMapState.pendingPreflight) — it was
 	// never reused, so it is a genuine output-less command and must complete.
 	const preflightFlush = flushPendingPreflight(state);
-	const orphanedToolCalls = [...state.itemToToolCall.values()];
-	state.itemToToolCall.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
 	const duration = typeof params.turn.durationMs === 'number' && Number.isFinite(params.turn.durationMs) && params.turn.durationMs >= 0
@@ -1062,17 +1084,7 @@ export function mapTurnCompleted(
 			: typeof fallbackDuration === 'number' && Number.isFinite(fallbackDuration)
 				? Math.max(0, fallbackDuration)
 				: 0;
-	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
-		type: ActionType.ChatToolCallComplete,
-		turnId: entry.turnId,
-		toolCallId: entry.toolCallId,
-		result: {
-			success: false,
-			pastTenseMessage: `Stopped ${entry.toolName}`,
-			content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
-			error: { message: status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion' },
-		},
-	}));
+	const orphanedToolCallActions = completeOrphanedToolCalls(state, status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion');
 	const deferredResponseActions = flushDeferredResponseActions(state);
 	if (status === 'failed' && params.turn.error) {
 		const errMessage = params.turn.error.message ?? 'Codex turn failed';
