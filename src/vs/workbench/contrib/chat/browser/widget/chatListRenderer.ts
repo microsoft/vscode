@@ -935,13 +935,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			|| sessionType === SessionType.AgentHostCopilot
 			|| (isAgentHostTarget(sessionType) && sessionType.endsWith('-copilotcli'));
 		const response = element.response.value;
+		const resolvedModelId = element.result?.metadata?.resolvedModel;
 
 		return {
 			chatResource: element.sessionResource,
 			responseId: element.id,
 			requestId: element.requestId,
 			sessionType,
-			modelId: element.model.request?.modelId,
+			modelId: typeof resolvedModelId === 'string' ? resolvedModelId : element.model.request?.modelId,
 			surface: this.environmentService.isSessionsWindow ? InlineAgentSurveySurface.AgentsWindow : InlineAgentSurveySurface.EditorChat,
 			isCopilotProvider,
 			isAgentMode: element.model.request?.modeInfo?.kind === ChatModeKind.Agent,
