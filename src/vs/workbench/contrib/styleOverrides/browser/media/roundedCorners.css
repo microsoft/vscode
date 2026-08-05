@@ -23,33 +23,14 @@
  * Without that class these rules never apply.
  */
 
-/*
- * Define the three-tier scale once by aligning the shared corner-radius tokens.
- * Most workbench widgets consume these `--vscode-cornerRadius-*` variables, so
- * redefining them rounds a large surface area in a single place. The tiers map
- * as: small = controls (4px), medium = inner containers (6px), large = outer /
- * floating overlays (8px).
- */
-.style-override {
-	--vscode-cornerRadius-xSmall: 4px;
-	--vscode-cornerRadius-small: 4px;
-	--vscode-cornerRadius-medium: 6px;
-	--vscode-cornerRadius-large: 8px;
-	--vscode-cornerRadius-xLarge: 8px;
-}
-
 /* =============================================================================
  * Controls (4px) — inputs, selects, list/tree rows, anything interactable.
  * ========================================================================== */
 
 /* Text inputs and find inputs */
-.style-override .monaco-inputbox {
-	border-radius: var(--vscode-cornerRadius-small) !important;
-}
-
-.style-override .monaco-findInput,
-.style-override .monaco-findInput .monaco-inputbox {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+.style-override .monaco-inputbox,
+.style-override .monaco-findInput {
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .style-override .browser-root .browser-url-container {
@@ -59,19 +40,18 @@
 /* Select / dropdown controls */
 .style-override .monaco-select-box,
 .style-override .monaco-select-box-dropdown-container {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* List / tree rows (including the notification center list rows) */
-.style-override .monaco-list .monaco-list-row:not(.separator),
-.style-override .notifications-list-container .monaco-list-row:not(.separator) {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+.style-override .monaco-list .monaco-list-row:not(.separator) {
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Action bar labels / keybindings (toolbar icon buttons) */
 .style-override .monaco-action-bar .action-label,
 .style-override .monaco-action-bar .action-item .keybinding {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -83,21 +63,21 @@
  * on the primary label, right corners on the chevron — so the seam stays flat.
  */
 .style-override .monaco-action-bar .action-item.action-dropdown-item > .action-label {
-	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 .style-override .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
 .style-override .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
  * control it belongs to the controls tier). */
 .style-override .monaco-action-bar .update-indicator {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -113,7 +93,7 @@
 .style-override .agent-status-badge-section:only-child,
 .style-override .agent-status-esc-button,
 .style-override .agent-status-enter-button {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Leading-edge segments (rounded left, flat right) */
@@ -121,24 +101,24 @@
 .style-override .agent-status-command-center-toolbar,
 .style-override .agent-status-badge-section:first-child,
 .style-override .agent-status-badge-section.sparkle .action-container {
-	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 /* Trailing-edge segments (flat left, rounded right) */
 .style-override .agent-status-badge-section:last-child,
 .style-override .agent-status-badge-section.sparkle:last-child .dropdown-action-container {
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
 /* Intentional flat seams where a segment butts up against its neighbour */
 .style-override .agent-status-line-separator + .agent-status-input-area,
 .style-override .agent-status-pill.compact-mode .agent-status-badge-section.sparkle .action-container {
-	border-radius: 0 !important;
+	border-radius: 0;
 }
 
 /* Scrollbar sliders (panels, editor, lists — all consistent) */
 .style-override .monaco-scrollable-element > .scrollbar > .slider {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Match the minimap viewport slider to the adjacent editor scrollbar. */
@@ -162,22 +142,22 @@
  * target the slider as a descendant.
  */
 .style-override .monaco-diff-editor.has-diff-overview .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
-	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 /* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
 .style-override .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
-	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-radius: var(--vscode-cornerRadius-small);
 	/* Inset the slider so both left and right rounded corners are visible */
-	left: 1px !important;
-	width: calc(100% - 1px) !important;
+	left: calc(var(--vscode-strokeThickness));
+	width: calc(100% - var(--vscode-strokeThickness));
 }
 
 /* Editor sticky scroll container */
 .style-override .monaco-editor .sticky-widget {
-	border-radius: 0 !important;
+	border-radius: 0;
 	overflow: hidden;
-	width: 100% !important;
+	width: 100%;
 }
 
 /* =============================================================================
@@ -190,9 +170,7 @@
  * inner tier so the whole workbench reads as a set of distinct rounded
  * surfaces. `overflow: hidden` clips their content to the rounded corners.
  */
-.style-override .monaco-grid-view .part.sidebar,
-.style-override .monaco-grid-view .part.panel,
-.style-override .monaco-grid-view .part.auxiliarybar {
+.style-override .monaco-grid-view .part:is(.sidebar, .panel, .auxiliarybar) {
 	overflow: hidden;
 }
 
@@ -202,7 +180,7 @@
  * inner tier to match.
  */
 .style-override .settings-editor .settings-tree-container .setting-item-contents.settings-row-inner-container {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* =============================================================================
@@ -211,7 +189,7 @@
 
 /* Quick input (command palette, quick open) */
 .style-override .quick-input-widget {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
@@ -219,30 +197,31 @@
 .style-override .monaco-hover,
 .style-override .editor-widget.suggest-widget,
 .style-override .monaco-editor .parameter-hints-widget {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Only boundary rows adopt the overlay's outer corners; interior rows keep the Control radius. */
 .style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):first-child {
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0 !important;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 .style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):last-child {
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 
 /* Context menus and general menu surfaces */
 .style-override .monaco-menu .monaco-action-bar.vertical {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /*
  * Notification center (floats above the status bar). It already clips its
  * children with `overflow: hidden`, so rounding the container alone gives the
- * header its top corners and the list its bottom corners in one place.
+ * header its top corners and the list its bottom corners in one place. Anchor
+ * the rule to the workbench root to override the base control-tier radius.
  */
-.style-override .notifications-center {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+.style-override.monaco-workbench > .notifications-center {
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /*
@@ -251,35 +230,37 @@
  * scrollable element / list row). The base styles round every one of these
  * layers to the same radius; round them together here too, otherwise a larger
  * radius on the outer wrapper leaves a gap at the corner where the smaller
- * inner radius shows through.
+ * inner radius shows through. Matching the base structure also gives these
+ * rules enough specificity to replace its control-tier radius.
  */
-.style-override .notifications-toasts .notifications-list-container,
-.style-override .notifications-toasts .notification-toast-container > .notification-toast,
-.style-override .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
-.style-override .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+.style-override.monaco-workbench > .notifications-toasts .notifications-list-container,
+.style-override.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
+.style-override.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.style-override.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.style-override.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Modal dialogs */
 .style-override .monaco-dialog-box {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Editor find / replace widget */
 .style-override .monaco-editor .find-widget {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Rename input widget */
 .style-override .monaco-editor .rename-box {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
 /* Color picker widget */
 .style-override .colorpicker-widget {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
