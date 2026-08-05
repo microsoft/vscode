@@ -2123,6 +2123,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				let generation = 0;
 				let observedRequest: SessionToolClientExecutionRequest | undefined;
 				let startedRequest: SessionToolClientExecutionRequest | undefined;
+				let invocationStarted = false;
 				const unobservedTimer = itemStore.add(new MutableDisposable<IDisposable>());
 				itemStore.add(autorun(reader => {
 					const request = request$.read(reader);
@@ -2131,12 +2132,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						generation++;
 						observedRequest = undefined;
 						startedRequest = undefined;
+						invocationStarted = false;
 						unobservedTimer.clear();
 						return;
 					}
 					if (!equals(observedRequest, request)) {
-						generation++;
 						observedRequest = request;
+						if (invocationStarted) {
+							return;
+						}
+						generation++;
 						startedRequest = undefined;
 						unobservedTimer.clear();
 					}
@@ -2147,8 +2152,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						startedRequest = request;
 						unobservedTimer.clear();
 						const requestGeneration = generation;
-						void this._executeClientTool(request, contextSessionResource, cts.token, () =>
-							requestGeneration === generation && equals(request$.read(undefined), request));
+						void this._executeClientTool(
+							request,
+							contextSessionResource,
+							cts.token,
+							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
+							() => {
+								if (requestGeneration === generation) {
+									invocationStarted = true;
+								}
+							},
+						);
 					};
 					if (claimant) {
 						execute(claimant);
@@ -2304,7 +2318,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: SessionToolClientExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean): Promise<void> {
+	private async _executeClientTool(request: SessionToolClientExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
@@ -2389,6 +2403,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let result: IToolResult | undefined;
 		let error: unknown;
 		try {
+			markInvocationStarted();
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,

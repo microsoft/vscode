@@ -293,7 +293,7 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error }) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
@@ -352,7 +352,9 @@ suite('AgentHostClientTools', () => {
 							: undefined;
 						toolInvocation?.transitionFromStreaming(prepared, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
 					}
-					const result: IToolResult = { content: [{ kind: 'text', value: 'done' }] };
+					const result: IToolResult = options?.invokeResult
+						? await options.invokeResult.p
+						: { content: [{ kind: 'text', value: 'done' }] };
 					await toolInvocation?.didExecuteTool(result);
 					return result;
 				},
@@ -519,7 +521,7 @@ suite('AgentHostClientTools', () => {
 		function createHandlerWithMocks(
 			disposables: DisposableStore,
 			tools: IToolData[],
-			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error },
+			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
@@ -1036,6 +1038,50 @@ suite('AgentHostClientTools', () => {
 			}, {
 				resourceReadUris: [firstInputURI.toString(), secondInputURI.toString()],
 				parameters: { task: 'latest' },
+			});
+		});
+
+		test('does not re-execute when the request changes after invocation starts', async () => {
+			const invokeResult = new DeferredPromise<IToolResult>();
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { invokeResult });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			applyReferencedRunTask(connection, chatURI, '{"task":"first"}', ToolCallConfirmationReason.NotNeeded);
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"first"}',
+			});
+			await timeout(0);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 1);
+
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"second"}',
+			});
+			await timeout(0);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 1);
+
+			invokeResult.complete({ content: [{ kind: 'text', value: 'done' }] });
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				invocations: toolsService.invokedToolCalls.map(call => call.parameters),
+				completions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				invocations: [{ task: 'first' }],
+				completions: 1,
 			});
 		});
 
