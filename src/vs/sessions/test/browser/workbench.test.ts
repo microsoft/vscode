@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
-import { Workbench } from '../../browser/workbench.js';
+import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
@@ -52,6 +52,7 @@ suite('Sessions - Workbench', () => {
 	const isSinglePaneEditorPaneVisible = SinglePaneWorkbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
 	const toggleSecondarySideBarSinglePane = SinglePaneWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const isSecondarySideBarVisibleSinglePane = SinglePaneWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
+	const toggleSidePane = SinglePaneWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
 	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
@@ -84,6 +85,7 @@ suite('Sessions - Workbench', () => {
 		readonly gridVisibility: Map<object, boolean>;
 		readonly mobileNavLayers: string[];
 		readonly focusedSessions: number;
+		readonly sidePaneToggleEvents: ('will' | { readonly did: ISidePaneToggleEvent })[];
 		layoutPolicy: { viewportClass: { get(): string } };
 		sessionsPartView: object;
 		panelPartView: object;
@@ -91,6 +93,7 @@ suite('Sessions - Workbench', () => {
 		editorPartView: object;
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		setAuxiliaryBarHidden(hidden: boolean): void;
+		setEditorMaximized(maximized: boolean): void;
 	}
 
 	interface IGridDescriptorTestHarness extends ITestWorkbench {
@@ -159,6 +162,7 @@ suite('Sessions - Workbench', () => {
 		const gridVisibility = new Map<object, boolean>();
 		const mobileNavLayers: string[] = [];
 		let focusedSessions = 0;
+		const sidePaneToggleEvents: ('will' | { did: ISidePaneToggleEvent })[] = [];
 		const notifyPartVisibility = (view: object, visible: boolean) => notifyPartVisibilityOn(host as unknown as ITestWorkbench, view, visible);
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
 		const viewSizes = new Map<object, IViewSize>([
@@ -222,6 +226,8 @@ suite('Sessions - Workbench', () => {
 			_fireDidChangePartVisibility: (partId: Parts, visible: boolean, source?: 'resize') => { events.push({ partId, visible, ...(source ? { source } : {}) }); },
 			_onDidRevealSidePane: { fire: () => { sidePaneReveals.push(true); } },
 			_onDidChangeEditorMaximized: { fire: () => { } },
+			_onWillToggleSidePane: { fire: () => { sidePaneToggleEvents.push('will'); } },
+			_onDidToggleSidePane: { fire: (event: ISidePaneToggleEvent) => { sidePaneToggleEvents.push({ did: event }); } },
 			_notifyContainerDidLayout: () => { },
 			_layoutDockedAuxBar: () => { counts.layout++; },
 			layoutMobileSidebar: () => { },
@@ -249,6 +255,7 @@ suite('Sessions - Workbench', () => {
 			renderedCustomViews,
 			gridVisibility,
 			mobileNavLayers,
+			sidePaneToggleEvents,
 			get focusedSessions() { return focusedSessions; },
 		};
 
@@ -310,7 +317,7 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(isSinglePaneEditorPaneVisible.call(host), false);
 	});
 
-	test('single-pane secondary sidebar toggle controls the editor pane', () => {
+	test('single-pane secondary sidebar toggle controls the whole side pane', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true }, focusedPart: Parts.EDITOR_PART });
 
 		toggleSecondarySideBarSinglePane.call(host);
@@ -320,11 +327,57 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
 			secondarySideBarVisible: isSecondarySideBarVisibleSinglePane.call(host),
 			focusedParts: host.focusedParts,
+			toggleEvents: host.sidePaneToggleEvents,
 		}, {
 			editorVisible: false,
-			auxiliaryBarVisible: true,
+			auxiliaryBarVisible: false,
 			secondarySideBarVisible: false,
-			focusedParts: [Parts.AUXILIARYBAR_PART],
+			focusedParts: [Parts.SESSIONS_PART],
+			toggleEvents: [
+				'will',
+				{ did: { before: { editor: true, auxiliaryBar: true }, after: { editor: false, auxiliaryBar: false } } },
+			],
+		});
+	});
+
+	test('side pane toggle restores the editor and auxiliary bar visibility from before hide', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false } });
+
+		toggleSidePane.call(host);
+		toggleSidePane.call(host);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			revealCount: host.sidePaneReveals.length,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			revealCount: 1,
+		});
+	});
+
+	test('single-pane side pane toggle closes the whole side pane while maximized', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true } });
+		const maximizedStates: boolean[] = [];
+		host._editorMaximized = true;
+		host.setEditorMaximized = maximized => {
+			maximizedStates.push(maximized);
+			host._editorMaximized = maximized;
+		};
+
+		const visible = toggleSidePane.call(host);
+
+		assert.deepStrictEqual({
+			visible,
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			maximizedStates,
+		}, {
+			visible: false,
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			maximizedStates: [false],
 		});
 	});
 
@@ -761,13 +814,13 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual(counts, [1, 1, 1, 2]);
 	});
 
-	test('does not fire onDidRevealSidePane in the base (non-docked) layout', () => {
+	test('fires onDidRevealSidePane once in the base layout when the side pane becomes visible', () => {
 		const host = createHost({ sessionsWidth: 1000, partVisibility: { editor: false, auxiliaryBar: false } });
 
 		setAuxiliaryBarHidden.call(host, false);
 		setEditorHidden.call(host, false);
 
-		assert.strictEqual(host.sidePaneReveals.length, 0);
+		assert.strictEqual(host.sidePaneReveals.length, 1);
 	});
 
 	test('shrinks the docked editor node to the detail width when hiding the editor', () => {
@@ -1017,6 +1070,17 @@ suite('Sessions - Workbench', () => {
 		const minimumWidth = minimumWidthGetter.call({ layoutService: { isVisible: () => false } });
 
 		assert.strictEqual(minimumWidth, SESSIONS_LIST_MINIMUM_WIDTH);
+	});
+
+	test('single-pane editor part hosts breadcrumbs in the group header (scoped to the Agents Window)', () => {
+		// Breadcrumbs render inside the full-width header row between the tab bar
+		// and the editor content only in the single-pane Agents Window. The classic
+		// editor part must keep its default (below-tabs) placement.
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => { showHeader?: boolean; menuIds?: unknown };
+		const options = getOptions.call({});
+
+		assert.strictEqual(options.showHeader, true);
+		assert.ok(options.menuIds, 'single-pane group view still contributes menuIds');
 	});
 
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
