@@ -8,11 +8,13 @@ import { Sequencer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, IObservable, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -20,7 +22,6 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import type { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -36,6 +37,12 @@ const enum DetailPanelTarget {
 	FilesForced,
 	Preserve
 }
+
+const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
+	'markdown.preview',
+	'vscode.markdown.editor',
+	'vscode.markdown.preview.editor',
+]);
 
 /**
  * Maps the active editor to its detail container (Changes / Files) and
@@ -136,7 +143,7 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 			return DetailPanelTarget.ChangesForced;
 		}
 
-		if (this._isFileEditor(activeEditor, workspace)) {
+		if (this._isFileEditor(activeEditor)) {
 			return DetailPanelTarget.FilesForced;
 		}
 
@@ -227,16 +234,16 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _isChangesEditor(editor: EditorInput): boolean {
+		if (editor instanceof DiffEditorInput || editor instanceof MultiDiffEditorInput) {
+			return true;
+		}
 		const resource = editor.resource;
 		return !!resource && this._sessionChangesService.getSessionResource(resource) !== undefined;
 	}
 
-	private _isFileEditor(editor: EditorInput, workspace: ISessionWorkspace): boolean {
-		if (editor instanceof EmptyFileEditorInput) {
-			return true;
-		}
-		const resource = editor instanceof FileEditorInput ? editor.resource : undefined;
-		return !!resource && workspace.folders.some(folder =>
-			isEqualOrParent(resource, folder.root) || isEqualOrParent(resource, folder.workingDirectory));
+	private _isFileEditor(editor: EditorInput): boolean {
+		return editor instanceof EmptyFileEditorInput
+			|| editor instanceof FileEditorInput
+			|| editor instanceof WebviewInput && MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType);
 	}
 }
