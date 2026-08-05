@@ -80,6 +80,43 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 }
 
 /**
+ * Checks that musl-only packages in the lockfiles we ship declare `libc`.
+ *
+ * `libc` is the only thing that distinguishes a `-musl` package from its glibc
+ * sibling — both are `os: [linux], cpu: [x64]`. Without it npm installs the musl
+ * binary on glibc build agents, where it leaks into the deb/rpm and produces an
+ * unsatisfiable `libc.so()(64bit)` dependency. Regenerating a lockfile with an
+ * npm older than 10.4 silently strips these fields.
+ *
+ * Returns an error message if any are missing, or undefined if OK.
+ */
+export function checkPackageLockLibc(repoRoot: string): string | undefined {
+	const muslPackage = /(?:^|[-/])(?:musl|linuxmusl)(?:-|$)|linuxmusl/;
+	const offenders: string[] = [];
+
+	for (const lockFile of ['package-lock.json', 'remote/package-lock.json']) {
+		const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, lockFile), 'utf8'));
+		for (const [key, entry] of Object.entries<{ libc?: string[] }>(lock.packages ?? {})) {
+			const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
+			if (name && muslPackage.test(name) && !entry.libc) {
+				offenders.push(`  ${lockFile}: ${name}`);
+			}
+		}
+	}
+
+	if (offenders.length > 0) {
+		return [
+			'These musl-only packages are missing a "libc" field in the lockfile:',
+			...offenders,
+			'npm cannot tell them apart from their glibc siblings, so it installs them on',
+			'glibc agents and they leak into the Linux packages. Re-add the field (npm >= 10.4',
+			'writes it automatically) rather than removing this check.',
+		].join('\n');
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
