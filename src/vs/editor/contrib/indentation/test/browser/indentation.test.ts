@@ -419,6 +419,38 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('replacing part of a line still reindents that line\'s remainder', () => {
+
+		// the paste replaces the leading whitespace of `old()`, so the trailing line of the
+		// range is that line's remainder, which lost its indentation and has to get it back
+
+		const model = createTextModel([
+			'function f() {',
+			'    old()',
+			'}',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 1, 2, 5));
+			const text = 'foo\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			assert.deepStrictEqual(pasteRange, new Range(2, 1, 3, 1));
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'function f() {',
+				'    foo',
+				'    old()',
+				'}',
+			].join('\n'));
+		});
+	});
+
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 
 		const model = createTextModel('', languageId, {});
@@ -1450,6 +1482,161 @@ suite('Auto Indent On Type - Ruby', () => {
 	});
 });
 
+suite('Auto Indent On Paste - Ruby', () => {
+
+	const languageId = Language.Ruby;
+	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #143573: pasting a block does not reindent the line after the paste', () => {
+
+		// https://github.com/microsoft/vscode/issues/143573
+
+		const model = createTextModel([
+			'    def foo; end',
+			'    def baz; end',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			const text = 'def bar\nend\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			// the pasted text ends with a line break, so the range ends at column 1 of the
+			// following line, which holds no pasted content
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			assert.deepStrictEqual(pasteRange, new Range(2, 1, 4, 1));
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'    def foo; end',
+				'    def bar',
+				'    end',
+				'    def baz; end',
+			].join('\n'));
+		});
+	});
+
+	test('issue #143573: pasting into an array literal does not move the closing bracket', () => {
+
+		// https://github.com/microsoft/vscode/issues/143573
+
+		const model = createTextModel([
+			'array = [',
+			'  "foo",',
+			']',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(3, 1, 3, 1));
+			const text = '"bar",\n"baz",\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			assert.deepStrictEqual(pasteRange, new Range(3, 1, 5, 1));
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'array = [',
+				'  "foo",',
+				'  "bar",',
+				'  "baz",',
+				']',
+			].join('\n'));
+		});
+	});
+
+	test('issue #143573: a whitespace only line after the paste keeps its indentation', () => {
+
+		// https://github.com/microsoft/vscode/issues/143573
+		// the line after the paste holds no pasted characters even when it is only whitespace
+
+		const model = createTextModel([
+			'def foo',
+			'    ',
+			'end',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			const text = 'bar\nbaz\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'def foo',
+				'    bar',
+				'    baz',
+				'    ',
+				'end',
+			].join('\n'));
+		});
+	});
+
+	test('issue #143573: the remainder of a split line is still reindented', () => {
+
+		// https://github.com/microsoft/vscode/issues/143573
+		// the paste starts mid line, so the trailing line of the range lost its leading
+		// whitespace to the line above and does need to be reindented
+
+		const model = createTextModel([
+			'    def foo; end',
+			'    def baz; end',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			const text = 'def bar\nend\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			assert.deepStrictEqual(pasteRange, new Range(2, 5, 4, 1));
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'    def foo; end',
+				'    def bar',
+				'    end',
+				'    def baz; end',
+			].join('\n'));
+		});
+	});
+});
+
 suite('Auto Indent On Type - PHP', () => {
 
 	const languageId = Language.PHP;
@@ -1704,6 +1891,66 @@ suite('Auto Indent On Type - HTML', () => {
 				'  foo //I press <Enter> at the end of this line',
 				'  ',
 				'</pre>',
+			].join('\n'));
+		});
+	});
+});
+
+suite('Auto Indent On Paste - PHP', () => {
+
+	const languageId = Language.PHP;
+	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #221574: replacing a line does not reindent the closing tag below it', () => {
+
+		// https://github.com/microsoft/vscode/issues/221574
+		// the reporter's file is a php template, where `</div>` matches neither the increase
+		// nor the decrease pattern, so the closing tag inherits the pasted line's indentation
+
+		const model = createTextModel([
+			'\t\t\t<button type="button">Peruuta</button>',
+			'\t\t\t<input type="submit" value="Hyväksy" disabled>',
+			'\t\t</div>',
+		].join('\n'), languageId, { insertSpaces: false });
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			// the whole input line, trailing line break included, is replaced by the paste
+			editor.setSelection(new Selection(2, 1, 3, 1));
+			const text = '<input type="submit" id="hyvaksy_nappi" value="Hyväksy" disabled>\n';
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const replacedSelection = viewModel.getSelection();
+			const startPosition = replacedSelection.getStartPosition();
+			viewModel.paste(text, false, undefined, 'keyboard');
+			const endPosition = viewModel.getSelection().getStartPosition();
+			const pasteRange = Range.fromPositions(startPosition, endPosition);
+			assert.deepStrictEqual(pasteRange, new Range(2, 1, 3, 1));
+			autoIndentOnPasteController.trigger(pasteRange, replacedSelection);
+			assert.strictEqual(model.getValue(), [
+				'\t\t\t<button type="button">Peruuta</button>',
+				'\t\t\t<input type="submit" id="hyvaksy_nappi" value="Hyväksy" disabled>',
+				'\t\t</div>',
 			].join('\n'));
 		});
 	});
