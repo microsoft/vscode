@@ -1223,7 +1223,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// one (the caller carries it from `sendMessage`); otherwise from the
 		// persisted overlay so a cold resume from disk still reaches every root.
 		// The SDK's `cwd` stays authoritative for the primary (index 0).
-		const additionalDirectories = (workingDirectories && workingDirectories.length > 1)
+		const additionalDirectories = workingDirectories
 			? workingDirectories.slice(1)
 			: overlay.workingDirectories?.slice(1) ?? [];
 		const permissionMode = readClaudePermissionMode(this._configurationService, sessionUri)
@@ -1256,7 +1256,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(sessionId);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1640,7 +1640,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * concurrent first sends collapse into one materialize and teardown can't
 	 * race the build.
 	 */
-	private async _materializeChatLocked(session: URI, chat: URI): Promise<ClaudeAgentSession> {
+	private async _materializeChatLocked(session: URI, chat: URI, workingDirectories: readonly URI[] | undefined): Promise<ClaudeAgentSession> {
 		const chatKey = chat.toString();
 		const entry = await this._ensureSessionEntry(session);
 		const existing = entry.getPeerChat(chatKey);
@@ -1655,7 +1655,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
 		try {
-			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
+			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			entry.disposePeerChat(chatKey);
 			throw err;
@@ -2086,11 +2086,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// session under it.
 		if (context.isPeerChat) {
 			return this._sessionSequencer.queue(context.chatKey, async () => {
-				const chatSession = await this._materializeChatLocked(context.session, chat);
+				const chatSession = await this._materializeChatLocked(context.session, chat, workingDirectories);
 				const sideChat = this._resolveChatBacking(chat)?.sideChat;
 				const turns = sideChat ? await this._reconstructTurns(chatSession.sessionId, chat, chatSession) : [];
 				const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
-				await chatSession.send(this._buildSdkPrompt(chatSession.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId);
+				await chatSession.send(this._buildSdkPrompt(chatSession.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, workingDirectories);
 			});
 		}
 
@@ -2111,7 +2111,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				session = await this._resumeSession(context.sessionId, context.session, workingDirectories);
 			}
 
-			await session.send(this._buildSdkPrompt(context.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);
+			await session.send(this._buildSdkPrompt(context.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, workingDirectories);
 		});
 	}
 

@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { $ } from '../../../../base/browser/dom.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -26,10 +29,30 @@ import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IGitHubPullRequest } from '../common/types.js';
+import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
+import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';
+import { IPullRequestIconCache } from './pullRequestIconCache.js';
+import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
+
+interface IResolvedSessionPullRequest {
+	readonly ref: IGitHubPullRequestRef;
+	readonly pullRequest: IGitHubPullRequest | undefined;
+	readonly icon: ThemeIcon;
+	readonly status: IPullRequestIconStatus;
+}
+
+interface IPullRequestIdentity {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+}
+
+interface IPullRequestListEntry extends IGitHubReferenceListEntry {
+	readonly uri: URI;
+}
 
 // --- Open Pull Request action
 
@@ -44,7 +67,7 @@ class OpenPullRequestAction extends Action2 {
 			f1: false,
 			// Pull request pill shown in the session header meta row
 			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that shows the PR icon + live `#<number>` label.
+			// custom action view item that summarizes the session's PRs.
 			menu: [{
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -81,59 +104,129 @@ registerAction2(OpenPullRequestAction);
 // --- Open Pull Request action view item (session header pull request pill)
 
 /**
- * Renders the session's associated pull request as a PR icon + `#<number>` pill, the
- * {@link OpenPullRequestAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row). It extends the generic {@link SessionHeaderMetaActionViewItem}
- * (so it renders consistently with other meta actions) and shows the live `#<number>` as its label.
- * Activating the item runs the action, which opens the pull request on GitHub.
- *
- * The pull request number is read from the {@link ISessionContext} so the correct per-session
- * pull request is shown even when several session views are visible at once.
+ * Renders the session's pull requests as a single header pill and opens a picker for history.
  */
 export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewItem {
 
-	private readonly _pullRequestIdentityObs: IObservable<{ readonly owner: string; readonly repo: string; readonly number: number; readonly icon: ThemeIcon | undefined } | undefined>;
-	private readonly _pullRequestObs: IObservable<IGitHubPullRequest | undefined>;
+	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
+	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
+	private readonly _pullRequestsObs: IObservable<readonly IResolvedSessionPullRequest[]>;
+	private _pullRequestList: GitHubReferenceList<IPullRequestListEntry> | undefined;
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
 
-		this._pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly number: number; readonly icon: ThemeIcon | undefined } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+		this._pullRequestRefsObs = derivedOpts<readonly IGitHubPullRequestRef[]>({
+			owner: this,
+			equalsFn: (a, b) => arrayEquals(a, b, (x, y) =>
+				x.owner === y.owner &&
+				x.repo === y.repo &&
+				x.number === y.number &&
+				isEqual(x.uri, y.uri) &&
+				(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon))))
+		}, reader => {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			if (!gitHubInfo?.pullRequest) {
-				return undefined;
+			if (!gitHubInfo) {
+				return [];
 			}
-			return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, number: gitHubInfo.pullRequest.number, icon: gitHubInfo.pullRequest.icon };
+			if (gitHubInfo.pullRequests?.length) {
+				return gitHubInfo.pullRequests;
+			}
+			return gitHubInfo.pullRequest ? [{
+				owner: gitHubInfo.owner,
+				repo: gitHubInfo.repo,
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri,
+				icon: gitHubInfo.pullRequest.icon,
+			}] : [];
 		});
 
-		this._pullRequestObs = derived(reader => {
-			const identity = this._pullRequestIdentityObs.read(reader);
-			if (!identity) {
-				return undefined;
-			}
+		this._pullRequestIdentitiesObs = derivedOpts<readonly IPullRequestIdentity[]>({
+			owner: this,
+			equalsFn: (a, b) => arrayEquals(a, b, (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number)
+		}, reader => this._pullRequestRefsObs.read(reader).map(({ owner, repo, number }) => ({ owner, repo, number })));
 
-			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(identity.owner, identity.repo, identity.number));
-			return reference.object.pullRequest.read(reader);
-		});
+		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map(ref => {
+			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
+			const pullRequest = reference.object.pullRequest.read(reader);
+			const status = pullRequest ? computePullRequestIconStatus(reader, this._gitHubService, ref.owner, ref.repo, pullRequest) : {};
+			const icon = pullRequest
+				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
+				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? computePullRequestIcon(GitHubPullRequestState.Open);
+			if (pullRequest) {
+				this._pullRequestIconCache.set(ref.uri.toString(), icon);
+			}
+			return {
+				ref,
+				pullRequest,
+				icon,
+				status,
+			};
+		}));
 
 		this._register(autorun(reader => {
-			this._pullRequestIdentityObs.read(reader);
-			this._pullRequestObs.read(reader);
+			for (const identity of this._pullRequestIdentitiesObs.read(reader)) {
+				const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(identity.owner, identity.repo, identity.number));
+				const model = reference.object;
+				model.refresh();
+
+				const shouldPoll = derived(this, pollReader => {
+					const state = model.pullRequest.read(pollReader)?.state;
+					return state === undefined || state === GitHubPullRequestState.Open;
+				});
+				reader.store.add(autorun(pollReader => {
+					if (shouldPoll.read(pollReader)) {
+						pollReader.store.add(model.startPolling());
+					}
+				}));
+
+				reader.store.add(autorun(statusReader => {
+					const pullRequest = model.pullRequest.read(statusReader);
+					if (!pullRequest || pullRequest.isDraft || pullRequest.state !== GitHubPullRequestState.Open) {
+						return;
+					}
+
+					const ciReference = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(identity.owner, identity.repo, identity.number, pullRequest.headSha));
+					ciReference.object.refresh();
+					statusReader.store.add(ciReference.object.startPolling());
+
+					const reviewThreadsReference = statusReader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(identity.owner, identity.repo, identity.number));
+					reviewThreadsReference.object.refresh();
+					statusReader.store.add(reviewThreadsReference.object.startPolling());
+				}));
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const pullRequests = this._pullRequestsObs.read(reader);
+			this._pullRequestList?.update(this._getPullRequestListEntries(pullRequests));
 			this.updateLabel();
 			this.updateTooltip();
 		}));
 	}
 
+	protected override onDidClickButton(): void {
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length > 1) {
+			this._showPullRequestPicker(pullRequests);
+			return;
+		}
+
+		super.onDidClickButton();
+	}
+
 	protected override getIconElement(): HTMLElement | undefined {
-		const icon = this._pullRequestIdentityObs.get()?.icon ?? Codicon.gitPullRequest;
+		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
 		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
@@ -144,38 +237,133 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 	}
 
 	protected override getLabelText(): string {
-		const number = this._pullRequestIdentityObs.get()?.number;
-		return number !== undefined ? `#${number}` : '';
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length === 0) {
+			return '';
+		}
+		return pullRequests.length === 1
+			? `#${pullRequests[0].ref.number}`
+			: localize('agentSessions.openPullRequest.count', "{0} Pull Requests", pullRequests.length);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent | undefined {
-		const identity = this._pullRequestIdentityObs.get();
-		if (!identity) {
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length !== 1) {
 			return this.getTooltip();
 		}
 
+		const { ref, pullRequest } = pullRequests[0];
 		return {
 			element: () => createPullRequestHoverElement({
-				owner: identity.owner,
-				repo: identity.repo,
-				number: identity.number,
-				repositoryHref: this._getRepositoryUri(identity).toString(true),
-				pullRequest: this._pullRequestObs.get(),
-				onDidClickRepository: () => this._openerService.open(this._getRepositoryUri(identity), { openExternal: true }),
+				owner: ref.owner,
+				repo: ref.repo,
+				number: ref.number,
+				repositoryHref: this._getRepositoryUri(ref).toString(true),
+				pullRequest,
+				onDidClickRepository: () => this._openerService.open(this._getRepositoryUri(ref), { openExternal: true }),
 			}),
 		};
 	}
 
 	protected override getTooltip(): string {
-		const number = this._pullRequestIdentityObs.get()?.number;
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length > 1) {
+			return localize('agentSessions.openPullRequest.tooltipMany', "Show the {0} Pull Requests Associated with This Session", pullRequests.length);
+		}
+		const number = pullRequests[0]?.ref.number;
 		return number !== undefined
 			? localize('agentSessions.openPullRequest.tooltipWithNumber', "Open Pull Request #{0}", number)
 			: localize('agentSessions.openPullRequest.tooltip', "Open Pull Request");
 	}
 
-	private _getRepositoryUri(identity: { readonly owner: string; readonly repo: string }): URI {
-		return URI.parse(`https://github.com/${identity.owner}/${identity.repo}`);
+	private _showPullRequestPicker(pullRequests: readonly IResolvedSessionPullRequest[]): void {
+		const target = this.button?.element;
+		if (!target) {
+			return;
+		}
+
+		const list = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
+			this._hoverService.hideHover();
+			this._openerService.open(entry.uri, { openExternal: true });
+		});
+		list.element.onkeydown = event => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				event.stopPropagation();
+				this._hoverService.hideHover();
+			}
+		};
+		this._pullRequestList = list;
+
+		const hover = this._hoverService.showInstantHover({
+			content: list.element,
+			target,
+			position: { hoverPosition: HoverPosition.BELOW },
+			persistence: { sticky: true, hideOnKeyDown: false },
+			appearance: { showPointer: false, skipFadeInAnimation: true },
+			trapFocus: true,
+			onDidHide: () => {
+				if (this._pullRequestList === list) {
+					this._pullRequestList = undefined;
+				}
+			},
+		}, true);
+		if (!hover) {
+			this._pullRequestList = undefined;
+		}
 	}
+
+	private _getRepositoryUri(ref: { readonly owner: string; readonly repo: string }): URI {
+		return URI.parse(`https://github.com/${ref.owner}/${ref.repo}`);
+	}
+
+	private _getPullRequestListEntries(pullRequests: readonly IResolvedSessionPullRequest[]): readonly IPullRequestListEntry[] {
+		return pullRequests.map(({ ref, pullRequest, icon, status }) => ({
+			number: ref.number,
+			title: pullRequest?.title,
+			icon,
+			uri: ref.uri,
+			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
+		}));
+	}
+}
+
+function getPullRequestAriaLabel(ref: IGitHubPullRequestRef, pullRequest: IGitHubPullRequest | undefined, status: IPullRequestIconStatus): string {
+	let kind: string;
+	if (pullRequest?.isDraft) {
+		kind = localize('agentSessions.pullRequestList.draft', "Draft Pull Request");
+	} else {
+		switch (pullRequest?.state) {
+			case GitHubPullRequestState.Open:
+				kind = localize('agentSessions.pullRequestList.open', "Open Pull Request");
+				break;
+			case GitHubPullRequestState.Merged:
+				kind = localize('agentSessions.pullRequestList.merged', "Merged Pull Request");
+				break;
+			case GitHubPullRequestState.Closed:
+				kind = localize('agentSessions.pullRequestList.closed', "Closed Pull Request");
+				break;
+			default:
+				kind = localize('agentSessions.pullRequestList.pullRequest', "Pull Request");
+		}
+	}
+
+	const baseLabel = pullRequest?.title
+		? localize('agentSessions.pullRequestList.labelWithTitle', "{0} #{1}: {2}", kind, ref.number, pullRequest.title)
+		: localize('agentSessions.pullRequestList.label', "{0} #{1}", kind, ref.number);
+
+	let attention: string | undefined;
+	if (status.hasFailingChecks && status.hasUnresolvedComments) {
+		attention = localize('agentSessions.pullRequestList.failingChecksAndUnresolvedComments', "failing checks and unresolved comments");
+	} else if (status.hasFailingChecks) {
+		attention = localize('agentSessions.pullRequestList.failingChecks', "failing checks");
+	} else if (status.hasUnresolvedComments) {
+		attention = localize('agentSessions.pullRequestList.unresolvedComments', "unresolved comments");
+	}
+
+	return attention
+		? localize('agentSessions.pullRequestList.labelWithAttention', "{0}, {1}", baseLabel, attention)
+		: baseLabel;
 }
 
 /**
