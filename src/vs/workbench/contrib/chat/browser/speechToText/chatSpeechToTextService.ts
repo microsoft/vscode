@@ -667,7 +667,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._state !== ChatSpeechToTextState.Idle || this._startInProgress !== undefined) {
 			return;
 		}
-		const captureWindow = getMediaCaptureWindow(window);
 
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return;
@@ -710,6 +709,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, startGeneration: number): Promise<void> {
+		const captureWindow = getMediaCaptureWindow(window);
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
 		this._sessionPartialUpdates = 0;
