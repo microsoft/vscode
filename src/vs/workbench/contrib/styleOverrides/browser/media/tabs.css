@@ -66,7 +66,21 @@
 }
 
 .style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
-	row-gap: var(--vscode-spacing-size40);
+	row-gap: 0;
+}
+
+/* Wrapping tabs use the same fake gap as single-row tabs: transparent inset
+ * borders on every side + no margin/row-gap, so the pills float but the hit
+ * boxes stay flush for good clickability. The tab background is the pill here
+ * (the fill is single-row only), so clip it to the padding box; the enlarged
+ * radius keeps the inset corners at the small radius. */
+.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
+	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2) !important;
+	border: var(--vscode-spacing-size20) solid transparent !important;
+	margin-right: 0 !important;
+	align-items: center;
+	background-clip: padding-box !important;
+	border-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20)) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
@@ -146,8 +160,11 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
-	height: unset;
+/* Match the tabs container to the 32px tab height (24px pill token + 8px
+ * gutter) so the full-height tabs are not clipped by the base 24px height.
+ * Wrapping and high-contrast keep the base height (they use the 24px model). */
+.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container {
+	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
 }
 
 /*
@@ -171,12 +188,7 @@
 
 .style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
 	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2) !important;
-	border-top:  var(--vscode-spacing-size20) solid transparent !important;
-	border-bottom: var(--vscode-spacing-size20) solid transparent !important;
-	/* Horizontal inset borders create a "fake" gap between tabs (2px each ->
-	 * 4px total) without a real margin, so the clickable hit boxes stay flush. */
-	border-left: var(--vscode-spacing-size20) solid transparent !important;
-	border-right: var(--vscode-spacing-size20) solid transparent !important;
+	border:  var(--vscode-spacing-size20) solid transparent !important;
 	margin-right: 0 !important;
 	align-items: center;
 	background-color: transparent !important;
@@ -248,6 +260,12 @@
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover .tab-fill {
+	background-color: var(--modern-ui-tab-hover-background) !important;
+}
+
+/* Wrapping keeps the tab-background model (the pill fill is single-row only, so
+ * it stays hidden), so hover sits on the tab itself, mirroring active/selected. */
+.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:not(.active):not(.selected):hover {
 	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
