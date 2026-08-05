@@ -10,6 +10,7 @@
 // (synced from the agent-host-protocol repo). This file adds VS Code-specific
 // helpers and re-exports.
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
@@ -1278,15 +1279,15 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** The URL of the GitHub pull request. */
-	readonly pullRequestUrl?: string;
+	/** GitHub pull request URLs associated with the session, most recent first. */
+	readonly pullRequestUrls?: readonly string[];
 	/**
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
 	 */
 	readonly issueUrls?: readonly string[];
 	/**
-	 * The name of the branch {@link pullRequestUrl} was found (or created) for.
+	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
 	 * resumes looking for one that belongs to the newly checked out branch.
@@ -1304,10 +1305,26 @@ export interface ISessionGitHubState {
  * it actually belongs to.
  */
 export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState | undefined, branchName: string | undefined): boolean {
-	if (!gitHubState?.pullRequestUrl) {
+	if (!gitHubState?.pullRequestUrls?.length) {
 		return false;
 	}
 	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
+}
+
+/** Maximum pull requests retained for a session. */
+export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
+
+/** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
+export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const pullRequestUrls = [
+		pullRequestUrl,
+		...(gitHubState?.pullRequestUrls ?? []).filter(url => url !== pullRequestUrl)
+	].slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+
+	return {
+		pullRequestUrls,
+		pullRequestBranchName: branchName,
+	};
 }
 
 /**
@@ -1387,14 +1404,21 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 	const result: {
 		owner?: string;
 		repo?: string;
-		pullRequestUrl?: string;
+		pullRequestUrls?: readonly string[];
 		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
-	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	const pullRequestUrls = Array.isArray(raw['pullRequestUrls'])
+		? raw['pullRequestUrls'].filter((url): url is string => typeof url === 'string')
+		: typeof raw['pullRequestUrl'] === 'string'
+			? [raw['pullRequestUrl']]
+			: [];
+	if (pullRequestUrls.length > 0) {
+		result.pullRequestUrls = distinct(pullRequestUrls).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
