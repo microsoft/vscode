@@ -187,7 +187,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
 		project: opts?.project,
-		workingDirectory: opts?.workingDirectory,
+		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 	};
 }
 
@@ -232,6 +232,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
+		override getCustomAgents = () => constObservable([]);
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
@@ -280,7 +281,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 			createdAt: opts?.createdAt ?? new Date().toISOString(),
 			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
 			project: opts?.project,
-			workingDirectory: opts?.workingDirectory,
+			workingDirectories: opts?.workingDirectory ? [opts.workingDirectory] : undefined,
 		},
 	});
 }
@@ -631,18 +632,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('clearConnection clears pending new session config', () => {
+	test('clearConnection clears pending new session config and capabilities', () => {
+		connection.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'running-session', { title: 'Running Session' });
+		const runningSession = provider.getSessions()[0];
 
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const supportsMultipleChatsBeforeDisconnect = runningSession.capabilities.get().supportsMultipleChats;
 		provider.clearConnection();
 
 		assert.deepStrictEqual({
 			resolved: provider.getSessionByResource(session.resource),
 			config: provider.getSessionConfig(session.sessionId),
+			sessionTypes: provider.sessionTypes,
+			supportsMultipleChatsBeforeDisconnect,
+			supportsMultipleChatsAfterDisconnect: runningSession.capabilities.get().supportsMultipleChats,
 		}, {
 			resolved: undefined,
 			config: undefined,
+			sessionTypes: [],
+			supportsMultipleChatsBeforeDisconnect: true,
+			supportsMultipleChatsAfterDisconnect: false,
 		});
 	});
 

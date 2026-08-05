@@ -9,6 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -17,7 +18,7 @@ import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { ThrottlerByKey, timeout } from '../../../base/common/async.js';
+import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 
 export class AgentHostGitStateService extends Disposable implements IAgentHostGitStateService {
@@ -28,6 +29,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
+
+	/**
+	 * Serializes pull request lookups per session so overlapping triggers (turn
+	 * completion, session restore, a refresh observing a branch change) issue at
+	 * most one GitHub request at a time and observe each other's writes.
+	 */
+	private readonly _pullRequestSequencer = new SequencerByKey<string>();
+	private readonly _pullRequestAbortController = new AbortController();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -41,9 +50,24 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		super();
 
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		this._register(toDisposable(() => this._pullRequestAbortController.abort()));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		await this.refreshSessionGitState(sessionKey, workingDirectory);
+		await this._queuePullRequestLookup(sessionKey);
+	}
+
+	/**
+	 * Queues a pull request lookup on the session's sequencer so overlapping
+	 * triggers (turn completion, session restore, a refresh observing a branch
+	 * change) issue at most one GitHub request at a time.
+	 */
+	private _queuePullRequestLookup(sessionKey: string): Promise<void> {
+		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey));
+	}
+
+	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return;
@@ -56,13 +80,23 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		// GitHub state
 		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		if (!gitHubState?.owner || !gitHubState?.repo || gitHubState?.pullRequestUrl) {
+		if (!gitHubState?.owner || !gitHubState?.repo) {
 			return;
 		}
 
 		// Git state
 		const gitState = readSessionGitState(state._meta);
-		if (!gitState?.branchName || (gitState.branchName === gitState.baseBranchName)) {
+		const branchName = gitState?.branchName;
+		if (!branchName || (branchName === gitState?.baseBranchName)) {
+			return;
+		}
+
+		// A pull request is always tied to a branch: only stop looking once we
+		// know a pull request for the branch that is currently checked out.
+		// State persisted before pull requests were tracked per branch records
+		// no branch, so its pull request is verified against the current branch
+		// rather than assumed to belong to it.
+		if (gitHubState.pullRequestBranchName === branchName) {
 			return;
 		}
 
@@ -76,31 +110,72 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 
-			const signal = new AbortController().signal;
 			const pr = await this._octoKitService.findPullRequestByHeadBranch(
-				gitHubState.owner, gitHubState.repo, gitState.branchName, authToken, signal);
+				gitHubState.owner, gitHubState.repo, branchName, authToken, this._pullRequestAbortController.signal, gitState?.githubHeadOwner);
 			if (!pr?.url) {
+				// No pull request for this branch (yet). The previously known
+				// pull request, if any, keeps being reported and the lookup is
+				// retried on the next refresh.
 				return;
 			}
 
-			this.setSessionGitHubState(sessionKey, {
+			// The working copy may have moved to another branch while the
+			// request was in flight; discard the now stale result so it cannot
+			// overwrite the pull request of the branch that is checked out now.
+			const currentBranchName = readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta)?.branchName;
+			if (currentBranchName !== branchName) {
+				return;
+			}
+
+			await this.setSessionGitHubState(sessionKey, {
 				owner: gitHubState.owner,
 				repo: gitHubState.repo,
-				pullRequestUrl: pr.url
+				pullRequestUrl: pr.url,
+				pullRequestBranchName: branchName
 			} satisfies ISessionGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 		}
 	}
 
+	/**
+	 * Scans a user message for GitHub issue references and merges them into the
+	 * session's GitHub state. References already recorded are preserved and keep
+	 * their position, so the list reflects the order in which the session first
+	 * mentioned each issue.
+	 */
+	async attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void> {
+		const references = parseGitHubIssueReferences(text);
+		if (references.length === 0) {
+			return;
+		}
+
+		const currentUrls = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta)?.issueUrls ?? [];
+		const nextUrls = [...currentUrls];
+		for (const reference of references) {
+			const url = toGitHubIssueUrl(reference);
+			if (!nextUrls.includes(url)) {
+				nextUrls.push(url);
+			}
+		}
+
+		if (nextUrls.length === currentUrls.length) {
+			return;
+		}
+
+		await this.setSessionGitHubState(sessionKey, {
+			issueUrls: nextUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES)
+		} satisfies ISessionGitHubState);
+	}
+
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.Creating) {
+		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
 			return;
 		}
 
 		if (!workingDirectory) {
-			const workingDirectoryStr = sessionState?.workingDirectory;
+			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -117,7 +192,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const gitState = await this._gitService.getSessionGitState(workingDirectory);
 				if (gitState) {
 					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
-					if (!objectEquals(readSessionGitState(currentMeta), gitState)) {
+					const previousGitState = readSessionGitState(currentMeta);
+					if (!objectEquals(previousGitState, gitState)) {
 						// Update the session's git state
 						await this._setSessionGitState(sessionKey, gitState);
 
@@ -127,6 +203,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 								owner: gitState.githubOwner,
 								repo: gitState.githubRepo
 							} satisfies ISessionGitHubState);
+
+							// The working copy switched to a different branch:
+							// look for a pull request that belongs to the new
+							// branch. The previously known pull request keeps
+							// being reported until a new one is found. Awaited
+							// so the refresh event below carries the pull
+							// request of the new branch rather than stale
+							// GitHub state.
+							if (previousGitState?.branchName !== gitState.branchName) {
+								await this._queuePullRequestLookup(sessionKey);
+							}
 						}
 					}
 				}

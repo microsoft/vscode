@@ -37,7 +37,6 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName 
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -311,12 +310,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (state?.lifecycle !== SessionLifecycle.Ready) {
+		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
 			return;
 		}
 
-		const gitState = readSessionGitState(state?._meta);
-		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		const changesets = buildDefaultChangesetCatalog(session, state);
 		this._stateManager.setSessionChangesets(session, changesets);
 	}
 
@@ -476,7 +474,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._publishChangesetDiffs(session, compareUri, []);
 				return compareUri;
 			}
-			const workingDir = await this._resolveWorkingDirectory(ref.object);
+			const workingDir = await this._resolveWorkingDirectory(session);
 			if (!workingDir) {
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
@@ -569,7 +567,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -589,7 +587,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
 		if (pair && pair.parent !== pair.current) {
-			const workingDir = await this._resolveWorkingDirectory(db);
+			const workingDir = await this._resolveWorkingDirectory(session);
 			if (workingDir) {
 				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
 					sessionUri: session,
@@ -610,13 +608,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
 	}
 
-	private async _resolveWorkingDirectory(db: ISessionDatabase): Promise<URI | undefined> {
-		// Checkpoint baseline writes `checkpoint.workingDir` alongside
-		// `checkpoint.baseRef`. We use that as the canonical working
-		// directory for checkpoint diff computation; reading it here keeps
-		// the changeset service out of agent-specific metadata keys.
-		const raw = await db.getMetadata(META_CHECKPOINT_WORKING_DIR);
-		return raw ? URI.parse(raw) : undefined;
+	private async _resolveWorkingDirectory(session: ProtocolURI): Promise<URI | undefined> {
+		// For the time being we default to the first working directory in the list, if any.
+		// In the future we may want to support multiple working directories per session,
+		// but for now we only support one.
+		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+		return workingDirectories && workingDirectories.length > 0
+			? URI.parse(workingDirectories[0])
+			: undefined;
 	}
 
 	// ---- Lifecycle hooks invoked by AgentSideEffects -----------------------
@@ -1003,7 +1002,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1028,7 +1027,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 			const sessionUri = URI.parse(session);
 			const [baseline, pair] = await Promise.all([
-				this._checkpointService.getBaselineCheckpointRef(sessionUri),
+				this._checkpointService.getBaselineCheckpoint(sessionUri),
 				this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
 			]);
 			if (!baseline || !pair) {
@@ -1081,7 +1080,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * no git working directory (review status is then simply omitted).
 	 */
 	private async _computeReviewedInfo(session: ProtocolURI, db: ISessionDatabase): Promise<{ readonly repoRoot: URI; readonly paths: ReadonlySet<string> } | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}

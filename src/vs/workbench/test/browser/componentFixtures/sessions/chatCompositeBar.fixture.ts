@@ -11,6 +11,8 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, Session
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -84,6 +86,12 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override async renameChat() { }
 				override async deleteChat() { }
+			}());
+			// Tabs are drag sources that ask the owning provider for the referenced
+			// chat's backend resource. These fixtures mock a provider-less session,
+			// so no provider resolves and the drag offers no chat reference.
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
 			}());
 		},
 	});

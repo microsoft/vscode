@@ -13,7 +13,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { getCloudSessionItemMetadata, normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -128,6 +128,18 @@ describe('copilotCloudSessionsProvider helpers', () => {
 
 		expect(result).toEqual([]);
 		expect(logService.error).toHaveBeenCalledWith(expect.any(SyntaxError), expect.stringContaining('Failed to parse streamed log content'));
+	});
+
+	it('includes the task branch in PR-less cloud session metadata', () => {
+		expect(getCloudSessionItemMetadata(
+			{ owner: 'microsoft', name: 'vscode', host: 'github.com' },
+			{ owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: 'copilot/task-branch' },
+		)).toEqual({
+			owner: 'microsoft',
+			name: 'vscode',
+			host: 'github.com',
+			branch: 'copilot/task-branch',
+		});
 	});
 });
 
@@ -559,6 +571,18 @@ describe('TaskApiBackend', () => {
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
 	});
 
+	it('fetchSessionList uses the global user-scoped list in the agents window even when repoIds are present', async () => {
+		// The agents window surfaces all of the user's sessions rather than scoping to the active
+		// workspace's repositories, so it must hit the global list and never the repo-scoped one.
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
 	it('fetchSessionList resolves a global-list task repo by numeric id when it has no html_url', async () => {
 		// Global-list (repoIds undefined) tasks may carry only `repository.id` and no `html_url`.
 		// Without resolving it the session has no repo metadata and groups under "Unknown".
@@ -708,7 +732,7 @@ describe('isActiveTaskState / isFailedTaskState', () => {
 
 describe('parseRepoFromTaskUrl', () => {
 	it('extracts owner and name from a task html_url', () => {
-		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+		expect(parseRepoFromTaskUrl('https://github.example.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world', host: 'github.example.com' });
 	});
 
 	it('returns undefined for an unparseable URL', () => {

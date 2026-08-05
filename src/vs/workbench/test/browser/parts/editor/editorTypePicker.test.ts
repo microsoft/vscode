@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
-import { IAvailableEditorTypes, hasDefaultEditorAssociation } from '../../../../browser/parts/editor/editorTypePicker.js';
-import { RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { getAvailableEditorTypes, IAvailableEditorTypes, hasDefaultEditorAssociation } from '../../../../browser/parts/editor/editorTypePicker.js';
+import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 
 suite('Editor Type Picker', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function editor(id: string, editorPriority: RegisteredEditorPriority, diffPriority = editorPriority): RegisteredEditorInfo {
 		return {
@@ -60,6 +62,44 @@ suite('Editor Type Picker', () => {
 			defaultEditorOverriddenWithText: true,
 			builtinEditor: true,
 			diffDefaultEditor: true,
+		});
+	});
+	test('inline custom diff editor is classified as a diff editor', () => {
+		const original = URI.file('/original/test.md');
+		const modified = URI.file('/modified/test.md');
+		const registeredEditors = [
+			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+			editor('test.markdownEditor', RegisteredEditorPriority.option, RegisteredEditorPriority.explicit),
+		];
+		const input = disposables.add(new class extends EditorInput implements IEditorInputWithDiffResources {
+			override get typeId(): string { return 'test.inlineCustomDiffEditor'; }
+			override get editorId(): string { return 'test.markdownEditor'; }
+			override get resource(): URI { return modified; }
+			get diffResources(): IEditorInputWithDiffResources['diffResources'] { return { original, modified }; }
+			override getName(): string { return 'test'; }
+		}());
+		const requestedResources: URI[] = [];
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditors(resource?: URI): RegisteredEditorInfo[] {
+				if (resource) {
+					requestedResources.push(resource);
+				}
+				return registeredEditors;
+			}
+		};
+
+		const result = getAvailableEditorTypes(input, editorResolverService);
+
+		assert.deepStrictEqual({ requestedResources, result }, {
+			requestedResources: [modified],
+			result: {
+				resource: modified,
+				isDiffEditor: true,
+				originalResource: original,
+				modifiedResource: modified,
+				currentId: 'test.markdownEditor',
+				editors: registeredEditors,
+			}
 		});
 	});
 });

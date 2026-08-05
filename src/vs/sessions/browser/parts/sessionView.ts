@@ -20,6 +20,7 @@ import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 
@@ -40,7 +41,7 @@ export interface ISessionViewOptions extends IChatViewOptions { }
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
-	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
@@ -76,6 +77,12 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
+
+	/** Whether the owning {@link SessionsPart} is visible in the workbench grid. */
+	private _isPartVisible = true;
+
+	/** Whether this leaf is visible within the part's internal grid. */
+	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
@@ -178,7 +185,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (!this._lastLayout) {
 			return;
 		}
+
+		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
+		if (!this._isVisible || width === 0 || height === 0) {
+			return;
+		}
 
 		// Apply the centered band's width first so the header wraps to its final
 		// layout before we measure its height. Measuring before the width is
@@ -224,6 +236,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._groupsView.sendQuery(text);
 	}
 
+	submitInput(): Promise<boolean> {
+		return this._groupsView.submitInput();
+	}
+
 	/**
 	 * Attaches the given resources as context to the active chat group's input.
 	 */
@@ -251,6 +267,53 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
+	}
+
+	/**
+	 * Grid hook invoked by the part's internal split view when this leaf is
+	 * hidden or shown (e.g. when a sibling session is maximized).
+	 */
+	setVisible(visible: boolean): void {
+		if (this._isLeafVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isLeafVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Called by the owning {@link SessionsPart} when the part itself is hidden or
+	 * shown in the workbench grid. Combined with this leaf's own visibility to
+	 * form the view's effective visibility.
+	 */
+	setPartVisible(visible: boolean): void {
+		if (this._isPartVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isPartVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Whether this view is actually shown. Unrelated to {@link setActive}:
+	 * inactive sessions shown side by side are still visible.
+	 */
+	private get _isVisible(): boolean {
+		return this._isPartVisible && this._isLeafVisible;
+	}
+
+	private _updateVisibility(wasVisible: boolean): void {
+		const visible = this._isVisible;
+		if (visible === wasVisible) {
+			return;
+		}
+		this._groupsView.setSessionVisible(visible);
+		if (visible) {
+			// Catch up on the layout passes that were skipped while hidden.
+			this._layoutChildren();
+		}
 	}
 
 	private _applyActiveSessionStyles(): void {

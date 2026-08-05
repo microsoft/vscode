@@ -9,6 +9,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasIssuesContext,
 	SessionHasWorkspaceContext,
 	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
@@ -19,6 +20,7 @@ import {
 	SessionSupportsDeleteContext,
 	SessionSupportsMultipleChatsContext,
 	SessionSupportsForkContext,
+	SessionSupportsSideChatContext,
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
@@ -29,6 +31,7 @@ import {
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
 	SessionActiveChatHasSubagentsContext,
+	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -44,11 +47,14 @@ interface ISessionContextKeys {
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
 	readonly supportsFork: IContextKey<boolean>;
+	readonly supportsSideChat: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
+	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasIssues: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
@@ -82,11 +88,14 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
 			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
+			supportsSideChat: SessionSupportsSideChatContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
+			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasIssues: SessionHasIssuesContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
@@ -127,11 +136,15 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
 	keys.supportsFork.set(capabilities?.supportsFork ?? false);
+	keys.supportsSideChat.set(capabilities?.supportsSideChat ?? false);
 	keys.supportsRename.set(capabilities?.supportsRename ?? false);
 	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
-	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
+	const workspace = session?.workspace.read(reader);
+	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
-	// Mirror the changes pill: the default changeset, falling back to the session's changes.
+	// Mirror the changes pill: the default changeset, falling back to the session's changes — but while the worktree is pending those changes belong to the checkout, not the session.
+	const worktreePending = session?.worktreePending?.read(reader) ?? false;
 	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 	let insertions = 0;
 	let deletions = 0;
@@ -139,10 +152,13 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 		insertions += change.insertions;
 		deletions += change.deletions;
 	}
-	keys.hasChanges.set(insertions > 0 || deletions > 0);
+	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
+
+	const issues = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues;
+	keys.hasIssues.set(!!issues?.length);
 
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 
@@ -150,6 +166,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	// `workspace === undefined` (which is also transiently true for a
 	// still-resolving workspace session).
 	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
+
 }
 
 /**

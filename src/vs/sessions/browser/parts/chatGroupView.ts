@@ -7,11 +7,13 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -84,12 +86,17 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _contextDisposables = this._register(new DisposableStore());
 
+	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
+	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
+
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	/** Whether this group is the active (focused) group within the session. */
 	private _groupActive = false;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
+	/** Whether this group's session is currently visible in the sessions part. */
+	private _sessionVisible = true;
 	/** Index of this group within the persisted layout, written into {@link toJSON}. */
 	private _serializationIndex = 0;
 
@@ -97,8 +104,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._archiveActionWording = observableFromEvent(
+			this,
+			configurationService.onDidChangeConfiguration,
+			() => getChatSessionArchiveActionWording(configurationService),
+		);
 
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
@@ -169,6 +183,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._sessionActive);
+				view.setVisible(this._sessionVisible);
 				this._layoutChildren();
 			}
 
@@ -183,10 +198,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			if (readOnly) {
 				const archived = session.isArchived.read(reader);
 				if (archived) {
+					const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
 					this._readOnlyBanner.setContent({
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
-							label: localize('sessionReadOnlyBanner.restore', "Restore"),
+							label: action.title.value,
 							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, session),
 						},
 					});
@@ -220,6 +236,19 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionActive = active;
 		this._currentView.value?.setActive(active);
+	}
+
+	/** Whether this group's session is currently visible in the sessions part. */
+	setSessionVisible(visible: boolean): void {
+		if (this._sessionVisible === visible) {
+			return;
+		}
+		this._sessionVisible = visible;
+		this._currentView.value?.setVisible(visible);
+	}
+
+	submitInput(): Promise<boolean> {
+		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

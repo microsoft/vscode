@@ -89,6 +89,7 @@ export class ChatGroupsView extends Themable {
 	private _options: IChatViewOptions | undefined;
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
+	private _sessionVisible = true;
 
 	/** While restoring a persisted layout: routes (late-loading) chats back to their saved groups. */
 	private _restoreAssignment: Map<string, number> | undefined;
@@ -288,6 +289,7 @@ export class ChatGroupsView extends Themable {
 		};
 		view.setContext(context);
 		view.setSessionActive(this._sessionActive);
+		view.setSessionVisible(this._sessionVisible);
 
 		return entry;
 	}
@@ -537,6 +539,20 @@ export class ChatGroupsView extends Themable {
 		for (const group of this._groups) {
 			group.view.setSessionActive(active);
 		}
+	}
+
+	setSessionVisible(visible: boolean): void {
+		if (this._sessionVisible === visible) {
+			return;
+		}
+		this._sessionVisible = visible;
+		for (const group of this._groups) {
+			group.view.setSessionVisible(visible);
+		}
+	}
+
+	submitInput(): Promise<boolean> {
+		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

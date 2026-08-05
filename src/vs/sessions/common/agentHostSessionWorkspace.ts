@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { IGitHubInfo, ISessionWorkspace } from '../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
 	readonly uri: URI;
@@ -75,23 +75,27 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	if (!workspace || !folder) {
 		return undefined;
 	}
-	const repo = folder.gitRepository;
-	return [
-		workspace.label,
-		extUri.getComparisonKey(folder.root),
-		folder.workingDirectory ? extUri.getComparisonKey(folder.workingDirectory) : '',
-		repo?.branchName ?? '',
-		repo?.baseBranchName ?? '',
-		String(repo?.baseBranchProtected ?? ''),
-		String(repo?.hasGitHubRemote ?? ''),
-		repo?.upstreamBranchName ?? '',
-		String(repo?.incomingChanges ?? ''),
-		String(repo?.outgoingChanges ?? ''),
-		String(repo?.uncommittedChanges ?? ''),
-	].join('\n');
+	// Hash every folder so a change to any peer directory (added/removed/reordered)
+	// invalidates the key, not just the primary.
+	const folderKeys = workspace.folders.map(f => {
+		const repo = f.gitRepository;
+		return [
+			extUri.getComparisonKey(f.root),
+			f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
+			repo?.branchName ?? '',
+			repo?.baseBranchName ?? '',
+			String(repo?.baseBranchProtected ?? ''),
+			String(repo?.hasGitHubRemote ?? ''),
+			repo?.upstreamBranchName ?? '',
+			String(repo?.incomingChanges ?? ''),
+			String(repo?.outgoingChanges ?? ''),
+			String(repo?.uncommittedChanges ?? ''),
+		].join('\u0001');
+	});
+	return [workspace.label, ...folderKeys].join('\n');
 }
 
-export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectory: URI | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
+export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
@@ -103,8 +107,19 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
 	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+
+	// The primary (index 0) is the session's process root; it carries the git
+	// state / project association. Additional directories are emitted as plain
+	// peer folders — per-folder git state is owned by the deferred git track and
+	// is not populated here.
+	const primary = workingDirectories?.[0];
+	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
+		const name = basename(dir) || dir.path;
+		return { root: dir, workingDirectory: dir, name, description: options.description };
+	});
+
 	if (project) {
-		const workTreeUri = extUri.isEqual(workingDirectory, project.uri) ? undefined : workingDirectory;
+		const workTreeUri = extUri.isEqual(primary, project.uri) ? undefined : primary;
 		const label = options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName;
 		return {
 			uri: project.uri,
@@ -114,35 +129,35 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			group: options.group,
 			folders: [{
 				root: project.uri,
-				workingDirectory: workingDirectory ?? project.uri,
+				workingDirectory: primary ?? project.uri,
 				name: project.displayName,
 				description: options.description,
 				gitRepository: { uri: project.uri, workTreeUri, gitHubInfo, ...gitFields },
-			}],
+			}, ...additionalFolders],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 			isVirtualWorkspace: false,
 		};
 	}
 
-	if (!workingDirectory) {
+	if (!primary) {
 		return undefined;
 	}
 
-	const folderName = basename(workingDirectory) || workingDirectory.path;
+	const folderName = basename(primary) || primary.path;
 	const label = options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName;
 	return {
-		uri: workingDirectory,
+		uri: primary,
 		label,
 		description: options.description,
 		icon: options.fallbackIcon,
 		group: options.group,
 		folders: [{
-			root: workingDirectory,
-			workingDirectory,
+			root: primary,
+			workingDirectory: primary,
 			name: folderName,
 			description: options.description,
-			gitRepository: { uri: workingDirectory, workTreeUri: undefined, gitHubInfo, ...gitFields },
-		}],
+			gitRepository: { uri: primary, workTreeUri: undefined, gitHubInfo, ...gitFields },
+		}, ...additionalFolders],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		isVirtualWorkspace: false,
 	};

@@ -5,6 +5,92 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { ChatVoiceProgressStage } from '../chatService/chatService.js';
+
+/**
+ * One selectable option on a pending question, positioned in *displayed* order.
+ *
+ * Position is what the user hears and says back ("the second one"), so the list
+ * is in `getOptionsWithDefaultsFirst` order and both sides number it by index.
+ * `value` is the opaque id the chat model wants back and is never spoken.
+ */
+export interface IVoicePendingOption {
+	label: string;
+	value: string;
+}
+
+/** One question of a pending question form. */
+export interface IVoicePendingQuestion {
+	id: string;
+	type: 'text' | 'singleSelect' | 'multiSelect';
+	title: string;
+	allow_freeform: boolean;
+	options: IVoicePendingOption[];
+}
+
+/**
+ * What a coding session is currently waiting on, structurally.
+ *
+ * `agent_state_detail` describes the same thing as prose, which is enough to
+ * *say* but not to *act on*: a spoken answer to a question form has nowhere to
+ * land without the ids and options below. `pending_id` + `request_id` route a
+ * response back to the exact part that raised it, with no "currently focused
+ * session" guesswork.
+ *
+ * Field names are snake_case because this crosses the voice websocket verbatim.
+ */
+export interface IVoiceSessionPending {
+	type: 'questions' | 'approval';
+	pending_id: string;
+	request_id: string;
+	allow_skip?: boolean;
+	message?: string;
+	questions?: IVoicePendingQuestion[];
+}
+
+/**
+ * Per-occurrence tokens for pending response parts.
+ *
+ * Not the part's index in `response.value`: `Response.clear` and
+ * `Response.clearToPreviousToolInvocation` splice that list, so a retry can seat
+ * a new part at an index already published to the backend. The backend keys
+ * partial answers off this id, so a reused id lets a draft written for one form
+ * be submitted against another.
+ *
+ * A token minted per part object cannot be reused, because a spliced-out part is
+ * never seen again. Entries are weakly held, so they die with the model.
+ */
+const pendingOccurrenceTokens = new WeakMap<object, string>();
+let pendingOccurrenceCounter = 0;
+
+/**
+ * Derive the id that routes a voice response back to this exact pending part.
+ *
+ * Call this only when publishing a part as the session's pending request; it
+ * mints a token on first sight. Use `peekPendingId` for an id that came back
+ * from the backend, so a part never offered cannot be matched by a stale id.
+ */
+
+
+export function derivePendingId(requestId: string, part: object): string {
+	let token = pendingOccurrenceTokens.get(part);
+	if (token === undefined) {
+		token = `p${++pendingOccurrenceCounter}`;
+		pendingOccurrenceTokens.set(part, token);
+	}
+	return `${requestId}#${token}`;
+}
+
+/**
+ * Resolve the id of an already-published pending part, or `undefined`.
+ *
+ * Does not mint: a part the client never published as pending has no id, so an
+ * echoed id can only match the part it was issued for.
+ */
+export function peekPendingId(requestId: string, part: object): string | undefined {
+	const token = pendingOccurrenceTokens.get(part);
+	return token === undefined ? undefined : `${requestId}#${token}`;
+}
 
 /**
  * Session context sent to the voice server for grounding.
@@ -12,16 +98,49 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 export interface IVoiceSessionContext {
 	sessions: {
 		id: string;
+		/** Human-readable name, so the backend can tell two sessions apart. */
+		label?: string;
 		is_active: boolean;
 		agent_state: string;
 		agent_state_detail?: string;
+		confirmation_type?: VoiceConfirmationType;
 		last_response_summary?: string;
+		pending?: IVoiceSessionPending;
 	}[];
-	active_session?: {
-		id: string;
-		last_message: string | null;
-	};
 	display_locale: string;
+}
+
+export type VoiceConfirmationType = 'questionnaire' | 'elicitation' | 'plan' | 'tool' | 'generic';
+export type VoiceCheckpointId = ChatVoiceProgressStage;
+
+export function isVoiceCheckpointId(value: unknown): value is VoiceCheckpointId {
+	return value === 'investigating' || value === 'planning' || value === 'editing' || value === 'validating' || value === 'recovering';
+}
+
+export interface IVoiceCheckpointNarrationMetadata {
+	readonly requestId: string;
+	readonly checkpointId: VoiceCheckpointId;
+	readonly sequence: number;
+}
+
+/**
+ * What a client-requested narration is speaking. Mirrors `NarrationKind` in the
+ * voice backend.
+ *
+ * `'question'` is spoken verbatim by the backend rather than being paraphrased
+ * by the narration model: the numbered options are the ordinals the user says
+ * back, so a summary that drops them breaks answering.
+ */
+export type VoiceNarrationKind = 'response' | 'confirmation' | 'question' | 'checkpoint';
+
+/**
+ * Structured outcome of a dispatched voice tool call. The backend speaks an
+ * acknowledgement only after seeing one, so a dishonest `ok` becomes the
+ * assistant claiming something that never happened.
+ */
+export interface IVoiceDispatchResult {
+	readonly ok: boolean;
+	readonly reason?: 'stale_pending' | 'invalid_answer' | 'no_session' | 'unsupported';
 }
 
 /**
@@ -43,6 +162,8 @@ export interface IVoiceAudioResponse {
 	readonly isFinal: boolean;
 	readonly codingSessionId?: string;
 	readonly transcript?: string;
+	/** Backend turn identifier from the wire's `turn_id`. */
+	readonly turnId?: string;
 	/**
 	 * Stable id correlating all chunks of ONE narration/response stream, echoed
 	 * by the backend from the `narration_id` the client sent on
@@ -52,6 +173,11 @@ export interface IVoiceAudioResponse {
 	 * direct replies and for backends that don't yet echo it (legacy fallback).
 	 */
 	readonly responseId?: string;
+	readonly requestId?: string;
+	readonly checkpointId?: VoiceCheckpointId;
+	readonly sequence?: number;
+	readonly narrationKind?: VoiceNarrationKind;
+	readonly playbackId?: string;
 }
 
 export interface IVoiceBargeIn {
@@ -60,7 +186,7 @@ export interface IVoiceBargeIn {
 }
 
 /** Disposition of a client `request_narration`, reported by `narration_ack`. */
-export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid';
+export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid' | 'suppressed';
 
 /** The backend's acknowledgement of a `request_narration`. */
 export interface IVoiceNarrationAck {
@@ -80,6 +206,8 @@ export interface IVoiceNarrationAck {
 export interface IVoiceNarrationSignal {
 	readonly narrationId: string;
 	readonly codingSessionId: string;
+	readonly retryable?: boolean;
+	readonly reason?: string;
 }
 
 export interface IVoiceToolCall {
@@ -88,7 +216,9 @@ export interface IVoiceToolCall {
 	readonly args: Record<string, unknown>;
 }
 
-export interface IVoiceSpeechStarted { }
+export interface IVoiceSpeechStarted {
+	readonly turnId?: string;
+}
 
 export interface IVoiceSessionInit {
 	readonly sessionId: string;
@@ -208,7 +338,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string): void;
+	sendPttStart(turnId: string, passive?: boolean): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**
@@ -235,11 +365,24 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string): void;
-	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
-	/** True when a `requestNarration` call would actually send (socket open and the session has started on it). Lets the caller stop the mic before requesting only when the request will really go out. */
-	readonly canRequestNarration: boolean;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	/** Report that one correlated checkpoint playback attempt finished locally. */
+	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
+	/**
+	 * Ask the backend to speak `text` for a session now; returns the narration id
+	 * echoed on the resulting `audio_response`, or `undefined` if nothing was
+	 * sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend
+	 * can dedup a lost ack; omit it to mint a fresh one.
+	 *
+	 * `pending` names the form a `'question'` narration speaks. The backend drops
+	 * the request if that form has moved on, and otherwise re-renders whichever
+	 * question the form is now waiting on: it owns the draft of answers given so
+	 * far, which is why the caller names a form and not a question. `text` is
+	 * therefore only spoken verbatim during the debounce window before the
+	 * backend's mirror has caught up. The id is deliberately *not* folded into
+	 * `text`, which every dedup and retry-reuse guard keys on.
+	 */
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *
@@ -252,8 +395,8 @@ export interface IVoiceClientService {
 	 */
 	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void;
-	sendResumeSession(context: IVoiceSessionContext, machineId: string): void;
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
+	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;
 
 	// --- Feedback ---
 	submitFeedback(payload: IVoiceFeedbackPayload): Promise<{ ok: boolean; error?: string }>;
@@ -290,8 +433,11 @@ export interface IVoiceClientService {
 	// --- State ---
 	readonly isConnected: boolean;
 	readonly isResuming: boolean;
+	/** Whether the current socket close has an automatic retry scheduled. */
+	readonly willReconnect: boolean;
 	/** Backend session id assigned by the realtime server, or ``undefined`` when not yet established. */
 	readonly currentSessionId: string | undefined;
 }
 
 export const IVoiceClientService = createDecorator<IVoiceClientService>('voiceClientService');
+export const VOICE_AGENT_PROGRESS_SETTING = 'agents.voice.agentProgress';

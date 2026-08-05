@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -31,7 +31,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
-import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
+import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -45,6 +45,8 @@ export interface IFixtureFileChange {
 	readonly removed: number;
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
+	/** Whether the file is outside the owning session workspace. */
+	readonly isOutsideWorkspace?: boolean;
 }
 
 export interface IFixtureMessage {
@@ -55,6 +57,7 @@ export interface IFixtureMessage {
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
+	readonly details?: string;
 	readonly responseComplete?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
@@ -70,6 +73,10 @@ export interface IChatWidgetFixtureOptions {
 	readonly height?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
+	/** Whether to populate the response footer with an action. */
+	readonly responseFooterAction?: boolean;
+	/** Whether to show request and response timing details. */
+	readonly verbose?: boolean;
 	/**
 	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
 	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
@@ -86,19 +93,31 @@ export interface IChatWidgetFixtureOptions {
 	/**
 	 * When set, renders the chat as an agent host session and enables the turn
 	 * changes summary (`chat.turnStatusPills`), so completed turns with
-	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
-	 * response.
+	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
+	 * Markdown previews under the response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
+	/** Selects the input-height consumer used by the ResizeObserver harness. */
+	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 }
 
-function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
+interface IChatWidgetFixtureHandle {
+	readonly inputPart: ChatInputPart;
+	readonly listWidget: ChatListWidget;
+	readonly model: ChatModel;
+	readonly width: number;
+	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
+}
+
+function makeFileDiff(change: IFixtureFileChange): IChatResponseFileEdit {
 	// A created file has no before-content, so the agent host provider maps its
 	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
 	// distinct original.
-	const modifiedURI = URI.file(`/repo/${change.name}`);
-	const originalURI = change.created ? modifiedURI : URI.file(`/repo/.original/${change.name}`);
-	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
+	const root = change.isOutsideWorkspace ? '/home/user' : '/repo';
+	const modifiedURI = URI.file(`${root}/${change.name}`);
+	const originalURI = change.created ? modifiedURI : URI.file(`${root}/.original/${change.name}`);
+	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false, isOutsideWorkspace: change.isOutsideWorkspace ?? false };
 }
 
 function makeUserMessage(text: string) {
@@ -130,6 +149,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
+	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
 	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -155,6 +175,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
 					override getChangesForRequest(_sessionResource: URI, requestId: string) {
 						return constObservable(requestDiffs.get(requestId) ?? []);
+					}
+					override getFileEditsForRequest(_sessionResource: URI, requestId: string) {
+						return constObservable(requestFileEdits.get(requestId) ?? []);
 					}
 				}());
 			}
@@ -192,6 +215,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+	if (options.verbose !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
+	}
 	if (needsTurnPills) {
 		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, options.turnStatusPills);
 	}
@@ -216,7 +242,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
 		const response = request.response!;
 		if (message.fileChanges) {
-			requestDiffs.set(request.id, message.fileChanges.map(makeFileDiff));
+			const fileEdits = message.fileChanges.map(makeFileDiff);
+			requestDiffs.set(request.id, fileEdits.filter(diff => !diff.isOutsideWorkspace));
+			requestFileEdits.set(request.id, fileEdits);
 		}
 		for (const part of message.assistant ?? []) {
 			if (part.kind === 'markdown') {
@@ -262,6 +290,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, toolInvocation);
 			}
 		}
+		if (message.details) {
+			response.setResult({ details: message.details });
+		}
 		if (message.responseComplete !== false) {
 			response.complete();
 		}
@@ -303,7 +334,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
+	if (options.responseFooterAction) {
+		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
+	}
 
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -338,7 +372,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
 	const listContainer = dom.$('.interactive-list');
-	listContainer.style.flex = '1 1 auto';
+	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
 	// Prepend the list before the input so the visual order matches production.
@@ -350,7 +384,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
-			renderStyle: 'compact',
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground: 'var(--vscode-editor-background)',
@@ -361,6 +394,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 		},
 	));
+
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	listWidget.refresh();
@@ -368,6 +402,60 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const listHeight = 420;
 	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
+
+	if (options.hostLayoutMode && options.hostLayoutMode !== 'none') {
+		let layouting = false;
+		disposableStore.add(autorun(reader => {
+			const inputHeight = inputPart.height.read(reader);
+			if (layouting) {
+				return;
+			}
+
+			layouting = true;
+			try {
+				if (options.hostLayoutMode === 'stackedFull') {
+					// Mirrors ChatViewPane's stacked-sessions convergence path:
+					// the host synchronously lays out the input again.
+					inputPart.setMaxHeight(Math.max(0, height - 50));
+					inputPart.layout(width);
+				}
+
+				const contentHeight = options.hostLayoutMode === 'stackedFull' || options.hostLayoutMode === 'stackedTargeted'
+					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
+					: Math.max(0, height - inputHeight);
+				listContainer.style.height = `${contentHeight}px`;
+				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listWidget.layout(contentHeight, width);
+			} finally {
+				layouting = false;
+			}
+		}));
+	}
+
+	options.onRendered?.({
+		inputPart,
+		listWidget,
+		model,
+		width,
+		addTerminalConfirmation: (request, command) => {
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{
+					invocationMessage: new MarkdownString(`Running \`${command}\``),
+					pastTenseMessage: new MarkdownString(`Ran \`${command}\``),
+					confirmationMessages: { title: 'Run diagnostic command?', message: new MarkdownString(`\`${command}\``) },
+					toolSpecificData: {
+						kind: 'terminal',
+						commandLine: { original: command },
+						language: 'pwsh',
+					},
+				},
+				fixtureToolData,
+				generateUuid(),
+				undefined,
+				{ command },
+			));
+		},
+	});
 }
 
 const SIMPLE_QA: IFixtureMessage[] = [
@@ -378,6 +466,67 @@ const SIMPLE_QA: IFixtureMessage[] = [
 		],
 	},
 ];
+
+const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
+	{
+		user: 'Summarize the changes',
+		assistant: [
+			{ kind: 'markdown', text: 'The response content ends here.' },
+		],
+		details: 'Claude Opus 4.8 - 2 credits',
+	},
+];
+
+async function renderLastResponseHover(context: ComponentFixtureContext): Promise<void> {
+	await renderChatWidget(context, {
+		messages: LAST_RESPONSE_HOVER,
+		height: 600,
+		inputVisible: false,
+		responseFooterAction: true,
+	});
+
+	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
+	response?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new MouseEvent('mouseenter'));
+}
+
+const KEYBOARD_FOCUS: IFixtureMessage[] = [
+	{
+		user: 'Summarize the changes',
+		assistant: [
+			{ kind: 'markdown', text: 'The first response has keyboard-accessible actions.' },
+		],
+		details: 'Claude Opus 4.8 - 2 credits',
+	},
+	{
+		user: 'What should I do next?',
+		assistant: [
+			{ kind: 'markdown', text: 'Run the tests and review the diff.' },
+		],
+		details: 'Claude Opus 4.8 - 1 credit',
+	},
+];
+
+async function renderKeyboardFocus(context: ComponentFixtureContext, target: 'response-action' | 'request-timestamp'): Promise<void> {
+	await renderChatWidget(context, {
+		messages: KEYBOARD_FOCUS,
+		height: 600,
+		inputVisible: false,
+		responseFooterAction: true,
+		verbose: target === 'request-timestamp',
+	});
+
+	const selector = target === 'response-action'
+		? '.interactive-response:not(.chat-most-recent-response) .chat-footer-toolbar .action-label'
+		: '.interactive-request .chat-request-timestamp';
+	const focusTarget = context.container.querySelector<HTMLElement>(selector);
+	if (!focusTarget) {
+		throw new Error(`Missing keyboard focus target: ${target}`);
+	}
+	focusTarget.focus();
+	if (focusTarget.ownerDocument.activeElement !== focusTarget) {
+		throw new Error(`Could not focus keyboard target: ${target}`);
+	}
+}
 
 const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	{
@@ -478,13 +627,154 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
+async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: [{
+			user: [
+				'Investigate ResizeObserver re-entry.',
+				'',
+				'Context (text/plain; no binary upload):',
+				'Issue #316501 tracks chat list and input resize-observer loop warnings.',
+			].join('\n'),
+			assistant: [{
+				kind: 'markdown',
+				text: 'The mocked chat harness is ready.',
+			}],
+		}],
+		width: 720,
+		height: 600,
+		hostLayoutMode,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('ResizeObserver harness did not initialize');
+	}
+	const fixtureHandle = handle;
+
+	const controls = dom.$('.resize-observer-loop-harness');
+	const runButton = dom.append(controls, dom.$<HTMLButtonElement>('button.resize-observer-loop-run'));
+	runButton.type = 'button';
+	runButton.textContent = 'Run 20-turn burst';
+	const status = dom.append(controls, dom.$('span.resize-observer-loop-status'));
+	status.role = 'status';
+	status.textContent = 'Ready';
+	const warnings = dom.append(controls, dom.$('span.resize-observer-loop-warnings'));
+	warnings.textContent = 'Warnings: 0';
+	controls.style.position = 'absolute';
+	controls.style.top = '8px';
+	controls.style.right = '8px';
+	controls.style.zIndex = '100';
+	controls.style.display = 'flex';
+	controls.style.gap = '8px';
+	controls.style.alignItems = 'center';
+	controls.style.padding = '6px 8px';
+	controls.style.background = 'var(--vscode-editorWidget-background)';
+	controls.style.border = '1px solid var(--vscode-widget-border)';
+	context.container.style.position = 'relative';
+	context.container.appendChild(controls);
+
+	let warningCount = 0;
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			warningCount++;
+			warnings.textContent = `Warnings: ${warningCount}`;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			status.textContent = 'Captured ResizeObserver warning';
+		}
+	}));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	const runBurst = async () => {
+		runButton.disabled = true;
+		status.textContent = 'Adding queued turns...';
+		const responses = [];
+
+		for (let index = 1; index <= 20; index++) {
+			const prompt = [
+				`Queued prompt ${index}`,
+				'',
+				'Context (text/plain; no binary upload):',
+				...Array.from({ length: 12 }, (_, line) => `Resize stress sample ${index}.${line + 1}: ${'layout '.repeat(index % 5 + 1)}`),
+			].join('\n');
+
+			fixtureHandle.inputPart.setValue(prompt, true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+
+			const request = fixtureHandle.model.addRequest(makeUserMessage(prompt), { variables: [] }, 0);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'progressMessage',
+				content: new MarkdownString(`Processing queued prompt ${index}...`),
+			});
+			if (index === 1) {
+				fixtureHandle.addTerminalConfirmation(request, 'git status --short');
+			}
+			responses.push(request.response!);
+
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+
+			fixtureHandle.inputPart.setValue('', true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(`Mock streamed output ${index}\n\n${'- response line\n'.repeat(index % 7 + 1)}`),
+			});
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = 'Completing mocked responses...';
+		for (const response of responses) {
+			response.complete();
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = warningCount > 0
+			? 'Completed with ResizeObserver warning'
+			: 'Completed without warning';
+		runButton.disabled = false;
+	};
+
+	context.disposableStore.add(dom.addDisposableListener(runButton, dom.EventType.CLICK, () => {
+		void runBurst();
+	}));
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	ResizeObserverLoopHarness: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedFull'),
+	}),
+	ResizeObserverLoopListOnly: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'listOnly'),
+	}),
+	ResizeObserverLoopStackedTargeted: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedTargeted'),
+	}),
+	ResizeObserverLoopNoHostLayout: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
+	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
+	ResponseActionKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'response-action') }),
+	RequestTimestampKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'request-timestamp') }),
 });
