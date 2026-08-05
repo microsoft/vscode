@@ -41,7 +41,7 @@ import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
-import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -1110,9 +1110,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
-			const supportedReasoningEfforts = m.supportedReasoningEfforts?.filter(isCopilotReasoningEffort);
-			const defaultReasoningEffort = supportedReasoningEfforts?.find(effort => effort === m.defaultReasoningEffort) ?? supportedReasoningEfforts?.[0];
-			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts, defaultReasoningEffort);
+			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 			return {
 				provider: this.id,
 				id: `${m.vendor}/${getByokLmSelectionModelId(m)}`,
@@ -1394,7 +1392,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- session management -------------------------------------------------
 
-	private _createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined): ConfigPropertySchema | undefined {
+	private _createThinkingLevelConfigSchemaProperty(reasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined, modelId: string | undefined): ConfigPropertySchema | undefined {
+		// Only advertise efforts the Copilot launcher actually accepts, otherwise the picker would
+		// surface a level that is silently dropped when the session is launched.
+		const supportedReasoningEfforts = reasoningEfforts?.filter(isCopilotReasoningEffort);
 		if (!supportedReasoningEfforts?.length) {
 			return undefined;
 		}
@@ -1403,7 +1404,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			type: 'string',
 			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
 			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
-			default: defaultReasoningEffort,
+			default: resolveDefaultReasoningEffort(supportedReasoningEfforts, defaultReasoningEffort, modelId),
 			enum: [...supportedReasoningEfforts],
 			enumLabels: supportedReasoningEfforts.map(getReasoningEffortLabel),
 			enumDescriptions: supportedReasoningEfforts.map(value => getReasoningEffortDescription(value) ?? ''),
@@ -1491,7 +1492,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _createModelConfigSchema(m: ModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
-		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort);
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}

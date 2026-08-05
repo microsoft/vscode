@@ -4170,6 +4170,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.claudeSonnet5Prompt.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.claudeSonnet5Prompt.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55GetChangedFilesTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -7264,7 +7273,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
     "@github/copilot": "^1.0.73",
-    "@google/genai": "^1.22.0",
+    "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",

@@ -85,7 +85,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
@@ -982,7 +982,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// keys off `isConnected` only, not the connecting phase.
 			const sessionActive = this.voiceSessionController.isConnected.get();
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
+			// Honor the shared `dictation.showButton` visibility toggle: hiding the
+			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
+			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive || !buttonShown);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
@@ -999,7 +1002,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Both the enable kill-switch and the model selection can change
 			// availability (e.g. an unsupported on-device platform becomes
 			// configured when switching to the cloud backend).
-			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model') || e.affectsConfiguration(DictationSettingId.ShowButton)) {
 				updateVisibility();
 			}
 		}));

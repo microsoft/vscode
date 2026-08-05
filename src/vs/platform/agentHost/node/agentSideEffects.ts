@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorCode } from '../../../base/common/errors.js';
+import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
@@ -199,6 +200,12 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallTracker: AgentHostToolCallTracker;
 	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	private readonly _titleController: AgentHostSessionTitleController;
+	/**
+	 * Fires with the provider id whenever a turn starts. Surfaced so
+	 * process-lifetime background jobs (notably {@link AgentModelRefreshScheduler})
+	 * can gate work on real agent usage.
+	 */
+	readonly onDidStartTurn: Event<string>;
 	/** Host-owned worktree isolation controller; injected post-construction. */
 	private _worktree: WorktreeIsolation | undefined;
 
@@ -214,7 +221,8 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
-		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
+		this._turnTracker = this._register(new AgentHostTurnTracker(this._telemetryReporter));
+		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
@@ -245,7 +253,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 
-			this._telemetryReporter.chatModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
+			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
 		}));
 
 		// Whenever the agents observable changes, publish to root state.
@@ -477,12 +485,11 @@ export class AgentSideEffects extends Disposable {
 		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
 		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
 
-		// A call auto-approved by the session's bypass setting is run
-		// automatically by the owning client and never blocks on the user, so
-		// keep it out of the session `inputNeeded` queue (which would flash
-		// "input needed" in the sessions list). `autoApproveBySetting` covers
-		// only the parameter gate; a `PendingResultConfirmation` is a genuine
-		// prompt and is still surfaced.
+		// A parameter gate auto-approved by the session's bypass setting never
+		// blocks on the user, so keep it out of the session `inputNeeded` queue
+		// (which would flash "input needed" in the sessions list).
+		// `autoApproveBySetting` covers only the parameter gate; a
+		// `PendingResultConfirmation` is a genuine prompt and is still surfaced.
 		const autoApproved = !!toolCall && readToolCallMeta(toolCall).autoApproveBySetting === true;
 
 		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
@@ -500,7 +507,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const contributor = toolCall?.contributor;
-		if (!autoApproved && toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
@@ -774,15 +781,21 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
+			const modelContext = this._turnTracker.getModelTelemetryContext(sessionKey, action.turnId);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 			// Ready may refine the contributor once the complete tool metadata is
 			// available, so the tracker updates the source kind below when needed.
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind);
 		} else if (action.type === ActionType.ChatToolCallReady) {
 			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor);
 			if (action.confirmed) {
 				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
 			}
+		}
+		if (action.type === ActionType.ChatUsage && action.usage.model && agent) {
+			const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
+			this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+			this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -1119,6 +1132,8 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
+			this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'success');
+			this._toolCallTracker.clearSession(subagent.chatUri);
 		}
 	}
 
@@ -1131,6 +1146,7 @@ export class AgentSideEffects extends Disposable {
 				this._cancelledTurnIds.delete(chatUri);
 			}
 		}
+
 		const parentChatURIs = new Set<ProtocolURI>();
 		for (const subagent of this._subagentChats.values()) {
 			if (subagent.sessionUri === parentSession) {
@@ -1143,6 +1159,10 @@ export class AgentSideEffects extends Disposable {
 			this._subagentChats.deleteAll(parentChatURI);
 			this._pendingSubagentSignals.deleteAll(parentChatURI);
 		}
+	}
+
+	clearToolCallTelemetry(channel: ProtocolURI): void {
+		this._toolCallTracker.clearSession(channel);
 	}
 
 	clearInputRequestsForSession(session: ProtocolURI): void {
@@ -1741,18 +1761,23 @@ export class AgentSideEffects extends Disposable {
 	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
-		const model = modelId === undefined ? undefined : agent.models.get().find(model => model.id === modelId);
-		let modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+		const modelContext = modelId === undefined
+			? { model: undefined, modelTelemetryKind: undefined }
+			: this._getModelTelemetryContext(agent, modelId);
+		return { ...modelContext, permissionLevel };
+	}
+
+	private _getModelTelemetryContext(agent: IAgent, modelId: string): { model: string; modelTelemetryKind: AgentHostModelTelemetryKind } {
+		const model = agent.models.get().find(model => model.id === modelId);
+		let modelTelemetryKind: AgentHostModelTelemetryKind;
 		if (modelId === 'auto') {
 			modelTelemetryKind = 'trusted';
-		} else if (modelId === undefined) {
-			modelTelemetryKind = undefined;
 		} else if (model === undefined) {
 			modelTelemetryKind = 'unknown';
 		} else {
 			modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
 		}
-		return { model: modelId, modelTelemetryKind, permissionLevel };
+		return { model: modelId, modelTelemetryKind };
 	}
 
 	/**
