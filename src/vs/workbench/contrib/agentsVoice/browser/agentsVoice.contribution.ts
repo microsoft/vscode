@@ -35,7 +35,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -170,6 +170,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
@@ -196,6 +197,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
@@ -302,6 +304,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -343,6 +346,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
@@ -627,6 +631,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+		},
+		[AgentsVoiceSettingId.ShowButton]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.showButton', "Controls whether the Voice Mode button is shown in the chat input. When hidden, Voice Mode can still be started with its keyboard shortcut."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',

@@ -305,6 +305,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental']
 		},
+		[DictationSettingId.ShowButton]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('dictation.showButton', "Controls whether the dictation microphone button is shown in the chat input. When hidden, dictation can still be started with its keyboard shortcut."),
+			default: true,
+			tags: ['experimental']
+		},
 		'dictation.experimental.llmCleanup': {
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: when dictation ends, the final transcript is passed through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available. Use [dictation instructions](command:{0}) to customize terminology and formatting.", CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID),
@@ -360,6 +366,15 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
 			default: false,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.MigrateLegacyCopilotCliSessions]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentSessions.migrateLegacyCopilotCli', "Controls whether legacy extension host Copilot CLI chat sessions are migrated in place to the Agent host when opened, so their history becomes editable. When disabled, legacy sessions open as before."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			},
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',

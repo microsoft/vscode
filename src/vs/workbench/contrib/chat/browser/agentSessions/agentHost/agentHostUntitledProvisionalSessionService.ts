@@ -311,7 +311,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		return withSessionMultiRootMetadata(undefined, {
 			workspaceFile: workspace.configuration.toString(),
-			name: workspace.name,
 		});
 	}
 

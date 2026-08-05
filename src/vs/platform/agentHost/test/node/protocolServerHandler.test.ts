@@ -794,7 +794,7 @@ suite('ProtocolServerHandler', () => {
 		const responsePromise = waitForResponse(transport, 2);
 
 		const newSession = URI.parse('copilot:///created-session').toString();
-		const _meta = { multiRoot: { workspaceFile: 'file:///demo.code-workspace', name: 'Demo' } };
+		const _meta = { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } };
 		transport.simulateMessage(request(2, 'createSession', { channel: newSession, _meta }));
 		const resp = await responsePromise;
 

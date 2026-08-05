@@ -313,12 +313,12 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), false);
 	});
 
-	test('focuses the introduction in screen reader mode', () => {
-		const service = createService(disposables, [], [], [], true);
+	test('places the introduction in the tab order', () => {
+		const service = createService(disposables);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
-		service.showIfNeeded();
+		service.show();
 		const card = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-banner');
 
 		assert.deepStrictEqual(
@@ -330,9 +330,9 @@ suite('Voice Mode onboarding', () => {
 				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice'),
 			},
 			{
-				activeElement: card,
+				activeElement: document.body,
 				card,
-				tabIndex: -1,
+				tabIndex: 0,
 				closeIcon: 'codicon codicon-close-compact',
 				listeningNotice: null,
 			});

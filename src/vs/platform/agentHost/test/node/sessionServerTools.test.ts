@@ -54,7 +54,7 @@ suite('SessionServerTools', () => {
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt) => { overrides?.onPrompt?.(session, chat, prompt); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
-			getChatContext: overrides?.getChatContext ?? (() => undefined),
+			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 		};
@@ -414,11 +414,11 @@ suite('SessionServerTools', () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
-			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => snapshot }));
+			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => snapshot }));
 			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
 			assert.strictEqual(live.transcript.length, 2);
 
-			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => undefined }));
+			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
 			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
 				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
 			});

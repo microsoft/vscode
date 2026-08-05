@@ -116,6 +116,8 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 No menubar, no editor actions, no `WindowTitle` dependency.
 
+The account widget shows overlapping provider identities only for accounts that are currently verified as signed in. Its panel keeps provider and status groups in a stable order: Copilot, ChatGPT (or its sign-in action), then contributed account status such as Codebase Semantic Index, with dividers between groups. Subscription usage uses a two-row metric layout with the plan and percentage first, followed by reset timing and the usage label.
+
 ### Session Picker (Center)
 
 The center section shows a clickable session picker widget. When a session is active it renders:
