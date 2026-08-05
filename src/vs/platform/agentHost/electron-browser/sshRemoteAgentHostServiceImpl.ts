@@ -12,7 +12,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { INotificationService } from '../../notification/common/notification.js';
+import { INotificationService, Severity } from '../../notification/common/notification.js';
+import { toAction } from '../../../base/common/actions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -38,11 +39,33 @@ import {
 	type ISSHEndpointCandidate,
 	type ISSHEndpointSelection,
 	type ISSHEndpointSelectionRequest,
+	type ISSHHostKeyVerificationRequest,
+	type ISSHHostKeysAnnouncement,
 	type ISSHKeyboardInteractiveRequest,
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
 	type ISSHConnectProgress,
 } from '../common/sshRemoteAgentHost.js';
+import { ISSHHostKeyTrustService } from '../common/sshHostKeyTrust.js';
+import { decideHostKeyTrust } from '../common/sshHostKeyPolicy.js';
+
+/**
+ * Human-readable name for a host key algorithm, matching how OpenSSH labels
+ * them in its own prompts (e.g. "ED25519 key fingerprint is ...").
+ */
+export function describeHostKeyType(keyType: string): string {
+	switch (keyType) {
+		case 'ssh-ed25519': return 'ED25519';
+		case 'ssh-rsa':
+		case 'rsa-sha2-256':
+		case 'rsa-sha2-512': return 'RSA';
+		case 'ssh-dss': return 'DSA';
+		case 'ecdsa-sha2-nistp256':
+		case 'ecdsa-sha2-nistp384':
+		case 'ecdsa-sha2-nistp521': return 'ECDSA';
+		default: return keyType;
+	}
+}
 
 export const ISSHRelayClientFactory = createDecorator<ISSHRelayClientFactory>('sshRelayClientFactory');
 
@@ -110,6 +133,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IProductService private readonly _productService: IProductService,
+		@ISSHHostKeyTrustService private readonly _hostKeyTrustService: ISSHHostKeyTrustService,
 	) {
 		super();
 
@@ -161,6 +185,20 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		// no preference is stored and an editor-owned endpoint is live.
 		this._register(this._mainService.onDidRequestEndpointSelection(request => {
 			this._handleEndpointSelectionRequest(request);
+		}));
+
+		// Verify server host keys. Without this the shared process would accept
+		// any key from any server, so this is what actually makes SSH agent
+		// host connections resistant to impersonation.
+		this._register(this._mainService.onDidRequestHostKeyVerification(request => {
+			this._handleHostKeyVerificationRequest(request);
+		}));
+
+		// Learn host keys a server proves it owns over an already-authenticated
+		// connection (OpenSSH's UpdateHostKeys), so a legitimate key rotation
+		// is picked up silently rather than becoming a hard failure later.
+		this._register(this._mainService.onDidAnnounceHostKeys(announcement => {
+			this._handleAnnouncedHostKeys(announcement);
 		}));
 	}
 
@@ -475,6 +513,172 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		} finally {
 			cancelListener.dispose();
 			cts.dispose();
+		}
+	}
+
+	/**
+	 * Decide whether to trust a server's host key, and tell the shared process.
+	 *
+	 * Policy lives in {@link decideHostKeyTrust}; this method owns the UI and
+	 * the storage writes. Every path must respond exactly once — the SSH
+	 * handshake is suspended until it hears back.
+	 */
+	private async _handleHostKeyVerificationRequest(request: ISSHHostKeyVerificationRequest): Promise<void> {
+		this._logService.info(`[SSHRemoteAgentHost] Host key verification for ${request.displayHost}: ${request.keyType} ${request.fingerprint} (known_hosts: ${request.knownHostsMatch})`);
+
+		const cts = new CancellationTokenSource();
+		const cancelListener = this._mainService.onDidCancelHostKeyVerification(requestId => {
+			if (requestId === request.requestId) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const decision = decideHostKeyTrust(request, this._hostKeyTrustService.getTrustedKeys(request.host, request.port));
+			this._logService.info(`[SSHRemoteAgentHost] Host key decision for ${request.displayHost}: ${decision.kind} (${decision.reason})`);
+
+			let trusted: boolean;
+			switch (decision.kind) {
+				case 'trust':
+					if (decision.persist) {
+						this._trustHostKey(request);
+					}
+					trusted = true;
+					break;
+				case 'deny':
+					this._reportHostKeyDenied(request, decision.reason);
+					trusted = false;
+					break;
+				case 'prompt': {
+					trusted = await this._promptForHostKey(request, decision.reason, cts.token);
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+					if (trusted) {
+						this._trustHostKey(request);
+					}
+					break;
+				}
+			}
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			await this._mainService.respondHostKeyVerification(request.requestId, trusted);
+		} catch (err) {
+			this._logService.error('[SSHRemoteAgentHost] Failed handling host key verification', err);
+			// Fail closed: an error here must never become a way to connect to
+			// an unverified server.
+			try {
+				await this._mainService.respondHostKeyVerification(request.requestId, false);
+			} catch { /* swallow */ }
+		} finally {
+			cancelListener.dispose();
+			cts.dispose();
+		}
+	}
+
+	private _trustHostKey(request: ISSHHostKeyVerificationRequest): void {
+		this._hostKeyTrustService.trustHostKey(request.host, request.port, {
+			keyType: request.keyType,
+			fingerprint: request.fingerprint,
+			addedAt: Date.now(),
+			...(request.displayHost !== request.host ? { alias: request.displayHost } : undefined),
+		});
+	}
+
+	/**
+	 * Ask the user whether to trust an unrecognized host key, echoing OpenSSH's
+	 * wording so it is recognizable to anyone who has used `ssh` directly.
+	 * Cancel is the default so the safe answer is the one you get by dismissing.
+	 */
+	private async _promptForHostKey(request: ISSHHostKeyVerificationRequest, reason: 'unknown' | 'ca-only', token: CancellationToken): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			return false;
+		}
+
+		const detail = reason === 'ca-only'
+			? localize(
+				'sshHostKeyCaOnlyDetail',
+				"{0} key fingerprint is {1}.\n\nThis host is configured to use a certificate authority, but certificate-based host keys cannot be verified here, so this key cannot be checked against it.",
+				describeHostKeyType(request.keyType), request.fingerprint)
+			: localize(
+				'sshHostKeyUnknownDetail',
+				"{0} key fingerprint is {1}.\n\nVerify this fingerprint matches the host before continuing.",
+				describeHostKeyType(request.keyType), request.fingerprint);
+
+		const { confirmed } = await this._dialogService.confirm({
+			type: 'warning',
+			message: localize('sshHostKeyUnknownMessage', "The authenticity of host '{0}' can't be established.", request.displayHost),
+			detail,
+			primaryButton: localize('sshHostKeyConnect', "&&Connect"),
+			cancelButton: localize('sshHostKeyCancel', "Cancel"),
+		});
+		return confirmed;
+	}
+
+	/**
+	 * Explain a refusal. A changed or revoked key gets an error notification
+	 * with no "trust anyway" affordance — recovering requires explicitly
+	 * forgetting the host, so a possible impersonation cannot be dismissed
+	 * with a single reflexive click.
+	 */
+	private _reportHostKeyDenied(request: ISSHHostKeyVerificationRequest, reason: 'mismatch' | 'revoked' | 'strict-yes' | 'not-user-initiated'): void {
+		if (reason === 'not-user-initiated') {
+			// A background reconnect: log it, but do not interrupt with UI the
+			// user did not ask for. Connecting manually surfaces the prompt.
+			this._logService.warn(`[SSHRemoteAgentHost] Declining unknown host key for ${request.displayHost} during a background reconnect; connect manually to review it.`);
+			return;
+		}
+
+		if (reason === 'strict-yes') {
+			this._notificationService.error(localize(
+				'sshHostKeyStrictUnknown',
+				"Can't connect to '{0}': its host key is not known, and StrictHostKeyChecking is set to \"yes\" in your SSH configuration.",
+				request.displayHost));
+			return;
+		}
+
+		const message = reason === 'revoked'
+			? localize('sshHostKeyRevoked', "Host key verification failed for '{0}'. This host's {1} key has been marked as revoked in your known_hosts file.", request.displayHost, describeHostKeyType(request.keyType))
+			: localize('sshHostKeyChanged', "Host key verification failed for '{0}'. Its {1} host key has changed, which could mean someone is impersonating the host — or that the host was legitimately rebuilt. Received {2}.", request.displayHost, describeHostKeyType(request.keyType), request.fingerprint);
+
+		this._notificationService.notify({
+			severity: Severity.Error,
+			message,
+			actions: {
+				primary: [toAction({
+					id: 'sshHostKey.forget',
+					label: localize('sshHostKeyForgetAction', "Forget Saved Host Key"),
+					run: () => this._hostKeyTrustService.forgetHost(request.host, request.port),
+				})],
+			},
+		});
+	}
+
+	/**
+	 * Persist host keys the server proved it owns. ssh2 verifies these before
+	 * surfacing them, so trusting them without a prompt is safe and is what
+	 * makes a legitimate server key rotation invisible to the user instead of
+	 * a hard failure on the next connect.
+	 */
+	private _handleAnnouncedHostKeys(announcement: ISSHHostKeysAnnouncement): void {
+		const existing = this._hostKeyTrustService.getTrustedKeys(announcement.host, announcement.port);
+		if (!existing.length) {
+			// Only extend trust we already have. Recording keys for a host the
+			// user has never accepted would turn an announcement into a way to
+			// establish trust without any verification at all.
+			return;
+		}
+		for (const key of announcement.keys) {
+			if (!existing.some(e => e.keyType === key.keyType && e.fingerprint === key.fingerprint)) {
+				this._logService.info(`[SSHRemoteAgentHost] Learned rotated ${key.keyType} host key for ${announcement.host}: ${key.fingerprint}`);
+				this._hostKeyTrustService.trustHostKey(announcement.host, announcement.port, {
+					keyType: key.keyType,
+					fingerprint: key.fingerprint,
+					addedAt: Date.now(),
+				});
+			}
 		}
 	}
 

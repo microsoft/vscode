@@ -339,6 +339,9 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			identityFile: [],
 			identityAgent: undefined,
 			forwardAgent: false,
+			userKnownHostsFiles: [],
+			globalKnownHostsFiles: [],
+			strictHostKeyChecking: undefined,
 		};
 	}
 
