@@ -318,7 +318,10 @@ below.
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. Each `lastTurnChanges` entry carries
+confirmation does not end the active turn. Opening the changes pill labels its
+multi-diff editor **Current Turn Changes** while the turn is active, including
+`NeedsInput`, and updates the open editor to **Last Turn Changes** as soon as the
+turn completes. Each `lastTurnChanges` entry carries
 `isOutsideWorkspace`, derived from the owning session's workspace folder,
 working directory, and worktree roots. `AgentHostSessionAdapter` caches that
 classification in its generic session-output cache under
