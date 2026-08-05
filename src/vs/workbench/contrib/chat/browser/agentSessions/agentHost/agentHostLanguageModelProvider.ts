@@ -10,6 +10,7 @@ import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
@@ -169,9 +170,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (!groupVendorId) {
 			return undefined;
 		}
-		return this._sessionType === 'agent-host-codex' && model.provider === 'chatgpt'
-			? { id: groupVendorId, source: 'chatgptSubscription' }
-			: { id: groupVendorId };
+		const sourceId = readAgentModelSourceId(model);
+		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
 	async sendChatRequest(): Promise<never> {
