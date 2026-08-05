@@ -143,7 +143,7 @@ export class EditorHeaderControl extends Disposable {
 		const toolbarOptions = {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: (group: string) => group !== 'secondary', useSeparatorsInPrimaryActions: true }
+			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
 		};
 		if (headerPrimaryMenuId) {
 			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, toolbarOptions));

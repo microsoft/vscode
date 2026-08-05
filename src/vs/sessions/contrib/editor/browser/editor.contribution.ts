@@ -418,7 +418,7 @@ class AddFileAsContextAction extends Action2 {
 			f1: true,
 			precondition,
 			menu: [{
-				id: Menus.SessionsEditorTitle,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'navigation',
 				order: 100000,
 				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
@@ -453,7 +453,7 @@ class AddFileAsContextAction extends Action2 {
 registerAction2(AddFileAsContextAction);
 
 /**
- * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
+ * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorHeaderSecondary}
  * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
@@ -494,7 +494,7 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 				? !!item.command.source
 				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
 			if (isExtensionItem) {
-				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, item));
+				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, item));
 			}
 		}
 	}

@@ -71,16 +71,14 @@ class RunSessionCodeReviewAction extends Action2 {
 					when: codeReviewChangesToolbarWhen,
 				},
 				{
-					// A separate group (rather than 'navigation', which holds the Branch
-					// Changes picker + diff-stats) so a separator renders before it.
-					id: Menus.SessionsEditorHeaderPrimary,
-					group: '1_codeReview',
-					order: 1,
+					id: Menus.SessionsEditorHeaderSecondary,
+					group: '0_codeReview',
+					order: 10,
 					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext),
 				},
 				{
 					id: Menus.SessionsEditorHeaderSecondary,
-					group: 'secondary',
+					group: 'secondary/1_codeReview',
 					order: 10,
 					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext.toNegated()),
 				},

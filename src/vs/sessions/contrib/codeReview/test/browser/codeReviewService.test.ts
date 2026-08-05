@@ -307,44 +307,47 @@ suite('Code Review Contributions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review moves from the primary header to secondary overflow when the editor area is collapsed', () => {
+	test('Run Code Review is right-inline when visible and first in overflow when collapsed', () => {
 		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
-		const secondaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+		const rightItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.codeReview.run');
+			.filter(item => item.command.id === 'sessions.codeReview.run');
+		const inlineItem = rightItems.find(item => item.group === '0_codeReview');
+		const overflowItem = rightItems.find(item => item.group === 'secondary/1_codeReview');
 
-		assert.ok(primaryItem, 'expected Run Code Review action on the single-pane Changes editor header');
-		assert.ok(secondaryItem, 'expected Run Code Review action in the collapsed editor header overflow');
-		const primaryWhen = primaryItem.when?.serialize() ?? '';
-		const secondaryWhen = secondaryItem.when?.serialize() ?? '';
+		assert.strictEqual(primaryItem, undefined, 'Run Code Review should not render inline in the primary header');
+		assert.ok(inlineItem, 'expected Run Code Review inline on the right while the editor is visible');
+		assert.ok(overflowItem, 'expected Run Code Review in overflow while the editor is collapsed');
+		const inlineWhen = inlineItem.when?.serialize() ?? '';
+		const overflowWhen = overflowItem.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			primary: {
-				group: primaryItem.group,
-				order: primaryItem.order,
-				editorAreaGate: primaryWhen.includes(MainEditorAreaVisibleContext.key),
+			inline: {
+				group: inlineItem.group,
+				order: inlineItem.order,
+				editorAreaGate: inlineWhen.includes(MainEditorAreaVisibleContext.key),
 			},
-			secondary: {
-				group: secondaryItem.group,
-				order: secondaryItem.order,
-				editorAreaGate: secondaryWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
+			overflow: {
+				group: overflowItem.group,
+				order: overflowItem.order,
+				editorAreaGate: overflowWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
 			},
-			hasSessionsWindowGate: primaryWhen.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: primaryWhen.includes(ActiveEditorContext.key) && primaryWhen.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: primaryWhen.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: primaryWhen.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: primaryWhen.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: primaryWhen.includes(SessionHasChangesContext.key),
-			hasCreatedGate: primaryWhen.includes(SessionIsCreatedContext.key),
+			hasSessionsWindowGate: inlineWhen.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: inlineWhen.includes(ActiveEditorContext.key) && inlineWhen.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: inlineWhen.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: inlineWhen.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: inlineWhen.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: inlineWhen.includes(SessionHasChangesContext.key),
+			hasCreatedGate: inlineWhen.includes(SessionIsCreatedContext.key),
 		}, {
-			primary: {
-				group: '1_codeReview',
-				order: 1,
+			inline: {
+				group: '0_codeReview',
+				order: 10,
 				editorAreaGate: true,
 			},
-			secondary: {
-				group: 'secondary',
+			overflow: {
+				group: 'secondary/1_codeReview',
 				order: 10,
 				editorAreaGate: true,
 			},
