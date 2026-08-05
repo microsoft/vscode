@@ -37,11 +37,13 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 	}
 
 	update(entries: readonly T[]): void {
+		const numberDigits = entries.reduce((max, entry) => Math.max(max, entry.number.toString().length), 0);
+
 		for (let index = 0; index < entries.length; index++) {
 			const entry = entries[index];
 			const row = this._rows[index] ?? this._createRow(entry);
 			row.entry = entry;
-			this._updateRow(row);
+			this._updateRow(row, numberDigits);
 		}
 
 		for (let index = this._rows.length - 1; index >= entries.length; index--) {
@@ -72,7 +74,7 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 		return row;
 	}
 
-	private _updateRow(row: IGitHubReferenceListRow<T>): void {
+	private _updateRow(row: IGitHubReferenceListRow<T>, numberDigits: number): void {
 		const entry = row.entry;
 		if (entry.ariaLabel) {
 			row.button.setAttribute('aria-label', entry.ariaLabel);
@@ -88,6 +90,7 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 		}
 
 		row.number.textContent = `#${entry.number}`;
+		row.number.style.width = `calc(${numberDigits}ch + 1em)`;
 		row.title.textContent = entry.title ?? '';
 		row.title.title = entry.title ?? '';
 		row.title.hidden = !entry.title;

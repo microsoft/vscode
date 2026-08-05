@@ -30,15 +30,21 @@ suite('GitHubReferenceList', () => {
 
 	test('updates rows in place so focus is preserved', () => {
 		const list = new GitHubReferenceList<IGitHubReferenceListEntry>([{
-			number: 1,
+			number: 12345,
 			title: undefined,
 			icon: Codicon.gitPullRequest,
-			ariaLabel: 'Pull Request #1',
+			ariaLabel: 'Pull Request #12345',
+		}, {
+			number: 1,
+			title: 'Short number',
+			icon: Codicon.gitPullRequest,
+			ariaLabel: 'Pull Request #1: Short number',
 		}], () => { });
 		document.body.appendChild(list.element);
 
 		try {
 			const button = list.element.querySelector('button')!;
+			const initialNumberWidth = button.querySelector<HTMLElement>('.sessions-github-reference-list-entry-number')!.style.width;
 			button.focus();
 
 			list.update([{
@@ -54,12 +60,16 @@ suite('GitHubReferenceList', () => {
 				text: button.textContent,
 				ariaLabel: button.getAttribute('aria-label'),
 				iconClasses: [...button.querySelector('.sessions-github-reference-list-entry-icon')!.classList],
+				initialNumberWidth,
+				numberWidth: button.querySelector<HTMLElement>('.sessions-github-reference-list-entry-number')!.style.width,
 			}, {
 				sameButton: true,
 				focused: true,
 				text: '#1Updated title',
 				ariaLabel: 'Draft Pull Request #1: Updated title',
 				iconClasses: ['sessions-github-reference-list-entry-icon', 'codicon', 'codicon-git-pull-request-draft'],
+				initialNumberWidth: 'calc(5ch + 1em)',
+				numberWidth: 'calc(1ch + 1em)',
 			});
 		} finally {
 			list.element.remove();

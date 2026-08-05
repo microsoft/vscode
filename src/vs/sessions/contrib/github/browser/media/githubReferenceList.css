@@ -53,6 +53,7 @@
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
+	text-align: right;
 }
 
 .sessions-github-reference-list-entry-title {
