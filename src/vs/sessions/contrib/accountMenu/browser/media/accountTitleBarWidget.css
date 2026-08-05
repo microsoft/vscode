@@ -364,6 +364,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-label {
 	width: 100%;
+	box-sizing: border-box;
 	min-height: 24px;
 	padding: 2px 6px;
 	justify-content: flex-start;

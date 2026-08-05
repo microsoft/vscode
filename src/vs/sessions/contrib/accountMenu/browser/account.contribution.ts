@@ -219,10 +219,12 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
-		this._register(this.codexAccountService.onDidChangeAccount(() => this.renderState()));
+		this._register(this.codexAccountService.onDidChangeAccount(() => {
+			this.clickPanelDisposable.clear();
+			this.renderState();
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId) || event.affectsConfiguration(ChatAIDisabledSettingId)) {
-				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
 				this.renderState();
 			}
