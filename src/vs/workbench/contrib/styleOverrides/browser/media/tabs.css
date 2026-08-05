@@ -497,6 +497,10 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
 }
 
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:is(.selected:not(.active), .active.multi-selected) > .tab-border-top-container {
+	display: none !important;
+}
+
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):focus:hover {
 	background-color: transparent !important;
 }
