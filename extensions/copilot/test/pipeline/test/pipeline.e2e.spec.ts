@@ -361,6 +361,28 @@ describe('nes-datagen pipeline e2e', () => {
 		});
 	});
 
+	test('rejects the internal scoredEdits output directory outside worker mode', async () => {
+		await expect(runInputPipeline({
+			nesDatagen: {
+				input: inputPath,
+				output: outputPath,
+				rowOffset: 0,
+				workerMode: false,
+				generateScoredEdits: true,
+				scoredEditsOutputDirectory: path.join(tmpDir, 'unexpected-scored-edits'),
+				sampleTask: NesDatagenSampleTask.Xtab,
+				sameFileJumpMinAbove: 5,
+				sameFileJumpMinBelow: 5,
+				inputFormat: NesDatagenInputFormat.AlternativeAction,
+				pivotStrategy: PivotStrategy.Random,
+				seed: 0,
+			},
+			configFile: configPath,
+			verbose: false,
+			parallelism: 1,
+		})).rejects.toThrow('--scored-edits-output-directory is only valid for nes-datagen workers');
+	});
+
 	describe('row offset', () => {
 		test('applies rowOffset to sample rowIndex in metadata', async () => {
 			const offsetOutputPath = path.join(tmpDir, 'offset-output.jsonl');

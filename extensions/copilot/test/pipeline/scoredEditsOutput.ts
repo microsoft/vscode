@@ -54,8 +54,10 @@ export async function writeScoredEditsFiles(
 
 export async function publishScoredEditsFiles(
 	samplesOutputPath: string,
+	stagedSamplesOutputPath: string,
 	samples: readonly ISample[],
 	stagingDirectories: readonly string[],
+	rename: typeof fs.rename = fs.rename,
 ): Promise<IWriteScoredEditsResult> {
 	const validSamples = samples.filter(sample => validateSample(sample).valid);
 	const expectedIds = new Set(validSamples.map(sample => sample.metadata.rowIndex));
@@ -97,17 +99,23 @@ export async function publishScoredEditsFiles(
 	const parentDirectory = path.dirname(outputDirectory);
 	await fs.mkdir(parentDirectory, { recursive: true });
 	const pendingDirectory = await fs.mkdtemp(path.join(parentDirectory, `.${path.basename(outputDirectory)}.pending-`));
-	let pendingPublished = false;
 	try {
+		const pendingSamplesOutputPath = path.join(pendingDirectory, path.basename(samplesOutputPath));
+		const pendingScoredEditsDirectory = path.join(pendingDirectory, path.basename(outputDirectory));
+		await fs.copyFile(stagedSamplesOutputPath, pendingSamplesOutputPath);
+		await fs.mkdir(pendingScoredEditsDirectory);
 		for (const [sampleId, stagedFile] of stagedFiles) {
-			await fs.copyFile(stagedFile, path.join(pendingDirectory, `${sampleId}.scoredEdits.w.json`));
+			await fs.copyFile(stagedFile, path.join(pendingScoredEditsDirectory, `${sampleId}.scoredEdits.w.json`));
 		}
-		await replaceDirectory(pendingDirectory, outputDirectory);
-		pendingPublished = true;
+		await replaceGeneratedOutputs(
+			[
+				{ source: pendingSamplesOutputPath, target: path.resolve(samplesOutputPath) },
+				{ source: pendingScoredEditsDirectory, target: outputDirectory },
+			],
+			rename,
+		);
 	} finally {
-		if (!pendingPublished) {
-			await fs.rm(pendingDirectory, { recursive: true, force: true });
-		}
+		await fs.rm(pendingDirectory, { recursive: true, force: true });
 	}
 
 	return { outputDirectory, written: stagedFiles.size };
@@ -166,38 +174,78 @@ function getScoredEditsFileName(sample: ISample): string {
 	return `${sample.metadata.rowIndex}.scoredEdits.w.json`;
 }
 
-async function replaceDirectory(sourceDirectory: string, targetDirectory: string): Promise<void> {
-	const backupDirectory = `${targetDirectory}.backup-${randomUUID()}`;
-	let targetMoved = false;
+interface IOutputReplacement {
+	readonly source: string;
+	readonly target: string;
+}
+
+async function replaceGeneratedOutputs(replacements: readonly IOutputReplacement[], rename: typeof fs.rename): Promise<void> {
+	const backups = new Map<string, string>();
 	try {
-		await fs.rename(targetDirectory, backupDirectory);
-		targetMoved = true;
-	} catch (error) {
-		if (!isFileNotFoundError(error)) {
-			throw error;
+		for (const replacement of replacements) {
+			const backup = `${replacement.target}.backup-${randomUUID()}`;
+			try {
+				await rename(replacement.target, backup);
+				backups.set(replacement.target, backup);
+			} catch (error) {
+				if (!isFileNotFoundError(error)) {
+					throw error;
+				}
+			}
 		}
+	} catch (error) {
+		const rollbackErrors = await restoreBackups(backups, rename);
+		if (rollbackErrors.length > 0) {
+			throw new AggregateError([error, ...rollbackErrors], 'Failed to prepare generated output publication and restore existing outputs');
+		}
+		throw error;
 	}
 
+	const publishedTargets: string[] = [];
 	try {
-		await fs.rename(sourceDirectory, targetDirectory);
+		for (const replacement of replacements) {
+			await rename(replacement.source, replacement.target);
+			publishedTargets.push(replacement.target);
+		}
 	} catch (publishError) {
-		if (targetMoved) {
+		const rollbackErrors: Error[] = [];
+		for (const publishedTarget of publishedTargets.reverse()) {
 			try {
-				await fs.rename(backupDirectory, targetDirectory);
-			} catch (rollbackError) {
-				throw new AggregateError([publishError, rollbackError], `Failed to publish scoredEdits output and restore ${targetDirectory}`);
+				await fs.rm(publishedTarget, { recursive: true, force: true });
+			} catch (error) {
+				rollbackErrors.push(toError(error));
 			}
+		}
+		rollbackErrors.push(...await restoreBackups(backups, rename));
+		if (rollbackErrors.length > 0) {
+			throw new AggregateError([publishError, ...rollbackErrors], 'Failed to publish generated outputs and restore previous outputs');
 		}
 		throw publishError;
 	}
 
-	if (targetMoved) {
-		await fs.rm(backupDirectory, { recursive: true, force: true });
+	for (const backup of backups.values()) {
+		await fs.rm(backup, { recursive: true, force: true });
 	}
 }
 
 function isFileNotFoundError(error: unknown): boolean {
 	return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+async function restoreBackups(backups: ReadonlyMap<string, string>, rename: typeof fs.rename): Promise<Error[]> {
+	const errors: Error[] = [];
+	for (const [target, backup] of [...backups].reverse()) {
+		try {
+			await rename(backup, target);
+		} catch (error) {
+			errors.push(toError(error));
+		}
+	}
+	return errors;
+}
+
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
 }
 
 function serializedEditsEqual(
