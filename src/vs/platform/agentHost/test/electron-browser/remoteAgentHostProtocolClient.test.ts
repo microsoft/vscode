@@ -29,11 +29,36 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostCodexMultiRootEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostCodexEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-// Registers the agent-host settings that declare `agentHost` mirroring, which the
-// client reads off the configuration registry when forwarding config to the host.
-import '../../common/agentHostStarter.config.contribution.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { Registry } from '../../../registry/common/platform.js';
+
+// Settings used to exercise declarative agent-host mirroring. Registered by this
+// suite rather than pulling in a product configuration contribution: the
+// configuration registry is a process-wide singleton, so a side-effect import
+// here would leak its registrations (and their `managedSettings` policies) into
+// every other suite in the run.
+const SYNC_SETTING_A = 'test.remoteAgentHostProtocolClient.syncA';
+const SYNC_CONFIG_KEY_A = 'testSyncValueA';
+const SYNC_SETTING_B = 'test.remoteAgentHostProtocolClient.syncB';
+const SYNC_CONFIG_KEY_B = 'testSyncValueB';
+
+const syncTestConfigurationNode = {
+	id: 'testRemoteAgentHostProtocolClientSync',
+	type: 'object' as const,
+	properties: {
+		[SYNC_SETTING_A]: {
+			type: 'boolean' as const,
+			default: false,
+			agentHost: { key: SYNC_CONFIG_KEY_A },
+		},
+		[SYNC_SETTING_B]: {
+			type: 'boolean' as const,
+			default: false,
+			agentHost: { key: SYNC_CONFIG_KEY_B },
+		},
+	},
+};
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -148,6 +173,10 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	suiteSetup(() => configurationRegistry.registerConfiguration(syncTestConfigurationNode));
+	suiteTeardown(() => configurationRegistry.deregisterConfigurations([syncTestConfigurationNode]));
 
 	function createPermissionService(allow = true): IAgentHostResourceService {
 		return createResourceServiceStub({ granted: () => allow });
@@ -850,59 +879,30 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards codex enablement on connect when the experiment-aware setting is on', async () => {
-		const transport = disposables.add(new TestClientProtocolTransport());
-		const configurationService = new TestConfigurationService({ [AgentHostCodexAgentEnabledSettingId]: true });
-		const { client } = createClient(transport, undefined, undefined, undefined, configurationService);
-		const connectPromise = client.connect();
-
-		transport.connectDeferred.complete();
-		while (transport.sentMessages.length === 0) {
-			await Promise.resolve();
-		}
-
-		const sent = transport.sentMessages[0] as JsonRpcRequest;
-		transport.fireMessage({
-			jsonrpc: '2.0',
-			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
-		});
-		await connectPromise;
-
-		const codexEnabled = findRootConfigValue(transport.sentMessages, AgentHostCodexEnabledConfigKey);
-		assert.strictEqual(codexEnabled, true);
-	});
-
 	test('forwards every setting declaring `agentHost` on connect and when one changes', async () => {
 		const configurationService = new TestConfigurationService({
-			[AgentHostCopilotMultiRootEnabledSettingId]: true,
-			[AgentHostClaudeMultiRootEnabledSettingId]: false,
-			[AgentHostCodexMultiRootEnabledSettingId]: true,
-			[AgentHostSystemProxyEnabledSettingId]: false,
+			[SYNC_SETTING_A]: true,
+			[SYNC_SETTING_B]: false,
 		});
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
 
 		await connectClient(client, transport);
 
 		assert.deepStrictEqual({
-			copilotMultiRoot: findRootConfigValue(transport.sentMessages, AgentHostCopilotMultiRootEnabledConfigKey),
-			claudeMultiRoot: findRootConfigValue(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey),
-			codexMultiRoot: findRootConfigValue(transport.sentMessages, AgentHostCodexMultiRootEnabledConfigKey),
-			systemProxy: findRootConfigValue(transport.sentMessages, AgentHostSystemProxyEnabledConfigKey),
+			a: findRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_A),
+			b: findRootConfigValue(transport.sentMessages, SYNC_CONFIG_KEY_B),
 		}, {
-			copilotMultiRoot: true,
-			claudeMultiRoot: false,
-			codexMultiRoot: true,
-			systemProxy: false,
+			a: true,
+			b: false,
 		});
 
 		transport.sentMessages.length = 0;
-		await configurationService.setUserConfiguration(AgentHostCopilotMultiRootEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostCopilotMultiRootEnabledSettingId);
+		await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A);
 
 		// Only the affected setting is re-forwarded.
-		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, AgentHostCopilotMultiRootEnabledConfigKey)), {
-			[AgentHostCopilotMultiRootEnabledConfigKey]: false,
+		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
+			[SYNC_CONFIG_KEY_A]: false,
 		});
 	});
 
