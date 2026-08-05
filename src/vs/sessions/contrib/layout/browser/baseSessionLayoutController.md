@@ -69,9 +69,9 @@ default layout instead of stale state. Open editors are still preserved.
   **eagerly** per session by a part-visibility listener the moment the user changes it
   (`_editorPartHiddenBySession`, only while a single session is visible — the editor area is shared in
   multi-session mode; captured lazily at switch-away it would race the switch derive), so a switch-back
-  `_applyWorkingSet` skips the editor-part reveal — and in single-pane actively re-hides it
-  (`_shouldHideEditorPartOnApply`) — for a session whose editor part was left hidden. Single-pane overrides
-  `_isEditorPartVisibilityPerSession` to disable capture/load/save/apply because its visibility is global.
+  `_applyWorkingSet` skips the editor-part reveal for layouts that use per-session visibility. Single-pane
+  overrides `_isEditorPartVisibilityPerSession` and `_isViewStatePerSession` to disable both maps; its
+  `SinglePaneSidePaneVisibilityStrategy` owns shared New/Existing lifecycle profiles instead.
   `onDidReplaceSession`
   copies a replaced active draft's editor-part hidden state to the committed resource before that resource's
   first working-set apply, avoiding a fall-through to the created-session default. Cleanup on

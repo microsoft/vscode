@@ -338,6 +338,12 @@ suite('LayoutController (desktop)', () => {
 			JSON.parse(harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE) ?? ''),
 			sidePaneStateBeforeBrowser,
 			'a transient browser hide must not overwrite global detail visibility');
+		harness.activeSessionObs.set(makeSession(URI.parse('session:2')), undefined);
+		await timeout(0);
+		assert.deepStrictEqual(
+			JSON.parse(harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE) ?? ''),
+			sidePaneStateBeforeBrowser,
+			'navigation while Browser hides Details must preserve the durable Existing profile');
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
@@ -1715,8 +1721,11 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidEditorsChange.fire();
 		harness.activeSessionObs.set(quickChat, undefined);
 		await timeout(0);
+		harness.setPartHiddenCalls = [];
 		harness.activeSessionObs.set(workspaceSession, undefined);
 		await timeout(0);
+		const restoreOrder = harness.setPartHiddenCalls.filter(call =>
+			!call.hidden && (call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART));
 
 		// The detail controller can transiently hide Details while managed tabs are absent.
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
@@ -1732,10 +1741,15 @@ suite('LayoutController (desktop)', () => {
 			detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			detailReveals: harness.setPartHiddenCalls.filter(call =>
 				call.part === Parts.AUXILIARYBAR_PART && !call.hidden).length,
+			restoreOrder,
 		}, {
 			editorVisible: true,
 			detailVisible: true,
 			detailReveals: 1,
+			restoreOrder: [
+				{ part: Parts.AUXILIARYBAR_PART, hidden: false },
+				{ part: Parts.EDITOR_PART, hidden: false },
+			],
 		});
 	});
 

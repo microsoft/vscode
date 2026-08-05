@@ -27,7 +27,7 @@ const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
  *  - managed docked tabs (pinned Changes multi-diff + empty Files placeholder)
  *    and editor-area tab collapse;
  *  - the detail panel mapping (active editor → Changes/Files container);
- *  - the responsive sessions-list auto-hide + Toggle Details action;
+ *  - the Toggle Details action;
  *
  * Strategies coordinate through this controller (the {@link ISinglePaneLayoutContext}):
  * a session-switch restore is signalled by {@link _isRestoringSessionLayout}, so
@@ -61,7 +61,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		return this._context;
 	}
 
-	// --- Side-pane visibility + detail content + responsive sidebar ---
+	// --- Side-pane visibility + detail content + Toggle Details ---
 
 	protected override _registerViewStateManagement(): void {
 		this._register(this._instantiationService.createInstance(SinglePaneSidePaneVisibilityStrategy, this._ctx));
@@ -88,10 +88,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		});
 	}
 
-	/**
-	 * Toggle the detail panel (auxiliary bar) and, in the same gesture, auto-hide
-	 * the sessions list to free room. Returns whether the detail panel is now visible.
-	 */
+	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
 		return this._details?.toggleDetails() ?? false;
 	}

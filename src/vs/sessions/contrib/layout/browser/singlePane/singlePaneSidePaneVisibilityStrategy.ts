@@ -94,9 +94,6 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 				const previousProfile = activeProfile;
 				const switchingFromWorkspaceSession = enteringQuickChat && previousProfile !== undefined;
 				this._pendingAuxiliaryBarRestore = undefined;
-				if (enteringQuickChat && previousProfile !== undefined) {
-					this._captureProfile(previousProfile);
-				}
 				quickChatActive = true;
 				initialized = true;
 				this._ctx.withSessionLayoutRestore(() => this._hideForQuickChat(switchingFromWorkspaceSession || mainPartEmpty));
@@ -113,8 +110,6 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 			if (isSubmit) {
 				this._captureProfile(SessionVisibilityProfile.New);
 				this._captureProfile(SessionVisibilityProfile.Existing);
-			} else if (activeProfile !== undefined && (activeProfile !== nextProfile || sessionChanged) && !quickChatActive) {
-				this._captureProfile(activeProfile);
 			}
 			if (!isSubmit && (!initialized || quickChatActive || activeProfile !== nextProfile || sessionChanged)) {
 				const profile = this._getProfile(nextProfile);
@@ -220,11 +215,11 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 			if (!state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-			}
 			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			}
+			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		} finally {
 			suppression.dispose();

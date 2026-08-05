@@ -47,7 +47,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Editor/detail visibility is **global across sessions**. Switching workspace sessions, entering a new-session composer, or submitting a draft preserves the current E/D state. The active editor still selects the detail content, and opening the empty **Files placeholder** reveals Files because that tab's content lives in the detail panel.
+Editor/detail visibility is shared through two lifecycle profiles: one for **New Sessions** and one for **Existing Sessions**. Same-type navigation keeps the matching profile; entering the other type restores its profile. Submit is the exception: it preserves the current composition and seeds the Existing profile from it. The active editor still selects the detail content, and opening the empty **Files placeholder** reveals Files because that tab's content lives in the detail panel.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses
@@ -162,7 +162,9 @@ restored when returning to a workspace session.
 
 | From | Action | To |
 |------|--------|-----|
-| any workspace-session state | Switch workspace sessions / enter new-session view / submit | same editor/detail visibility; per-session tabs are restored |
+| any workspace-session state | Switch to another session of the same type | same shared editor/detail profile; per-session tabs are restored |
+| New ↔ Existing | Navigate between lifecycle types | restore the target type's shared profile |
+| New | Submit | preserve current visibility; seed Existing profile |
 | *Detail only* (new session) | Open a file from Files | *Editor + Detail* (editor revealed, stays open) |
 | *Detail only* / *Side pane closed* (created session) | Click **Changes** pill | *Editor only* (Changes editor revealed, detail stays closed unless separately restored/opened) |
 | *Detail only* (new session) | Toggle Details (hide detail) | *Editor only* (empty editor revealed — the side pane does not vanish) |
