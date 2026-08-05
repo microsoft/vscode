@@ -266,6 +266,9 @@ export interface IEditorGroupViewOptions {
 	 * workbench uses the shared defaults and renders no full-width header.
 	 */
 	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
 }
 
 export interface IEditorGroupMenuIds {

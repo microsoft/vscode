@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/editortitlecontrol.css';
-import { $, Dimension, clearNode } from '../../../../base/browser/dom.js';
+import { $, append, Dimension, clearNode, reset } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorTabsControl } from './editorTabsControl.js';
@@ -14,7 +15,7 @@ import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
 import { SingleEditorTabsControl } from './singleEditorTabsControl.js';
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
@@ -35,6 +36,8 @@ export interface IEditorTitleControlDimensions {
 
 export class EditorTitleControl extends Themable {
 
+	static readonly HEADER_HEIGHT = 29;
+
 	private editorTabsControl: IEditorTabsControl;
 	private readonly editorTabsControlDisposable = this._register(new DisposableStore());
 
@@ -43,6 +46,14 @@ export class EditorTitleControl extends Themable {
 	private readonly breadcrumbsControlDisposables = this._register(new DisposableStore());
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
+	private headerContainer: HTMLElement | undefined;
+	private headerPrimaryContainer: HTMLElement | undefined;
+	private headerPrimaryActionsContainer: HTMLElement | undefined;
+	private headerSecondaryActionsContainer: HTMLElement | undefined;
+	private readonly headerDisposables = this._register(new DisposableStore());
+	private readonly headerActions = this._register(new MutableDisposable());
+	private headerVisible = false;
+
 	constructor(
 		private readonly parent: HTMLElement,
 		private readonly editorPartsView: IEditorPartsView,
@@ -50,13 +61,17 @@ export class EditorTitleControl extends Themable {
 		private readonly groupView: IEditorGroupView,
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
+		private readonly showHeader: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 
 		this.editorTabsControl = this.createEditorTabsControl();
-		this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
+		const header = this.createHeader();
+		this.breadcrumbsControlFactory = this.createBreadcrumbsControl(header);
+		this._register(this.groupView.onDidActiveEditorChange(() => this.renderHeaderActions(true)));
+		this.renderHeaderActions(false);
 	}
 
 	private createEditorTabsControl(): IEditorTabsControl {
@@ -78,15 +93,93 @@ export class EditorTitleControl extends Themable {
 		return this.editorTabsControlDisposable.add(control);
 	}
 
-	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
+	private createHeader(): HTMLElement {
+		if (!this.showHeader) {
+			return this.parent;
+		}
+
+		this.headerContainer = append(this.parent, $('.editor-group-header'));
+		const headerContentContainer = append(this.headerContainer, $('.editor-group-header-content.editor-group-header-toolbars'));
+		this.headerPrimaryContainer = append(headerContentContainer, $('.editor-group-header-primary.breadcrumbs-in-header'));
+		const headerSecondaryContainer = append(headerContentContainer, $('.editor-group-header-secondary'));
+		this.headerPrimaryActionsContainer = append(this.headerPrimaryContainer, $('.editor-group-header-primary-actions.has-no-actions'));
+		this.headerSecondaryActionsContainer = append(headerSecondaryContainer, $('.editor-group-header-secondary-actions.has-no-actions'));
+		this.headerDisposables.add(toDisposable(() => {
+			this.headerActions.clear();
+			this.headerContainer = undefined;
+			this.headerPrimaryContainer = undefined;
+			this.headerPrimaryActionsContainer = undefined;
+			this.headerSecondaryActionsContainer = undefined;
+			this.headerVisible = false;
+		}));
+
+		return this.headerPrimaryContainer;
+	}
+
+	private updateHeaderVisibility(relayout: boolean): void {
+		if (!this.showHeader || !this.headerContainer || !this.headerPrimaryActionsContainer || !this.headerSecondaryActionsContainer) {
+			if (relayout) {
+				this.groupView.relayout();
+			}
+			return;
+		}
+
+		const hasBreadcrumbs = this.breadcrumbsControl?.isHidden() === false;
+		this.breadcrumbsContainer?.classList.toggle('hidden', !hasBreadcrumbs);
+		const hasMenuActions = !this.headerPrimaryActionsContainer.classList.contains('has-no-actions')
+			|| !this.headerSecondaryActionsContainer.classList.contains('has-no-actions');
+		const visible = hasBreadcrumbs || hasMenuActions;
+		this.headerContainer.style.display = visible ? '' : 'none';
+		this.headerVisible = visible;
+		if (relayout) {
+			this.groupView.relayout();
+		}
+	}
+
+	private renderHeaderActions(relayout: boolean): void {
+		this.headerActions.clear();
+		if (!this.showHeader || !this.headerPrimaryActionsContainer || !this.headerSecondaryActionsContainer) {
+			return;
+		}
+
+		reset(this.headerPrimaryActionsContainer);
+		reset(this.headerSecondaryActionsContainer);
+		this.headerPrimaryActionsContainer.classList.add('has-no-actions');
+		this.headerSecondaryActionsContainer.classList.add('has-no-actions');
+
+		const headerPrimaryMenuId = this.menuIds?.headerPrimary;
+		const headerSecondaryMenuId = this.menuIds?.headerSecondary;
+		if (!headerPrimaryMenuId && !headerSecondaryMenuId) {
+			this.updateHeaderVisibility(relayout);
+			return;
+		}
+
+		const store = new DisposableStore();
+		const scopedInstantiationService = this.groupView.activeEditorPane?.getScopedInstantiationService?.() ?? this.instantiationService;
+		const toolbarOptions = {
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+			toolbarOptions: { primaryGroup: (group: string) => group !== 'secondary', useSeparatorsInPrimaryActions: true }
+		};
+		if (headerPrimaryMenuId) {
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.headerPrimaryActionsContainer, headerPrimaryMenuId, toolbarOptions));
+			store.add(toolbar.onDidChangeMenuItems(() => this.updateHeaderVisibility(true)));
+		}
+		if (headerSecondaryMenuId) {
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.headerSecondaryActionsContainer, headerSecondaryMenuId, toolbarOptions));
+			store.add(toolbar.onDidChangeMenuItems(() => this.updateHeaderVisibility(true)));
+		}
+		this.headerActions.value = store;
+		this.updateHeaderVisibility(relayout);
+	}
+
+	private createBreadcrumbsControl(parent: HTMLElement): BreadcrumbsControlFactory | undefined {
 		if (this.groupsView.partOptions.showTabs === 'single') {
 			this.breadcrumbsContainer = undefined;
 			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
 		}
-
-		// Breadcrumbs container
 		const breadcrumbsContainer = this.breadcrumbsContainer = $('.breadcrumbs-below-tabs');
-		this.parent.appendChild(breadcrumbsContainer);
+		parent.appendChild(breadcrumbsContainer);
 
 		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupView, {
 			showFileIcons: true,
@@ -97,10 +190,9 @@ export class EditorTitleControl extends Themable {
 			showEditorTypePicker: true,
 		}));
 
-		// Breadcrumbs enablement & visibility change have an impact on layout
-		// so we need to relayout the editor group when that happens.
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.groupView.relayout()));
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.groupView.relayout()));
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.updateHeaderVisibility(true)));
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.updateHeaderVisibility(true)));
+		this.updateHeaderVisibility(false);
 
 		return breadcrumbsControlFactory;
 	}
@@ -189,11 +281,14 @@ export class EditorTitleControl extends Themable {
 			// Clear old
 			this.editorTabsControlDisposable.clear();
 			this.breadcrumbsControlDisposables.clear();
+			this.headerDisposables.clear();
 			clearNode(this.parent);
 
 			// Create new
 			this.editorTabsControl = this.createEditorTabsControl();
-			this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
+			const header = this.createHeader();
+			this.breadcrumbsControlFactory = this.createBreadcrumbsControl(header);
+			this.renderHeaderActions(false);
 		}
 
 		// Forward into editor tabs control
@@ -202,32 +297,29 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
-	layout(dimensions: IEditorTitleControlDimensions, breadcrumbsRightInset = 0): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 
 		// Layout tabs control
-		const tabsControlDimension = this.editorTabsControl.layout(dimensions);
+		this.editorTabsControl.layout(dimensions);
 
 		// Layout breadcrumbs if visible
-		let breadcrumbsControlDimension: Dimension | undefined = undefined;
 		if (this.breadcrumbsControl?.isHidden() === false) {
-			const breadcrumbsWidth = Math.max(0, dimensions.container.width - breadcrumbsRightInset);
+			const breadcrumbsWidth = Math.max(0, dimensions.container.width);
 			this.breadcrumbsContainer!.style.width = `${breadcrumbsWidth}px`;
-			breadcrumbsControlDimension = new Dimension(breadcrumbsWidth, BreadcrumbsControl.HEIGHT);
+			const breadcrumbsControlDimension = new Dimension(breadcrumbsWidth, BreadcrumbsControl.HEIGHT);
 			this.breadcrumbsControl.layout(breadcrumbsControlDimension);
 		}
 
-		return new Dimension(
-			dimensions.container.width,
-			tabsControlDimension.height + (breadcrumbsControlDimension ? breadcrumbsControlDimension.height : 0)
-		);
+		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}
 
 	getHeight(): IEditorGroupTitleHeight {
 		const tabsControlHeight = this.editorTabsControl.getHeight();
 		const breadcrumbsControlHeight = this.breadcrumbsControl?.isHidden() === false ? BreadcrumbsControl.HEIGHT : 0;
+		const additionalHeight = this.showHeader ? (this.headerVisible ? EditorTitleControl.HEADER_HEIGHT : 0) : breadcrumbsControlHeight;
 
 		return {
-			total: tabsControlHeight + breadcrumbsControlHeight,
+			total: tabsControlHeight + additionalHeight,
 			offset: tabsControlHeight
 		};
 	}

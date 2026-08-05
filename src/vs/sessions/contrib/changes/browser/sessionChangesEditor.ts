@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
-import { IEditorHeaderActions, IEditorOpenContext } from '../../../../workbench/common/editor.js';
+import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -274,16 +274,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return store;
 	}
 
-	/**
-	 * In single-pane, opt this editor in to the group's full-width header (spanning
-	 * the editor content and docked detail), providing this editor's scoped context
-	 * so the header actions' `when` clauses evaluate correctly.
-	 */
-	getHeaderActions(): IEditorHeaderActions | undefined {
+	getScopedInstantiationService(): IInstantiationService | undefined {
 		if (!this._singlePane || !this._scopedInstantiationService) {
 			return undefined;
 		}
-		return { instantiationService: this._scopedInstantiationService };
+		return this._scopedInstantiationService;
 	}
 
 	/**
