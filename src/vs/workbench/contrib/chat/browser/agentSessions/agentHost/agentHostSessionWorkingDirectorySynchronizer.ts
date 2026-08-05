@@ -148,6 +148,27 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._scheduleAll('trusted folders change')));
 	}
 
+	/**
+	 * Starts following a session until the returned disposable is disposed.
+	 *
+	 * Builds the mutable bookkeeping entry for the session and wires the four
+	 * triggers that can invalidate its working directories, each of which
+	 * schedules a reconcile:
+	 *
+	 * - **session state changed** — its directory set moved, so re-diff it.
+	 *   Skipped while this synchronizer is dispatching its own actions, and
+	 *   while the subscription rolls back a host-rejected action, since either
+	 *   would immediately redispatch what just happened.
+	 * - **protocol handshake settled** — the working-directory actions only
+	 *   exist from AHP 0.7, so a session registered before the negotiated
+	 *   version is known must be re-evaluated once it arrives.
+	 *
+	 * Workspace-folder and trust changes are the other two triggers; they affect
+	 * every session and are subscribed once in the constructor.
+	 *
+	 * The returned disposable removes the entry, so a session registered twice
+	 * (re-subscribe after a state error) replaces the previous registration.
+	 */
 	register(registration: IAgentHostWorkingDirectoryRegistration): IDisposable {
 		// The Agents window has no workspace folders to follow.
 		if (this._environmentService.isSessionsWindow) {
@@ -165,6 +186,8 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			automaticReconcileScheduled: false,
 			dispatching: false,
 		};
+		// A rejected envelope is announced before the rollback lands, and cleared
+		// once it has been applied, so `onDidChange` in between can be ignored.
 		store.add(registration.subscription.onWillApplyAction(envelope => {
 			entry.applyingRejectedAction = !!envelope.rejectionReason;
 		}));
@@ -177,9 +200,14 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			}
 		}));
 		store.add(autorun(reader => {
+			// Re-runs once the handshake completes, since eligibility depends on
+			// the negotiated protocol version. Also runs immediately, which is
+			// what performs the initial reconcile for an already-connected host.
 			registration.connection.initializeResult.read(reader);
 			this._scheduleReconcile(entry, 'protocol initialization');
 		}));
+		// Guarded so disposing a stale registration cannot evict the entry that
+		// replaced it under the same session URI.
 		store.add(toDisposable(() => {
 			if (this._registrations.get(key) === entry) {
 				this._registrations.delete(key);
@@ -196,6 +224,13 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		}
 	}
 
+	/**
+	 * Compares the session's current working directories against the folders it
+	 * should have for today's workspace and dispatches the difference. Runs are
+	 * serialized per session so two callers cannot interleave their dispatches.
+	 *
+	 * See {@link IAgentHostSessionWorkingDirectorySynchronizer.reconcile}.
+	 */
 	reconcile(session: URI, token: CancellationToken): Promise<void> {
 		return this._reconciler.queue(session.toString(), () => this._reconcile(session, token));
 	}

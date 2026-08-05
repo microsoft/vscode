@@ -1637,7 +1637,6 @@ export interface IAgent {
 	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
-<<<<<<< HEAD
 	/**
 	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
 	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
