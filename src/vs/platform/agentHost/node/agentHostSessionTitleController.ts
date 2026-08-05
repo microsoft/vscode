@@ -20,6 +20,7 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
 const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
+const MAX_GITHUB_CONTEXT_BODY_CHARS = 2_000;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
 const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
@@ -484,7 +485,10 @@ export class AgentHostSessionTitleController extends Disposable {
 		}, 0);
 		let remainingBodyBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - fixedLength);
 		const sections = contexts.map((context, index) => {
-			const bodyBudget = Math.floor(remainingBodyBudget / (contexts.length - index));
+			const bodyBudget = Math.min(
+				MAX_GITHUB_CONTEXT_BODY_CHARS,
+				Math.floor(remainingBodyBudget / (contexts.length - index)),
+			);
 			const body = truncateMiddle(context.value.body, bodyBudget);
 			remainingBodyBudget -= body.length;
 			return this._formatGitHubContext(context.reference, context.value, body);

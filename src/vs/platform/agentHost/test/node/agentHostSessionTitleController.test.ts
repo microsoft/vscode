@@ -272,7 +272,7 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
-	test('seedTitleFromFirstMessage bounds appended GitHub context', async () => {
+	test('seedTitleFromFirstMessage caps each appended GitHub body at 2000 characters', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		const octoKitService = new TestAgentHostOctoKitService();
 		octoKitService.responses.set('microsoft/vscode#123', { title: 'Issue title', body: `start\n${'x'.repeat(30_000)}\nend` });
@@ -283,13 +283,15 @@ suite('AgentHostSessionTitleController', () => {
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
 		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
+		const bodyMarker = 'The body of the issue is:\n';
+		const body = context.slice(context.indexOf(bodyMarker) + bodyMarker.length);
 		assert.deepStrictEqual({
-			isBounded: context.length <= 20_000,
-			hasStart: context.includes('start'),
-			hasTruncationMarker: context.includes('\n...\n'),
-			hasEnd: context.includes('end'),
+			bodyLength: body.length,
+			hasStart: body.includes('start'),
+			hasTruncationMarker: body.includes('\n...\n'),
+			hasEnd: body.includes('end'),
 		}, {
-			isBounded: true,
+			bodyLength: 2_000,
 			hasStart: true,
 			hasTruncationMarker: true,
 			hasEnd: true,
