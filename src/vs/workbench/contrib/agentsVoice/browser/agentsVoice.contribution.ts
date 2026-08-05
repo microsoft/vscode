@@ -586,7 +586,7 @@ configurationRegistry.registerConfiguration({
 		[VOICE_AGENT_PROGRESS_SETTING]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.agentProgress', "Allow Agent mode to speak brief semantic progress updates while it investigates, plans, edits, validates, or recovers from a problem."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 		},
