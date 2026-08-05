@@ -3,6 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * Keeps an Editor Window agent-host session's working directories in sync with
+ * the multi-root workspace folders it was created against.
+ *
+ * ## Why
+ *
+ * A session's working directories are the folders its agent may read and write.
+ * They are chosen when the session is created. Without this service, adding a
+ * folder to the workspace would leave existing sessions unable to see it, and
+ * removing one would leave them with access the user revoked.
+ *
+ * ## What "reconcile" means
+ *
+ * There is no "set the whole list" operation in the protocol, only add/remove
+ * deltas. So this service compares two lists and emits the difference:
+ *
+ * - **current** — the directories the session has, from its authoritative state.
+ * - **desired** — what it should have, derived from today's workspace folders
+ *   (see `computeDesiredWorkingDirectories`).
+ *
+ * Folders in *desired* but not *current* are dispatched as
+ * `session/workingDirectorySet`; folders in *current* but not *desired* as
+ * `session/workingDirectoryRemoved`. When the two lists already agree, nothing
+ * is dispatched. That comparison is the whole job — hence "reconcile".
+ *
+ * The primary directory (index 0) is deliberately excluded from removals: it is
+ * the agent's fixed process root, so a session keeps it even after the user
+ * drops it from the workspace.
+ *
+ * ## When it runs
+ *
+ * `reconcile` runs automatically on any signal that could change either list —
+ * workspace folders, workspace trust, session state, or completion of the
+ * protocol handshake — and can also be awaited explicitly before sending a
+ * prompt, so the agent sees the current set. Runs are serialized per session,
+ * and overlapping triggers collapse into one follow-up pass.
+ *
+ * ## Ownership
+ *
+ * Dispatch is ordinary optimistic AHP traffic: no acknowledgement is awaited.
+ * The agent host stays authoritative — it validates every action, may reject
+ * it, and the client then rolls back. Untrusted folders are never added, though
+ * removals still proceed since they only reduce access.
+ *
+ * Only sessions that can safely follow the workspace are eligible; see
+ * {@link AgentHostSessionWorkingDirectorySynchronizer._isEligible}.
+ */
+
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -28,31 +76,63 @@ import { computeDesiredWorkingDirectories, hasImmutablePrimaryWorkingDirectory }
 
 export const IAgentHostSessionWorkingDirectorySynchronizer = createDecorator<IAgentHostSessionWorkingDirectorySynchronizer>('agentHostSessionWorkingDirectorySynchronizer');
 
+/** A live session the synchronizer should keep aligned with the workspace. */
 export interface IAgentHostWorkingDirectoryRegistration {
 	readonly session: URI;
+	/** Agent-host provider id, used to read the provider's advertised capabilities. */
 	readonly provider: string;
 	readonly connection: IAgentConnection;
+	/** Authoritative session state, including its current working directories. */
 	readonly subscription: IAgentSubscription<SessionState>;
 }
 
 export interface IAgentHostSessionWorkingDirectorySynchronizer {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Starts following `registration` until the returned disposable is disposed.
+	 * Reconciliation then runs whenever the workspace, trust, session state, or
+	 * protocol handshake changes.
+	 */
 	register(registration: IAgentHostWorkingDirectoryRegistration): IDisposable;
+
+	/**
+	 * Compares the session's current working directories against the folders it
+	 * should have for today's workspace and dispatches the difference as add /
+	 * remove actions. A no-op when they already match.
+	 *
+	 * Callers can await this before sending a prompt so the agent sees the
+	 * latest set. Rejects when a folder that needs adding is untrusted — safe
+	 * removals are still dispatched first.
+	 */
 	reconcile(session: URI, token: CancellationToken): Promise<void>;
 }
 
 interface IAgentHostWorkingDirectoryRegistrationEntry extends IAgentHostWorkingDirectoryRegistration {
 	readonly store: DisposableStore;
+	/**
+	 * True while the subscription rolls back an action the host rejected. That
+	 * rollback changes state, and reconciling on it would immediately redispatch
+	 * the rejected action.
+	 */
 	applyingRejectedAction: boolean;
+	/** A change arrived mid-run, so reconcile once more after it completes. */
 	automaticReconcileAgain: boolean;
+	/** An automatic reconcile is already in flight for this session. */
 	automaticReconcileScheduled: boolean;
+	/**
+	 * True while this synchronizer dispatches its own actions. Their optimistic
+	 * state updates would otherwise re-enter reconciliation.
+	 */
 	dispatching: boolean;
 }
 
 export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable implements IAgentHostSessionWorkingDirectorySynchronizer {
 	declare readonly _serviceBrand: undefined;
 
+	/** Sessions currently being followed, keyed by session URI. */
 	private readonly _registrations = new Map<string, IAgentHostWorkingDirectoryRegistrationEntry>();
+	/** Serializes reconciliation per session so concurrent runs cannot interleave dispatches. */
 	private readonly _reconciler = new SequencerByKey<string>();
 
 	constructor(
@@ -69,6 +149,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 	}
 
 	register(registration: IAgentHostWorkingDirectoryRegistration): IDisposable {
+		// The Agents window has no workspace folders to follow.
 		if (this._environmentService.isSessionsWindow) {
 			return Disposable.None;
 		}
@@ -108,6 +189,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		return store;
 	}
 
+	/** Reconciles every followed session, e.g. after a workspace-wide change. */
 	private _scheduleAll(reason: string): void {
 		for (const registration of this._registrations.values()) {
 			this._scheduleReconcile(registration, reason);
@@ -118,6 +200,12 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		return this._reconciler.queue(session.toString(), () => this._reconcile(session, token));
 	}
 
+	/**
+	 * Runs an automatic reconcile, coalescing bursts: triggers arriving while a
+	 * run is in flight collapse into a single follow-up pass, so a rapid series
+	 * of folder changes converges on the final workspace state. Failures are
+	 * logged rather than surfaced — these runs have no caller to reject to.
+	 */
 	private _scheduleReconcile(registration: IAgentHostWorkingDirectoryRegistrationEntry, reason: string): void {
 		if (registration.automaticReconcileScheduled) {
 			registration.automaticReconcileAgain = true;
@@ -153,6 +241,8 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		}
 		const registration = this._registrations.get(session.toString());
 		const value = registration?.subscription.value;
+		// Read the optimistic value so directories dispatched but not yet
+		// confirmed by the host are not dispatched a second time.
 		const state = value && !(value instanceof Error) ? value : undefined;
 		if (!registration || !state || !this._isEligible(registration, state)) {
 			return;
@@ -162,12 +252,14 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		if (current.length === 0) {
 			return;
 		}
+		// The session's own primary stays the primary; only its peers follow the workspace.
 		const desired = computeDesiredWorkingDirectories(
 			current[0],
 			current,
 			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			this._uriIdentityService.extUri,
 		);
+		// `slice(1)` on both sides keeps the immutable primary out of the diff.
 		const additions = desired.slice(1).filter(directory => !current.some(existing => this._uriIdentityService.extUri.isEqual(existing, directory)));
 		const removals = current.slice(1).filter(directory => !desired.some(expected => this._uriIdentityService.extUri.isEqual(expected, directory)));
 		if (additions.length === 0 && removals.length === 0) {
@@ -178,12 +270,15 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		// The registration may have been replaced or disposed while trust resolved.
 		if (this._registrations.get(session.toString()) !== registration) {
 			return;
 		}
 
 		registration.dispatching = true;
 		try {
+			// An untrusted addition blocks only the additions; removals are always
+			// safe because they can only reduce the agent's access.
 			if (!trustError) {
 				for (const directory of additions) {
 					registration.connection.dispatch(session.toString(), {
@@ -207,6 +302,13 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		}
 	}
 
+	/**
+	 * Whether this session may follow the workspace. Requires a host that speaks
+	 * the working-directory actions, a provider that supports multiple roots
+	 * with a pinned primary, and a plain multi-root session still bound to the
+	 * open workspace file. Excludes workspace-less, worktree-isolated, and
+	 * multi-chat sessions, whose directories are not the workspace's to manage.
+	 */
 	private _isEligible(registration: IAgentHostWorkingDirectoryRegistration, state: SessionState): boolean {
 		const protocolVersion = registration.connection.initializeResult.get()?.protocolVersion;
 		if (state.lifecycle !== SessionLifecycle.Ready
@@ -227,11 +329,17 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 		return hasImmutablePrimaryWorkingDirectory(registration.connection.rootState.value, registration.provider);
 	}
 
+	/**
+	 * Maps a host-side directory back to its Editor form. On a Remote window the
+	 * host reports plain `file:` paths, while workspace folders are
+	 * `vscode-remote:`, so both sides must be compared in Editor form.
+	 */
 	private _toEditorWorkingDirectory(directory: URI): URI {
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		return remoteAuthority ? fromRemoteAgentHostWorkingDirectory(directory, remoteAuthority) : directory;
 	}
 
+	/** Returns an error for the first untrusted folder, or `undefined` if all are trusted. */
 	private async _getAdditionTrustError(additions: readonly URI[], token: CancellationToken): Promise<Error | undefined> {
 		for (const directory of additions) {
 			if (token.isCancellationRequested) {

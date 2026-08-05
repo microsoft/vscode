@@ -2605,6 +2605,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
+	/**
+	 * Authoritative gate for every client working-directory action. Throws when
+	 * the session or its provider cannot accept the change — including a removal
+	 * of the primary directory for a provider that pins it — so the caller can
+	 * reject the action. Returns the canonicalized action on success.
+	 */
 	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
 		const state = this._stateManager.getSessionState(session);
 		if (!state || state.lifecycle !== SessionLifecycle.Ready || !state.workingDirectories?.length) {
