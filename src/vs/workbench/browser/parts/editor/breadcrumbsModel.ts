@@ -12,9 +12,11 @@ import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { IEditorPane } from '../../../common/editor.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 
 export class FileElement {
@@ -26,11 +28,6 @@ export class FileElement {
 }
 
 type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
-
-export interface IBreadcrumbsModelOptions {
-	readonly showWorkspaceFolder?: (folderCount: number) => boolean;
-	readonly getWorkspaceFolderLabel?: (folder: IWorkspaceFolder) => string | undefined;
-}
 
 export class OutlineElement2 {
 	constructor(
@@ -56,9 +53,10 @@ export class BreadcrumbsModel {
 	constructor(
 		readonly resource: URI,
 		readonly editor: IEditorPane | undefined,
-		private readonly _options: IBreadcrumbsModelOptions | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
@@ -148,13 +146,13 @@ export class BreadcrumbsModel {
 		}
 
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			if (this._options) {
+			if (this._environmentService.isSessionsWindow) {
 				const folderCount = this._workspaceService.getWorkspace().folders.length;
-				if (this._options.showWorkspaceFolder?.(folderCount) ?? true) {
+				if (folderCount > 1) {
 					info.path.unshift(new FileElement(
 						info.folder.uri,
 						FileKind.ROOT_FOLDER,
-						this._options.getWorkspaceFolderLabel?.(info.folder)
+						this._labelService.getUriBasenameLabel(info.folder.uri)
 					));
 				}
 			} else {

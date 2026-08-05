@@ -26,7 +26,9 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
-- **Optional customization must not obscure the default path**: when shared behavior has an optional policy or override, keep the customized and default branches explicit. Avoid folding the default through optional chaining and fallback expressions when a separate branch makes the unchanged behavior immediately clear.
+- **Do not inject `ISessionsService` into editor-part construction**: the sessions service depends on editor parts through the sessions-part graph, so injecting it into `SinglePaneMainEditorPart` causes recursive service instantiation during startup. Prefer lower-level services such as `ILabelService` when the editor only needs resource presentation.
+
+- **Window-specific breadcrumb presentation can use the environment fact directly**: `BreadcrumbsModel` may read `IWorkbenchEnvironmentService.isSessionsWindow` to choose Agents-window root presentation. Do not thread an options policy through editor group/title/header controls when the behavior is intrinsically tied to the window type.
 
 - **Animation performance must preserve perceptual smoothness**: reducing a continuous title shimmer to 10 stepped updates per second makes the sweep visibly choppy even if paint counts improve. Use a smooth baseline such as 30 updates per second, then measure the remaining performance win; do not optimize decorative motion by callback counts alone.
 

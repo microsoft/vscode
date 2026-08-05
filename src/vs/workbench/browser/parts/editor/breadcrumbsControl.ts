@@ -48,7 +48,7 @@ import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outl
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
-import { BreadcrumbsModel, FileElement, IBreadcrumbsModelOptions, OutlineElement2 } from './breadcrumbsModel.js';
+import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
 import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
@@ -222,7 +222,6 @@ export interface IBreadcrumbsControlOptions {
 	readonly showPlaceholder: boolean;
 	readonly dragEditor: boolean;
 	readonly widgetStyles?: IBreadcrumbsWidgetStyles;
-	readonly modelOptions?: IBreadcrumbsModelOptions;
 	/**
 	 * Whether to show a dropdown on the right-hand side that lets the user switch between the editors
 	 * that can open the active resource (e.g. Text Editor vs. Markdown Preview). Only makes sense for
@@ -446,8 +445,7 @@ export class BreadcrumbsControl {
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
 			fileInfoUri ?? uri,
-			this._editorGroup.activeEditorPane,
-			this._options.modelOptions
+			this._editorGroup.activeEditorPane
 		);
 		this._model.value = model;
 

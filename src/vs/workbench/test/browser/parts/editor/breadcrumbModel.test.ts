@@ -14,11 +14,24 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 suite('Breadcrumb Model', function () {
 
 	let model: BreadcrumbsModel;
 	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
+	const labelService = new class extends mock<ILabelService>() {
+		override getUriBasenameLabel(resource: URI): string {
+			return resource.path.slice(resource.path.lastIndexOf('/') + 1);
+		}
+	};
+	const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+		override readonly isSessionsWindow = false;
+	};
+	const sessionsEnvironmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+		override readonly isSessionsWindow = true;
+	};
 	const configService = new class extends TestConfigurationService {
 		override getValue<T>(...args: Parameters<TestConfigurationService['getValue']>): T | undefined {
 			if (args[0] === 'breadcrumbs.filePath') {
@@ -42,7 +55,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, environmentService, labelService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -57,7 +70,7 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, environmentService, labelService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -72,7 +85,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, environmentService, labelService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 2);
@@ -89,9 +102,7 @@ suite('Breadcrumb Model', function () {
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), undefined, {
-			showWorkspaceFolder: folderCount => folderCount > 1
-		}, configService, workspace, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), undefined, configService, workspace, sessionsEnvironmentService, labelService, new class extends mock<IOutlineService>() { });
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
@@ -111,17 +122,14 @@ suite('Breadcrumb Model', function () {
 			],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/worktrees/docs-feature/guide.md'), undefined, {
-			showWorkspaceFolder: folderCount => folderCount > 1,
-			getWorkspaceFolderLabel: folder => folder.uri.path.includes('docs') ? 'docs' : 'project'
-		}, configService, workspace, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/worktrees/docs-feature/guide.md'), undefined, configService, workspace, sessionsEnvironmentService, labelService, new class extends mock<IOutlineService>() { });
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
 			kind: element.kind,
 			label: element.label
 		})), [
-			{ uri: 'foo:/worktrees/docs-feature', kind: FileKind.ROOT_FOLDER, label: 'docs' },
+			{ uri: 'foo:/worktrees/docs-feature', kind: FileKind.ROOT_FOLDER, label: 'docs-feature' },
 			{ uri: 'foo:/worktrees/docs-feature/guide.md', kind: FileKind.FILE, label: undefined }
 		]);
 	});

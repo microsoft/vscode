@@ -14,14 +14,11 @@ import { IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView }
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { basename } from '../../../base/common/resources.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
 import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 /**
  * Single-pane editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -51,15 +48,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
-			showHeader: true,
-			headerBreadcrumbs: {
-				showWorkspaceFolder: folderCount => folderCount > 1,
-				getWorkspaceFolderLabel: workspaceFolder => {
-					const sessionFolder = this._sessionsService.activeSession.get()?.workspace.get()?.folders
-						.find(folder => this._uriIdentityService.extUri.isEqual(folder.workingDirectory, workspaceFolder.uri));
-					return sessionFolder ? basename(sessionFolder.root) : undefined;
-				}
-			}
+			showHeader: true
 		};
 	}
 
@@ -94,8 +83,6 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 

@@ -6,7 +6,6 @@
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IBreadcrumbsModelOptions } from './breadcrumbsModel.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -270,9 +269,6 @@ export interface IEditorGroupViewOptions {
 
 	/** Shows the full-width group header with its configured actions and breadcrumbs. */
 	readonly showHeader?: boolean;
-
-	/** Customizes breadcrumbs rendered in the full-width group header. */
-	readonly headerBreadcrumbs?: IBreadcrumbsModelOptions;
 }
 
 export interface IEditorGroupMenuIds {
