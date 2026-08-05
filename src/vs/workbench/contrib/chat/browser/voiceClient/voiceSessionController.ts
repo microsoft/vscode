@@ -43,6 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
@@ -6004,6 +6005,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// cycles from starting concurrent loads whose refs would overwrite each
 		// other in _eagerModelRefs and leak the prior ref.
 		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
+			return;
+		}
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be eagerly
+		// loaded: loading its model subscribes/restores it on the agent host, which
+		// adopts (migrates) it. Migration must happen only on explicit user open.
+		if (this.agentSessionsService.model.getSession(resource)?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
 			return;
 		}
 		this.logService.trace(`[voice] eagerly loading model for session ${key.slice(-32)}`);

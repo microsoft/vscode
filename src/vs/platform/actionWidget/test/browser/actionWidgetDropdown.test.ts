@@ -21,16 +21,19 @@ suite('ActionWidgetDropdown', () => {
 			defaults: withActionWidgetDropdownMotion(undefined),
 			overrides: withActionWidgetDropdownMotion({
 				className: `custom ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
+				widgetClassName: 'custom-widget',
 				closeAnimation: customCloseAnimation,
 				showFilter: true
 			})
 		}, {
 			defaults: {
 				className: ACTION_WIDGET_DROPDOWN_MOTION_CLASS,
+				widgetClassName: ACTION_WIDGET_DROPDOWN_MOTION_CLASS,
 				closeAnimation: actionWidgetDropdownCloseAnimation
 			},
 			overrides: {
 				className: `custom ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
+				widgetClassName: `custom-widget ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
 				closeAnimation: customCloseAnimation,
 				showFilter: true
 			}

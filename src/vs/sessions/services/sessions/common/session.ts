@@ -179,8 +179,6 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Folders in this session workspace. */
 	readonly folders: ISessionFolder[];
-	/** Whether a new session can be created for this workspace. Absent means supported. */
-	readonly canCreateSession?: boolean;
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 	/**
@@ -260,6 +258,11 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/** A last-turn file change classified against its owning session workspace. */
+export type ISessionTurnFileChange = ISessionFileChange & {
+	readonly isOutsideWorkspace: boolean;
+};
 
 /**
  * The kind of change applied to a {@link ISessionFile}.
@@ -498,10 +501,10 @@ export interface IChat {
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
-	 * what the most recent request produced. Providers that cannot determine
-	 * this omit the observable.
+	 * what the most recent request produced. Each change is classified against
+	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
-	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -811,6 +814,11 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	return true;
 }
 
+/** Structural equality for arrays of {@link ISessionTurnFileChange}. */
+export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
+	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+}
+
 /**
  * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
  * so that providers can re-publish updated info without notifying observers when the underlying GitHub
@@ -849,7 +857,6 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.label !== b.label
 		|| a.description !== b.description
 		|| a.group !== b.group
-		|| (a.canCreateSession ?? true) !== (b.canCreateSession ?? true)
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace

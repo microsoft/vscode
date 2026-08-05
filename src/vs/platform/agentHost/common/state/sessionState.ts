@@ -1150,12 +1150,10 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
-const MAX_WORKSPACE_NAME_LENGTH = 512;
 
 /** Multi-root workspace provenance attached by the creating client. */
 export interface ISessionMultiRootMetadata {
 	readonly workspaceFile: string;
-	readonly name?: string;
 }
 
 /** Reads validated multi-root workspace provenance from session metadata. */
@@ -1194,10 +1192,6 @@ function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMeta
 	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
 		return undefined;
 	}
-	const name = raw.name;
-	if (name !== undefined && (typeof name !== 'string' || name.length > MAX_WORKSPACE_NAME_LENGTH)) {
-		return undefined;
-	}
 	try {
 		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
 			return undefined;
@@ -1205,7 +1199,7 @@ function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMeta
 	} catch {
 		return undefined;
 	}
-	return name === undefined ? { workspaceFile: raw.workspaceFile } : { workspaceFile: raw.workspaceFile, name };
+	return { workspaceFile: raw.workspaceFile };
 }
 
 /** Latest known prompt-cache state for the model active in an agent session. */
@@ -1521,6 +1515,25 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * `_meta` key marking a session as an un-adopted legacy Copilot CLI session
+ * surfaced (only under the migrate setting) as adoptable. Clients read it to
+ * avoid passively subscribing to — and thereby migrating — the session before
+ * the user opens it. Cleared implicitly once the session is adopted (it no
+ * longer surfaces as adoptable).
+ */
+export const SESSION_META_EHCLI_ADOPTABLE_KEY = 'ehcliAdoptable';
+
+/** Whether the session is an un-adopted legacy Copilot CLI session surfaced as adoptable. */
+export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true;
+}
+
+/** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
+export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

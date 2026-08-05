@@ -9,7 +9,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, sessionFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('isActiveSessionStatus', () => {
 
@@ -116,11 +116,27 @@ suite('sessionFileChangesEqual', () => {
 	});
 });
 
+suite('sessionTurnFileChangesEqual', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes workspace classification in equality', () => {
+		const uri = URI.file('/a.txt');
+		const inside: ISessionTurnFileChange = { uri, modifiedUri: uri, insertions: 1, deletions: 0, isOutsideWorkspace: false };
+		const outside: ISessionTurnFileChange = { ...inside, isOutsideWorkspace: true };
+
+		assert.deepStrictEqual([
+			sessionTurnFileChangesEqual([inside], [{ ...inside }]),
+			sessionTurnFileChangesEqual([inside], [outside]),
+		], [true, false]);
+	});
+});
+
 suite('sessionWorkspaceEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined), canCreateSession?: boolean): ISessionWorkspace {
+	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined)): ISessionWorkspace {
 		const root = URI.file('/repo');
 		return {
 			uri: root,
@@ -140,7 +156,6 @@ suite('sessionWorkspaceEqual', () => {
 					gitHubInfo,
 				},
 			}],
-			canCreateSession,
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
 		};
@@ -159,16 +174,6 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
-	});
-
-	test('compares workspace creation capability using the supported default', () => {
-		assert.deepStrictEqual({
-			omittedMatchesTrue: sessionWorkspaceEqual(workspace(), workspace('main', constObservable(undefined), true)),
-			falseDiffersFromDefault: sessionWorkspaceEqual(workspace(), workspace('main', constObservable(undefined), false)),
-		}, {
-			omittedMatchesTrue: true,
-			falseDiffersFromDefault: false,
-		});
 	});
 });
 

@@ -35,7 +35,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -170,6 +170,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
@@ -196,6 +197,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
@@ -302,6 +304,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -343,6 +346,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
@@ -628,6 +632,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
 		},
+		[AgentsVoiceSettingId.ShowButton]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.showButton', "Controls whether the Voice Mode button is shown in the chat input. When hidden, Voice Mode can still be started with its keyboard shortcut."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.backendUrl': {
 			type: 'string',
 			description: nls.localize('agents.voice.backendUrl', "Voice backend WebSocket URL. Leave empty to use the default hosted backend. Set to e.g. `ws://localhost:8000/api/v1/realtime/voice` to point at a backend running on your machine."),
@@ -677,7 +688,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.language.ko', "Korean"),
 				nls.localize('agents.voice.language.zh', "Chinese"),
 			],
-			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and dictation, and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic uses the configured display language for speech recognition and dictation when supported; otherwise, it follows the system or browser locale. English voice output is used when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 		},
