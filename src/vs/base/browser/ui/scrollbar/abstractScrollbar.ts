@@ -124,6 +124,16 @@ export abstract class AbstractScrollbar extends Widget {
 				e.stopPropagation();
 			}
 		});
+
+		this._register(dom.addDisposableListener(
+			this.slider.domNode,
+			dom.EventType.DBLCLICK,
+			(e: MouseEvent) => {
+				if (e.button === 0) {
+					e.stopPropagation();
+				}
+			}
+		));
 	}
 
 	// ----------------- Update state
