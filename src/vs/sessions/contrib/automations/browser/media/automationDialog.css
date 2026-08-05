@@ -664,9 +664,9 @@
  * which has its own global CSS. No overrides needed here.
  */
 /*
- * Isolation + branch group: parented into the chat input's
- * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
- * input, sharing a row with `Copilot CLI | Default Permissions`.
+ * Isolation + branch group: parented into the new chat input's compact
+ * picker row so it sits at the bottom-right of the chat input, sharing a row
+ * with the session type, workspace, and provider-contributed controls.
  * `margin-left: auto` pushes the group to the right edge within that
  * flex row.
  *
@@ -681,6 +681,12 @@
 	margin-left: auto;
 	min-width: 0;
 	gap: var(--vscode-spacing-size60);
+}
+
+.automation-form-prompt-host .automation-form-isolation-group .sessions-chat-isolation-checkbox .action-label,
+.automation-form-prompt-host .automation-form-isolation-group .sessions-chat-isolation-checkbox .sessions-chat-dropdown-label {
+	font-size: var(--vscode-agents-fontSize-label2);
+	line-height: normal;
 }
 
 .automation-form-prompt-host .automation-form-branch-picker-slot {

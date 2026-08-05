@@ -10,7 +10,7 @@ import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -219,7 +219,6 @@ export function resolveAutomationModelIdentifier(
 }
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
-const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
 
@@ -634,25 +633,6 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
-	constructor() {
-		super({
-			id: AUTOMATIONS_ISOLATION_GROUP_ACTION_ID,
-			title: localize2('automation.form.isolationGroup.action', "Automations Isolation Group"),
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.ChatInputSecondary,
-				group: 'navigation',
-				order: 2,
-				when: ChatContextKeys.inAutomationsDialog,
-			}],
-		});
-	}
-
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
-
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
@@ -916,20 +896,6 @@ export function renderForm(
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
 			}
-			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
-				const item = instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					action,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					itemOptions,
-					workspaceControlsVisible,
-				);
-				return item;
-			}
 			return undefined;
 		},
 	};
@@ -985,6 +951,19 @@ export function renderForm(
 	newChatInput.sessionTypePicker.render(newChatPickersHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
 	workspacePicker.render(newChatPickersHost).classList.add('chat-input-picker-item');
 	newChatInput.renderSessionControls(newChatPickersHost);
+	const isolationGroupAction = disposables.add(new Action('automationIsolationGroup', ''));
+	const isolationGroup = disposables.add(instantiationService.createInstance(
+		AutomationIsolationGroupActionViewItem,
+		isolationGroupAction,
+		state,
+		isolationModel,
+		isolationModel.folderUriObs,
+		onDidChangeSessionTarget.event,
+		revalidate,
+		undefined,
+		workspaceControlsVisible,
+	));
+	isolationGroup.render(DOM.append(newChatPickersHost, $('span')));
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
