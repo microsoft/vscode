@@ -47,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -197,6 +197,12 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.icon?.id === y.icon?.id) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
@@ -220,6 +226,24 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
 		if (reference) {
 			refs.push({ ...reference, uri: URI.parse(url) });
 		}
+	}
+	return refs.length > 0 ? refs : undefined;
+}
+
+/** Maps session pull request URLs to references, preserving recency order. */
+function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined): readonly IGitHubPullRequestRef[] | undefined {
+	const refs: IGitHubPullRequestRef[] = [];
+	for (const url of pullRequestUrls ?? []) {
+		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/.exec(url);
+		if (!match) {
+			continue;
+		}
+		refs.push({
+			owner: match[1],
+			repo: match[2],
+			number: Number(match[3]),
+			uri: URI.parse(url),
+		});
 	}
 	return refs.length > 0 ? refs : undefined;
 }
@@ -683,19 +707,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return undefined;
 			}
 
-			let owner = state.owner;
-			let repo = state.repo;
-			let pullRequestNumber: number | undefined;
-
-			if (state.pullRequestUrl) {
-				// Extract pull request information from the URL
-				const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(state.pullRequestUrl);
-				if (match) {
-					owner = owner ?? match[1];
-					repo = repo ?? match[2];
-					pullRequestNumber = Number(match[3]);
-				}
-			}
+			const pullRequests = toGitHubPullRequestRefs(state.pullRequestUrls);
+			const pullRequest = pullRequests?.[0];
+			const owner = state.owner ?? pullRequest?.owner;
+			const repo = state.repo ?? pullRequest?.repo;
 
 			if (!owner || !repo) {
 				return undefined;
@@ -704,9 +719,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				owner,
 				repo,
-				pullRequest: pullRequestNumber !== undefined ? {
-					number: pullRequestNumber,
-					uri: URI.parse(state.pullRequestUrl!),
+				pullRequests,
+				pullRequest: pullRequest ? {
+					number: pullRequest.number,
+					uri: pullRequest.uri,
 				} : undefined,
 				issues: toGitHubIssueRefs(state.issueUrls),
 			};
@@ -718,11 +734,16 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
+			const icon = computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo);
 			return {
 				...baseGitHubInfo,
+				pullRequests: baseGitHubInfo.pullRequests?.map((pullRequest, index) => index === 0 ? {
+					...pullRequest,
+					icon
+				} : pullRequest),
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo)
+					icon
 				}
 			};
 		});

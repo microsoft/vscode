@@ -23,6 +23,7 @@ import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } 
 import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
@@ -125,18 +126,32 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		let previousIsCreated: boolean | undefined;
 		let previousSessionKey: string | undefined;
 		let previousWantsChangesTab = false;
+		let previousSession: IActiveSession | undefined;
+		let changesActivationPendingForSession: string | undefined;
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
 			const isCreated = session ? session.isCreated.read(reader) : false;
 			const sessionKey = session?.resource.toString();
 			const target = this._readTarget(reader);
-			const isSubmit = previousIsCreated === false && isCreated;
+			const isSubmit = previousIsCreated === false && isCreated
+				&& (previousSession === session || previousSession?.isCreated.read(undefined) === true);
+			if (isSubmit) {
+				changesActivationPendingForSession = sessionKey;
+			} else if (sessionKey !== previousSessionKey) {
+				changesActivationPendingForSession = undefined;
+			}
+			const hasChanges = (session?.changes.read(reader).length ?? 0) > 0;
+			const ensureChangesActive = changesActivationPendingForSession === sessionKey && hasChanges;
+			if (ensureChangesActive) {
+				changesActivationPendingForSession = undefined;
+			}
 			const ensureChanges = !isCreated && target.wantsChangesTab
 				&& (sessionKey !== previousSessionKey || !previousWantsChangesTab);
 			previousIsCreated = session ? isCreated : undefined;
+			previousSession = session;
 			previousSessionKey = sessionKey;
 			previousWantsChangesTab = target.wantsChangesTab;
-			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, ensureChangesActive: isSubmit });
+			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, ensureChangesActive });
 		}));
 
 		// [Trigger B] The user opened the side pane. A details-only reveal (aux

@@ -1276,11 +1276,11 @@ export interface IAgentChats {
 	disposeChat(chat: URI): Promise<void>;
 
 	/**
-	 * Send a user message into `chat`; on first send, the host passes the resolved
-	 * working directories (index 0 = the process root / resolved worktree, followed
-	 * by any additional roots). `undefined` for workspace-less sessions. Providers
-	 * launch their subprocess in index 0; the full set is recorded in the
-	 * materialization receipt.
+	 * Send a user message into `chat`. On every send, the host passes the complete
+	 * resolved, ordered working-directory snapshot (index 0 = the process root /
+	 * resolved worktree, followed by any additional roots), or `undefined` for
+	 * workspace-less sessions. Providers must make that snapshot effective before
+	 * the prompt enters their runtime.
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
