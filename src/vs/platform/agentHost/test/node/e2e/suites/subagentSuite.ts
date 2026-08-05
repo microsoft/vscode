@@ -238,19 +238,23 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const liveParentResponsePartIds = responsePartIds(liveParent.turns);
 		assert.ok(liveParentResponsePartIds.length > 0);
 
-		const unsubscribeReplayedState = () => {
+		const unsubscribeSessionTree = () => {
 			// The parent-session unsubscribe is sent last so it triggers eviction.
 			for (const channel of [
+				subagentChatUri,
 				buildDefaultChatUri(replaySubagentSessionUri),
 				replaySubagentSessionUri,
-				subagentChatUri,
 				buildDefaultChatUri(sessionUri),
 				sessionUri,
 			]) {
 				context.client.notify('unsubscribe', { channel });
 			}
 		};
-		unsubscribeReplayedState();
+
+		// Force a reopen: drop the subagent chat and parent-session
+		// subscriptions so the agent host evicts the cached, live-built state,
+		// then re-fetch — which rebuilds the turns from persisted SDK events.
+		unsubscribeSessionTree();
 
 		const { parentText } = await retry(async () => {
 			try {
@@ -277,7 +281,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				return { parentText };
 			} catch (error) {
 				// The retry delay must follow unsubscribe so deferred eviction can run.
-				unsubscribeReplayedState();
+				unsubscribeSessionTree();
 				throw error;
 			}
 		}, 50, 100);
