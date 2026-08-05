@@ -124,7 +124,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private readonly closeOtherEditorTabsInGroupAction = this._register(this.instantiationService.createInstance(CloseOtherEditorTabsInGroupAction, CloseOtherEditorTabsInGroupAction.ID, CloseOtherEditorTabsInGroupAction.LABEL));
 
 	// Alt-hold alternative to a tab's close action (JetBrains-style); see updateTabActionsForAltState().
-	private wantsCloseOthersAction = false;
+	private wantsCloseOthersAction: boolean;
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
@@ -177,7 +177,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 
-		// React to Alt being held/released to swap in the "Close Others" tab action
+		// React to Alt being held/released to swap in the "Close Others" tab action. Initialize
+		// from the current state too, in case this control is created mid-hold.
+		this.wantsCloseOthersAction = ModifierKeyEmitter.getInstance().keyStatus.altKey;
 		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateTabActionsForAltState()));
 	}
 
@@ -1661,7 +1663,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 
 			// Close Others has no real keybinding to look up; hint at the gesture that triggers it instead.
-			const keybinding = tabAction === this.closeOtherEditorTabsInGroupAction ? `${isMacintosh ? '⌥' : 'Alt'}+Click` : this.getKeybindingLabel(tabAction);
+			const keybinding = tabAction === this.closeOtherEditorTabsInGroupAction ? (isMacintosh ? localize('altClickMac', "⌥+Click") : localize('altClick', "Alt+Click")) : this.getKeybindingLabel(tabAction);
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding });
 		}
 
