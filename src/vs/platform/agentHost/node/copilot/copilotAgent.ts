@@ -150,9 +150,18 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 
 function additionalWorkingDirectoriesEqual(appliedDirectories: readonly URI[] | undefined, desiredAdditionalDirectories: readonly URI[]): boolean {
-	const applied = appliedDirectories ?? [];
-	return applied.length === desiredAdditionalDirectories.length
-		&& desiredAdditionalDirectories.every((directory, index) => isEqual(directory, applied[index]));
+	const remaining = [...(appliedDirectories ?? [])];
+	if (remaining.length !== desiredAdditionalDirectories.length) {
+		return false;
+	}
+	for (const desired of desiredAdditionalDirectories) {
+		const index = remaining.findIndex(applied => isEqual(applied, desired));
+		if (index === -1) {
+			return false;
+		}
+		remaining.splice(index, 1);
+	}
+	return true;
 }
 
 /**

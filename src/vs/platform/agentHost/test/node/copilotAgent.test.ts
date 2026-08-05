@@ -5640,15 +5640,16 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not refresh an identical root snapshot', async () => {
+		test('does not refresh equivalent reordered additional roots', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 			configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: true });
 			const sessionId = 'config-refresh-session';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const primary = URI.file('/workspace/primary');
-			const secondary = URI.file('/workspace/secondary');
-			const currentSession = refreshSessionStub([secondary]);
+			const secondaryA = URI.file('/workspace/secondary-a');
+			const secondaryB = URI.file('/workspace/secondary-b');
+			const currentSession = refreshSessionStub([secondaryB, secondaryA]);
 			let resumeCalls = 0;
 			const internals = agent as unknown as {
 				_resumeSession: (id: string, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
@@ -5662,7 +5663,7 @@ suite('CopilotAgent', () => {
 			};
 
 			try {
-				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [primary, secondary]);
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [primary, secondaryA, secondaryB]);
 				assert.deepStrictEqual({
 					destroyCalls: currentSession.destroyCalls,
 					resumeCalls,
