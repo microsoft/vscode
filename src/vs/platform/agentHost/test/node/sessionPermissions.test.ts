@@ -313,6 +313,23 @@ suite('SessionPermissionManager', () => {
 		], [ToolCallConfirmationReason.NotNeeded, undefined, false, true]);
 	});
 
+	test('PowerShell script-block payloads with nested denials require confirmation', async () => {
+		configService.updateRootConfig({
+			[AgentHostTerminalAutoApproveRulesConfigKey]: {
+				'Measure-Command': true,
+				'Set-Content': false,
+				'Invoke-Expression': false,
+			},
+		});
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(powershellEvent('Measure-Command { Set-Content -Path out.txt -Value pwned }'), sessionUri),
+			await permissions.getAutoApproval(powershellEvent('Measure-Command { Invoke-Expression "Write-Output hi" }'), sessionUri),
+			await permissions.getAutoApproval(shellEvent('Write-Host hi; Set-Content -Path out.txt -Value pwned', 'powershell'), sessionUri),
+			// Missing dialect remains fail-closed even for an otherwise allowlisted outer command.
+			await permissions.getAutoApproval(shellEvent('Measure-Command { Get-ChildItem }', undefined), sessionUri),
+		], [undefined, undefined, undefined, undefined]);
+	});
+
 	test('PowerShell redirects require a literal approved destination', async () => {
 		const dynamicResults = [];
 		for (const dest of ['$HOME/outside.txt', '$env:TEMP/x.txt', '$(Get-Location)/x.txt', '`pwd`/x.txt', '${HOME}/x.txt', '%APPDATA%/x.txt']) {
