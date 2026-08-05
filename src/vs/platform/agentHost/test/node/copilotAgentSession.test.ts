@@ -4514,6 +4514,69 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.disposedTerminals, terminalUris);
 		});
 
+		test('emits todo store telemetry for successful built-in Copilot SQL', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-sql',
+				toolName: 'sql',
+				arguments: { query: 'INSERT INTO todos (id, title, status) VALUES (1, \'Test\', \'pending\')' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-sql',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), [{
+				eventName: 'todoStoreOperation',
+				data: {
+					operation: 'write',
+					target: 'todos',
+					toolCallId: 'tc-sql',
+					provider: 'copilotcli',
+					agentSessionId: 'test-session-1',
+					isSubagentSession: false,
+				},
+			}]);
+		});
+
+		test('does not emit todo store telemetry for failed or contributed SQL', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
+				resolveMcpChildId: serverName => serverName === 'database' ? 'database-customization' : undefined,
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-failed',
+				toolName: 'sql',
+				arguments: { query: 'DELETE FROM todo_deps' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-failed',
+				success: false,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp',
+				toolName: 'sql',
+				mcpServerName: 'database',
+				arguments: { query: 'SELECT * FROM todos' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-mcp',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), []);
+		});
+
 		test('tool partial results stream into an output-only terminal channel', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream');

@@ -6,7 +6,6 @@
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
-import type { TodoStoreOperation, TodoStoreOperationClassification, TodoStoreOperationEvent, TodoStoreTarget } from '../../telemetry/common/todoStoreTelemetry.js';
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
@@ -214,14 +213,6 @@ export interface IAgentHostAskQuestionsToolInvokedReport {
 	recommendedAvailableCount: number;
 	recommendedSelectedCount: number;
 	duration: number;
-}
-
-interface IAgentHostTodoStoreOperationReport {
-	provider: string;
-	session: string;
-	toolCallId: string;
-	operation: TodoStoreOperation;
-	target: TodoStoreTarget;
 }
 
 type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
@@ -864,18 +855,6 @@ export class AgentHostTelemetryReporter {
 			recommendedAvailableCount: report.recommendedAvailableCount,
 			recommendedSelectedCount: report.recommendedSelectedCount,
 			duration: report.duration,
-			provider: report.provider,
-			agentSessionId: AgentSession.id(session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
-		});
-	}
-
-	todoStoreOperation(report: IAgentHostTodoStoreOperationReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		this._telemetryService.publicLog2<TodoStoreOperationEvent, TodoStoreOperationClassification>('todoStoreOperation', {
-			operation: report.operation,
-			target: report.target,
-			toolCallId: report.toolCallId,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),

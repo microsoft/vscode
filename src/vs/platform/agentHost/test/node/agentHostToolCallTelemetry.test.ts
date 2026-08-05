@@ -136,17 +136,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
 	}
 
-	function toolReady(turnId: string, toolCallId: string, toolInput: string): void {
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId,
-			toolCallId,
-			invocationMessage: 'Run tool',
-			toolInput,
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
-	}
-
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
 		return telemetry.events
 			.filter(e => e.eventName === 'languageModelToolInvoked')
@@ -163,10 +152,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 					},
 				};
 			});
-	}
-
-	function todoStoreEvents(): { eventName: string; data: unknown }[] {
-		return telemetry.events.filter(e => e.eventName === 'todoStoreOperation');
 	}
 
 	function stalledEvents(): { eventName: string; data: Record<string, unknown> }[] {
@@ -263,56 +248,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
-	});
-
-	test('emits todoStoreOperation for successful todo SQL', () => {
-		setupSession();
-		startTurn('turn-1');
-
-		toolStart('turn-1', 'tc-sql', 'sql');
-		toolReady('turn-1', 'tc-sql', JSON.stringify({ query: 'INSERT INTO todos (id, title, status) VALUES (1, \'Test\', \'pending\')' }));
-		toolComplete('turn-1', 'tc-sql', { success: true, pastTenseMessage: 'updated todos' });
-		completeTurn('turn-1');
-
-		assert.deepStrictEqual({
-			genericToolCallId: toolEvents()[0].data.toolCallId,
-			todoStoreEvents: todoStoreEvents(),
-		}, {
-			genericToolCallId: 'tc-sql',
-			todoStoreEvents: [{
-				eventName: 'todoStoreOperation',
-				data: {
-					operation: 'write',
-					target: 'todos',
-					toolCallId: 'tc-sql',
-					provider: 'mock',
-					agentSessionId: 'session-1',
-					isSubagentSession: false,
-				},
-			}],
-		});
-	});
-
-	test('does not treat contributed tools as provider todo tools', () => {
-		setupSession();
-		startTurn('turn-1');
-
-		toolStart('turn-1', 'tc-mcp-sql', 'sql', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
-		toolReady('turn-1', 'tc-mcp-sql', JSON.stringify({ query: 'SELECT * FROM todos' }));
-		toolComplete('turn-1', 'tc-mcp-sql', { success: true, pastTenseMessage: 'queried todos' });
-
-		assert.deepStrictEqual(todoStoreEvents(), []);
-	});
-
-	test('does not emit todoStoreOperation for failed todo SQL', () => {
-		setupSession();
-		startTurn('turn-1');
-
-		toolStart('turn-1', 'tc-sql-failed', 'sql');
-		toolReady('turn-1', 'tc-sql-failed', JSON.stringify({ query: 'DELETE FROM todo_deps' }));
-		toolComplete('turn-1', 'tc-sql-failed', { success: false, pastTenseMessage: 'failed', error: { message: 'failed' } });
-
-		assert.deepStrictEqual(todoStoreEvents(), []);
 	});
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {
