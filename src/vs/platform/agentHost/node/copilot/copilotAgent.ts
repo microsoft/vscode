@@ -2636,6 +2636,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				entry = this._getChatContext(chat).target;
 			}
 
+			// If roots, tools, or plugins changed, dispose the session so resume applies the updated configuration.
 			const activeClient = this._activeClients.get(context.session);
 			const hadCachedEntry = !!entry;
 			if (entry) {
