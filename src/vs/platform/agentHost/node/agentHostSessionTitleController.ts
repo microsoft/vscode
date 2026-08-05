@@ -20,7 +20,8 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
 const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
-const MAX_GITHUB_CONTEXT_BODY_CHARS = 2_000;
+const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
+const MAX_GITHUB_CONTEXT_REFERENCES = 10;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
 const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
@@ -34,7 +35,6 @@ const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\
  * small model's context window while leaving room for the prompt scaffolding.
  */
 const MAX_TITLE_CONTEXT_CHARS = 20000;
-const MAX_GITHUB_CONTEXT_REFERENCES = Math.floor(MAX_TITLE_CONTEXT_CHARS / MAX_GITHUB_CONTEXT_BODY_CHARS);
 
 type GitHubReferenceKind = 'issue' | 'pull request';
 

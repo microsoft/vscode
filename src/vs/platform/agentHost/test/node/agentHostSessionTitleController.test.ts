@@ -321,7 +321,7 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
-	test('seedTitleFromFirstMessage caps each appended GitHub body at 2000 characters', async () => {
+	test('seedTitleFromFirstMessage caps each appended GitHub body at 4000 characters', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		const octoKitService = new TestAgentHostOctoKitService();
 		octoKitService.responses.set('microsoft/vscode#123', { title: 'Issue title', body: `start\n${'x'.repeat(30_000)}\nend` });
@@ -340,7 +340,7 @@ suite('AgentHostSessionTitleController', () => {
 			hasTruncationMarker: body.includes('\n...\n'),
 			hasEnd: body.includes('end'),
 		}, {
-			bodyLength: 2_000,
+			bodyLength: 4_000,
 			hasStart: true,
 			hasTruncationMarker: true,
 			hasEnd: true,
