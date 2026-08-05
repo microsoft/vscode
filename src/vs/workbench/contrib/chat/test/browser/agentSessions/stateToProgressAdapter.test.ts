@@ -16,7 +16,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1435,7 +1435,55 @@ suite('stateToProgressAdapter', () => {
 			}, {
 				invocationMessage: 'Read',
 				partialInput: undefined,
-				streamingMessage: undefined,
+				streamingMessage: 'Reading file',
+			});
+		});
+
+		test('updateStreamingToolInvocation clears edit progress when a legacy tool resolves to read', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Editing [part](file:///repo/part)' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			const beforeStreamingMessage = state.streamingMessage.get();
+			const before = {
+				partialInput: state.partialInput.get(),
+				streamingMessage: typeof beforeStreamingMessage === 'string' ? beforeStreamingMessage : beforeStreamingMessage?.value,
+			};
+
+			updateStreamingToolInvocation(invocation, {
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"view","path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, '');
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					partialInput: state.partialInput.get(),
+					streamingMessage: state.streamingMessage.get(),
+				},
+			}, {
+				before: {
+					partialInput: { path: '/repo/part' },
+					streamingMessage: 'Editing [part](file:///repo/part)',
+				},
+				after: {
+					partialInput: undefined,
+					streamingMessage: 'Reading file',
+				},
 			});
 		});
 
