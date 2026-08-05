@@ -15,6 +15,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -246,6 +247,7 @@ export class ChatSessionRoutingController extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
@@ -567,6 +569,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const headLabel = dom.append(head, dom.$('span.chat-routing-badge-title'));
 		const countdownEl = dom.append(head, dom.$('span.chat-routing-badge-countdown'));
 		const list = dom.append(badge, dom.$('.chat-routing-badge-list', { role: 'listbox', 'aria-label': localize('chatSessionRouting.sendTo', "Send to") }));
+		let choosingFolder = false;
 		const rows = options.map((option, index) => {
 			const row = dom.append(list, dom.$('.chat-routing-badge-row', { role: 'option', tabindex: '0' }));
 			const mark = dom.append(row, dom.$('span.chat-routing-badge-mark'));
@@ -582,6 +585,46 @@ export class ChatSessionRoutingController extends Disposable {
 			score.textContent = option.kind === 'session'
 				? localize('chatSessionRouting.match', "{0}%", Math.round(option.confidence * 100))
 				: '';
+			if (option.kind === 'new' && this.workspaceContextService.getWorkspace().folders.length > 1) {
+				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
+					type: 'button',
+					'aria-label': localize('chatSessionRouting.changeTargetFolderAria', "Change target folder for new session"),
+				}));
+				changeFolder.textContent = localize('chatSessionRouting.changeTargetFolder', "Change Folder");
+				store.add(dom.addDisposableListener(changeFolder, dom.EventType.CLICK, event => {
+					event.preventDefault();
+					event.stopPropagation();
+					selection.clear();
+					selection.add(index);
+					renderSelection();
+					countdownTimer.clear();
+					countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+					choosingFolder = true;
+					const folders = this.workspaceContextService.getWorkspace().folders;
+					void this.quickInputService.pick(
+						folders.map(folder => ({
+							label: folder.name,
+							description: folder.uri.fsPath,
+							picked: options[index].kind === 'new' && options[index].folder?.toString() === folder.uri.toString(),
+							folder,
+						})),
+						{ placeHolder: localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session") },
+					).then(folderPick => {
+						choosingFolder = false;
+						if (!folderPick || cts.token.isCancellationRequested) {
+							return;
+						}
+						const updatedTarget: NewSessionTarget = {
+							kind: 'new',
+							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", folderPick.folder.name),
+							folder: folderPick.folder.uri,
+						};
+						options[index] = updatedTarget;
+						label.textContent = updatedTarget.label;
+						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", folderPick.folder.name));
+					});
+				}));
+			}
 			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, event => {
 				if (event.ctrlKey || event.metaKey) {
 					if (selection.has(index) && selection.size > 1) {
@@ -678,6 +721,9 @@ export class ChatSessionRoutingController extends Disposable {
 		};
 
 		store.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
+			if (choosingFolder || (dom.isHTMLElement(event.target) && event.target.classList.contains('chat-routing-badge-folder-action'))) {
+				return;
+			}
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Alt)) {
 				keyboardEvent.preventDefault();

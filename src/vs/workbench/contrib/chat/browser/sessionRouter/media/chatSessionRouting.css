@@ -157,6 +157,27 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-routing-badge-folder-action {
+	flex: 0 0 auto;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	background: none;
+	border: 0;
+	font: inherit;
+	cursor: pointer;
+}
+
+.chat-routing-badge-folder-action:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-routing-badge-folder-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .chat-routing-badge-meter {
 	flex: 0 0 auto;
 	width: 44px;
