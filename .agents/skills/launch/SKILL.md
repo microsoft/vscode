@@ -18,7 +18,13 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 ## Prerequisites
 
-- macOS or Linux. The launcher is a bash script and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
+- macOS, Linux, or Windows.
+  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
+  - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. `jq` is not needed — parse the JSON with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
+    ```powershell
+    fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+    fnm use   # picks up the repo's .nvmrc
+    ```
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
