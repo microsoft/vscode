@@ -890,6 +890,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				nativeManagedSettings = await this.nativeManagedSettingsService.initialize();
 			} catch (error) {
 				this.logService.warn('[DefaultAccount] Failed to initialize native managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
+				nativeManagedSettings = this.nativeManagedSettingsService.managedSettings;
 			}
 			forceRemoteSettingsRefresh = shouldForceRemoteSettingsRefresh(nativeManagedSettings, accountPolicyData?.policyData.managedSettings);
 		}
