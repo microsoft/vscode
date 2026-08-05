@@ -227,6 +227,40 @@ suite('ChatSessionStore', () => {
 		assert.notStrictEqual(folder1.toString(), folder2.toString());
 	});
 
+	suite('readSession index-title sync', () => {
+		test('readSession applies renamed title from index when file is stale', async () => {
+			const store = createChatSessionStore();
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+
+			// Store session — file gets customTitle: undefined, index gets title: "New Chat"
+			await store.storeSessions([model]);
+
+			// Rename via index only (simulates user rename before storeSessions runs)
+			await store.setSessionTitle('session-1', 'My Renamed');
+
+			// readSession should pick up the renamed title from the index
+			const result = await store.readSession('session-1');
+			assert.ok(result);
+			assert.strictEqual((result.value as ISerializableChatData3).customTitle, 'My Renamed');
+		});
+
+		test('readSession clears customTitle when index title matches computed default', async () => {
+			const store = createChatSessionStore();
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1'), { customTitle: 'My Custom Title' }));
+
+			// Store session — file gets customTitle: "My Custom Title"
+			await store.storeSessions([model]);
+
+			// Reset title to the computed default via index
+			await store.setSessionTitle('session-1', 'New Chat');
+
+			// readSession should clear customTitle since index matches computed default
+			const result = await store.readSession('session-1');
+			assert.ok(result);
+			assert.strictEqual((result.value as ISerializableChatData3).customTitle, undefined);
+		});
+	});
+
 	suite('transferred sessions', () => {
 		function createSingleFolderWorkspace(folderUri: URI): Workspace {
 			const folder = new WorkspaceFolder({ uri: folderUri, index: 0, name: 'test' });
