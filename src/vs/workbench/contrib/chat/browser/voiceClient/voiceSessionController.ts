@@ -45,6 +45,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -782,8 +783,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			if (!isProUser(this.chatEntitlementService.entitlement)) {
+				this.disconnect();
+			}
+		}));
 
 		// Track the focused chat session so we can defer voice responses that
 		// arrive for a session the user isn't currently looking at, and flush
@@ -975,6 +983,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		if (!isProUser(this.chatEntitlementService.entitlement)) {
+			this.notificationService.warn(localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
+			return;
+		}
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
 		this._window = window;

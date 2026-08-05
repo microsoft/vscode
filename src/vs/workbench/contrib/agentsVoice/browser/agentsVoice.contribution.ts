@@ -35,7 +35,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -161,14 +161,14 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
 			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_CONNECTING.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -190,12 +190,12 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
 			icon: Codicon.voiceModeCompact,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -214,7 +214,7 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 				),
 			},
@@ -295,14 +295,14 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
 			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_LISTENING.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -338,13 +338,13 @@ registerAction2(class extends Action2 {
 			icon: Codicon.debugDisconnectCompact,
 			f1: true,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -364,7 +364,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib - 5,
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
@@ -405,7 +405,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib - 5,
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					// Mirror the disconnect binding's editor negations so Escape
@@ -431,7 +431,7 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.openSettings',
 			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -446,7 +446,7 @@ registerAction2(class extends Action2 {
 			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
 			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 		});
 	}
 
@@ -498,7 +498,7 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.pushToTalk',
 			title: nls.localize2('agentsVoicePushToTalk', "Voice Mode: Push to Talk"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,

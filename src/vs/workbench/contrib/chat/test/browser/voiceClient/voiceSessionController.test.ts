@@ -24,15 +24,17 @@ import { INotification, INotificationHandle, INotificationService, NoOpNotificat
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -220,6 +222,16 @@ class VoiceTestNotificationService extends TestNotificationService {
 	override notify(notification: INotification): INotificationHandle {
 		this.notifications.push(notification);
 		return new NoOpNotification();
+	}
+}
+
+class MutableTestChatEntitlementService extends TestChatEntitlementService {
+	private readonly _onDidChangeEntitlement = new Emitter<void>();
+	override readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+
+	setEntitlement(entitlement: ChatEntitlement): void {
+		this.entitlement = entitlement;
+		this._onDidChangeEntitlement.fire();
 	}
 }
 
@@ -476,7 +488,8 @@ suite('VoiceSessionController', () => {
 		}(),
 		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
 		notificationService: INotificationService = new VoiceTestNotificationService(),
-	): IVoiceSessionController {
+		chatEntitlementService: TestChatEntitlementService = Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Pro }),
+	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
 		return store.add(new VoiceSessionController(
@@ -511,6 +524,7 @@ suite('VoiceSessionController', () => {
 			new TestChatWidgetService(),
 			notificationService,
 			promptsService,
+			chatEntitlementService,
 		));
 	}
 
@@ -527,6 +541,56 @@ suite('VoiceSessionController', () => {
 		};
 		return { changeEmitter, parts, response: state as unknown as IChatResponseModel, state };
 	}
+
+	test('does not connect without a paid Copilot entitlement', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Free;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+			chatEntitlementService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.strictEqual(controller.isConnecting.get(), false);
+		assert.strictEqual(controller.isConnected.get(), false);
+		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
+	});
+
+	test('disconnects when the paid Copilot entitlement is lost', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
+
+		assert.strictEqual(controller.isConnected.get(), false);
+	});
 
 	test('includes response errors in the summary sent to the voice backend', () => {
 		const controller = createController(new TestVoiceClientService());
@@ -4752,6 +4816,9 @@ suite('VoiceSessionController live transcription', () => {
 			onDidChangeFocusedSession: Event.None,
 			getAllWidgets: () => [],
 		});
+		const chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);

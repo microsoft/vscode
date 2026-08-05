@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Event } from '../../../../base/common/event.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
 import './agentsVoiceColors.js'; // Register custom voice theme colors
 
@@ -17,6 +19,19 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+const AGENTS_VOICE_ENTITLED = ContextKeyExpr.or(
+	ChatEntitlementContextKeys.Entitlement.planEdu,
+	ChatEntitlementContextKeys.Entitlement.planPro,
+	ChatEntitlementContextKeys.Entitlement.planProPlus,
+	ChatEntitlementContextKeys.Entitlement.planMax,
+	ChatEntitlementContextKeys.Entitlement.planBusiness,
+	ChatEntitlementContextKeys.Entitlement.planEnterprise,
+)!;
+export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals('config.agents.voice.enabled', true),
+	AGENTS_VOICE_ENTITLED,
+)!;
 
 export const enum AgentsVoiceSettingId {
 	ShowButton = 'agents.voice.showButton',

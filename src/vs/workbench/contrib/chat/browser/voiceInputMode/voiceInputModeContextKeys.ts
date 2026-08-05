@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
-import { AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
-const VoiceModeEnabled = ContextKeyExpr.equals('config.agents.voice.enabled', true);
 const VoiceModeButtonShown = ContextKeyExpr.notEquals('config.agents.voice.showButton', false);
 /** Mirrors `ChatSpeechToTextConfigured` (built-in on-device dictation available). */
 const DictationConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key))!;
 const DictationButtonShown = ContextKeyExpr.notEquals('config.dictation.showButton', false);
 /** Voice Mode runs manual push-to-talk rather than hands-free auto-listen. */
 const HandsFreeDisabled = ContextKeyExpr.equals('config.agents.voice.handsFree', false);
-const VisibleVoiceMode = ContextKeyExpr.and(VoiceModeEnabled, VoiceModeButtonShown)!;
+const VisibleVoiceMode = ContextKeyExpr.and(AGENTS_VOICE_ENABLED, VoiceModeButtonShown)!;
 const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButtonShown)!;
 
 /**

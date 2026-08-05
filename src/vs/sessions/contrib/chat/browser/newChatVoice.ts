@@ -24,7 +24,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { AgentsVoiceSettingId } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -141,7 +141,7 @@ registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, Instant
 
 export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
 
-const WHEN_VOICE_ENABLED = ContextKeyExpr.equals('config.agents.voice.enabled', true);
+const WHEN_VOICE_ENABLED = AGENTS_VOICE_ENABLED;
 const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
 const WHEN_CONNECTING = ContextKeyExpr.equals('agentsVoiceConnecting', true);
 const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
