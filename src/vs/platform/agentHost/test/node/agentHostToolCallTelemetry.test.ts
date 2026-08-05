@@ -392,6 +392,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			toolId: 'read_file',
 			toolExtensionId: undefined,
 			toolSourceKind: 'agentHost',
+			toolCallId: 'tc-model',
 			invocationTimeMs: undefined,
 			provider: 'mock',
 			resultSizeInCharacters: 47,

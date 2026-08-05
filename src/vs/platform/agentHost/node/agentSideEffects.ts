@@ -810,7 +810,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallReady) {
-			this._toolCallTracker.toolCallReady(sessionKey, action.toolCallId, action.toolInput);
+			this._toolCallTracker.toolCallReady(sessionKey, action.toolCallId, getInlineToolInput(action.toolInput));
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
