@@ -23,9 +23,9 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -119,6 +119,126 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 		isVirtualWorkspace: false,
 	};
 }
+
+function createAutomationDraftService() {
+	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
+	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
+	const discarded: string[] = [];
+	let nextId = 1;
+	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
+		const previous = automationSession.get();
+		if (previous) {
+			discarded.push(previous.sessionId);
+		}
+		const session = upcastPartial<ISession>({
+			sessionId: `automation-${nextId++}`,
+			providerId: providerId ?? 'resolved-provider',
+			sessionType: sessionTypeId,
+		});
+		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString() });
+		automationSession.set(session, undefined);
+		return session;
+	};
+	const service = upcastPartial<ISessionsManagementService>({
+		automationSession,
+		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri),
+		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default'),
+		discardAutomationSession: session => {
+			const current = automationSession.get();
+			if (!current || (session && session.sessionId !== current.sessionId)) {
+				return;
+			}
+			discarded.push(current.sessionId);
+			automationSession.set(undefined, undefined);
+		},
+	});
+	return { service, created, discarded };
+}
+
+suite('Automation session draft synchronization', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tracks target changes without recreating an equal workspace target', async () => {
+		const { service, created, discarded } = createAutomationDraftService();
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++));
+
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider-a', sessionTypeId: 'type-a' });
+		await synchronizer.waitForSync();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider-a', sessionTypeId: 'type-a' });
+		await synchronizer.waitForSync();
+		service.discardAutomationSession();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider-a', sessionTypeId: 'type-a' });
+		await synchronizer.waitForSync();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider-b', sessionTypeId: 'type-b' });
+		await synchronizer.waitForSync();
+		synchronizer.update({ kind: 'quickChat', providerId: 'provider-b', sessionTypeId: 'type-b' });
+		await synchronizer.waitForSync();
+		synchronizer.update(undefined);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual({
+			created,
+			discarded,
+			currentSession: service.automationSession.get()?.sessionId,
+			errorCount,
+		}, {
+			created: [
+				{ kind: 'workspace', providerId: 'provider-a', sessionTypeId: 'type-a', folderUri: 'file:///workspace' },
+				{ kind: 'workspace', providerId: 'provider-a', sessionTypeId: 'type-a', folderUri: 'file:///workspace' },
+				{ kind: 'workspace', providerId: 'provider-b', sessionTypeId: 'type-b', folderUri: 'file:///workspace' },
+				{ kind: 'quickChat', providerId: 'provider-b', sessionTypeId: 'type-b', folderUri: undefined },
+			],
+			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
+			currentSession: undefined,
+			errorCount: 0,
+		});
+	});
+
+	test('ignores stale workspace validation', async () => {
+		const { service, created } = createAutomationDraftService();
+		const firstWorkspaceValidation = new DeferredPromise<boolean>();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
+			service,
+			folderUri => folderUri.path === '/first' ? firstWorkspaceValidation.p : Promise.resolve(true),
+			() => { },
+		));
+
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///first'), providerId: 'provider', sessionTypeId: 'type' });
+		await Promise.resolve();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
+		await synchronizer.waitForSync();
+		firstWorkspaceValidation.complete(true);
+		await Promise.resolve();
+
+		assert.deepStrictEqual(created, [
+			{ kind: 'workspace', providerId: 'provider', sessionTypeId: 'type', folderUri: 'file:///second' },
+		]);
+	});
+
+	test('surfaces workspace validation failures without creating a draft', async () => {
+		const { service, created } = createAutomationDraftService();
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
+			service,
+			() => Promise.reject(new Error('validation failed')),
+			() => errorCount++,
+		));
+
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///workspace'), providerId: 'provider', sessionTypeId: 'type' });
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual({
+			created,
+			currentSession: service.automationSession.get()?.sessionId,
+			errorCount,
+		}, {
+			created: [],
+			currentSession: undefined,
+			errorCount: 1,
+		});
+	});
+});
 
 suite('Automation workspace trust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
