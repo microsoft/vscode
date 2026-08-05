@@ -18,6 +18,7 @@ import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
 import { EditorHeaderControl } from './editorHeaderControl.js';
+import { IBreadcrumbsModelOptions } from './breadcrumbsModel.js';
 
 export interface IEditorTitleControlDimensions {
 
@@ -49,6 +50,7 @@ export class EditorTitleControl extends Themable {
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
+		private readonly headerBreadcrumbs: IBreadcrumbsModelOptions | undefined,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -78,7 +80,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createHeaderControl(): EditorHeaderControl {
-		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader);
+		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.headerBreadcrumbs);
 		this.headerControlDisposable.value = control;
 		return control;
 	}

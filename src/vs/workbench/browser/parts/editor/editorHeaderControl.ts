@@ -9,6 +9,7 @@ import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolb
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView } from './editor.js';
+import { IBreadcrumbsModelOptions } from './breadcrumbsModel.js';
 
 export class EditorHeaderControl extends Disposable {
 
@@ -37,6 +38,7 @@ export class EditorHeaderControl extends Disposable {
 		groupsView: IEditorGroupsView,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
+		headerBreadcrumbs: IBreadcrumbsModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -64,6 +66,7 @@ export class EditorHeaderControl extends Disposable {
 				showPlaceholder: true,
 				dragEditor: false,
 				showEditorTypePicker: true,
+				modelOptions: headerBreadcrumbs,
 			}));
 			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.updateBreadcrumbsVisibility(true)));
 			this._register(this.breadcrumbsControlFactory.onDidVisibilityChange(() => this.updateBreadcrumbsVisibility(true)));

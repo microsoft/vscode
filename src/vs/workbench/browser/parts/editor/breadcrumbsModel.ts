@@ -20,11 +20,17 @@ import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outl
 export class FileElement {
 	constructor(
 		readonly uri: URI,
-		readonly kind: FileKind
+		readonly kind: FileKind,
+		readonly label?: string
 	) { }
 }
 
 type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
+
+export interface IBreadcrumbsModelOptions {
+	readonly showWorkspaceFolder?: (folderCount: number) => boolean;
+	readonly getWorkspaceFolderLabel?: (folder: IWorkspaceFolder) => string | undefined;
+}
 
 export class OutlineElement2 {
 	constructor(
@@ -50,6 +56,7 @@ export class BreadcrumbsModel {
 	constructor(
 		readonly resource: URI,
 		readonly editor: IEditorPane | undefined,
+		private readonly _options: IBreadcrumbsModelOptions | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
@@ -141,7 +148,18 @@ export class BreadcrumbsModel {
 		}
 
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
+			if (this._options) {
+				const folderCount = this._workspaceService.getWorkspace().folders.length;
+				if (this._options.showWorkspaceFolder?.(folderCount) ?? true) {
+					info.path.unshift(new FileElement(
+						info.folder.uri,
+						FileKind.ROOT_FOLDER,
+						this._options.getWorkspaceFolderLabel?.(info.folder)
+					));
+				}
+			} else {
+				info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
+			}
 		}
 		return info;
 	}

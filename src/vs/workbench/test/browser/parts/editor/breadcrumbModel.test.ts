@@ -42,7 +42,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -57,7 +57,7 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -72,7 +72,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 2);
@@ -81,5 +81,48 @@ suite('Breadcrumb Model', function () {
 		assert.strictEqual(two.kind, FileKind.FILE);
 		assert.strictEqual(one.uri.toString(), 'foo:/outside');
 		assert.strictEqual(two.uri.toString(), 'foo:/outside/file.ts');
+	});
+
+	test('omits workspace root in single-root Sessions window', function () {
+		const workspace = new TestContextService(new Workspace(
+			'ffff',
+			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
+			URI.parse('foo:/workspace.code-workspace')
+		));
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), undefined, {
+			showWorkspaceFolder: folderCount => folderCount > 1
+		}, configService, workspace, new class extends mock<IOutlineService>() { });
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
+			uri: element.uri.toString(),
+			kind: element.kind
+		})), [
+			{ uri: 'foo:/bar/baz/ws/some', kind: FileKind.FOLDER },
+			{ uri: 'foo:/bar/baz/ws/some/file.ts', kind: FileKind.FILE }
+		]);
+	});
+
+	test('shows plain workspace root in multi-root Sessions window', function () {
+		const workspace = new TestContextService(new Workspace(
+			'ffff',
+			[
+				new WorkspaceFolder({ uri: URI.parse('foo:/worktrees/project-feature'), name: 'project (feature)', index: 0 }),
+				new WorkspaceFolder({ uri: URI.parse('foo:/worktrees/docs-feature'), name: 'docs (feature)', index: 1 })
+			],
+			URI.parse('foo:/workspace.code-workspace')
+		));
+		model = new BreadcrumbsModel(URI.parse('foo:/worktrees/docs-feature/guide.md'), undefined, {
+			showWorkspaceFolder: folderCount => folderCount > 1,
+			getWorkspaceFolderLabel: folder => folder.uri.path.includes('docs') ? 'docs' : 'project'
+		}, configService, workspace, new class extends mock<IOutlineService>() { });
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
+			uri: element.uri.toString(),
+			kind: element.kind,
+			label: element.label
+		})), [
+			{ uri: 'foo:/worktrees/docs-feature', kind: FileKind.ROOT_FOLDER, label: 'docs' },
+			{ uri: 'foo:/worktrees/docs-feature/guide.md', kind: FileKind.FILE, label: undefined }
+		]);
 	});
 });
