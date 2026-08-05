@@ -317,11 +317,11 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 	});
 });
 
-suite('CopilotSessionLauncher client identity', () => {
+suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('passes the Agent Host client name to create and resume', async () => {
+	test('passes Agent Host defaults to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
 		const session = {
@@ -392,22 +392,26 @@ suite('CopilotSessionLauncher client identity', () => {
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				createLargeOutput: createConfigs[0].largeOutput,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+				resumeLargeOutput: resumeConfigs[0].largeOutput,
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath],
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createLargeOutput: { maxSizeBytes: 8192 },
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath],
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeLargeOutput: { maxSizeBytes: 8192 },
 			});
 		} finally {
 			sessions.dispose();
