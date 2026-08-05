@@ -10,7 +10,7 @@ import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY } from '../../common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannelClient } from '../../common/nativeManagedSettingsIpc.js';
 import { PolicyValue } from '../../common/policy.js';
 import { NativeManagedSettingsService, NativePolicyWatcherFactory } from '../../node/nativeManagedSettingsService.js';
@@ -23,7 +23,10 @@ suite('NativeManagedSettingsService', () => {
 	test('watches managed-settings keys from policy definitions and exposes raw managed settings', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
-			assert.deepStrictEqual(policies, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' } });
+			assert.deepStrictEqual(policies, {
+				[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+				[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+			});
 			onDidChange = callback;
 			callback({});
 			return Disposable.None;
@@ -46,17 +49,24 @@ suite('NativeManagedSettingsService', () => {
 		assert.deepStrictEqual(service.managedSettings, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
 	});
 
-	test('does not create the watcher until a managed-settings policy definition is registered', async () => {
-		let watcherCreated = false;
-		const watcherFactory: NativePolicyWatcherFactory = () => {
-			watcherCreated = true;
+	test('watches transport controls without a managed-settings policy definition', async () => {
+		let watchedSettings: Record<string, { type: 'string' | 'number' | 'boolean' }> = {};
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
+			watchedSettings = policies;
+			callback({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
 			return Disposable.None;
 		};
 
 		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({ OtherPolicy: { type: 'boolean' } });
 
-		assert.strictEqual(watcherCreated, false);
+		assert.deepStrictEqual({
+			watchedSettings,
+			managedSettings: service.managedSettings,
+		}, {
+			watchedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' } },
+			managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
+		});
 	});
 
 	test('clears stale watcher values when managed-settings definitions are removed', async () => {
@@ -158,18 +168,18 @@ suite('NativeManagedSettingsService', () => {
 
 	test('channel client keeps newer event state when initial snapshot resolves later', async () => {
 		const channel = disposables.add(new DeferredManagedSettingsChannel());
-		const client = disposables.add(new NativeManagedSettingsChannelClient(channel));
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel, new NullLogService()));
 
 		channel.fire({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 		channel.resolveInitialSnapshot({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
-		await channel.initialSnapshot;
+		await client.initialize();
 
 		assert.deepStrictEqual(client.managedSettings, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 	});
 
 	test('channel client updatePolicyDefinitions updates cache without firing change event', async () => {
 		const channel = disposables.add(new DeferredManagedSettingsChannel());
-		const client = disposables.add(new NativeManagedSettingsChannelClient(channel));
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel, new NullLogService()));
 		channel.resolveInitialSnapshot({});
 		await channel.initialSnapshot;
 
@@ -184,6 +194,18 @@ suite('NativeManagedSettingsService', () => {
 			managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' },
 			eventCount: 0,
 		});
+	});
+
+	test('channel client retries a failed initial snapshot', async () => {
+		const channel = new RetryManagedSettingsChannel();
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel, new NullLogService()));
+		const initial = client.initialize();
+
+		channel.rejectInitialSnapshot();
+		await assert.rejects(initial);
+
+		assert.deepStrictEqual(await client.initialize(), { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		assert.strictEqual(channel.getManagedSettingsCallCount, 2);
 	});
 });
 
@@ -213,5 +235,28 @@ class DeferredManagedSettingsChannel extends Disposable implements IChannel {
 
 	resolveInitialSnapshot(managedSettings: ManagedSettingsData): void {
 		this.resolveInitialSnapshotPromise(managedSettings);
+	}
+}
+
+class RetryManagedSettingsChannel implements IChannel {
+	private rejectInitialSnapshotPromise!: (error: Error) => void;
+	private readonly initialSnapshot = new Promise<ManagedSettingsData>((_resolve, reject) => this.rejectInitialSnapshotPromise = reject);
+	getManagedSettingsCallCount = 0;
+
+	call<T>(command: string): Promise<T> {
+		assert.strictEqual(command, 'getManagedSettings');
+		this.getManagedSettingsCallCount++;
+		if (this.getManagedSettingsCallCount === 1) {
+			return this.initialSnapshot as Promise<T>;
+		}
+		return Promise.resolve({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } as T);
+	}
+
+	listen<T>(): Event<T> {
+		return Event.None;
+	}
+
+	rejectInitialSnapshot(): void {
+		this.rejectInitialSnapshotPromise(new Error('initial native managed-settings read failed'));
 	}
 }
