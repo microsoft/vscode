@@ -25,7 +25,6 @@ const AGENTS_VOICE_ENTITLED = ContextKeyExpr.or(
 	ChatEntitlementContextKeys.Entitlement.planProPlus,
 	ChatEntitlementContextKeys.Entitlement.planMax,
 	ChatEntitlementContextKeys.Entitlement.planBusiness,
-	ChatEntitlementContextKeys.Entitlement.planEnterprise,
 )!;
 export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
