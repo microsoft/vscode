@@ -72,6 +72,7 @@ import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IInlineAgentSurveyService } from '../../../../contrib/surveys/common/inlineAgentSurveyService.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
 
 /**
@@ -249,6 +250,16 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override isEnabled() { return false; }
 		override getCached() { return undefined; }
 		override async assess() { return undefined; }
+	}());
+	reg.defineInstance(IInlineAgentSurveyService, new class extends mock<IInlineAgentSurveyService>() {
+		override snapshotHistoricalResponses() { }
+		override async evaluateResponseCompletion() { }
+		override getPendingSurvey() { return undefined; }
+		override recordImpression() { }
+		override recordDismiss() { }
+		override recordUndo() { }
+		override recordRating() { }
+		override recordSubmission() { }
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
