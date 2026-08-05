@@ -33,7 +33,8 @@
   `AgentHostStateManager`.
 - **Composition over inheritance.** All harnesses share one membership path
   (`addChat`/`removeChat`), one persistence path (`PEER_CHATS_METADATA_KEY`),
-  and one restore path (`restoreChat`). Per-harness features are expressed
+  and one restore path (`registerRestoredChatSummary` + `resolveChatState`).
+  Per-harness features are expressed
   through `IAgentCapabilities` flags, not `if (provider === 'claude') ...`
   branches.
 - **Single catalog path.** Whether a chat is created by the user ("Add Chat")
@@ -97,10 +98,16 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
-  - `_chatStates: Map<string, ChatState>` — per-chat state (turns, activeTurn, draft).
-  - `_chatProviderData: Map<string, string>` — opaque `providerData` blobs keyed by peer-chat URI; never parsed.
+  - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog
+    item. An entry owns its current `ChatSummary`, optional hydrated
+    `ChatState`, opaque `providerData`, and (for restored peers) resolver,
+    in-flight promise, and invalidation state.
 - Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
-- `addChat`/`restoreChat`/`removeChat`: the single path for catalog membership changes.
+- `addChat`/`registerRestoredChatSummary`/`removeChat`: the paths for live,
+  restored, and removed catalog membership.
+- `getChatState` is a synchronous, no-I/O peek for reducers and diagnostics.
+  Interaction paths use `resolveChatState`, which coalesces one peer's
+  materialization, retries failures, and atomically publishes complete state.
 - Session-level active-turn tracking via `_sessionsWithActiveTurn` (a set of chat URIs per session, so multi-chat sessions running concurrent turns stay correct).
 
 ### UI/provider layer (`sessions/services/sessions/common/session.ts:ISessionCapabilities`)
@@ -113,7 +120,10 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 ## 3. Key Invariants
 
 **I1 — `providerData` is opaque.**
-`AgentHostStateManager._chatProviderData` stores the blob returned by `chats.createChat` verbatim. Neither `AgentService` nor `AgentHostStateManager` ever parses, validates, or mutates it. It is round-tripped to the agent verbatim on restore via `materializeChat(chat, providerData)`.
+The state-manager-owned `IChatEntry` stores the blob returned by
+`chats.createChat` verbatim. Neither `AgentService` nor
+`AgentHostStateManager` parses, validates, or mutates it. It is round-tripped
+to the agent verbatim on restore via `materializeChat(chat, providerData)`.
 
 **I2 — `sessionUri` and `chatChannelUri` are never overloaded.**
 A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
@@ -167,7 +177,7 @@ graph LR
 
     subgraph AHP["Agent Host Process"]
         svc["AgentService"]
-        stm["AgentHostStateManager\n• _sessionStates\n• _chatStates\n• _chatProviderData"]
+        stm["AgentHostStateManager\n• _sessionStates\n• _chatEntries"]
         se["AgentSideEffects"]
         svc --- stm
         svc --- se
@@ -249,22 +259,38 @@ sequenceDiagram
     Note over AS: Peer chats: read PEER_CHATS_METADATA_KEY from DB
     alt catalog present (defined)
         loop for each IPersistedPeerChat (in catalog order)
-            AS->>A: materializeChat(chatUri, providerData?)
-            AS->>A: chats.getMessages(chatUri)
-            A-->>AS: Turn[]
-            AS->>SM: restoreChat(session, chatUri, {title, turns, draft, providerData})
+            AS->>SM: registerRestoredChatSummary(session, chatUri, {title, draft, providerData, resolver})
+            Note over SM: Retain summary, draft, providerData, and resolver\n(no ChatState yet)
         end
     else catalog absent (undefined) — one-time legacy migration (Copilot only)
         AS->>A: listLegacyChats(session) [legacy copilot.chats]
         A-->>AS: {uri, providerData}[]
         loop for each legacy chat
-            AS->>A: materializeChat + getMessages
-            AS->>SM: restoreChat(session, chatUri, {...})
+            AS->>SM: registerRestoredChatSummary(session, chatUri, {resolver, providerData})
+            Note over SM: Create a retryable entry-owned resolver
         end
         AS->>AS: _persistPeerChat(...) writes PEER_CHATS_METADATA_KEY (drain once)
     end
     AS-->>C: IStateSnapshot
+    C->>AS: subscribe(peerChatUri, clientId)
+    AS->>SM: resolveChatState(chatUri)
+    SM->>AS: invoke entry resolver(providerData?)
+    AS->>A: materializeChat(chatUri, providerData?)
+    AS->>A: chats.getMessages(chatUri)
+    A-->>AS: Turn[]
+    AS->>AS: interleave persisted local turns
+    AS-->>SM: resolver result {turns}
+    SM->>SM: atomically hydrate current entry summary + draft + turns
 ```
+
+Restored peer chats are catalog-only until their entry resolver succeeds. Their
+provider backing and history are loaded before the state manager atomically
+installs the entry's current summary, persisted draft, and returned turns.
+`getChatState` remains a synchronous no-I/O peek; clients that need content use
+`resolveChatState`. Failed resolution leaves the summary visible and retryable.
+Resolves for one chat coalesce while different chats resolve independently.
+Deletion, eviction, disposal, and URI reuse invalidate entries so stale async
+work cannot publish state.
 
 ### 5e. The (session, chat) to (agent, session URI, chat URI) Mapping
 
@@ -316,7 +342,7 @@ Chat resolution reads that single map: `_findAnySession` returns `entry.defaultC
 
 The peer-chat `providerData` codec (`IPersistedChat` + `encodeProviderData`/`decodeProviderData`) is also shared from `node/agentPeerChats.ts`; both agents import it rather than carrying private copies.
 
-An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `multipleChats: { fork: true }`.
+An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the state-manager entry's opaque `providerData` (while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `multipleChats: { fork: true }`.
 
 ### Codex (`node/codex/codexAgent.ts`)
 

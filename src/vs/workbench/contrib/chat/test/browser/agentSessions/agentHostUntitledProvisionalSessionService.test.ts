@@ -279,7 +279,6 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(agentHost.createCalls[0]._meta, {
 			multiRoot: {
 				workspaceFile: workspaceConfiguration.toString(),
-				name: workspaceName,
 			},
 		});
 	});
@@ -545,7 +544,6 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			_meta: {
 				multiRoot: {
 					workspaceFile: workspaceConfiguration.toString(),
-					name: workspaceName,
 				},
 			},
 		});
