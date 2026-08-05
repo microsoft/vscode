@@ -13,7 +13,7 @@ export class Win32UpdateAttempt {
 	readonly progressFilePath: string;
 	private completed = false;
 
-	constructor(cachePath: string, quality: string, version: string, readonly id: number) {
+	constructor(cachePath: string, quality: string, version: string, readonly id: string) {
 		this.updateFilePath = path.join(cachePath, `CodeSetup-${quality}-${version}-${id}.flag`);
 		this.cancelFilePath = path.join(cachePath, `cancel-${id}.flag`);
 		this.progressFilePath = path.join(cachePath, `update-progress-${id}`);

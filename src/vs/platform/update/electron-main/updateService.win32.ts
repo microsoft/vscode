@@ -19,6 +19,7 @@ import * as path from '../../../base/common/path.js';
 import { basename } from '../../../base/common/path.js';
 import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { checksum } from '../../../base/node/crypto.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { killTree } from '../../../base/node/processes.js';
@@ -42,6 +43,7 @@ import { completeWin32UpdateAttempt, Win32UpdateAttempt } from './win32UpdateAtt
 interface IAvailableUpdate {
 	packagePath: string;
 	updateProcess?: IUpdateProcess;
+	updateProcessTerminationPromise?: Promise<void>;
 	updateAttempt?: Win32UpdateAttempt;
 }
 
@@ -69,7 +71,6 @@ function getUpdateType(): UpdateType {
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
-	private updateAttemptCounter = 0;
 	/** Cancels an in-flight check/download chain (e.g. when updates are disabled at runtime). */
 	private checkCancellationTokenSource: CancellationTokenSource | undefined;
 	/** Settles when the in-flight check/download chain has fully unwound; used by the cancel path. */
@@ -431,7 +432,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
-		const updateAttempt = availableUpdate.updateAttempt = new Win32UpdateAttempt(cachePath, this.productService.quality!, update.version, ++this.updateAttemptCounter);
+		const updateAttempt = availableUpdate.updateAttempt = new Win32UpdateAttempt(cachePath, this.productService.quality!, update.version, generateUuid());
 		const token = updateAttempt.cancellationTokenSource.token;
 		const skippedSpawn = this.isInstallerActive(mutex);
 
@@ -534,7 +535,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		};
 
 		const cancelTimeout = new ProcessTimeRunOnceScheduler(() => {
-			this.failUpdateAttempt(availableUpdate, updateAttempt, new Error('Update installer timed out waiting to become ready'));
+			this.failUpdateAttempt(availableUpdate, updateAttempt, new Error('Update installer timed out waiting to become ready'), true);
 		}, 60 * 60 * 1000);
 
 		// Poll for progress and ready mutex for 1 hour.
@@ -566,18 +567,31 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.setState(State.Ready(update, explicit, this._overwrite));
 	}
 
-	private failUpdateAttempt(availableUpdate: IAvailableUpdate, updateAttempt: Win32UpdateAttempt, error: Error): void {
+	private failUpdateAttempt(availableUpdate: IAvailableUpdate, updateAttempt: Win32UpdateAttempt, error: Error, stopProcess = false): void {
 		if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
 			updateAttempt.complete();
 			return;
 		}
 
 		completeWin32UpdateAttempt(availableUpdate.updateAttempt, updateAttempt);
-		this.availableUpdate = undefined;
+		this.doFailUpdateAttempt(availableUpdate, error, stopProcess).catch(stopError => {
+			this.logService.error('update#doApplyUpdate: failed to stop update installer after failure', stopError);
+		});
+	}
 
+	private async doFailUpdateAttempt(availableUpdate: IAvailableUpdate, error: Error, stopProcess: boolean): Promise<void> {
 		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(error))) });
 		this.logService.error('update#doApplyUpdate: update installation failed', error);
-		this.finishFailedUpdateAttempt(availableUpdate);
+
+		if (stopProcess) {
+			await this.stopUpdateProcess(availableUpdate);
+		}
+
+		if (this.availableUpdate === availableUpdate) {
+			this.availableUpdate = undefined;
+		}
+
+		await this.finishFailedUpdateAttempt(availableUpdate);
 	}
 
 	private async finishFailedUpdateAttempt(availableUpdate: IAvailableUpdate): Promise<void> {
@@ -589,6 +603,48 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		if (!this.availableUpdate && this.state.type === StateType.Updating) {
 			this.setState(State.Idle(getUpdateType(), localize('updateInstallFailed', "Update installation failed. Please try again.")));
+		}
+	}
+
+	private stopUpdateProcess(availableUpdate: IAvailableUpdate): Promise<void> {
+		if (!availableUpdate.updateProcessTerminationPromise) {
+			const terminationPromise = this.doStopUpdateProcess(availableUpdate);
+			availableUpdate.updateProcessTerminationPromise = terminationPromise;
+			terminationPromise.catch(() => {
+				if (availableUpdate.updateProcessTerminationPromise === terminationPromise) {
+					availableUpdate.updateProcessTerminationPromise = undefined;
+				}
+			});
+		}
+
+		return availableUpdate.updateProcessTerminationPromise;
+	}
+
+	private async doStopUpdateProcess(availableUpdate: IAvailableUpdate): Promise<void> {
+		const { updateProcess, updateAttempt } = availableUpdate;
+		if (!updateProcess || updateProcess.exitCode !== null) {
+			return;
+		}
+
+		updateProcess.removeAllListeners();
+		const exitPromise = new Promise<boolean>(resolve => {
+			updateProcess.once('error', () => resolve(false));
+			updateProcess.once('exit', () => resolve(true));
+		});
+
+		if (updateAttempt) {
+			try {
+				await pfs.Promises.writeFile(updateAttempt.cancelFilePath, 'cancel');
+			} catch (error) {
+				this.logService.warn('update#stopUpdateProcess: failed to write cancel file', error);
+			}
+		}
+
+		const pid = updateProcess.pid;
+		const exited = await Promise.race([exitPromise, timeout(30 * 1000).then(() => false)]);
+		if (pid && !exited) {
+			this.logService.trace('update#stopUpdateProcess: process did not exit gracefully, killing process tree');
+			await killTree(pid, true);
 		}
 	}
 
@@ -656,30 +712,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		if (updateProcess && updateProcess.exitCode === null) {
 			this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
-
-			// Remove all listeners to prevent the exit handler from changing state
-			updateProcess.removeAllListeners();
-			const exitPromise = new Promise<boolean>(resolve => {
-				updateProcess.once('error', () => resolve(false));
-				updateProcess.once('exit', () => resolve(true));
-			});
-
-			// Write the cancel file to signal Inno Setup to exit gracefully
-			if (updateAttempt) {
-				try {
-					await pfs.Promises.writeFile(updateAttempt.cancelFilePath, 'cancel');
-				} catch (err) {
-					this.logService.warn('update#cancelPendingUpdate: failed to write cancel file', err);
-				}
-			}
-
-			// Wait for the process to exit gracefully, then force-kill if needed
-			const pid = updateProcess.pid;
-			const exited = await Promise.race([exitPromise, timeout(30 * 1000).then(() => false)]);
-			if (pid && !exited) {
-				this.logService.trace('update#cancelPendingUpdate: process did not exit gracefully, killing process tree');
-				await killTree(pid, true);
-			}
+			await this.stopUpdateProcess(availableUpdate);
 		}
 
 		await this.cleanupUpdateAttempt(availableUpdate);
