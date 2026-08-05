@@ -8,12 +8,14 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionEnvelope, ActionType, SessionWorkingDirectoryAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createDefaultChatSummary, createSessionState, RootState, SessionLifecycle, SessionState, SessionStatus, withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -83,9 +85,11 @@ class TestConnection extends mock<IAgentConnection>() {
 	readonly dispatched: SessionWorkingDirectoryAction[] = [];
 
 	override readonly rootState: IAgentSubscription<RootState>;
+	override readonly initializeResult;
 
-	constructor(private readonly subscription: MutableSessionSubscription, provider = 'claude') {
+	constructor(private readonly subscription: MutableSessionSubscription, provider = 'claude', protocolVersion: string | null = '0.7.0') {
 		super();
+		this.initializeResult = observableValue(this, protocolVersion ? { protocolVersion } as InitializeResult : undefined);
 		this.rootState = {
 			value: {
 				agents: [{
@@ -101,6 +105,10 @@ class TestConnection extends mock<IAgentConnection>() {
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+	}
+
+	setProtocolVersion(protocolVersion: string): void {
+		this.initializeResult.set({ protocolVersion } as InitializeResult, undefined);
 	}
 
 	override dispatch(_channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
@@ -234,6 +242,35 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 		assert.deepStrictEqual(connection.dispatched, [
 			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
 			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+		]);
+	});
+
+	test('does not dispatch working-directory actions to a pre-0.7 host', async () => {
+		const synchronizer = createSynchronizer();
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription, 'claude', '0.5.2');
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+
+		assert.deepStrictEqual(connection.dispatched, []);
+	});
+
+	test('reconciles when a compatible protocol version finishes initializing', async () => {
+		const synchronizer = createSynchronizer();
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription, 'claude', null);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await timeout(0);
+		assert.deepStrictEqual(connection.dispatched, []);
+
+		connection.setProtocolVersion('0.7.0');
+		await timeout(0);
+
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
 		]);
 	});
 

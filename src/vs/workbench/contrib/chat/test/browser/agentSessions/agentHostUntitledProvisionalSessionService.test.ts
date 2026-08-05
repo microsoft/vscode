@@ -386,6 +386,29 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		);
 	});
 
+	test('tryRebind promotes a single-folder draft when a second folder appears without a workspace event', async () => {
+		const primary = URI.file('/workspace/one');
+		const added = URI.file('/workspace/two');
+		workspaceFolders = [primary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('single-to-multi-root-rebind');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-single-to-multi-root-rebind' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [primary, added];
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), added.toString()],
+			],
+		);
+	});
+
 	test('getOrCreate omits multi-root metadata without a workspace configuration', async () => {
 		workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
 		workbenchState = WorkbenchState.WORKSPACE;

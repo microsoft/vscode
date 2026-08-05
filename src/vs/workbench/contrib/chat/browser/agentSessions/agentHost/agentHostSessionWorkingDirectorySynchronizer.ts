@@ -7,11 +7,13 @@ import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ACTION_INTRODUCED_IN, compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { readSessionMultiRootMetadata, readSessionWorkspaceless, SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -93,13 +95,16 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 				this._scheduleReconcile(entry, 'subscription change');
 			}
 		}));
+		store.add(autorun(reader => {
+			registration.connection.initializeResult.read(reader);
+			this._scheduleReconcile(entry, 'protocol initialization');
+		}));
 		store.add(toDisposable(() => {
 			if (this._registrations.get(key) === entry) {
 				this._registrations.delete(key);
 			}
 		}));
 		this._registrations.set(key, entry);
-		this._scheduleReconcile(entry, 'registration');
 		return store;
 	}
 
@@ -203,7 +208,10 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 	}
 
 	private _isEligible(registration: IAgentHostWorkingDirectoryRegistration, state: SessionState): boolean {
+		const protocolVersion = registration.connection.initializeResult.get()?.protocolVersion;
 		if (state.lifecycle !== SessionLifecycle.Ready
+			|| !protocolVersion
+			|| compareProtocolVersions(protocolVersion, ACTION_INTRODUCED_IN[ActionType.SessionWorkingDirectorySet]) < 0
 			|| readSessionWorkspaceless(state._meta)
 			|| state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 			|| state.chats.length !== 1

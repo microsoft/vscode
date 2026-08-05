@@ -603,9 +603,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
 				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
-				const targetWorkingDirectories = oldEntry.usesWorkspaceRootSet
-					? this._computeEntryWorkingDirectories(oldEntry)
-					: this._computeWorkingDirectories(targetWorkingDirectory, provider);
+				if (!oldEntry.usesWorkspaceRootSet && (this._computeWorkingDirectories(targetWorkingDirectory, provider)?.length ?? 0) > 1) {
+					oldEntry.usesWorkspaceRootSet = true;
+				}
+				const targetWorkingDirectories = this._computeEntryWorkingDirectories(oldEntry);
 				let created: URI;
 				try {
 					created = await this._agentHostService.createSession({
