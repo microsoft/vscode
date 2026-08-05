@@ -41,35 +41,6 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 ) => Promise<IOpenNewSessionResult>;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
-const setInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'setInputOnboardingVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
-const setInputNotificationVisible = Reflect.get(NewChatWidget.prototype, 'setInputNotificationVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
-const isInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'isInputOnboardingVisible') as (this: IChatTipVisibilityHarness) => boolean;
-const isChatTipSuppressed = Reflect.get(NewChatWidget.prototype, 'isChatTipSuppressed') as (this: IChatTipVisibilityHarness) => boolean;
-const updateChatTipVisibility = Reflect.get(NewChatWidget.prototype, 'updateChatTipVisibility') as (this: IChatTipVisibilityHarness) => void;
-
-interface IChatTipVisibilityHarness {
-	_isInputOnboardingVisible: boolean;
-	_isInputNotificationVisible: boolean;
-	isInputOnboardingVisible(): boolean;
-	isChatTipSuppressed(): boolean;
-	updateChatTipVisibility(): void;
-	_clearChatTip(): void;
-	_renderChatTip(): void;
-}
-
-function createChatTipVisibilityHarness(visibilityChanges: string[]): IChatTipVisibilityHarness {
-	const harness: IChatTipVisibilityHarness = {
-		_isInputOnboardingVisible: false,
-		_isInputNotificationVisible: false,
-		isInputOnboardingVisible: () => isInputOnboardingVisible.call(harness),
-		isChatTipSuppressed: () => isChatTipSuppressed.call(harness),
-		updateChatTipVisibility: () => updateChatTipVisibility.call(harness),
-		_clearChatTip: () => visibilityChanges.push('hidden'),
-		_renderChatTip: () => visibilityChanges.push('visible'),
-	};
-	return harness;
-}
-
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
 	newSessionCreation: MutableDisposable<IDisposable>,
@@ -160,15 +131,4 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
 	});
 
-	test('hides tips for notifications until all suppressors are inactive', () => {
-		const visibilityChanges = ['visible'];
-		const harness = createChatTipVisibilityHarness(visibilityChanges);
-
-		setInputNotificationVisible.call(harness, true);
-		setInputOnboardingVisible.call(harness, true);
-		setInputNotificationVisible.call(harness, false);
-		setInputOnboardingVisible.call(harness, false);
-
-		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden', 'hidden', 'hidden', 'visible']);
-	});
 });

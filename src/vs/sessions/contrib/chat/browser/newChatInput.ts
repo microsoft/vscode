@@ -76,6 +76,8 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { ChatInputNoticeHost, ChatInputNoticeLane, registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
@@ -295,6 +297,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	readonly sessionTypePicker: SessionTypePicker;
 
+	/** Arbitrates which notice occupies the area above this input. */
+	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
+	private _gettingStartedTipContainer: HTMLElement | undefined;
+
+	/** The canonical notice slot, directly above this input. */
+	get gettingStartedTipContainerElement(): HTMLElement | undefined {
+		return this._gettingStartedTipContainer;
+	}
+
+
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -359,9 +371,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
-			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
-			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
-			onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -383,6 +392,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
 		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
+		@IChatInputNoticeHubService private readonly chatInputNoticeHubService: IChatInputNoticeHubService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -455,31 +465,40 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		editorOverflowWidgetsDomNode.classList.add('hideSuggestTextIcons');
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
 
+		this._register(this.chatInputNoticeHubService.registerHost(this.noticeHost, chatInputContainer));
+
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
-		const notificationWidget = this._register(this.instantiationService.createInstance(
+		// Declared up front: the visibility callback can fire while the widget is
+		// still being constructed, before the binding below is assigned.
+		const notificationWidget: ChatInputNotificationWidget = this._register(this.instantiationService.createInstance(
 			ChatInputNotificationWidget,
 			{
 				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
 				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
 				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-				onDidChangeVisibility: visible => this.options.onDidChangeInputNotificationVisible?.(visible),
+				onDidChangeVisibility: visible => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible),
 			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);
 
-		// First-run Voice Mode introduction, docked above the input area
+		// First-run voice and dictation introductions, docked directly above the
+		// input area so they read as one stack with it.
 		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
-		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
-			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
-		);
-		const tipContainer = this.options.getInputOnboardingTipContainer?.();
-		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus(), tipContainer, onDidChangeInputOnboardingVisible));
-
-		// First-run dictation introduction, docked directly above the input area
-		// so it reads as one stack with it - the same slot the chat view uses.
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
-		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
+		this._register(registerChatInputOnboardingHosts(
+			this.noticeHost,
+			{ voice: voiceOnboardingContainer, dictation: dictationOnboardingContainer },
+			chatInputContainer,
+			() => this.focus(),
+			this.voiceModeOnboardingService,
+			this.dictationOnboardingService,
+		));
+
+		// Getting-started tip: the canonical notice slot, directly above and
+		// attached to the input, matching the workbench chat input.
+		this._gettingStartedTipContainer = dom.append(chatInputContainer, dom.$('.chat-getting-started-tip-container'));
+		this._gettingStartedTipContainer.style.display = 'none';
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));

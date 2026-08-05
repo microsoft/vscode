@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
 
 suite('Chat input onboarding', () => {
@@ -19,7 +20,6 @@ suite('Chat input onboarding', () => {
 	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
 		const root = dom.$('div');
 		root.tabIndex = 0;
-		dom.append(root, dom.$('.chat-getting-started-tip-container'));
 		const container = dom.append(root, dom.$('.chat-input-onboarding-container'));
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
@@ -55,8 +55,12 @@ suite('Chat input onboarding', () => {
 		const host = createHost(disposables);
 		let focusCalls = 0;
 		const visibleChanges: boolean[] = [];
-		const tipContainer = host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')!;
-		disposables.add(onboarding.registerHost(host.container, host.root, () => focusCalls++, tipContainer, visible => visibleChanges.push(visible)));
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => focusCalls++,
+			onDidChangeVisible: visible => visibleChanges.push(visible),
+		}));
 
 		let context: IChatInputOnboardingContext | undefined;
 		let cardsCreated = 0;
@@ -78,10 +82,9 @@ suite('Chat input onboarding', () => {
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
 				visibleChanges: [...visibleChanges],
-				tipsVisible: host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')?.style.display !== 'none',
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 			},
-			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], tipsVisible: false, cards: 1 });
+			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], cards: 1 });
 
 		context!.dismiss();
 
@@ -91,11 +94,10 @@ suite('Chat input onboarding', () => {
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
 				visibleChanges,
-				tipsVisible: host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')?.style.display !== 'none',
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 				shownAgain: onboarding.showIfNeeded(createCard),
 			},
-			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], tipsVisible: true, cards: 0, shownAgain: false });
+			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], cards: 0, shownAgain: false });
 	});
 
 	test('does not consume first-run state until a card can be shown', () => {
@@ -104,15 +106,107 @@ suite('Chat input onboarding', () => {
 		assert.strictEqual(onboarding.showIfNeeded(createCard), false);
 
 		const host = createHost(disposables);
-		disposables.add(onboarding.registerHost(host.container, host.root));
+		disposables.add(onboarding.registerHost({ container: host.container, focusRoot: host.root }));
 
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
+	});
+
+	test('defers a first-run card while higher-precedence content owns the space', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.deferWhenBlocked');
+		const host = createHost(disposables);
+		let blocked = true;
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			isBlocked: () => blocked,
+		}));
+
+		const whileBlocked = onboarding.showIfNeeded(createCard);
+		blocked = false;
+		const afterUnblocked = onboarding.showIfNeeded(createCard);
+
+		// The one first-run showing must survive being blocked.
+		assert.deepStrictEqual(
+			{ whileBlocked, afterUnblocked, cards: host.container.querySelectorAll('.chat-input-onboarding-card').length },
+			{ whileBlocked: false, afterUnblocked: true, cards: 1 });
+	});
+
+	test('shows an explicitly requested card even while blocked', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.manualWhenBlocked');
+		const host = createHost(disposables);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			isBlocked: () => true,
+		}));
+
+		// `show()` is an explicit request, so it ignores the blocker `showIfNeeded` respects.
+		assert.strictEqual(onboarding.show(createCard), true);
+	});
+
+	test('only the most recent card in an exclusion group stays visible', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const storageService = instantiationService.get(IStorageService);
+		const first = store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: 'test.chatInputOnboarding.groupA',
+			hostClass: 'has-chat-input-onboarding',
+			exclusionGroup: 'test.group',
+		}));
+		const second = store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: 'test.chatInputOnboarding.groupB',
+			hostClass: 'has-chat-input-onboarding',
+			exclusionGroup: 'test.group',
+		}));
+		const host = createHost(store);
+		store.add(first.registerHost({ container: host.container, focusRoot: host.root }));
+		store.add(second.registerHost({ container: host.container, focusRoot: host.root }));
+
+		first.showIfNeeded(createCard);
+		second.showIfNeeded(createCard);
+
+		assert.deepStrictEqual(
+			{
+				firstVisible: first.isVisible,
+				secondVisible: second.isVisible,
+				// The displaced card was never read, so it keeps its first-run showing.
+				firstCanShowAgain: !storageService.getBoolean('test.chatInputOnboarding.groupA', StorageScope.APPLICATION, false),
+			},
+			{ firstVisible: false, secondVisible: true, firstCanShowAgain: true });
+	});
+
+	test('restores a displaced first-run showing at most once', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const make = (storageKey: string) => store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey,
+			hostClass: 'has-chat-input-onboarding',
+			exclusionGroup: 'test.pingGroup',
+		}));
+		const first = make('test.chatInputOnboarding.pingA');
+		const second = make('test.chatInputOnboarding.pingB');
+		const host = createHost(store);
+		store.add(first.registerHost({ container: host.container, focusRoot: host.root }));
+		store.add(second.registerHost({ container: host.container, focusRoot: host.root }));
+
+		// Alternating first-run cards preempt each other. Each may reclaim its
+		// showing once; without that bound they would reopen forever.
+		let cardsCreated = 0;
+		for (let i = 0; i < 10; i++) {
+			const onboarding = i % 2 === 0 ? first : second;
+			onboarding.showIfNeeded(context => {
+				cardsCreated++;
+				return createCard(context);
+			});
+		}
+
+		assert.strictEqual(cardsCreated, 4);
 	});
 
 	test('announces once on show', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
 		const host = createHost(disposables);
-		disposables.add(onboarding.registerHost(host.container, host.root));
+		disposables.add(onboarding.registerHost({ container: host.container, focusRoot: host.root }));
 
 		const shown = onboarding.show(createCard);
 		onboarding.showIfNeeded(createCard); // no-op while already visible, must not re-announce
