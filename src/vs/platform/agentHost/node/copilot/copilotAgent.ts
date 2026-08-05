@@ -2641,6 +2641,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (entry && (rootsChanged || structuralConfigChanged)) {
 				this._logService.info(`[Copilot:${context.sessionId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				this._sdkSessionsById.delete(entry.sessionId);
+				// Finish disconnecting before resuming the same SDK session id.
 				await entry.destroySession();
 				this._sessions.get(context.sessionId)?.clearDefaultChat();
 				entry = undefined;
@@ -3756,7 +3757,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// registered an active-client handle yet.
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
 		activeClient.pluginController.reanchor(customizationDirectory);
-		// A send-time snapshot supersedes the persisted restoration seed.
+		// Multi-root: re-attach the non-primary roots so discovery spans every
+		// root on resume. Empty when single-root / gated off. A send-time
+		// snapshot supersedes the persisted restoration seed.
 		const launchWorkingDirectories = workingDirectories ?? storedMetadata.workingDirectories;
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(launchWorkingDirectories));
 		const snapshot = await activeClient.snapshot();

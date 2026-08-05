@@ -214,8 +214,11 @@ interface IEntry {
 	 */
 	configVersion: number;
 	/**
-	 * Primary directory selected for this draft. A provisional generation is
-	 * recreated when this or its computed secondary root set changes.
+	 * Working directory the provisional backend session was created with. A
+	 * created session's cwd is immutable, so when the user picks a different
+	 * folder the entry is recreated; this lets a folder change no-op when the
+	 * cwd is unchanged. The generation is also recreated when the secondary
+	 * root set computed for this primary changes.
 	 */
 	workingDirectory: URI | undefined;
 	/** Whether this draft was created against the complete folder set of a multi-root workspace. */
@@ -278,7 +281,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 		}));
 
-		// Recreate a draft's provisional generation when its selected primary changes.
+		// A session's working directory is fixed at creation time. When the user
+		// picks a different folder for a not-yet-started session that already has
+		// a provisional backend session (built up by config chips), recreate that
+		// provisional at the new cwd so chip schemas resolve against it. The
+		// service owns this reaction so concurrent chip instances don't race.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
 			if (folder && this._entries.has(sessionResource)) {
@@ -680,8 +687,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	/**
-	 * Recreate the provisional backend session at a new primary while preserving config.
-	 * A fresh backend URI gives subscribers an authoritative replacement snapshot.
+	 * Recreate the provisional backend session for `sessionResource` at a new
+	 * working directory, preserving the user's config choices. A created
+	 * session's cwd is immutable, so the only way to honor a folder change is to
+	 * dispose and recreate. The replacement uses a fresh backend URI so existing
+	 * subscribers acquire an authoritative snapshot for the new incarnation.
 	 */
 	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
 		const entry = this._entries.get(sessionResource);

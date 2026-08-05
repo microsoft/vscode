@@ -3499,9 +3499,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		// subprocess cwd; an existing thread keeps its cwd and receives the full
 		// replacement below through native turn/start options.
 		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectories?.[0]);
-		// Replace, rather than merge, the previous snapshot before any start,
-		// resume, or turn request is constructed. A missing snapshot is retained
-		// only for legacy cold-resume callers that rely on restored metadata.
+		// Record the full set OUTSIDE the adoption path: a prewarm may have
+		// already materialized the thread, yet the receipt is fired on this first
+		// send and must still carry the resolved set. Replace, rather than merge,
+		// the previous snapshot before any start, resume, or turn request is
+		// constructed. A missing snapshot is retained only for legacy cold-resume
+		// callers that rely on restored metadata.
 		if (workingDirectories) {
 			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
 				? distinctWorkingDirectories([

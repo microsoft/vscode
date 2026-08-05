@@ -570,8 +570,9 @@ export class ClaudeAgentSession extends Disposable {
 
 		// Fresh sessions persist their customization-directory / model /
 		// permissionMode overlay so a later resume re-reads them. Resume
-		// sessions do not rewrite those fields because they read them from the
-		// overlay upstream; only an explicit host root snapshot advances below.
+		// sessions skip the write because they READ from the overlay
+		// upstream and would otherwise overwrite their source; only an explicit
+		// host root snapshot advances below.
 		if (!ctx.isResume) {
 			try {
 				await this._metadataStore.write(this._storageUri, {

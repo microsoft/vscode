@@ -96,10 +96,11 @@ export function computeDesiredWorkingDirectories(
  * Per-window store of the working directory a user picked for a not-yet-started
  * agent-host session, keyed by the chat session resource it was picked against
  * (including the untitled compose resource). An agent-host session's working
- * primary directory is fixed when the session is created, so in a multi-root
- * window the Folder picker chip records the choice here and the working-directory
- * resolution sites consult it before falling back to the first workspace folder.
- * Keying by the compose resource lets the choice survive the untitled-to-real rebind.
+ * directory is an argument to session creation and is immutable afterwards, so
+ * in a multi-root window the Folder picker chip records the choice here and the
+ * working-directory resolution sites consult it before falling back to the
+ * first workspace folder. Keying by the compose resource lets the choice
+ * survive the untitled-to-real rebind that happens when the session is created.
  */
 export interface IAgentHostNewSessionFolderService {
 	readonly _serviceBrand: undefined;
