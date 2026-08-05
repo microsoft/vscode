@@ -69,6 +69,7 @@ const RELAUNCH_FLAG_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'disable-workspace-trust',
 	'disable-experiments',
 	'disable-layout-restore',
+	'profile-temp',
 	'use-inmemory-secretstorage',
 ];
 
