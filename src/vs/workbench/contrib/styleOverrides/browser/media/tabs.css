@@ -166,10 +166,6 @@
 	border-block: var(--vscode-spacing-size40) solid transparent;
 }
 
-.style-override.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:not(:first-child) {
-	margin-top: calc(-1 * var(--vscode-spacing-size40));
-}
-
 .style-override.monaco-workbench .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
 	border-block: var(--vscode-spacing-size20) solid transparent;
