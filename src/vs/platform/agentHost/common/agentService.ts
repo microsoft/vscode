@@ -83,6 +83,21 @@ export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAg
  */
 export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
 
+/**
+ * Experimentation setting id gating the conditional agent-window auth feature.
+ * When `true`, a session type that is usable without GitHub (e.g. Claude in
+ * native mode with an existing local setup) lets the agent window open for a
+ * signed-out user instead of forcing GitHub sign-in.
+ *
+ * This is the **workbench** VS Code setting id. The workbench registers the
+ * configuration schema and forwards the value into the agent-host root config
+ * under the short key `AgentHostConfigKey.AllowSignedOutWhenUsable`, which the
+ * Claude provider reads node-side via `getRootValue`. Until it is wired and
+ * enabled the root key is absent, so it reads `false` and behavior is identical
+ * to today.
+ */
+export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -944,6 +959,24 @@ export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 	required: false,
 };
 
+/**
+ * Pure decision: does this set of advertised protected resources require the
+ * user to be signed in to GitHub Copilot right now?
+ *
+ * Returns `true` iff the agent advertises the canonical GitHub Copilot
+ * protected resource ({@link GITHUB_COPILOT_PROTECTED_RESOURCE}) with
+ * `required !== false`. Provider-agnostic by design: an agent that drops the
+ * resource entirely (e.g. Claude in native mode) or advertises it with
+ * `required: false` (e.g. Codex on OpenAI) does not require a GitHub sign-in.
+ *
+ * An absent `required` field is treated the same as `true` (see
+ * {@link ProtectedResourceMetadata.required}).
+ */
+export function protectedResourcesRequireGitHubCopilotSignIn(resources: readonly ProtectedResourceMetadata[]): boolean {
+	return resources.some(resource =>
+		resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource && resource.required !== false);
+}
+
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
@@ -1351,7 +1384,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**

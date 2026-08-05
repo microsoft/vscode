@@ -71,11 +71,14 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.automations = constObservable(automations);
 		this.runs = constObservable(runs);
 	}
+
+	override async deleteRun(): Promise<void> { }
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	private readonly sessions = new Map<string, ISession>();
+	override readonly onDidDeleteSession = Event.None;
 
 	constructor(runs: readonly IAutomationRun[]) {
 		super();
@@ -88,6 +91,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				resource,
 				sessionId: `fixture-session-${index + 1}`,
 				isRead: constObservable(index !== 0),
+				capabilities: constObservable({ supportsMultipleChats: false, supportsDelete: true }),
 			}));
 		}
 	}
@@ -210,7 +214,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	const runs: readonly IAutomationRun[] = [
 		createRun('daily-review-run', 'daily-review', 'completed', today),
 		createRun('dependency-audit-run', 'dependency-audit', 'running', today),
-		createRun('issue-triage-run', 'issue-triage', 'failed', yesterday, 'The repository could not be reached.'),
+		createRun('issue-triage-run', 'issue-triage', 'failed', yesterday, 'The repository could not be reached.', false),
 	];
 
 	return { automations, runs };
@@ -231,13 +235,13 @@ function createAutomation(overrides: Partial<IAutomation>): IAutomation {
 	};
 }
 
-function createRun(id: string, automationId: string, status: IAutomationRun['status'], startedAt: Date, errorMessage?: string): IAutomationRun {
+function createRun(id: string, automationId: string, status: IAutomationRun['status'], startedAt: Date, errorMessage?: string, hasSession = true): IAutomationRun {
 	return {
 		id,
 		automationId,
 		status,
 		trigger: 'schedule',
-		sessionResource: URI.parse(`vscode-chat-session://fixture/${id}`).toString(),
+		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`).toString() : undefined,
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,

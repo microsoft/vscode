@@ -111,10 +111,7 @@ enum LayoutClasses {
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
 	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`. The contribution runs in the
-	// `Restored` phase — after the first layout — so without this early
-	// application the first layout would size parts against the default (35px)
-	// title and leave them mismatched until the next relayout.
+	// height) via `.closest('.style-override')`.
 	STYLE_OVERRIDE = 'style-override'
 }
 
@@ -454,7 +451,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Modern UI Update (floating panels presentation)
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.updateFloatingPanels();
-				this.layout(); // re-layout so parts pick up the new floating margins
 			}
 
 			// Auxiliary Sidebar
