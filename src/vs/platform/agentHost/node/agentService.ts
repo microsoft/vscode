@@ -34,7 +34,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -74,7 +74,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostEditTelemetryEnabledConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -742,6 +742,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
 		}
+		if (provider.onDidChangeSessionList) {
+			this._providerSubscriptions.add(provider.onDidChangeSessionList(() => this._onProviderSessionListChanged()));
+		}
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
 		}
@@ -1091,6 +1094,70 @@ export class AgentService extends Disposable implements IAgentService {
 		return combined;
 	}
 
+	/** Debounces provider `onDidChangeSessionList` bursts into one surface pass. */
+	private readonly _surfaceSessionsDebounce = this._register(new MutableDisposable());
+	/** Adoptable-legacy session keys already announced this AH lifetime, so bursts don't re-announce them. */
+	private readonly _announcedSurfacedKeys = new Set<string>();
+
+	/**
+	 * A provider reported its on-disk session set may have changed (e.g. a legacy
+	 * Copilot CLI session created by the extension host). Re-list and announce any
+	 * adoptable-legacy sessions not yet known to clients so they surface without a
+	 * manual reload.
+	 */
+	private _onProviderSessionListChanged(): void {
+		this._surfaceSessionsDebounce.value = disposableTimeout(() => {
+			void this._surfaceAdoptableLegacySessions();
+		}, 250);
+	}
+
+	private async _surfaceAdoptableLegacySessions(): Promise<void> {
+		let listed: IAgentSessionMetadata[];
+		try {
+			listed = await this.listSessions();
+		} catch (err) {
+			this._logService.warn('[AgentService] surfaceAdoptableLegacySessions: listSessions failed', err);
+			return;
+		}
+		for (const meta of listed) {
+			// Only announce sessions surfaced as adoptable-legacy — never native
+			// sessions (which clients already know from their own listSessions).
+			if (!readSessionEhcliAdoptable(meta._meta)) {
+				continue;
+			}
+			const provider = AgentSession.provider(meta.session);
+			if (!provider) {
+				continue; // defensive: malformed session URI
+			}
+			const key = meta.session.toString();
+			if (this._announcedSurfacedKeys.has(key)) {
+				continue; // already announced this lifetime
+			}
+			if (this._stateManager.getSessionState(key)) {
+				continue; // already adopted / restored
+			}
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
+			this._announcedSurfacedKeys.add(key);
+		}
+	}
+
+	/** Synthesizes the minimal {@link SessionSummary} for an adoptable session surfaced by {@link listSessions}. */
+	private _surfacedSessionSummary(meta: IAgentSessionMetadata, provider: string): SessionSummary {
+		return {
+			resource: meta.session.toString(),
+			provider,
+			title: meta.summary ?? '',
+			status: meta.status ?? SessionStatus.Idle,
+			createdAt: new Date(meta.startTime).toISOString(),
+			modifiedAt: new Date(meta.modifiedTime).toISOString(),
+			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
+			// Marks the session adoptable so clients don't passively subscribe (and
+			// thereby migrate) it before the user opens it.
+			_meta: withSessionEhcliAdoptable(meta._meta),
+		};
+	}
+
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const providerId = config?.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
@@ -1177,6 +1244,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
+
 		// Record this session's opt-in so a cold SDK download triggered at
 		// materialization (first message) is surfaced as progress. The download
 		// is provider-global, so we only track interest here; emission is keyed
@@ -2757,6 +2825,14 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
 
+		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
+		// VS Code-layer metadata in place (reusing the on-disk event log) so the
+		// restore below can hydrate it. Gated on the migrate setting so the common
+		// (non-migration) restore path does no extra work; a no-op for native /
+		// already-adopted sessions.
+		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		const adopted = migrateLegacyEnabled ? (await agent.ensureSessionAdopted?.(session) ?? false) : false;
+
 		const meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
@@ -2895,6 +2971,20 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
+
+		// A freshly-adopted legacy session bridges its git checkpoints into the
+		// agent-host namespace once its turns are restored. Isolated so a failure
+		// here cannot break the restore.
+		if (adopted && this._checkpointService.adoptLegacyCheckpoints) {
+			try {
+				const checkpointWorkingDirectory = meta.workingDirectories?.[0];
+				if (checkpointWorkingDirectory) {
+					await this._checkpointService.adoptLegacyCheckpoints(session, checkpointWorkingDirectory, AgentSession.id(session), mergedTurns.map(t => t.id));
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentService] adopt: checkpoint bridge failed for ${sessionStr}`, err);
+			}
+		}
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
