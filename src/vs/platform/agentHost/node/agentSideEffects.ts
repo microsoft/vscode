@@ -93,6 +93,8 @@ export interface IAgentSideEffectsOptions {
 	readonly localTurns: AgentHostLocalTurns;
 	/** Get the GitHub token used for Copilot utility title generation. */
 	readonly getGitHubCopilotToken?: () => string | undefined;
+	/** Get the GitHub repository token used to fetch issue and pull request context. */
+	readonly getGitHubToken?: () => string | undefined;
 	/** CAPI service used for Copilot utility title generation. */
 	readonly copilotApiService?: ICopilotApiService;
 	/**
@@ -238,6 +240,7 @@ export class AgentSideEffects extends Disposable {
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			getGitHubToken: this._options.getGitHubToken,
 			copilotApiService: this._options.copilotApiService,
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {

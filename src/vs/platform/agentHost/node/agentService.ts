@@ -530,6 +530,12 @@ export class AgentService extends Disposable implements IAgentService {
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				});
 			},
+			getGitHubToken: () => {
+				return this.getAuthToken({
+					resource: this._gitHubEndpointService.getRepoResource().resource,
+					scopes: this._gitHubEndpointService.getRepoResource().scopes_supported,
+				});
+			},
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			onTurnComplete: session => {

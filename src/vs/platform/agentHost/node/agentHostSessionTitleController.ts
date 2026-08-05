@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -12,15 +13,19 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostOctoKitService, type GitHubIssueOrPullRequest } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_TITLE_TOKENS = 32;
+const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
+const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
 const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 
 /**
  * Soft upper bound, in characters, for the first-turn context fed to the
@@ -29,9 +34,25 @@ const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
  */
 const MAX_TITLE_CONTEXT_CHARS = 20000;
 
+type GitHubReferenceKind = 'issue' | 'pull request';
+
+interface IGitHubReference {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+	readonly kind: GitHubReferenceKind;
+}
+
+interface IGitHubReferenceContext {
+	readonly reference: IGitHubReference;
+	readonly value: GitHubIssueOrPullRequest;
+}
+
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly getGitHubCopilotToken?: () => string | undefined;
+	readonly getGitHubToken?: () => string | undefined;
+	readonly gitHubContextRequestTimeout?: number;
 	readonly copilotApiService?: ICopilotApiService;
 }
 
@@ -60,6 +81,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 	) {
 		super();
 	}
@@ -371,13 +393,19 @@ export class AgentHostSessionTitleController extends Disposable {
 		const abortController = new AbortController();
 		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
+			const titlePromptContent = isConversation
+				? promptContent
+				: await this._appendGitHubContext(promptContent, abortController.signal, token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
-				messages: this._buildTitlePrompt(promptContent, isConversation),
+				messages: this._buildTitlePrompt(titlePromptContent, isConversation),
 				maxTokens: MAX_TITLE_TOKENS,
 			}, {
 				signal: abortController.signal,
 			});
-			return this._cleanTitle(rawTitle, promptContent);
+			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -387,6 +415,89 @@ export class AgentHostSessionTitleController extends Disposable {
 		} finally {
 			cancellationListener.dispose();
 		}
+	}
+
+	private async _appendGitHubContext(promptContent: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
+		const references = this._parseGitHubReferences(promptContent);
+		const githubToken = this._options.getGitHubToken?.();
+		if (references.length === 0 || !githubToken) {
+			return promptContent;
+		}
+
+		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
+		const limiter = new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS);
+		try {
+			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+				try {
+					const value = await this._octoKitService.getIssueOrPullRequest(
+						reference.owner,
+						reference.repo,
+						reference.number,
+						githubToken,
+						signal,
+					);
+					return { reference, value };
+				} catch (error) {
+					if (!token.isCancellationRequested) {
+						this._logService.warn(`[AgentHostSessionTitleController] Failed to fetch GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}`, error);
+					}
+					return undefined;
+				}
+			})));
+			const successfulContexts = contexts.filter(context => context !== undefined);
+			if (successfulContexts.length === 0) {
+				return promptContent;
+			}
+			return `${promptContent}\n\n${this._formatGitHubContexts(successfulContexts)}`;
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	private _parseGitHubReferences(text: string): IGitHubReference[] {
+		const references: IGitHubReference[] = [];
+		const seen = new Set<string>();
+		for (const match of text.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+			const owner = match.groups?.owner;
+			const repo = match.groups?.repo;
+			const rawKind = match.groups?.kind;
+			const number = Number(match.groups?.number);
+			if (!owner || !repo || (rawKind !== 'issues' && rawKind !== 'pull') || !Number.isSafeInteger(number) || number <= 0) {
+				continue;
+			}
+			const kind: GitHubReferenceKind = rawKind === 'issues' ? 'issue' : 'pull request';
+			const key = `${owner.toLowerCase()}/${repo.toLowerCase()}/${kind}/${number}`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			references.push({ owner, repo, number, kind });
+		}
+		return references;
+	}
+
+	private _formatGitHubContexts(contexts: readonly IGitHubReferenceContext[]): string {
+		const heading = 'GitHub issue and pull request context:\n\n';
+		const fixedLength = heading.length + contexts.reduce((length, context, index) => {
+			return length + this._formatGitHubContext(context.reference, context.value, '').length + (index === 0 ? 0 : 2);
+		}, 0);
+		let remainingBodyBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - fixedLength);
+		const sections = contexts.map((context, index) => {
+			const bodyBudget = Math.floor(remainingBodyBudget / (contexts.length - index));
+			const body = truncateMiddle(context.value.body, bodyBudget);
+			remainingBodyBudget -= body.length;
+			return this._formatGitHubContext(context.reference, context.value, body);
+		});
+		return `${heading}${sections.join('\n\n')}`;
+	}
+
+	private _formatGitHubContext(reference: IGitHubReference, value: GitHubIssueOrPullRequest, body: string): string {
+		return [
+			`GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}:`,
+			`The title of the ${reference.kind} is: ${value.title}`,
+			`The body of the ${reference.kind} is:`,
+			body,
+		].join('\n');
 	}
 
 	private _buildTitlePrompt(promptContent: string, isConversation: boolean): ICopilotUtilityChatMessage[] {
