@@ -84,6 +84,14 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
+The Agents Window overrides the shared `IWorkspaceFolderLabelService` with a session-aware
+implementation. It matches projected workspace-folder URIs against the active session exposed by
+`ISessionsService` so editor breadcrumbs can use repository identity while the Files workspace root
+retains its verbose repository-and-branch label. The label service is delayed and consumed when
+`BreadcrumbsControl.update()` creates a model for an active file, after editor-part construction.
+When the active session does not own the projected folder, it falls back to sessions aggregated by
+`ISessionsManagementService`.
+
 User selections in the Agents-window mode picker report the shared `chat.modeChange` telemetry event. Agent Host execution-mode transitions (`interactive`, `plan`, and `autopilot`) are reported separately as `agentHost.executionModeChanged`.
 
 The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
