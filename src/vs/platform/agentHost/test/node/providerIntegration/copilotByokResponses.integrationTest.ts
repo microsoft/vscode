@@ -14,13 +14,11 @@ import type { IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agent
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 
-const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
-
-(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host Provider Integration - Copilot BYOK Responses', function () {
+suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('real SDK consumes structured reasoning and text from the proxy', async function () {
+	test('bundled SDK consumes structured reasoning and text from the proxy', async function () {
 		this.timeout(120_000);
 
 		const sessionId = 'byok-responses-integration';
