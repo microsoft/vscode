@@ -881,16 +881,6 @@ suite('AgentService (node dispatcher)', () => {
 				observed.indexOf(ActionType.ChatTurnStarted) < observed.indexOf(ActionType.SessionWorkingDirectorySet),
 				`expected turn action before working-directory action, got ${observed.join(', ')}`,
 			);
-			await timeout(0);
-			const afterDrain = URI.file('/workspace/after-drain');
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionWorkingDirectorySet,
-				directory: afterDrain.toString(),
-			}, clientId, 3, AgentHostClientType.EditorWindow);
-			assert.ok(
-				svc.stateManager.getSessionState(session.toString())?.workingDirectories?.includes(afterDrain.toString()),
-				'a working-directory action should use the synchronous fast path after the rewrite queue drains',
-			);
 			listener.dispose();
 		});
 

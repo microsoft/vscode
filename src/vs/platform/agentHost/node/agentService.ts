@@ -2598,12 +2598,11 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
 
-		this._clientDispatchQueues.set(clientId, next);
-		void next.finally(() => {
+		this._clientDispatchQueues.set(clientId, next.finally(() => {
 			if (this._clientDispatchQueues.get(clientId) === next) {
 				this._clientDispatchQueues.delete(clientId);
 			}
-		});
+		}));
 	}
 
 	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
