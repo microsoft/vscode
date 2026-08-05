@@ -144,6 +144,11 @@ repeating the synthetic `repository (branch)` workspace-folder label. With multi
 folders, breadcrumbs retain the root segment for disambiguation but show only its plain folder name,
 without the synthetic branch suffix. The Files view retains the full root labels.
 
+Workspace-folder presentation is owned by `IWorkspaceFolderLabelService`. The standard workbench
+implementation preserves configured workspace-folder names; the Agents implementation resolves the
+repository identity from session metadata, returning the plain repository name for breadcrumbs and
+the verbose `repository (branch)` form used by workspace projection and the Files view.
+
 ### Agent Host Filter (Left)
 
 When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.
