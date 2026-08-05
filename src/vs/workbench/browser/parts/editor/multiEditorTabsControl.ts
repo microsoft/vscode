@@ -178,7 +178,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 
-		// React to Alt being held/released to swap in the "Close Other Editors" tab action
+		// React to Alt being held/released to swap in the "Close Others" tab action
 		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateTabActionsForAltState()));
 	}
 
@@ -1640,7 +1640,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
-		// Alt swaps a visible Close action to Close Other Editors; Unpin is unaffected.
+		// Alt swaps a visible Close action to Close Others; Unpin is unaffected.
 		const wantsCloseOthersAction = hasCloseAction && this.wantsCloseOthersAction;
 
 		let tabAction;
@@ -1656,7 +1656,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabActionBar.clear();
 			}
 
-			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+			// Close Others has no real keybinding to look up; hint at the gesture that triggers it instead.
+			const keybinding = tabAction === this.closeOtherEditorTabsInGroupAction ? `${isMacintosh ? '⌥' : 'Alt'}+Click` : this.getKeybindingLabel(tabAction);
+			tabActionBar.push(tabAction, { icon: true, label: false, keybinding });
 		}
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);

@@ -7,12 +7,13 @@ import assert from 'assert';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { createTabBarTestContext, ITabBarTestEditorSpec } from './editorTabBarTestUtils.js';
 
-suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
+suite('MultiEditorTabsControl - Alt-hold Close Others action', () => {
 
 	const disposables = new DisposableStore();
 	let container: HTMLElement;
@@ -66,17 +67,25 @@ suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 		getActionItem(titleContainer, tabIndex).dispatchEvent(new MouseEvent('click', { button: 0, bubbles: true, cancelable: true }));
 	}
 
-	test('shows Close by default and swaps to Close Other Editors while Alt is held', () => {
+	test('shows Close by default and swaps to Close Others while Alt is held', () => {
 		const { titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		// Re-queried fresh each time: swapping the pushed action rebuilds the DOM, so a cached reference would go stale.
 		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close'), 'expected the plain Close icon by default');
 
 		pressAlt();
-		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close-all'), 'expected the Close Other Editors icon while Alt is held');
+		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close-all'), 'expected the Close Others icon while Alt is held');
 
 		releaseAlt();
 		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close'), 'expected to revert to the plain Close icon once Alt is released');
+	});
+
+	test('hints at the Alt+Click gesture in the tooltip while Alt is held', () => {
+		const { titleContainer } = createTabBarTestContext(container, { editors }, disposables);
+
+		pressAlt();
+		const expected = `Close Others (${isMacintosh ? '⌥' : 'Alt'}+Click)`;
+		assert.strictEqual(getActionIcon(titleContainer, 1).getAttribute('aria-label'), expected);
 	});
 
 	test('sticky tabs keep showing Unpin regardless of Alt', () => {

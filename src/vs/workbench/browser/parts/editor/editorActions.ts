@@ -487,7 +487,7 @@ export class CloseEditorTabAction extends Action {
 export class CloseOtherEditorTabsInGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.closeOtherEditorTabInGroup';
-	static readonly LABEL = localize('closeOtherEditors', "Close Other Editors");
+	static readonly LABEL = localize('closeOthers', "Close Others");
 
 	constructor(
 		id: string,
