@@ -115,7 +115,9 @@ import { DictationDownloadActionViewItem } from '../../speechToText/dictationDow
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
+import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
@@ -251,6 +253,7 @@ export interface IChatInputPartOptions {
 	 */
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
 export interface IWorkingSetEntry {
@@ -715,6 +718,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IProductService private readonly productService: IProductService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -2179,8 +2183,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.resetScrollbarVisibilityAfterAccept();
 
-		// Auto-dismiss notifications that requested it
-		this.chatInputNotificationService.handleMessageSent();
+		// Auto-dismiss notifications that requested it. Scope to this input's
+		// session so a message here doesn't hide notifications for other sessions.
+		this.chatInputNotificationService.handleMessageSent({
+			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionResource: this._currentSessionResourceObservable.get(),
+		});
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -2674,6 +2682,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				sessionResource: this._currentSessionResourceObservable,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				onDidChangeVisibility: visible => this.options.onDidChangeInputNotificationVisible?.(visible),
 			});
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
@@ -3152,6 +3161,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
+		const isVoiceSessionActive = derived(this, reader => {
+			if (!isVoiceInputActive.read(reader)) {
+				return false;
+			}
+			const target = this.voiceSessionController.targetSession.read(reader);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			const resource = widget.viewModel?.sessionResource;
+			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
+		});
 
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
@@ -3293,7 +3311,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatVoiceInputModeAction.ID) {
-					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, { isActive: isVoiceInputActive });
+					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
+						isActive: isVoiceInputActive,
+						isVoiceActive: isVoiceSessionActive,
+					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
@@ -4263,6 +4284,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const scopedContextKeyService = this._chatEditsActionsDisposables.add(this.contextKeyService.createScoped(actionsContainer));
 		if (sessionResource) {
 			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
+
+			// Metadata can arrive after first render, so track it rather than sampling once.
+			const sessionPullRequest = observableFromEvent(
+				this,
+				this.agentSessionsService.model.onDidChangeSessions,
+				() => {
+					const session = this.agentSessionsService.getSession(sessionResource);
+					return session ? getAgentSessionPullRequestContextValue(session) : '';
+				},
+			);
+			this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.agentSessionPullRequest, scopedContextKeyService, r => sessionPullRequest.read(r)));
 		}
 
 		this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => !!sessionEntriesObs.read(r)?.length));

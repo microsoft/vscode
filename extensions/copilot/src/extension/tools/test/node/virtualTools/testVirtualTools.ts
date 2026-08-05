@@ -11,6 +11,10 @@ import { IToolEmbeddingsComputer } from '../../../common/virtualTools/toolEmbedd
 export class TestToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	declare _serviceBrand: undefined;
 
+	isEmbeddingModelAvailable(): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
 	retrieveSimilarEmbeddingsForAvailableTools(queryEmbedding: Embedding, availableToolNames: readonly LanguageModelToolInformation[], limit: number, token: CancellationToken): Promise<string[]> {
 		return Promise.resolve(availableToolNames.slice(0, limit).map(t => t.name));
 	}

@@ -21,7 +21,7 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext, HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -337,6 +337,8 @@ class OpenModalEditorInEditorAction extends Action2 {
 			title: localize2('openModalEditorInEditor', "Open in Editor Area"),
 			icon: Codicon.openInWindow,
 			f1: false,
+			// The editor area is not rendered while a custom view replaces the sessions grid.
+			precondition: CustomViewVisibleContext.negate(),
 			menu: {
 				id: MenuId.ModalEditorTitle,
 				group: 'navigation',

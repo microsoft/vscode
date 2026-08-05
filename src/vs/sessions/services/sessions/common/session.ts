@@ -30,6 +30,33 @@ export interface ISessionType {
 	 * to {@link id} when omitted.
 	 */
 	readonly chatSessionType?: string;
+	/**
+	 * Whether this session type can run right now, and if it needs GitHub to do
+	 * so. Providers resolve this from what their agent advertises; it is not a
+	 * fixed trait (Claude and Codex both move between values as their own
+	 * credentials come and go).
+	 */
+	readonly authRequirement: SessionTypeAuthRequirement;
+}
+
+/**
+ * What a session type needs before it can serve a request. The three values are
+ * mutually exclusive: {@link Unusable} is deliberately distinct from
+ * {@link GitHub}, because a type that cannot run at all must not be presented as
+ * a reason to demand GitHub sign-in (see `src/vs/sessions/CONTEXT.md`).
+ */
+export const enum SessionTypeAuthRequirement {
+	/** Runs on the user's own credentials — usable while signed out of GitHub. */
+	None = 'none',
+	/** Needs a GitHub Copilot account. Also the assumption until an agent resolves. */
+	GitHub = 'github',
+	/**
+	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
+	 * Claude pinned to native mode by an explicit `claudeUseCopilotProxy: false`
+	 * with no local Claude credentials. Surfaces as "no models", not a sign-in
+	 * prompt.
+	 */
+	Unusable = 'unusable',
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -205,6 +232,23 @@ export interface IGitHubInfo {
 		/** Object ID of the head ref (PR branch) commit. */
 		readonly headRefOid?: string;
 	};
+	/**
+	 * GitHub issues referenced by this session, in the order they were first
+	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
+	 */
+	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub issue referenced by a session. */
+export interface IGitHubIssueRef {
+	/** GitHub repository owner of the issue. */
+	readonly owner: string;
+	/** GitHub repository name of the issue. */
+	readonly repo: string;
+	/** Issue number. */
+	readonly number: number;
+	/** URI of the issue. */
+	readonly uri: URI;
 }
 
 export interface ISessionChangesSummary {
@@ -214,6 +258,11 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/** A last-turn file change classified against its owning session workspace. */
+export type ISessionTurnFileChange = ISessionFileChange & {
+	readonly isOutsideWorkspace: boolean;
+};
 
 /**
  * The kind of change applied to a {@link ISessionFile}.
@@ -452,10 +501,10 @@ export interface IChat {
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
-	 * what the most recent request produced. Providers that cannot determine
-	 * this omit the observable.
+	 * what the most recent request produced. Each change is classified against
+	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
-	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -763,6 +812,11 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	}
 
 	return true;
+}
+
+/** Structural equality for arrays of {@link ISessionTurnFileChange}. */
+export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
+	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
 }
 
 /**

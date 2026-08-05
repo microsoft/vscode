@@ -17,7 +17,7 @@ suite('AI Customization Management Section Registry', () => {
 		const registrations = store.add(new DisposableStore());
 		const codex = {
 			id: AICustomizationManagementSection.HarnessSettings,
-			label: 'Codex Settings',
+			label: 'Codex',
 			icon: Codicon.openai,
 			description: 'Codex settings',
 			supportsHarness: (harnessId: string) => harnessId === 'codex',

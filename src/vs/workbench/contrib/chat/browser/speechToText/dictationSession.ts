@@ -145,13 +145,8 @@ class LiveTranscriptInserter {
 		const endColumn = lines.length === 1 ? this._anchor.column + lines[0].length : lines[lines.length - 1].length + 1;
 		this._end = new Position(endLine, endColumn);
 
-		// While transcription is in progress keep the caret parked at the start
-		// of the dictated region (a blinking cursor at the beginning) rather than
-		// chasing the growing/revised interim text. Once finalized, move it to the
-		// end so the user can continue typing after the dictated text. The caret
-		// is passed as executeEdits' endCursorState so the editor never briefly
-		// places it at the end of the applied edit first.
-		const caret = interim ? this._anchor : this._end;
+		// Keep the hidden caret at the end so accidental typing appends after dictated text.
+		const caret = this._end;
 		this._isApplyingEdit = true;
 		try {
 			this._editor.executeEdits(
@@ -300,6 +295,14 @@ interface IActiveDictation {
  */
 let _active: IActiveDictation | undefined;
 
+/**
+ * The in-flight {@link stopDictation} finalization, if any. `stopDictation`
+ * clears {@link _active} before awaiting the final transcript, so this lets a
+ * concurrent stop/submit for the same editor await that same finalization (and
+ * the final transcript it inserts) instead of racing ahead with interim text.
+ */
+let _finalizing: { readonly editor: ICodeEditor; readonly promise: Promise<void> } | undefined;
+
 /** True while a dictation is in progress. */
 export function isDictating(): boolean {
 	return !!_active;
@@ -318,7 +321,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const inserter = new LiveTranscriptInserter(editor, logService);
 	const disposables = new DisposableStore();
 	// Hide the editor's blinking caret for the duration of the dictation
-	// session. During dictation the caret is parked at the start of the dictated
+	// session. During dictation the caret is parked at the end of the dictated
 	// region (see LiveTranscriptInserter.update), so a blinking cursor there is
 	// distracting as transcript text streams in.
 	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
@@ -414,9 +417,25 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 export async function stopDictation(): Promise<void> {
 	const active = _active;
 	if (!active) {
+		// A finalization started by an earlier stop may still be running for the
+		// same editor (it cleared `_active` before awaiting the transcript); wait
+		// for it so callers observe the final transcript rather than returning early.
+		await _finalizing?.promise;
 		return;
 	}
 	_active = undefined;
+	const promise = finalizeDictation(active);
+	_finalizing = { editor: active.editor, promise };
+	try {
+		await promise;
+	} finally {
+		if (_finalizing?.promise === promise) {
+			_finalizing = undefined;
+		}
+	}
+}
+
+async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	active.logService.trace(`${LOG_PREFIX} stopDictation begin, state=${active.service.state}`);
 	// Drop the interim styling and lock out interim updates right away so a
 	// trailing interim transcript emitted while transcription finalizes cannot
@@ -443,6 +462,18 @@ export async function stopDictation(): Promise<void> {
 		// disposing the hide-cursor class) reappears immediately at the end of the
 		// inserted transcript, ready for the user to continue typing.
 		active.editor.focus();
+	}
+}
+
+/** Stop dictation only when it is targeting `editor`. */
+export async function stopDictationForEditor(editor: ICodeEditor): Promise<void> {
+	if (_active?.editor === editor) {
+		await stopDictation();
+	} else if (_finalizing?.editor === editor) {
+		// A stop for this editor is already finalizing (it cleared `_active` before
+		// awaiting the transcript); await that finalization so a second submit does
+		// not send interim text ahead of the final transcript being inserted.
+		await _finalizing.promise;
 	}
 }
 

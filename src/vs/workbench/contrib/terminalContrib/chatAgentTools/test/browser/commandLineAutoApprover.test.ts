@@ -8,9 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { CommandLineAutoApprover } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
 import { isAutoApproveRule } from '../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
@@ -60,6 +60,46 @@ suite('CommandLineAutoApprover', () => {
 	function isCommandLineAutoApproved(commandLine: string): boolean {
 		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).result === 'approved';
 	}
+
+	suite('default PowerShell rules', () => {
+		setup(() => {
+			shell = 'pwsh';
+			os = OperatingSystem.Windows;
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('auto-approves explicit safe cmdlets case-insensitively', async () => {
+			const commands = [
+				'Select-Object Name',
+				'select-object Name',
+				'Measure-Object Length',
+				'Compare-Object $a $b',
+				'Format-Table',
+				'Sort-Object Name',
+			];
+			strictEqual((await Promise.all(commands.map(isAutoApproved))).every(Boolean), true);
+		});
+
+		test('does not auto-approve arbitrary cmdlets by verb', async () => {
+			const commands = [
+				'Select-Custom',
+				'Measure-Command',
+				'Compare-Custom',
+				'Format-Hex',
+				'Sort-Custom',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), [false, false, false, false, false]);
+		});
+	});
+
+	test('default sort rule preserves no-space Bash input redirection', async () => {
+		setAutoApproveWithCommandLine(
+			terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+		);
+		strictEqual(await isAutoApproved('sort<input.txt'), true);
+	});
 
 	suite('autoApprove with allow patterns only', () => {
 		test('should auto-approve exact command match', async () => {

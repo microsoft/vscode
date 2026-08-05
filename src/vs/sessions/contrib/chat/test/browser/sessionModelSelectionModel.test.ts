@@ -62,7 +62,7 @@ interface ITestSession {
 	readonly activeChat: ReturnType<typeof observableValue<IChat>>;
 }
 
-function createSession(providerId: string, status: SessionStatus, selectedModelId?: string, sessionId = `${providerId}:session`): ITestSession {
+function createSession(providerId: string, status: SessionStatus, selectedModelId?: string, sessionId = `${providerId}:session`, sessionType = 'type'): ITestSession {
 	const modelId = observableValue<string | undefined>(`${providerId}.model`, selectedModelId);
 	const activeChat = observableValue<IChat>(`${providerId}.activeChat`, { resource: URI.parse(`chat:/${providerId}/one`) } as IChat);
 	return {
@@ -70,7 +70,7 @@ function createSession(providerId: string, status: SessionStatus, selectedModelI
 		activeChat,
 		session: {
 			providerId,
-			sessionType: 'type',
+			sessionType,
 			sessionId,
 			resource: URI.parse(`session:/${providerId}`),
 			modelId,
@@ -87,6 +87,7 @@ interface ITestProvider extends ISessionsProvider {
 	readonly desiredModelIds: (string | undefined)[];
 	getModelsCalls: number;
 	modelsResolved: boolean;
+	modelTarget: string;
 	dispose(): void;
 }
 
@@ -100,12 +101,13 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string) => vo
 		desiredModelIds: [],
 		getModelsCalls: 0,
 		modelsResolved: true,
+		modelTarget,
 		dispose: () => modelChanges.dispose(),
 		onDidChangeModels: modelChanges.event,
 		getModelsSnapshot(_sessionId: string, desiredModelId?: string) {
 			provider.getModelsCalls++;
 			provider.desiredModelIds.push(desiredModelId);
-			return { models: provider.models, desiredModelResolution: resolveModelIdentifier(provider.models, desiredModelId, provider.modelsResolved), modelTarget };
+			return { models: provider.models, desiredModelResolution: resolveModelIdentifier(provider.models, desiredModelId, provider.modelsResolved), modelTarget: provider.modelTarget };
 		},
 		getModelPickerOptions(): ISessionModelPickerOptions {
 			return {
@@ -157,6 +159,55 @@ class TestLogService extends NullLogService {
 suite('SessionModelSelectionModel', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('new Codex sessions use the most recently selected provider model', () => {
+		const codexModelTarget = 'agent-host-codex';
+		const copilotModel = {
+			...model('codex:@provider=vscode-proxy:gpt-test'),
+			metadata: { ...model('codex:@provider=vscode-proxy:gpt-test').metadata, modelGroup: { id: 'copilot' } },
+		};
+		const chatGPTModel = {
+			...model('codex:@provider=openai:gpt-test'),
+			metadata: { ...model('codex:@provider=openai:gpt-test').metadata, modelGroup: { id: 'openai', source: 'chatgptSubscription' as const } },
+		};
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, codexModelTarget, chatGPTModel.identifier);
+
+		const draft = createSession('provider', SessionStatus.Untitled, undefined, 'draft', codexModelTarget);
+		const provider = disposables.add(createProvider('provider', identifier => draft.modelId.set(identifier, undefined)));
+		provider.models = [copilotModel, chatGPTModel];
+		provider.modelTarget = codexModelTarget;
+		const draftSelection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('draftSession', draft.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({ current: draftSelection.state.get().currentModel?.identifier, writes: provider.writes }, {
+			current: chatGPTModel.identifier,
+			writes: [chatGPTModel.identifier],
+		});
+
+		assert.strictEqual(draftSelection.selectModel(copilotModel.identifier), true);
+		const nextDraft = createSession('provider', SessionStatus.Untitled, undefined, 'nextDraft', codexModelTarget);
+		const nextProvider = disposables.add(createProvider('provider', identifier => nextDraft.modelId.set(identifier, undefined)));
+		nextProvider.models = [chatGPTModel, copilotModel];
+		nextProvider.modelTarget = codexModelTarget;
+		const nextSelection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('nextDraftSession', nextDraft.session),
+			createProvidersService([nextProvider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({ current: nextSelection.state.get().currentModel?.identifier, writes: nextProvider.writes }, {
+			current: copilotModel.identifier,
+			writes: [copilotModel.identifier],
+		});
+	});
 
 	test('migrates a legacy Sessions preference and seeds a draft exactly once', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);

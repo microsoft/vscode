@@ -10,7 +10,7 @@ import { autorun, constObservable, derivedOpts, IObservable } from '../../../../
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
@@ -64,6 +64,10 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 	return false;
 }
 
+export function shouldRenderSessionCreatedResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
+	return toolSpecificDataKind === 'sessionCreated' && isResponseComplete;
+}
+
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
@@ -85,6 +89,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private subPart!: BaseChatToolInvocationSubPart;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
+	private readonly renderedSessionCreatedResult: boolean;
 
 	private readonly _onDidRemount = this._register(new Emitter<void>());
 
@@ -102,6 +107,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	) {
 		super();
 
+		this.renderedSessionCreatedResult = shouldRenderSessionCreatedResult(
+			toolInvocation.toolSpecificData?.kind,
+			isResponseVM(context.element) && context.element.isComplete,
+		);
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		if (toolInvocation.presentation === 'hidden') {
 			return;
@@ -270,7 +279,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 
-		if (this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+		if (this.renderedSessionCreatedResult && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
 			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
@@ -373,6 +382,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
 			&& other.toolSpecificData?.kind === 'subagent'
 			&& !other.subAgentInvocationId) {
+			return false;
+		}
+		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& this.renderedSessionCreatedResult !== shouldRenderSessionCreatedResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
 			return false;
 		}
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;

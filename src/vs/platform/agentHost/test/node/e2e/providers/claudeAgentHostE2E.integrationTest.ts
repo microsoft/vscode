@@ -59,8 +59,10 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
+	streamingFileCreateToolName: 'Write',
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Worktree isolation is now shared across agents via the host-owned
@@ -81,10 +83,9 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsPlanMode: false,
 	supportsMultipleChats: true,
 	supportsChatFork: true,
-	// The Claude SDK currently receives the AHP turn id as upToMessageId and
-	// rejects it as invalid when the fork is exercised against a real transcript.
+	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
+	// so a provider fork silently starts with fresh context.
 	supportsChatForkE2E: false,
-	supportsFileTools: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

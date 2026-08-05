@@ -26,11 +26,11 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -40,6 +40,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -106,6 +107,7 @@ function createTestSideEffects(
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
+	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -113,7 +115,7 @@ function createTestSideEffects(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
-		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+		[IAgentHostCheckpointService, checkpointService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -1864,6 +1866,10 @@ suite('AgentSideEffects', () => {
 					toolCallId: 'active-tool',
 					result: { success: true, pastTenseMessage: 'Read file' },
 				},
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-2', duration: 1000 },
 			});
 
 			assert.deepStrictEqual(
@@ -4216,6 +4222,70 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 
+		test('SessionConfigChanged emits agentHost.executionModeChanged for effective mode transitions without duplicate echoes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
+			});
+
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'plan' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'autopilot' },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {},
+				replace: true,
+			});
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged'), [{
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'interactive',
+					newMode: 'plan',
+					turnCount: 1,
+				},
+			}, {
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'plan',
+					newMode: 'autopilot',
+					turnCount: 1,
+				},
+			}, {
+				eventName: 'agentHost.executionModeChanged',
+				data: {
+					provider: 'mock',
+					agentSessionId: 'session-1',
+					isSubagentSession: false,
+					previousMode: 'autopilot',
+					newMode: 'interactive',
+					turnCount: 1,
+				},
+			}]);
+		});
+
 		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
 			// The client-action side-effects path is where a picker edit lands
 			// (internal server writes use `dispatchServerAction` and never reach
@@ -4909,6 +4979,10 @@ suite('AgentSideEffects', () => {
 			return stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [];
 		}
 
+		function sessionStatus() {
+			return stateManager.getSessionState(sessionUri.toString())?.status;
+		}
+
 		test('chat input request mirrors its unresolved response part and is removed on completion', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -4959,6 +5033,91 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(sessionInputNeeded(), []);
+		});
+
+		test('accepted ask-user input emits telemetry from synchronized answer state', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'req-1',
+					purpose: ChatInputRequestPurpose.AskUser,
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+				},
+			});
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatInputAnswerChanged,
+				requestId: 'req-1',
+				questionId: 'question-1',
+				answer: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' },
+				},
+			}, { clientId: 'test', clientSeq: 2 });
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'req-1',
+				response: SessionInputResponseKind.Accept,
+			}, { clientId: 'test', clientSeq: 3 });
+
+			const event = telemetryService.events.find(event => event.eventName === 'askQuestionsToolInvoked');
+			const data = event?.data as IAgentHostAskQuestionsToolInvokedEvent | undefined;
+			assert.deepStrictEqual(event && {
+				eventName: event.eventName,
+				data: {
+					...data,
+					duration: typeof data?.duration,
+				},
+			}, {
+				eventName: 'askQuestionsToolInvoked',
+				data: {
+					requestId: 'turn-1',
+					questionCount: 1,
+					answeredCount: 1,
+					skippedCount: 0,
+					freeTextCount: 1,
+					recommendedAvailableCount: 0,
+					recommendedSelectedCount: 0,
+					duration: 'number',
+					provider: agent.id,
+					agentSessionId: AgentSession.id(sessionUri),
+					isSubagentSession: false,
+				},
+			});
+		});
+
+		test('chat truncation clears pending ask-user telemetry', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			const request: ChatInputRequest = {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+			};
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTruncated,
+			});
+
+			startTurn('turn-2');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputCompleted,
+				requestId: request.id,
+				response: SessionInputResponseKind.Accept,
+			});
+
+			const events = telemetryService.events.filter(event => event.eventName === 'askQuestionsToolInvoked');
+			assert.deepStrictEqual(events.map(event => (event.data as IAgentHostAskQuestionsToolInvokedEvent).requestId), ['turn-2']);
 		});
 
 		test('chat input request without an active turn is not mirrored', () => {
@@ -5027,7 +5186,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
-		test('auto-approved tool call is kept out of the session inputNeeded queue', () => {
+		test('auto-approved tool call still surfaces its client execution without flagging input needed', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -5049,7 +5208,15 @@ suite('AgentSideEffects', () => {
 				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1',
 				toolCallId: 'tc-auto', approved: true, confirmed: ToolCallConfirmationReason.Setting,
 			});
-			assert.deepStrictEqual(sessionInputNeeded(), [], 'no client-execution entry while Running');
+
+			// The client still has to run the call, so it must be discoverable
+			// from the session channel — but it is not a user prompt, so the
+			// session must not present as "input needed".
+			assert.deepStrictEqual(
+				sessionInputNeeded().map(r => ({ kind: r.kind, clientId: r.kind === SessionInputRequestKind.ToolClientExecution ? r.clientId : undefined })),
+				[{ kind: SessionInputRequestKind.ToolClientExecution, clientId: 'client-1' }],
+			);
+			assert.strictEqual(sessionStatus(), SessionStatus.InProgress, 'auto-approved client execution must not present as input needed');
 		});
 
 		test('auto-approved tool still surfaces a genuine result confirmation', () => {
@@ -5640,6 +5807,35 @@ suite('AgentSideEffects', () => {
 			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+		});
+
+		test('turn complete passes the resolved working directories to the checkpoint capture', async () => {
+			const workingDirectory = URI.file('/wd').toString();
+			setupSession(workingDirectory);
+			startTurn('turn-1');
+
+			const captures: { turnId: string; workingDirectories: readonly string[] | undefined }[] = [];
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnCheckpoint: async (_session, turnId, workingDirectories) => {
+					captures.push({ turnId, workingDirectories: workingDirectories?.map(w => w.toString()) });
+				},
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			await Promise.resolve();
+
+			assert.deepStrictEqual(captures, [{ turnId: 'turn-1', workingDirectories: [workingDirectory] }]);
 		});
 
 		test('ChatTruncated fires onSessionTruncated once', () => {

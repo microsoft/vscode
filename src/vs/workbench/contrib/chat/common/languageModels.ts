@@ -296,7 +296,11 @@ export interface ILanguageModelChatMetadata {
 	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
 	 * Presentation-only; it does not affect model selection or routing.
 	 */
-	readonly modelGroup?: { readonly id: string };
+	readonly modelGroup?: {
+		readonly id: string;
+		/** Identifies a first-party provider group that must remain distinct from user-configured groups with the same name. */
+		readonly source?: 'chatgptSubscription';
+	};
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -485,6 +489,7 @@ export interface ILanguageModelChatInfoOptions {
 export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
 	readonly configuration?: IStringDictionary<unknown>;
+	readonly includeEncryptedThinking?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }
@@ -670,6 +675,37 @@ export interface ILanguageModelsService {
 	 * Fetched from the chat control manifest.
 	 */
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
+}
+
+export function getLanguageModelProviderDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we have distinct vendors for Copilot CLI and Copilot Chat.
+		return localize('chat.languageModelProvider.copilot', "Copilot");
+	}
+	const descriptor = languageModelsService.getVendors().find(candidate => candidate.vendor === vendor);
+	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
+}
+
+export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string {
+	const { metadata } = model;
+	if (!metadata.isBYOK && !metadata.byokModelIdentifier) {
+		return metadata.name;
+	}
+
+	const originalIdentifier = metadata.byokModelIdentifier ?? model.identifier;
+	const originalMetadata = metadata.byokModelIdentifier ? languageModelsService.lookupLanguageModel(originalIdentifier) : metadata;
+	const providerVendor = originalMetadata?.vendor ?? metadata.modelGroup?.id ?? metadata.vendor;
+	const providerName = getLanguageModelProviderDisplayName(languageModelsService, providerVendor);
+	const identifierSuffix = originalMetadata?.id;
+	const modelName = identifierSuffix && metadata.name.endsWith(` (${identifierSuffix})`)
+		? metadata.name.slice(0, -identifierSuffix.length - 3)
+		: metadata.name;
+	const groupName = languageModelsService.getLanguageModelGroups(providerVendor)
+		.find(group => group.modelIdentifiers.includes(originalIdentifier))
+		?.group?.name;
+	return groupName && groupName !== providerName
+		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, modelName)
+		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, modelName);
 }
 
 export interface IModelControlEntry {

@@ -9,6 +9,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasIssuesContext,
 	SessionHasWorkspaceContext,
 	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
@@ -53,6 +54,7 @@ interface ISessionContextKeys {
 	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasIssues: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
@@ -93,6 +95,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasIssues: SessionHasIssuesContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
@@ -153,6 +156,9 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
+
+	const issues = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues;
+	keys.hasIssues.set(!!issues?.length);
 
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 

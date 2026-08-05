@@ -58,6 +58,9 @@ const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoF
 class BrowserNavigationBar extends Disposable {
 	readonly element: HTMLElement;
 	private readonly _urlBar: BrowserUrlBarWidget;
+	private readonly _navToolbar: MenuWorkbenchToolBar;
+	private readonly _contributionListeners = this._register(new DisposableStore());
+	private _contributions: readonly BrowserEditorContribution[] = [];
 
 	constructor(
 		editor: BrowserEditor,
@@ -84,19 +87,28 @@ class BrowserNavigationBar extends Disposable {
 		));
 
 		const navContainer = $('.browser-nav-toolbar');
-		const navToolbar = this._register(scopedInstantiationService.createInstance(
+		this._navToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			navContainer,
 			MenuId.BrowserNavigationToolbar,
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
+				actionViewItemProvider: (action, options) => {
+					for (const contribution of this._contributions) {
+						const viewItem = contribution.getActionViewItem(action, options, scopedInstantiationService);
+						if (viewItem) {
+							return viewItem;
+						}
+					}
+					return undefined;
+				},
 				// Render all actions inline regardless of group.
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
-		navToolbar.context = editor;
+		this._navToolbar.context = editor;
 
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
@@ -148,7 +160,15 @@ class BrowserNavigationBar extends Disposable {
 	openUrlPicker(): void { this._urlBar.openUrlPicker(); }
 	clear(): void { this._urlBar.clear(); }
 
-	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
+	mountContributions(contributions: readonly BrowserEditorContribution[]): void {
+		this._contributions = contributions;
+		this._contributionListeners.clear();
+		for (const contribution of contributions) {
+			this._contributionListeners.add(contribution.onDidChangeActionViewItems(() => this._navToolbar.refresh()));
+		}
+		this._navToolbar.refresh();
+		this._urlBar.mountContributions(contributions);
+	}
 
 	/**
 	 * The configured address bar search engine, or `undefined` when search
