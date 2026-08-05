@@ -94,11 +94,37 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
-	test('default sort rule preserves no-space Bash input redirection', async () => {
-		setAutoApproveWithCommandLine(
-			terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
-		);
-		strictEqual(await isAutoApproved('sort<input.txt'), true);
+	suite('default sort rules', () => {
+		setup(() => {
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('auto-approves benign forms', async () => {
+			const commands = [
+				'sort input.txt',
+				'sort --check input.txt',
+				'sort --check=quiet input.txt',
+				'sort --buffer-size=1K input.txt',
+				'sort<input.txt',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => true));
+		});
+
+		test('denies blocked options', async () => {
+			const commands = [
+				'sort -o output.txt input.txt',
+				'sort -S 1G input.txt',
+				'sort --compress-program=/bin/sh input.txt',
+				'sort --compress-program /bin/sh input.txt',
+				'sort --compress-prog=/bin/sh input.txt',
+				'sort --compress-p=/bin/sh input.txt',
+				'sort --com=/bin/sh input.txt',
+				'sort --co=/bin/sh input.txt',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
 	});
 
 	suite('autoApprove with allow patterns only', () => {

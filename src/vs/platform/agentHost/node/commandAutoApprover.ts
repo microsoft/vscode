@@ -15,6 +15,7 @@ import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/com
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
+import { sortAutoApproveRules } from '../../terminal/common/autoApprove/sortAutoApproveRules.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -643,8 +644,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 	'/^sed\\b.*;W/': false,
-	'/^sort\\b(?!-)/': true,
-	'/^sort\\b.*\\s-(o|S)\\b/': false,
+	...sortAutoApproveRules,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,
 	'/^xxd$/': true,
