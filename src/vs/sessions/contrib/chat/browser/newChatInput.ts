@@ -46,7 +46,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
-import { SessionTypePicker } from './sessionTypePicker.js';
+import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
@@ -359,6 +359,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
+			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
 			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
@@ -423,7 +424,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, undefined));
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();

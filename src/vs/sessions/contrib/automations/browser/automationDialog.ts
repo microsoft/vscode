@@ -1002,10 +1002,13 @@ export function renderForm(
 		historyKey: constObservable(undefined),
 		placeholder: localize('automation.form.newChatInput.placeholder', "Describe what you want to automate"),
 		renderSessionTypePickerInControls: false,
+		sessionTypePickerOptions: { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false },
 		usePersistedDraftState: false,
 	}));
 	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
 	newChatInput.render(newChatInputHost, promptHost);
+	const newChatSessionTypePickerHost = DOM.append(newChatInputHost, $('.automation-form-new-chat-session-type-picker.chat-secondary-toolbar'));
+	newChatInput.sessionTypePicker.render(newChatSessionTypePickerHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
