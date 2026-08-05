@@ -76,6 +76,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
+import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
@@ -4265,6 +4266,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
@@ -4282,6 +4284,10 @@ export class CopilotAgentSession extends Disposable {
 					...(meta ? { _meta: meta } : {}),
 				},
 			});
+		}));
+
+		this._register(wrapper.onModelCallFailure(e => {
+			reportCopilotModelCallFailure(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
 		}));
 
 		// Tracks the last parent-scope usage so the async attribution enrichment
