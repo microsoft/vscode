@@ -356,7 +356,17 @@ through the **Developer: Toggle Aquarium Action Visibility** command.
 hidden composer cannot leave the aquarium rendering behind the visible chat
 surface. Since `NewChatView` also hosts the peer-chat composer,
 aquarium-specific lifecycle calls must first narrow the wrapped widget to
-`NewChatWidget`.
+`NewChatWidget`. The pet's sprites are scheduled at their source frame
+boundaries instead of polling at the display refresh rate, and scheduling pauses
+while the document is hidden. In both the shared chat input and new-session
+composer, the pet is anchored above the complete input stack so confirmations,
+notifications, and onboarding tips remain below it. Its optical bottom edge sits
+against the topmost visible input surface rather than the transparent stack
+boundary; the offset follows the bare input's actual top inset and caps at the
+slightly deeper confirmation/question alignment. When the pet approaches the
+input's right edge while rendering, its speech bubble moves to the pet's left
+so the ellipsis remains visible without changing the pet's direction. Other pet
+states keep their standard presentation.
 
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated

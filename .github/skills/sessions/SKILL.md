@@ -26,6 +26,12 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Animation performance must preserve perceptual smoothness**: reducing a continuous title shimmer to 10 stepped updates per second makes the sweep visibly choppy even if paint counts improve. Use a smooth baseline such as 30 updates per second, then measure the remaining performance win; do not optimize decorative motion by callback counts alone.
+
+- **Pet placement must align the visible sprite, not only its absolute-positioning box**: anchoring the button at `bottom: 100%` leaves the pet visually detached because the input stack has top padding and transient confirmation/question surfaces add their own top margin. Keep the host on the complete stack and derive the optical offset from the actual input-to-host inset, capped at the confirmation/question alignment; one fixed deeper offset makes the bare input look overlapped.
+
+- **Keep only the rendering pet's speech bubble inside its input bounds without turning the pet around**: the speech sprite's visible pixels overhang the button on the right, so dragging the rendering pet to the input's right edge can clip the ellipsis. Move the mirrored bubble fully to the pet's left with only its tail touching; do not center it over the pet, and do not apply the special treatment to yapping or any other state.
+
 - **Do not conflate custom-agent selection with Agent Host execution mode**: `chat.modeChange` describes workbench mode/custom-agent picker selections, while `interactive`, `plan`, and `autopilot` are Agent Host execution modes and belong in `agentHost.executionModeChanged`. Preserve the SDK-native mode event as a peer rather than reshaping either axis into the other.
 
 - **Picker telemetry must use the scoped session and active chat**: Agents Window action view items can belong to a non-active visible session or peer chat. Resolve previous selection and request counts from scoped `ISessionContext.session.activeChat`, never a window-global picker model or parent session resource.

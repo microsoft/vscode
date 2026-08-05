@@ -846,7 +846,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
-			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
+			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
