@@ -2640,10 +2640,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// dispose this session so it gets resumed with the updated config.
 			const activeClient = this._activeClients.get(context.session);
 			const hadCachedEntry = !!entry;
+			this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			if (entry) {
 				const rootsChanged = workingDirectories !== undefined && !additionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 				const structuralConfigChanged = !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot);
-				this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, rootsChanged=${rootsChanged}, structuralConfigChanged=${structuralConfigChanged}`);
 				if (rootsChanged || structuralConfigChanged) {
 					this._logService.info(`[Copilot:${context.sessionId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 					this._sdkSessionsById.delete(entry.sessionId);
