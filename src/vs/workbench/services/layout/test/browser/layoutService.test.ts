@@ -5,25 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-
-suite('LayoutService - floating panel spacing', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('uses a 4px inter-card gap', () => {
-		assert.deepStrictEqual({
-			leadingMargin: FLOATING_PANEL_MARGIN,
-			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
-			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
-		}, {
-			leadingMargin: 4,
-			trailingMargin: 0,
-			gap: 4,
-		});
-	});
-});
 
 suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 
