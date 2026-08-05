@@ -5,12 +5,31 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
+import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requires a paid plan and restricts MAI for external Enterprise users', () => {
+		assert.deepStrictEqual({
+			freeLocal: isDictationEntitled(ChatEntitlement.Free, false, false),
+			proLocal: isDictationEntitled(ChatEntitlement.Pro, false, false),
+			proMai: isDictationEntitled(ChatEntitlement.Pro, false, true),
+			enterpriseLocal: isDictationEntitled(ChatEntitlement.Enterprise, false, false),
+			enterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, false, true),
+			internalEnterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, true, true),
+		}, {
+			freeLocal: false,
+			proLocal: true,
+			proMai: true,
+			enterpriseLocal: true,
+			enterpriseMai: false,
+			internalEnterpriseMai: true,
+		});
+	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({

@@ -10,6 +10,7 @@
 // (synced from the agent-host-protocol repo). This file adds VS Code-specific
 // helpers and re-exports.
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
@@ -41,6 +42,7 @@ import {
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
+	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -91,7 +93,7 @@ export {
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolCallContributor,
-	type ToolDefinition, type ToolResultContent,
+	type ToolDefinition, type ToolInput, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type TerminalCommandResult,
 	type ToolResultSubagentContent,
@@ -586,6 +588,7 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	if (!result.content || result.content.length === 0) {
 		return undefined;
 	}
+
 	const textParts: ToolResultTextContent[] = [];
 	for (const c of result.content) {
 		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
@@ -596,6 +599,11 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
+}
+
+/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
+export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
+	return typeof toolInput === 'string' ? toolInput : undefined;
 }
 
 /**
@@ -1278,15 +1286,15 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** The URL of the GitHub pull request. */
-	readonly pullRequestUrl?: string;
+	/** GitHub pull request URLs associated with the session, most recent first. */
+	readonly pullRequestUrls?: readonly string[];
 	/**
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
 	 */
 	readonly issueUrls?: readonly string[];
 	/**
-	 * The name of the branch {@link pullRequestUrl} was found (or created) for.
+	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
 	 * resumes looking for one that belongs to the newly checked out branch.
@@ -1304,10 +1312,37 @@ export interface ISessionGitHubState {
  * it actually belongs to.
  */
 export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState | undefined, branchName: string | undefined): boolean {
-	if (!gitHubState?.pullRequestUrl) {
+	if (!gitHubState?.pullRequestUrls?.length) {
 		return false;
 	}
 	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
+}
+
+/** Maximum pull requests retained for a session. */
+export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
+
+function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
+	const normalizedUrls = urls.map(url => {
+		const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const groups = match?.groups;
+		return groups
+			? `https://github.com/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			: url;
+	});
+	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+}
+
+/** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
+export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const pullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.pullRequestUrls ?? [])
+	]);
+
+	return {
+		pullRequestUrls,
+		pullRequestBranchName: branchName,
+	};
 }
 
 /**
@@ -1387,14 +1422,21 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 	const result: {
 		owner?: string;
 		repo?: string;
-		pullRequestUrl?: string;
+		pullRequestUrls?: readonly string[];
 		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
-	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	const pullRequestUrls = Array.isArray(raw['pullRequestUrls'])
+		? raw['pullRequestUrls'].filter((url): url is string => typeof url === 'string')
+		: typeof raw['pullRequestUrl'] === 'string'
+			? [raw['pullRequestUrl']]
+			: [];
+	if (pullRequestUrls.length > 0) {
+		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
+	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
@@ -1515,6 +1557,25 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * `_meta` key marking a session as an un-adopted legacy Copilot CLI session
+ * surfaced (only under the migrate setting) as adoptable. Clients read it to
+ * avoid passively subscribing to — and thereby migrating — the session before
+ * the user opens it. Cleared implicitly once the session is adopted (it no
+ * longer surfaces as adoptable).
+ */
+export const SESSION_META_EHCLI_ADOPTABLE_KEY = 'ehcliAdoptable';
+
+/** Whether the session is an un-adopted legacy Copilot CLI session surfaced as adoptable. */
+export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true;
+}
+
+/** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
+export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

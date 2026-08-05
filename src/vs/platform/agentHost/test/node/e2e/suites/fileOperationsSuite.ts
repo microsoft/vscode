@@ -9,8 +9,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { buildDefaultChatUri, getInlineToolInput } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
-import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import type { ChatToolCallCompleteAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
@@ -173,7 +173,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const fileContent = readFileSync(join(workspace, 'streaming.txt'), 'utf8');
 		const normalizedFileContent = fileContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const lineCount = fileContent.split(/\r\n|\r|\n/).length;
-		const readyInputs = ready.map(action => action.toolInput).filter(input => input !== undefined);
+		const readyInputs = ready.map(action => getInlineToolInput(action.toolInput)).filter(input => input !== undefined);
 
 		assert.deepStrictEqual({
 			fileContent: normalizedFileContent.trimEnd(),
@@ -449,8 +449,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			const completed = ready && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 				.some(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolCallId === ready.toolCallId);
+			const toolInput = getInlineToolInput(ready?.toolInput);
 			assert.deepStrictEqual({
-				readsFile: ready?.toolInput?.includes('readFileSync') && ready.toolInput.includes('file with spaces.txt'),
+				readsFile: toolInput?.includes('readFileSync') && toolInput.includes('file with spaces.txt'),
 				completed,
 			}, {
 				readsFile: true,

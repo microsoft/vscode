@@ -74,8 +74,11 @@
 	z-index: 2;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon:not(.visible) {
 	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
 	align-items: center;
 	justify-content: center;
 	width: 18px;
@@ -271,6 +274,11 @@
 	padding: 12px 16px 14px;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-account + .sessions-account-titlebar-panel-provider-account {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
 }
@@ -344,6 +352,33 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .actions-container,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item {
+	width: 100%;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-label {
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 24px;
+	padding: 2px 6px;
+	justify-content: flex-start;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 20px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-list-hoverBackground);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions > .monaco-action-bar .actions-container {
 	width: max-content;
 	gap: 2px;
@@ -388,6 +423,14 @@
 	white-space: nowrap;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-metric-row.secondary {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-metric-row.secondary.without-reset {
+	justify-content: flex-end;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value {
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
@@ -401,7 +444,6 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-footer {
 	min-width: 0;
 	padding: 10px 16px;
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip {

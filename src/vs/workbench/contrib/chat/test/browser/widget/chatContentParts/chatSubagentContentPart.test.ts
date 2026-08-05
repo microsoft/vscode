@@ -21,7 +21,7 @@ import { TestMenuService, workbenchInstantiationService } from '../../../../../.
 import { IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
-import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatHookPart, IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
@@ -123,6 +123,7 @@ suite('ChatSubagentContentPart', () => {
 	let announcedToolProgressKeys: Set<string>;
 	let actionViewItemService: TestActionViewItemService;
 	let menuService: TestSubagentMenuService;
+	let markdownRenderCount: number;
 
 	function createMockRenderContext(isComplete: boolean = false, sessionResource: URI = URI.parse('chat-session://test/session1')): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -287,10 +288,12 @@ suite('ChatSubagentContentPart', () => {
 	setup(() => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, store);
+		markdownRenderCount = 0;
 
 		// Create a mock markdown renderer
 		mockMarkdownRenderer = {
 			render: (_markdown: IMarkdownString, _options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown => {
+				markdownRenderCount++;
 				const element = outElement ?? mainWindow.document.createElement('div');
 				const content = typeof _markdown === 'string' ? _markdown : (_markdown.value ?? '');
 				element.textContent = content;
@@ -1812,6 +1815,99 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('Current running tool in title', () => {
+		test('batches presentation while reconstructing terminal tool history', () => {
+			const parentTool = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const part = createPart(parentTool, createMockRenderContext(false));
+			markdownRenderCount = 0;
+
+			part.beginToolPresentationBatch();
+			for (let index = 0; index < 128; index++) {
+				const tool = createMockToolInvocation({
+					toolId: 'readFile',
+					toolCallId: `child-${index}`,
+					subAgentInvocationId: parentTool.toolCallId,
+					stateType: IChatToolInvocation.StateKind.Completed,
+					invocationMessage: `Completed tool ${index}`
+				});
+				part.appendToolInvocation(tool, index);
+			}
+
+			const rendersDuringBatch = markdownRenderCount;
+			part.endToolPresentationBatch();
+			const rendersAfterBatch = markdownRenderCount;
+			const button = getCollapseButton(part);
+			assert.ok(button);
+			const titleAfterBatch = getCollapseButtonLabel(button)?.textContent ?? button.textContent ?? '';
+			const toolStateTracking = (part as unknown as { _toolStateTracking: { _toDispose: Set<object> } })._toolStateTracking;
+			const trackedTerminalToolCount = toolStateTracking._toDispose.size;
+
+			const liveTool = createMockToolInvocation({
+				toolId: 'searchFiles',
+				toolCallId: 'live-child',
+				subAgentInvocationId: parentTool.toolCallId,
+				stateType: IChatToolInvocation.StateKind.Executing,
+				invocationMessage: 'Searching live files'
+			});
+			part.appendToolInvocation(liveTool, 128);
+			const titleAfterLiveTool = getCollapseButtonLabel(button)?.textContent ?? button.textContent ?? '';
+
+			assert.deepStrictEqual({
+				rendersDuringBatch,
+				rendersAfterBatch,
+				trackedTerminalToolCount,
+				rendersAfterLiveTool: markdownRenderCount,
+				titleAfterBatchIncludesLatestTool: titleAfterBatch.includes('Completed tool 127'),
+				titleAfterLiveToolIncludesLatestTool: titleAfterLiveTool.includes('Searching live files'),
+			}, {
+				rendersDuringBatch: 0,
+				rendersAfterBatch: 1,
+				trackedTerminalToolCount: 0,
+				rendersAfterLiveTool: 2,
+				titleAfterBatchIncludesLatestTool: true,
+				titleAfterLiveToolIncludesLatestTool: true,
+			});
+		});
+
+		test('batches grouped hook presentation updates', () => {
+			const parentTool = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const part = createPart(parentTool, createMockRenderContext(false));
+			const hookPart: IChatHookPart = {
+				kind: 'hook',
+				hookType: 'PreToolUse',
+				systemMessage: 'Warning',
+				toolDisplayName: 'Search',
+				subAgentInvocationId: parentTool.toolCallId,
+			};
+			markdownRenderCount = 0;
+
+			part.beginToolPresentationBatch();
+			for (let index = 0; index < 32; index++) {
+				part.appendHookItem(() => ({ domNode: mainWindow.document.createElement('div') }), hookPart);
+			}
+			const rendersDuringBatch = markdownRenderCount;
+			part.endToolPresentationBatch();
+
+			assert.deepStrictEqual({
+				rendersDuringBatch,
+				rendersAfterBatch: markdownRenderCount,
+			}, {
+				rendersDuringBatch: 0,
+				rendersAfterBatch: 1,
+			});
+		});
+
 		test('should update title with current running tool invocation message', () => {
 			const toolInvocation = createMockToolInvocation({
 				toolSpecificData: {

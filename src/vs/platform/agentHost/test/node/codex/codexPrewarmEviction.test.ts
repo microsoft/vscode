@@ -674,6 +674,75 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoC = URI.file('/repo-c');
+
+		try {
+			const created = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const firstSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'first', [repoA, repoB], undefined, 'turn-1');
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
+
+			const secondSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'second', [repoA, repoC], undefined, 'turn-2');
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
+
+			const thirdSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'third', [repoA], undefined, 'turn-3');
+			const thirdTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: thirdTurn.id, result: {} });
+			await thirdSend;
+
+			assert.deepStrictEqual({
+				second: {
+					method: secondTurn.method,
+					threadId: secondTurn.params.threadId,
+					runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
+					writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+				third: {
+					method: thirdTurn.method,
+					threadId: thirdTurn.params.threadId,
+					runtimeWorkspaceRoots: thirdTurn.params.runtimeWorkspaceRoots,
+					writableRoots: thirdTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? thirdTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+			}, {
+				second: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
+					writableRoots: [repoA.fsPath, repoC.fsPath],
+				},
+				third: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath],
+					writableRoots: [repoA.fsPath],
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('disabled multi-root preserves the existing additional-directory payload', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'single-root');
