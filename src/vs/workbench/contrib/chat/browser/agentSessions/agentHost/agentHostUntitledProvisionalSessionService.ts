@@ -292,6 +292,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
+		// If workspace folders change, recompute the desired directory set. If it
+		// differs from what the existing provisional was created with, dispose that
+		// backend session and create a replacement provisional session with the new
+		// set of directories.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			for (const [sessionResource, entry] of this._entries) {
 				if (entry.disposed) {
