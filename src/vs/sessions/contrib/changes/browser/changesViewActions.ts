@@ -179,7 +179,7 @@ class SetChangesListViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
@@ -210,7 +210,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
