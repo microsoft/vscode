@@ -51,7 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
-import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -415,7 +415,9 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.clear();
 
 		// honor diff editors and such
-		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const canonicalUri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const originalUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uri = originalUri ?? canonicalUri;
 		const wasHidden = this.isHidden();
 
 		if (!uri || !this._fileService.hasProvider(uri)) {
@@ -431,15 +433,12 @@ export class BreadcrumbsControl {
 			}
 		}
 
-		// display uri which can be derived from certain inputs
-		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-
 		this.show();
 		this._ckBreadcrumbsPossible.set(true);
 		this._updateEditorTypeControl();
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
-			fileInfoUri ?? uri,
+			uri,
 			this._editorGroup.activeEditorPane
 		);
 		this._model.value = model;
@@ -516,8 +515,7 @@ export class BreadcrumbsControl {
 		const previousWidth = this._editorTypeNode?.offsetWidth ?? 0;
 
 		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
-		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
-		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
+		if (!available) {
 			this._hideEditorTypeControl();
 		} else {
 			const { label: editorTypeLabel, hover: editorTypeHover } = this._createEditorTypeControl();
