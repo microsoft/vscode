@@ -120,6 +120,86 @@ suite('AgentHostCustomizationEnablementService', () => {
 		});
 	});
 
+	test('persists enablement for an unpublished plugin and announces the change', () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const service = disposables.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
+		const session = AgentSession.uri('copilotcli', 'unpublished-plugin').toString();
+		const pluginId = 'file:///plugins/unpublished';
+		const events: Array<{ session: boolean; policyKey: boolean }> = [];
+
+		createSession(stateManager, session);
+		disposables.add(service.onDidChangeEnablement(event => {
+			events.push({
+				session: event.affectsSession(session),
+				policyKey: event.affectsSome(new Set([pluginId])),
+			});
+		}));
+
+		service.handleToggle(session, pluginId, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+
+		assert.deepStrictEqual({
+			policy: storageService.get(CustomizationEnablementStorageKey),
+			events,
+		}, {
+			policy: { global: { [pluginId]: false } },
+			events: [{ session: true, policyKey: true }],
+		});
+	});
+
+	test('ignores an unpublished MCP server toggle', () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const service = disposables.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
+		const session = AgentSession.uri('copilotcli', 'unpublished-mcp-server').toString();
+		const mcpIds = [
+			'mcp-top-level:copilotcli:unpublished-mcp-server:search',
+			'file:///plugins/unpublished/.mcp.json#mcp=search',
+		];
+		let eventCount = 0;
+
+		createSession(stateManager, session);
+		disposables.add(service.onDidChangeEnablement(() => eventCount++));
+
+		for (const mcpId of mcpIds) {
+			service.handleToggle(session, mcpId, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		}
+
+		assert.deepStrictEqual({
+			policy: storageService.get(CustomizationEnablementStorageKey),
+			eventCount,
+		}, {
+			policy: undefined,
+			eventCount: 0,
+		});
+	});
+
+	test('restores an unpublished plugin after a single enable', () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const storageService = disposables.add(new AgentHostStorageService(logService));
+		const service = disposables.add(new AgentHostCustomizationEnablementService(storageService, configurationService, stateManager));
+		const session = AgentSession.uri('copilotcli', 'unpublished-plugin-enable').toString();
+		const plugin = createPluginCustomization();
+
+		createSession(stateManager, session);
+		storageService.set(CustomizationEnablementStorageKey, { global: { [plugin.id]: false } });
+		service.handleToggle(session, plugin.id, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+		assert.deepStrictEqual({
+			policy: storageService.get(CustomizationEnablementStorageKey),
+			resolved: service.applyEnablement([plugin], undefined),
+		}, {
+			policy: undefined,
+			resolved: [plugin],
+		});
+	});
+
 	test('masks plugin children without erasing their resolved enablement', () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));

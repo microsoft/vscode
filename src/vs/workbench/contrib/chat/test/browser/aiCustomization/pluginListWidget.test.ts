@@ -314,6 +314,41 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('merges an enable action with an unpublished agent-host plugin setter', async () => {
+		const service = new TestAgentHostCustomizationService([], ['file:///repo']);
+		const provider = createProvider(service);
+		const localWrites: string[] = [];
+		const localAction = new Action('agentPlugin.enable', 'Enable', undefined, true, () => {
+			localWrites.push('profile');
+			return Promise.resolve();
+		});
+		disposables.add(localAction);
+
+		const [[action]] = mergeInstalledPluginEnablementActions(
+			URI.parse('file:///plugin-1'),
+			'Plugin One',
+			[[localAction]],
+			[],
+			provider.getPluginEnablementSetter(sessionResource, URI.parse('file:///plugin-1')),
+		);
+		if (isDisposable(action)) {
+			disposables.add(action);
+		}
+
+		await action.run();
+
+		assert.deepStrictEqual({
+			localWrites,
+			hostWrites: service.calls,
+		}, {
+			localWrites: ['profile'],
+			hostWrites: [{
+				rawId: 'file:///plugin-1',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			}],
+		});
+	});
+
 	test('leaves local plugin actions unchanged without an agent-host customization', async () => {
 		const localWrites: string[] = [];
 		const localAction = new Action(

@@ -449,25 +449,27 @@ export function mergeInstalledPluginEnablementActions(
 	pluginName: string,
 	actionGroups: readonly IAction[][],
 	agentHostCustomizations: readonly ICustomizationItem[],
+	agentHostEnablementSetter?: (kind: CustomizationEnablementKind, enabled: boolean) => void,
 ): IAction[][] {
 	const agentHostCustomization = findAgentHostPluginCustomization(pluginUri, pluginName, agentHostCustomizations);
-	if (!agentHostCustomization) {
+	const setEnablement = agentHostCustomization?.setEnablement ?? agentHostEnablementSetter;
+	if (!setEnablement) {
 		return actionGroups.map(group => [...group]);
 	}
 
-	const actionsById = new Map((agentHostCustomization.actions ?? []).map(action => [action.id, action]));
+	const actionsById = new Map((agentHostCustomization?.actions ?? []).map(action => [action.id, action]));
 	// The host publishes only the inverse action for each scope, so presence of one
 	// specific id says nothing about whether the scope applies. Workspace scope is
 	// applicable when the host offers either variant; when it is not (a session with
 	// no working directory) the local workspace action is dropped too, since the
 	// merged action would silently only do half of what its label says.
-	const hostSupportsWorkspace = actionsById.has('plugin.agentHost.enableWorkspace') || actionsById.has('plugin.agentHost.disableWorkspace');
+	const hostSupportsWorkspace = !agentHostCustomization || actionsById.has('plugin.agentHost.enableWorkspace') || actionsById.has('plugin.agentHost.disableWorkspace');
 	const sessionAction = actionsById.get('plugin.agentHost.enableSession') ?? actionsById.get('plugin.agentHost.disableSession');
 	let sessionActionAdded = false;
 	const mergedGroups = actionGroups.map(group => {
 		const mergedGroup = group
 			.filter(action => getAgentHostPluginEnablementDecision(action)?.kind !== CustomizationEnablementKind.Workspace || hostSupportsWorkspace)
-			.map(action => withAgentHostPluginEnablement(action, agentHostCustomization.setEnablement));
+			.map(action => withAgentHostPluginEnablement(action, setEnablement));
 		if (!sessionActionAdded && sessionAction && group.some(action => getAgentHostPluginEnablementDecision(action) !== undefined)) {
 			mergedGroup.push(toCustomizationItemAction(sessionAction));
 			sessionActionAdded = true;
@@ -1331,6 +1333,10 @@ export class PluginListWidget extends Disposable {
 				entry.item.name,
 				groups,
 				this.remoteItems,
+				this.harnessService.getActiveDescriptor().itemProvider?.getPluginEnablementSetter?.(
+					this.harnessService.activeSessionResource.get(),
+					entry.item.plugin.uri,
+				),
 			);
 			for (const menuActions of mergedGroups) {
 				for (const menuAction of menuActions) {

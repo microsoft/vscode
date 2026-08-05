@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -120,15 +120,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return (kind, enabled) => {
 			const current = this._customAgentsService.getCustomizations(sessionResource).find(candidate =>
 				candidate.type === CustomizationType.Plugin && candidate.id === customizationId);
-			if (!current) {
-				return;
-			}
 			const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 			this._customAgentsService.setCustomizationEnablement(
 				sessionResource,
 				customizationId,
 				withCustomizationEnablement(
-					current.enablement,
+					current?.enablement,
 					kind,
 					kind === CustomizationEnablementKind.Workspace
 						? workingDirectories.map(uri => ({ kind, uri, enabled }))
@@ -136,6 +133,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				),
 			);
 		};
+	}
+
+	getPluginEnablementSetter(sessionResource: URI, pluginUri: URI): (kind: CustomizationEnablementKind, enabled: boolean) => void {
+		return this._pluginEnablementSetter(sessionResource, customizationId(pluginUri.toString()));
 	}
 
 	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem[] {

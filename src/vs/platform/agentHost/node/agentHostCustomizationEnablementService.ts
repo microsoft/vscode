@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import type { IReadableSet } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { CustomizationType, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../common/state/protocol/channels-session/state.js';
@@ -13,7 +14,7 @@ import type { URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { applyPersistedCustomizationEnablementPolicy, customizationEnablementEquals, customizationPolicyKey, getPrimaryWorkingDirectory, resolveEnablement as resolvePersistedEnablement, resolveRootConfigMcpServerEnablement, updateCustomizationEnablementPolicy, type CustomizationEnablementPolicy, type CustomizationEnablementTarget } from './shared/mcpServerEnablement.js';
+import { applyPersistedCustomizationEnablementPolicy, customizationEnablementEquals, customizationPolicyKey, getPrimaryWorkingDirectory, MCP_TOP_LEVEL_CUSTOMIZATION_ID_PREFIX, resolveEnablement as resolvePersistedEnablement, resolveRootConfigMcpServerEnablement, updateCustomizationEnablementPolicy, type CustomizationEnablementPolicy, type CustomizationEnablementTarget } from './shared/mcpServerEnablement.js';
 
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 export const CustomizationEnablementStorageKey = 'customizationEnablement';
@@ -62,10 +63,12 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	handleToggle(session: string, id: string, enablement: readonly CustomizationEnablement[]): void {
 		const found = findCustomization(this._stateManager.getSessionState(session)?.customizations, customization => customization.id === id);
-		if (!found) {
+		const policyKey = found
+			? customizationPolicyKey(found.customization, found.source)
+			: isContainerCustomizationId(id) ? id : undefined;
+		if (!policyKey) {
 			return;
 		}
-		const policyKey = customizationPolicyKey(found.customization, found.source);
 		const policy = updateCustomizationEnablementPolicy(this._policy(), policyKey, enablement, getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(session)));
 		if (policy) {
 			this._storageService.set(CustomizationEnablementStorageKey, policy);
@@ -99,6 +102,34 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return this._storageService.get<CustomizationEnablementPolicy>(CustomizationEnablementStorageKey);
 	}
 
+}
+
+/**
+ * Whether `id` can be keyed as a container customization without having the
+ * customization itself in hand.
+ *
+ * A plugin's policy key is simply its id, so a toggle for one can be persisted
+ * even when it is not currently published -- which happens routinely, since a
+ * locally-disabled plugin is never synced to the host. An MCP server's key is
+ * derived from its name and contributing plugin, so it cannot be reconstructed
+ * from an id alone and must not take this path.
+ *
+ * Recognised structurally, because {@link ActionType.SessionCustomizationToggled}
+ * does not carry a type: `customizationId()` mints a bare URI with no fragment
+ * for a whole resource, while MCP servers use an `#mcp=` fragment or the
+ * `mcp-top-level:` prefix, and ranged children use `#range=`. Anything carrying
+ * a fragment is therefore not a container id.
+ */
+function isContainerCustomizationId(id: string): boolean {
+	if (id.startsWith(MCP_TOP_LEVEL_CUSTOMIZATION_ID_PREFIX)) {
+		return false;
+	}
+	try {
+		const uri = URI.parse(id);
+		return uri.scheme.length > 0 && uri.fragment.length === 0;
+	} catch {
+		return false;
+	}
 }
 
 class CustomizationEnablementChangeEvent implements ICustomizationEnablementChangeEvent {

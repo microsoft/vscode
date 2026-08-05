@@ -219,6 +219,13 @@ export interface ICustomizationItemProvider {
 	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
 
 	/**
+	 * Returns a setter for a plugin that is not currently published as a
+	 * customization item, such as a locally disabled plugin that has not been
+	 * synchronized to the agent host yet.
+	 */
+	getPluginEnablementSetter?(sessionResource: URI, pluginUri: URI): ((kind: CustomizationEnablementKind, enabled: boolean) => void) | undefined;
+
+	/**
 	 * Provide the custom agents this harness supports.
 	 *
 	 * @param sessionResource URI of the chat session whose
