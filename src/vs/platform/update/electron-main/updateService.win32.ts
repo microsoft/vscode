@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn } from 'child_process';
-import { app } from 'electron';
+import { spawn, SpawnOptions } from 'child_process';
+import * as electron from 'electron';
 import { unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { release, tmpdir } from 'os';
+import { localize } from '../../../nls.js';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -36,14 +37,24 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { getWin32UpdateType } from './win32UpdateType.js';
+import { completeWin32UpdateAttempt, Win32UpdateAttempt } from './win32UpdateAttempt.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
-	updateFilePath?: string;
-	/** File path used to signal the Inno Setup installer to cancel */
-	cancelFilePath?: string;
-	/** The Inno Setup process that is applying the update in the background */
-	updateProcess?: ChildProcess;
+	updateProcess?: IUpdateProcess;
+	updateAttempt?: Win32UpdateAttempt;
+}
+
+interface IUpdateProcess {
+	readonly pid?: number;
+	readonly exitCode: number | null;
+	once(event: 'error', listener: (error: Error) => void): this;
+	once(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
+	removeAllListeners(): this;
+}
+
+interface IWindowsMutex {
+	isActive(name: string): boolean;
 }
 
 let _updateType: UpdateType | undefined = undefined;
@@ -58,7 +69,7 @@ function getUpdateType(): UpdateType {
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
-	private updateCancellationTokenSource: CancellationTokenSource | undefined;
+	private updateAttemptCounter = 0;
 	/** Cancels an in-flight check/download chain (e.g. when updates are disabled at runtime). */
 	private checkCancellationTokenSource: CancellationTokenSource | undefined;
 	/** Settles when the in-flight check/download chain has fully unwound; used by the cancel path. */
@@ -75,8 +86,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	@memoize
-	private get mutex(): Promise<typeof import('@vscode/windows-mutex')> {
+	protected get mutex(): Promise<IWindowsMutex> {
 		return import('@vscode/windows-mutex');
+	}
+
+	protected spawnUpdateProcess(command: string, args: readonly string[], options: SpawnOptions): IUpdateProcess {
+		return spawn(command, args, options);
 	}
 
 	constructor(
@@ -119,7 +134,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	protected override async initialize(): Promise<void> {
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
-			app.setPath('appUpdate', cachePath);
+			electron.app.setPath('appUpdate', cachePath);
 			await this.unlink(path.join(cachePath, 'session-ending.flag'));
 		}
 
@@ -154,7 +169,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		// Check for pending update from previous session
 		// This can happen if the app is quit right after the update has been
 		// downloaded and before the update has been applied.
-		const exePath = app.getPath('exe');
+		const exePath = electron.app.getPath('exe');
 		const exeDir = path.dirname(exePath);
 		const updatingVersionPath = path.join(exeDir, 'updating_version');
 		if (await pfs.Promises.exists(updatingVersionPath)) {
@@ -187,7 +202,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
-		const exePath = app.getPath('exe');
+		const exePath = electron.app.getPath('exe');
 		const exeDir = path.dirname(exePath);
 		const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 		const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
@@ -396,7 +411,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return Promise.resolve(undefined);
 		}
 
-		if (!this.availableUpdate) {
+		const availableUpdate = this.availableUpdate;
+		if (!availableUpdate) {
 			return Promise.resolve(undefined);
 		}
 
@@ -405,13 +421,18 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.setState(State.Updating(update, explicit));
 
 		const cachePath = await this.cachePath;
-		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
-		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		const progressFilePath = path.join(cachePath, `update-progress`);
-		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
-		this.availableUpdate.cancelFilePath = cancelFilePath;
+		if (!this.isApplyingUpdate(availableUpdate)) {
+			return;
+		}
 
+		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const mutex = await this.mutex;
+		if (!this.isApplyingUpdate(availableUpdate)) {
+			return;
+		}
+
+		const updateAttempt = availableUpdate.updateAttempt = new Win32UpdateAttempt(cachePath, this.productService.quality!, update.version, ++this.updateAttemptCounter);
+		const token = updateAttempt.cancellationTokenSource.token;
 		const skippedSpawn = this.isInstallerActive(mutex);
 
 		// Skip the spawn if another Inno Setup is already running for this product (background update or a manual installer);
@@ -419,49 +440,66 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		if (skippedSpawn) {
 			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
 		} else {
-			await this.unlink(cancelFilePath);
-			await this.unlink(progressFilePath);
-			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
+			try {
+				await pfs.Promises.writeFile(updateAttempt.updateFilePath, 'flag');
+			} catch (error) {
+				this.failUpdateAttempt(availableUpdate, updateAttempt, error instanceof Error ? error : new Error(String(error)));
+				return;
+			}
 
-			const child = spawn(this.availableUpdate.packagePath,
-				[
+			if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
+				updateAttempt.complete();
+				await this.cleanupUpdateAttempt(availableUpdate);
+				return;
+			}
+
+			let child: IUpdateProcess;
+			try {
+				child = this.spawnUpdateProcess(availableUpdate.packagePath, [
 					'/verysilent',
 					'/log',
-					`/update="${this.availableUpdate.updateFilePath}"`,
-					`/progress="${progressFilePath}"`,
+					`/update="${updateAttempt.updateFilePath}"`,
+					`/progress="${updateAttempt.progressFilePath}"`,
 					`/sessionend="${sessionEndFlagPath}"`,
-					`/cancel="${cancelFilePath}"`,
+					`/cancel="${updateAttempt.cancelFilePath}"`,
 					'/nocloseapplications',
 					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-				],
-				{
+				], {
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore'],
 					windowsVerbatimArguments: true,
 					env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
+				});
+			} catch (error) {
+				this.failUpdateAttempt(availableUpdate, updateAttempt, error instanceof Error ? error : new Error(String(error)));
+				return;
+			}
+
+			availableUpdate.updateProcess = child;
+			child.once('error', error => this.failUpdateAttempt(availableUpdate, updateAttempt, error));
+			child.once('exit', (code, signal) => {
+				availableUpdate.updateProcess = undefined;
+				if (mutex.isActive(this.readyMutexName)) {
+					this.completeUpdateAttempt(availableUpdate, updateAttempt, update, explicit);
+				} else {
+					timeout(500).then(() => {
+						if (mutex.isActive(this.readyMutexName)) {
+							this.completeUpdateAttempt(availableUpdate, updateAttempt, update, explicit);
+						} else {
+							this.failUpdateAttempt(availableUpdate, updateAttempt, new Error(`Update installer exited before ready (code: ${code}, signal: ${signal})`));
+						}
+					});
 				}
-			);
-
-			// Track the process so we can cancel it if needed
-			this.availableUpdate.updateProcess = child;
-
-			child.once('exit', () => {
-				this.availableUpdate = undefined;
-				this.setState(State.Idle(getUpdateType()));
 			});
 		}
-
-		this.updateCancellationTokenSource?.dispose(true);
-		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
-		const token = cts.token;
 
 		const poll = async () => {
 			// If we skipped the spawn, the foreign installer was active when we started; treat that as having seen it run
 			// so a quick exit (cancel/fail) before the first poll iteration still drops us to Idle.
 			let seenRunning = skippedSpawn;
-			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
+			while (this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
 				if (mutex.isActive(this.readyMutexName)) {
-					this.setState(State.Ready(update, explicit, this._overwrite));
+					this.completeUpdateAttempt(availableUpdate, updateAttempt, update, explicit);
 					return;
 				}
 
@@ -469,15 +507,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				if (this.isInstallerActive(mutex)) {
 					seenRunning = true;
 				} else if (seenRunning) {
-					if (!this.availableUpdate?.updateProcess) {
-						this.availableUpdate = undefined;
-						this.setState(State.Idle(getUpdateType()));
+					if (skippedSpawn) {
+						this.failUpdateAttempt(availableUpdate, updateAttempt, new Error('Update installer exited before ready'));
 					}
 					return;
 				}
 
 				try {
-					const progressContent = await readFile(progressFilePath, 'utf8');
+					const progressContent = await readFile(updateAttempt.progressFilePath, 'utf8');
 					if (!token.isCancellationRequested) {
 						const [currentStr, maxStr] = progressContent.split(',');
 						const currentProgress = parseInt(currentStr, 10);
@@ -497,19 +534,72 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		};
 
 		const cancelTimeout = new ProcessTimeRunOnceScheduler(() => {
-			this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
-			this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+			this.failUpdateAttempt(availableUpdate, updateAttempt, new Error('Update installer timed out waiting to become ready'));
 		}, 60 * 60 * 1000);
 
 		// Poll for progress and ready mutex for 1 hour.
 		cancelTimeout.schedule();
 		poll().finally(() => {
 			cancelTimeout.dispose();
-			if (this.updateCancellationTokenSource === cts) {
-				this.updateCancellationTokenSource = undefined;
+			if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
+				updateAttempt.complete();
 			}
-			cts.dispose();
 		});
+	}
+
+	private isCurrentUpdateAttempt(availableUpdate: IAvailableUpdate, updateAttempt: Win32UpdateAttempt): boolean {
+		return this.isApplyingUpdate(availableUpdate)
+			&& availableUpdate.updateAttempt === updateAttempt
+			&& updateAttempt.isActive;
+	}
+
+	private isApplyingUpdate(availableUpdate: IAvailableUpdate): boolean {
+		return this.availableUpdate === availableUpdate && this.state.type === StateType.Updating;
+	}
+
+	private completeUpdateAttempt(availableUpdate: IAvailableUpdate, updateAttempt: Win32UpdateAttempt, update: IUpdate, explicit: boolean): void {
+		if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
+			return;
+		}
+
+		completeWin32UpdateAttempt(availableUpdate.updateAttempt, updateAttempt);
+		this.setState(State.Ready(update, explicit, this._overwrite));
+	}
+
+	private failUpdateAttempt(availableUpdate: IAvailableUpdate, updateAttempt: Win32UpdateAttempt, error: Error): void {
+		if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
+			updateAttempt.complete();
+			return;
+		}
+
+		completeWin32UpdateAttempt(availableUpdate.updateAttempt, updateAttempt);
+		this.availableUpdate = undefined;
+
+		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(error))) });
+		this.logService.error('update#doApplyUpdate: update installation failed', error);
+		this.finishFailedUpdateAttempt(availableUpdate);
+	}
+
+	private async finishFailedUpdateAttempt(availableUpdate: IAvailableUpdate): Promise<void> {
+		try {
+			await this.cleanupUpdateAttempt(availableUpdate, true);
+		} catch (error) {
+			this.logService.warn('update#doApplyUpdate: failed to clean up update attempt', error);
+		}
+
+		if (!this.availableUpdate && this.state.type === StateType.Updating) {
+			this.setState(State.Idle(getUpdateType(), localize('updateInstallFailed', "Update installation failed. Please try again.")));
+		}
+	}
+
+	private async cleanupUpdateAttempt(availableUpdate: IAvailableUpdate, removePackage = false): Promise<void> {
+		const updateAttempt = availableUpdate.updateAttempt;
+		await Promise.all([
+			this.unlink(updateAttempt?.updateFilePath),
+			this.unlink(updateAttempt?.cancelFilePath),
+			this.unlink(updateAttempt?.progressFilePath),
+			removePackage ? this.unlink(availableUpdate.packagePath) : Promise.resolve()
+		]);
 	}
 
 	protected override async cancelUpdate(): Promise<void> {
@@ -549,11 +639,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async cancelPendingUpdate(): Promise<void> {
-		if (!this.availableUpdate) {
+		const availableUpdate = this.availableUpdate;
+		if (!availableUpdate) {
 			return;
 		}
 
-		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;
+		const { updateProcess, updateAttempt } = availableUpdate;
 
 		// Another instance owns the installer: abort if it's still running so we don't start a new
 		// update cycle on top of it; keep `availableUpdate` so quit-and-install can still complete.
@@ -561,21 +652,22 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			throw new Error('Cannot cancel pending update: another instance is still running setup');
 		}
 
-		// Cancel the polling loop
-		this.updateCancellationTokenSource?.dispose(true);
-		this.updateCancellationTokenSource = undefined;
+		updateAttempt?.complete();
 
 		if (updateProcess && updateProcess.exitCode === null) {
 			this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 
 			// Remove all listeners to prevent the exit handler from changing state
 			updateProcess.removeAllListeners();
-			const exitPromise = new Promise<boolean>(resolve => updateProcess.once('exit', () => resolve(true)));
+			const exitPromise = new Promise<boolean>(resolve => {
+				updateProcess.once('error', () => resolve(false));
+				updateProcess.once('exit', () => resolve(true));
+			});
 
 			// Write the cancel file to signal Inno Setup to exit gracefully
-			if (cancelFilePath) {
+			if (updateAttempt) {
 				try {
-					await pfs.Promises.writeFile(cancelFilePath, 'cancel');
+					await pfs.Promises.writeFile(updateAttempt.cancelFilePath, 'cancel');
 				} catch (err) {
 					this.logService.warn('update#cancelPendingUpdate: failed to write cancel file', err);
 				}
@@ -590,13 +682,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 		}
 
-		// Clean up the flag file
-		await this.unlink(updateFilePath);
+		await this.cleanupUpdateAttempt(availableUpdate);
 
-		// Clean up the cancel file
-		await this.unlink(cancelFilePath);
-
-		this.availableUpdate = undefined;
+		if (this.availableUpdate === availableUpdate) {
+			this.availableUpdate = undefined;
+		}
 	}
 
 	protected override doQuitAndInstall(): void {
@@ -606,9 +696,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (this.availableUpdate.updateFilePath) {
+		if (this.availableUpdate.updateAttempt) {
 			try {
-				unlinkSync(this.availableUpdate.updateFilePath);
+				unlinkSync(this.availableUpdate.updateAttempt.updateFilePath);
 			} catch {
 				// ignore
 			}
@@ -668,7 +758,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
-	private isInstallerActive(mutex: typeof import('@vscode/windows-mutex')): boolean {
+	private isInstallerActive(mutex: IWindowsMutex): boolean {
 		return mutex.isActive(this.updatingMutexName) || mutex.isActive(this.setupMutexName);
 	}
 

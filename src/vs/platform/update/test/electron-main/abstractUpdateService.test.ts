@@ -145,10 +145,14 @@ suite('AbstractUpdateService', () => {
 	}
 
 	function changeMode(service: TestUpdateService, mode: string): Promise<unknown> {
-		configurationService.setUserConfiguration('update.mode', mode);
 		const next = Event.toPromise(service.onStateChange);
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+		configureMode(mode);
 		return next;
+	}
+
+	function configureMode(mode: string): void {
+		configurationService.setUserConfiguration('update.mode', mode);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
 	}
 
 	function setPolicy(service: TestUpdateService, policyValue: string | undefined): Promise<unknown> {
@@ -218,6 +222,84 @@ suite('AbstractUpdateService', () => {
 			await changeMode(service, 'none');
 			await clock.tickAsync(60 * 60 * 1000);
 			assert.strictEqual(service.checkCount, 1, 'none should not schedule further checks');
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('start schedules one check only at startup', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('start');
+			await service.whenInitialized;
+
+			await clock.tickAsync(30 * 1000);
+			await clock.tickAsync(60 * 60 * 1000);
+
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('switching to start does not schedule a check in the current process', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('manual');
+			await service.whenInitialized;
+
+			configureMode('start');
+			await clock.tickAsync(30 * 1000);
+
+			assert.strictEqual(service.checkCount, 0);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('switching to default schedules repeated checks', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('manual');
+			await service.whenInitialized;
+
+			configureMode('default');
+			await clock.tickAsync(30 * 1000);
+			await clock.tickAsync(60 * 60 * 1000);
+
+			assert.strictEqual(service.checkCount, 2);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('redundant default configuration event does not postpone the scheduled check', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('default');
+			await service.whenInitialized;
+
+			await clock.tickAsync(20 * 1000);
+			configureMode('default');
+			await clock.tickAsync(10 * 1000);
+
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('switching away from default prevents the previous schedule from repeating', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('default');
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+
+			configureMode('manual');
+			await clock.tickAsync(60 * 60 * 1000);
+
+			assert.strictEqual(service.checkCount, 1);
 		} finally {
 			clock.restore();
 		}
