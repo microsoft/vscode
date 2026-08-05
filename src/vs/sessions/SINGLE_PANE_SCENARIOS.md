@@ -47,7 +47,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Editor/detail visibility is shared through two lifecycle profiles: one for **New Sessions** and one for **Existing Sessions**. Same-type navigation keeps the matching profile; entering the other type restores its profile. Submit is the exception: it preserves the current composition and seeds the Existing profile from it. The active editor still selects the detail content, and opening the empty **Files placeholder** reveals Files because that tab's content lives in the detail panel.
+Editor/detail visibility is shared through two lifecycle profiles: one for **New Sessions** and one for **Existing Sessions**. Same-type navigation keeps the matching profile; entering the other type restores its profile. Submit is the exception: it preserves the current composition and seeds the Existing profile from it. The active editor still selects the detail content: every diff editor selects Changes, every file editor selects Files, and opening the empty **Files placeholder** reveals Files because that tab's content lives in the detail panel.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses
@@ -134,8 +134,8 @@ The single-pane layout controller (`SinglePaneLayoutController`) maps the active
 
 | Active tab | Detail panel |
 |-----------|--------------|
-| **Changes** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
-| **File** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
+| **Changes or any diff editor** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
+| **Any file or Markdown preview editor** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
 | **Browser** | **Hidden** (transiently) while the Browser tab is active; restored when switching back |
 
 Rules:

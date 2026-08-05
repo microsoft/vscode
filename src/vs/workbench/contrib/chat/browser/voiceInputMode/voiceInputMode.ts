@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -147,7 +148,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		// `chat.speechToText.enabled` kill-switch, so the segment only appears
 		// where clicking it can actually dictate.
 		this.dictationAvailable = observableFromEvent(this,
-			configurationService.onDidChangeConfiguration,
+			Event.any(configurationService.onDidChangeConfiguration, contextKeyService.onDidChangeContext),
 			() => chatSpeechToTextService.isConfigured
 				&& configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false);
 
