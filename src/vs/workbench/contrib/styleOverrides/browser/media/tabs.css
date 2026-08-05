@@ -149,24 +149,24 @@
 /* Grow the hit area around the fixed-height pill without overriding the base
  * tab height. Transparent block borders become clickable gutter while keeping
  * the label, action, and indicator geometry tied to the pill height. */
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) {
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) {
 	padding-top: 0;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
 	padding-bottom: 0;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
 	border-block: var(--vscode-spacing-size40) solid transparent;
 }
 
-.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
+.style-override.monaco-workbench .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
 	border-block: var(--vscode-spacing-size20) solid transparent;
 }
