@@ -229,7 +229,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		const unsubscribeSessionTree = () => {
 			// The parent-session unsubscribe is sent last so it triggers eviction.
-			for (const channel of [subagentChatUri, buildDefaultChatUri(sessionUri), sessionUri]) {
+			for (const channel of [
+				subagentChatUri,
+				buildDefaultChatUri(replaySubagentSessionUri),
+				replaySubagentSessionUri,
+				buildDefaultChatUri(sessionUri),
+				sessionUri,
+			]) {
 				context.client.notify('unsubscribe', { channel });
 			}
 		};
