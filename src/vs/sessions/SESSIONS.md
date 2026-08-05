@@ -1122,6 +1122,16 @@ On the first handoff in a window, `SelectAgentsFolderContribution` starts `Sessi
 
 ### Automation Run Lifecycle
 
+Agent Host Protocol capable connections own their automation definitions,
+trigger evaluation, run claims, run channels, and spawned sessions. The client
+subscribes to `ahp-automation:` definitions and `ahp-automation-run:` tasks,
+projects them into the existing Automations list, and never dispatches their
+schedules through the window leader. Run channels retain trigger provenance,
+blocked/cancelled lifecycle, all linked sessions, the primary session, and
+artifacts; session/chat channels remain authoritative for conversation state.
+A disconnected capable authority keeps its cached definitions visible and
+read-only instead of falling back to the local scheduler.
+
 `AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves
 dispatch after recording the committed session resource on the run row, then
 observes the session's main chat status until it reaches a terminal state. `InProgress`,
@@ -1146,6 +1156,13 @@ The persisted ledger uses schema v3 for the target union and migrates schema-v1/
 flat records without rewriting them until the next normal save. Older builds
 therefore treat the new shape as a newer read-only schema instead of dropping
 workspace-less rows.
+
+When an Agent Host reports automation capability, explicit Agent Host targets
+move through a crash-resumable cutover journal: import a disabled host copy,
+disable and remove the scheduler-visible local row, then enable the host copy.
+An inert application-scoped backup retains rollback data. The migration does not
+content-deduplicate or import legacy run history, and targets that cannot be
+mapped to an Agent Host remain explicit legacy rows.
 
 The automation dialog keeps a Worktree branch selection as explicit intent,
 separate from the repository's live `HEAD`. Folder isolation displays live

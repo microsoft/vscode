@@ -48,6 +48,21 @@ export const enum SessionStatus {
 	IsArchived = 1 << 6,
 }
 
+/** @category Session State */
+export const enum SessionOriginKind {
+	Automation = 'automation',
+}
+
+/** @category Session State */
+export interface AutomationSessionOrigin {
+	kind: SessionOriginKind.Automation;
+	automation: URI;
+	run: URI;
+}
+
+/** @category Session State */
+export type SessionOrigin = AutomationSessionOrigin;
+
 /**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
@@ -70,6 +85,8 @@ export interface SessionMetadata {
 	status: SessionStatus;
 	/** Human-readable description of what the session is currently doing */
 	activity?: string;
+	/** Durable origin of this session, when another AHP resource created it. */
+	origin?: SessionOrigin;
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**

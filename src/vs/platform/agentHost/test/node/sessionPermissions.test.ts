@@ -423,6 +423,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
+	test('requires confirmation for referenced tool input', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const event: IToolApprovalEvent = {
+			...shellEvent('echo hello', 'bash'),
+			toolInput: { uri: 'vscode-agent-client:/tool-input/1', contentType: 'application/json' },
+		};
+
+		assert.strictEqual(await permissions.getAutoApproval(event, sessionUri), undefined);
+		assert.strictEqual(permissions.isAutoApproveRuleResolvable(event, sessionUri), false);
+	});
+
 	test('global auto-approve is reported independently of the session permission picker', () => {
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), false);
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);

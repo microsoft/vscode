@@ -792,7 +792,7 @@ function isAutomationWorkspaceIsolation(value: AutomationWorkspaceIsolation | un
 }
 
 function findActiveRun(runs: readonly IAutomationRun[], automationId: string): IAutomationRun | undefined {
-	return runs.find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
+	return runs.find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running' || run.status === 'blocked'));
 }
 
 function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {

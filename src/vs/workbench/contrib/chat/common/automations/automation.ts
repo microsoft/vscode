@@ -52,6 +52,14 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+export interface IAutomationHost {
+	readonly authority: string;
+	readonly resource: string;
+	readonly revision: number;
+	readonly connected: boolean;
+	readonly hasUnsupportedTriggers: boolean;
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -83,6 +91,9 @@ export interface IAutomationDescriptor {
 
 	/** ISO-8601 UTC timestamp; `undefined` when interval is `manual`. */
 	readonly nextRunAt?: string;
+
+	/** Present when the definition is owned by an Agent Host Protocol authority. */
+	readonly host?: IAutomationHost;
 }
 
 /**
@@ -90,13 +101,13 @@ export interface IAutomationDescriptor {
  * is active or needs input, and becomes terminal when that session completes or
  * fails, or when tracking is cancelled or times out while the session may remain active.
  */
-export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type AutomationRunStatus = 'pending' | 'running' | 'blocked' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * What kicked off a run. `catch_up` fires once at startup for a due-time that
  * passed while VS Code was closed.
  */
-export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
+export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'event' | 'manual';
 
 export interface IAutomationRun {
 	readonly id: string;
@@ -106,6 +117,9 @@ export interface IAutomationRun {
 
 	/** Session resource URI, recorded as soon as the committed session is available. */
 	readonly sessionResource?: URI;
+	readonly sessionResources?: readonly URI[];
+	readonly artifactCount?: number;
+	readonly blocker?: string;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

@@ -140,10 +140,14 @@ function formatRunStatus(run: IAutomationRun): string {
 			return localize('automationsAccessibleView.pending', "Pending");
 		case 'running':
 			return localize('automationsAccessibleView.running', "Running");
+		case 'blocked':
+			return localize('automationsAccessibleView.blocked', "Needs input");
 		case 'completed':
 			return localize('automationsAccessibleView.completed', "Completed");
 		case 'failed':
 			return localize('automationsAccessibleView.failed', "Failed");
+		case 'cancelled':
+			return localize('automationsAccessibleView.cancelled', "Cancelled");
 	}
 }
 

@@ -10,10 +10,10 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, ClientAutomationRunAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, type AutomationAction, type AutomationRunAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type AutomationRunState, type AutomationState, type AutomationSummary, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -235,6 +235,8 @@ export class AgentHostStateManager extends Disposable {
 	 * client-dispatchable and lazily create their state on first write.
 	 */
 	private readonly _annotations = new Map<string, AnnotationsState>();
+	private readonly _automations = new Map<string, AutomationState>();
+	private readonly _automationRuns = new Map<string, AutomationRunState>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -598,6 +600,68 @@ export class AgentHostStateManager extends Disposable {
 		return result;
 	}
 
+	restoreAutomation(state: AutomationState): void {
+		this._automations.set(state.resource, state);
+	}
+
+	addAutomation(state: AutomationState): void {
+		this._automations.set(state.resource, state);
+		this._onDidEmitNotification.fire({
+			type: 'root/automationAdded',
+			channel: ROOT_STATE_URI,
+			summary: this._toAutomationSummary(state),
+		});
+	}
+
+	removeAutomation(resource: URI): void {
+		if (!this._automations.delete(resource)) {
+			return;
+		}
+		this._onDidEmitNotification.fire({
+			type: 'root/automationRemoved',
+			channel: ROOT_STATE_URI,
+			automation: resource,
+		});
+	}
+
+	getAutomationState(resource: URI): AutomationState | undefined {
+		return this._automations.get(resource);
+	}
+
+	listAutomationSummaries(): AutomationSummary[] {
+		return [...this._automations.values()]
+			.map(state => this._toAutomationSummary(state))
+			.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+	}
+
+	restoreAutomationRun(state: AutomationRunState): void {
+		this._automationRuns.set(state.resource, state);
+	}
+
+	removeAutomationRun(resource: URI): void {
+		this._automationRuns.delete(resource);
+	}
+
+	getAutomationRunState(resource: URI): AutomationRunState | undefined {
+		return this._automationRuns.get(resource);
+	}
+
+	private _toAutomationSummary(state: AutomationState): AutomationSummary {
+		return {
+			resource: state.resource,
+			title: state.definition.title,
+			enabled: state.definition.enabled,
+			triggerCount: state.definition.triggers.length,
+			nextRunAt: state.nextRunAt,
+			lastRun: state.runs[0],
+			revision: state.revision,
+			operations: state.operations,
+			createdAt: state.createdAt,
+			modifiedAt: state.modifiedAt,
+			_meta: state._meta,
+		};
+	}
+
 	// ---- Snapshots ----------------------------------------------------------
 
 	/**
@@ -648,6 +712,15 @@ export class AgentHostStateManager extends Disposable {
 				state: this._annotations.get(resource) ?? { annotations: [] },
 				fromSeq: this._serverSeq,
 			};
+		}
+
+		const automation = this._automations.get(resource);
+		if (automation) {
+			return { resource, state: automation, fromSeq: this._serverSeq };
+		}
+		const automationRun = this._automationRuns.get(resource);
+		if (automationRun) {
+			return { resource, state: automationRun, fromSeq: this._serverSeq };
 		}
 
 		const entry = this._sessionStates.get(resource);
@@ -1342,7 +1415,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
+	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
 		return this._applyAndEmit(channel, action, origin);
 	}
 
@@ -1515,6 +1588,33 @@ export class AgentHostStateManager extends Disposable {
 			if (newState !== state) {
 				this._annotations.set(key, newState);
 			}
+			resultingState = newState;
+		}
+
+		if (isAutomationAction(action)) {
+			const state = this._automations.get(channel);
+			if (!state) {
+				this._logService.warn(`[AgentHostStateManager] Action for unknown automation: ${channel}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = automationReducer(state, action as AutomationAction, this._log);
+			this._automations.set(channel, newState);
+			resultingState = newState;
+			this._onDidEmitNotification.fire({
+				type: 'root/automationSummaryChanged',
+				channel: ROOT_STATE_URI,
+				summary: this._toAutomationSummary(newState),
+			});
+		}
+
+		if (isAutomationRunAction(action)) {
+			const state = this._automationRuns.get(channel);
+			if (!state) {
+				this._logService.warn(`[AgentHostStateManager] Action for unknown automation run: ${channel}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = automationRunReducer(state, action as AutomationRunAction, this._log);
+			this._automationRuns.set(channel, newState);
 			resultingState = newState;
 		}
 
