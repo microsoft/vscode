@@ -30,7 +30,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -399,6 +399,14 @@ class TestCopilotClient implements ITestCopilotClient {
 	}
 	createSession: ITestCopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
+}
+
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
+
+	override publicLogError2(eventName?: string, data?: unknown): void {
+		this.errorEvents.push({ eventName: eventName ?? '', data });
+	}
 }
 
 interface IFakeAgentSession {
@@ -1254,6 +1262,141 @@ suite('CopilotAgent', () => {
 			}, {
 				modelNames: ['GPT-4o'],
 				requestCount: 2,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('recovers the client and reports telemetry when the SDK connection is closed', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('Connection is closed.'));
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, m => m.length > 0);
+
+			assert.deepStrictEqual({
+				modelNames: models.map(model => model.name),
+				startCount: client.startCallCount,
+				stopCount: client.stopCallCount,
+				requestCount: client.modelListRequests.length,
+				errorEvents: telemetryService.errorEvents,
+			}, {
+				modelNames: ['GPT-4o'],
+				startCount: 2,
+				stopCount: 1,
+				requestCount: 2,
+				errorEvents: [{
+					eventName: 'agentHost.copilotConnectionClosed',
+					data: {
+						operation: 'modelRefresh',
+						activeTurnCount: 0,
+						recoveryStarted: true,
+					},
+				}],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('coalesces closed connection recovery and preserves an already-cancelled turn', async () => {
+		type RecoveryInternals = {
+			_recoverFromClosedConnection(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
+		};
+		class GatedStopClient extends TestCopilotClient {
+			readonly stopGate = new DeferredPromise<void>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				await this.stopGate.p;
+				return super.stop();
+			}
+		}
+		const client = new GatedStopClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const cancelledChat = defaultChatUri(AgentSession.uri('copilotcli', 'cancelled'));
+		const failedChat = defaultChatUri(AgentSession.uri('copilotcli', 'failed'));
+		const calls = {
+			cancelled: { discard: 0, fail: 0, dispose: 0 },
+			failed: { discard: 0, fail: 0, dispose: 0 },
+		};
+		let cancelledActive = true;
+		let failedActive = true;
+		setDefaultSessionStub(agent, 'cancelled', {
+			chatUri: cancelledChat,
+			get hasActiveTurn() { return cancelledActive; },
+			abort: async () => { throw new Error('Connection is closed.'); },
+			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; },
+			failActiveTurn: () => {
+				if (!cancelledActive) {
+					return undefined;
+				}
+				calls.cancelled.fail++;
+				cancelledActive = false;
+				return 'cancelled-turn';
+			},
+			dispose: () => calls.cancelled.dispose++,
+		});
+		setDefaultSessionStub(agent, 'failed', {
+			chatUri: failedChat,
+			get hasActiveTurn() { return failedActive; },
+			discardActiveTurn: () => { calls.failed.discard++; failedActive = false; },
+			failActiveTurn: () => {
+				if (!failedActive) {
+					return undefined;
+				}
+				calls.failed.fail++;
+				failedActive = false;
+				return 'failed-turn';
+			},
+			dispose: () => calls.failed.dispose++,
+		});
+		try {
+			await agent.listSessions();
+			const abort = agent.chats.abort(cancelledChat);
+			for (let i = 0; i < 100 && calls.cancelled.discard === 0; i++) {
+				await timeout(0);
+			}
+			const internals = agent as unknown as RecoveryInternals;
+			const second = internals._recoverFromClosedConnection(new Error('Connection is closed.'), 'modelRefresh');
+			client.stopGate.complete();
+			const [, secondResult] = await Promise.all([abort, second]);
+
+			assert.deepStrictEqual({
+				calls,
+				secondFailedTurnIds: [...(secondResult?.failedTurnIds ?? [])],
+				stopCount: client.stopCallCount,
+				remainingSessions: sessionsMap(agent).size,
+				errorEvents: telemetryService.errorEvents,
+			}, {
+				calls: {
+					cancelled: { discard: 1, fail: 0, dispose: 1 },
+					failed: { discard: 0, fail: 1, dispose: 1 },
+				},
+				secondFailedTurnIds: ['failed-turn'],
+				stopCount: 1,
+				remainingSessions: 0,
+				errorEvents: [{
+					eventName: 'agentHost.copilotConnectionClosed',
+					data: {
+						operation: 'abort',
+						activeTurnCount: 1,
+						recoveryStarted: true,
+					},
+				}, {
+					eventName: 'agentHost.copilotConnectionClosed',
+					data: {
+						operation: 'modelRefresh',
+						activeTurnCount: 0,
+						recoveryStarted: false,
+					},
+				}],
 			});
 		} finally {
 			await disposeAgent(agent);
