@@ -123,6 +123,23 @@ const pwshNoSpaceRedirectRegex = /^[0-9*]?>>?/;
  */
 export type CommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
+/**
+ * Which tree-sitter pieces actually loaded.
+ *
+ * A shell whose grammar is unavailable cannot be analyzed, so every command for
+ * it degrades to `noMatch` (fail-closed). That degradation is silent by design
+ * in production, which makes a packaging or dependency regression very hard to
+ * spot — see {@link CommandAutoApprover.initialize}.
+ */
+export interface ITreeSitterReadiness {
+	/** Whether the core tree-sitter runtime initialized. */
+	readonly parser: boolean;
+	/** Whether the bash grammar loaded and can analyze commands. */
+	readonly bash: boolean;
+	/** Whether the PowerShell grammar loaded and can analyze commands. */
+	readonly powershell: boolean;
+}
+
 /** Structured outcome of {@link CommandAutoApprover.evaluate}. */
 export interface ICommandApprovalEvaluation {
 	/** Final approval outcome, identical to {@link CommandAutoApprover.shouldAutoApprove}. */
@@ -200,7 +217,7 @@ export class CommandAutoApprover extends Disposable {
 	private _bashLanguage: Language | undefined;
 	private _powershellLanguage: Language | undefined;
 	private _queryClass: typeof Query | undefined;
-	private readonly _initPromise: Promise<void>;
+	private readonly _initPromise: Promise<ITreeSitterReadiness>;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -213,8 +230,14 @@ export class CommandAutoApprover extends Disposable {
 	 * Returns a promise that resolves once tree-sitter WASM has been loaded.
 	 * Await this before processing any events to guarantee that
 	 * {@link shouldAutoApprove} can parse commands synchronously.
+	 *
+	 * Resolves with which pieces are actually usable. Callers that only need to
+	 * await initialization can ignore the value; production stays fail-closed
+	 * when a grammar is missing. Tests and diagnostics should assert on it, as a
+	 * silently unavailable grammar turns into confusing `noMatch` results rather
+	 * than a clear error.
 	 */
-	initialize(): Promise<void> {
+	initialize(): Promise<ITreeSitterReadiness> {
 		return this._initPromise;
 	}
 
@@ -388,12 +411,24 @@ export class CommandAutoApprover extends Disposable {
 		}
 	}
 
-	private async _initTreeSitter(): Promise<void> {
+	/**
+	 * Reports readiness by actually analyzing a probe command per shell, rather
+	 * than by trusting that `Language.load()` resolved. A grammar can load
+	 * cleanly and still be the wrong grammar (or an incompatible ABI), which
+	 * yields no sub-commands and silently degrades every command to `noMatch`.
+	 */
+	private _probeShell(isPowerShell: boolean): boolean {
+		const parsed = this._extractSubCommands(isPowerShell ? 'Get-ChildItem' : 'ls', isPowerShell);
+		return parsed?.subCommands.length === 1;
+	}
+
+	private async _initTreeSitter(): Promise<ITreeSitterReadiness> {
+		const unavailable: ITreeSitterReadiness = { parser: false, bash: false, powershell: false };
 		try {
 			const { default: TreeSitter } = (await import('@vscode/tree-sitter-wasm'));
 
 			if (this._store.isDisposed) {
-				return;
+				return unavailable;
 			}
 
 			// Resolve WASM files from node_modules. In the desktop app the `.wasm`
@@ -410,7 +445,7 @@ export class CommandAutoApprover extends Disposable {
 			});
 
 			if (this._store.isDisposed) {
-				return;
+				return unavailable;
 			}
 
 			const parser = new TreeSitter.Parser();
@@ -435,7 +470,7 @@ export class CommandAutoApprover extends Disposable {
 			]);
 
 			if (this._store.isDisposed) {
-				return;
+				return unavailable;
 			}
 
 			this._parser = parser;
@@ -453,9 +488,16 @@ export class CommandAutoApprover extends Disposable {
 			} else {
 				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', powershellLanguage.reason);
 			}
-			this._logService.info(`[CommandAutoApprover] Tree-sitter initialized (bash=${this._bashLanguage ? 'available' : 'unavailable'}, powershell=${this._powershellLanguage ? 'available' : 'unavailable'})`);
+			const readiness: ITreeSitterReadiness = {
+				parser: true,
+				bash: this._probeShell(false),
+				powershell: this._probeShell(true),
+			};
+			this._logService.info(`[CommandAutoApprover] Tree-sitter initialized (bash=${readiness.bash ? 'available' : 'unavailable'}, powershell=${readiness.powershell ? 'available' : 'unavailable'})`);
+			return readiness;
 		} catch (err) {
 			this._logService.warn('[CommandAutoApprover] Failed to initialize tree-sitter', err);
+			return unavailable;
 		}
 	}
 

@@ -19,6 +19,7 @@ import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
+import { assertTreeSitterReady } from './treeSitterReadinessTestUtils.js';
 
 suite('SessionPermissionManager', () => {
 
@@ -82,7 +83,7 @@ suite('SessionPermissionManager', () => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService()));
-		await permissions.initialize();
+		assertTreeSitterReady(await permissions.initialize());
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
 	});

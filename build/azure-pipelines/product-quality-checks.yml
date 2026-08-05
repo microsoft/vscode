@@ -42,6 +42,10 @@ jobs:
         condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Extract node_modules cache
 
+      - script: node build/azure-pipelines/common/verifyNodeModulesCache.ts
+        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Verify node_modules cache
+
       - script: |
           set -e
           npm config set registry "$NPM_REGISTRY"
