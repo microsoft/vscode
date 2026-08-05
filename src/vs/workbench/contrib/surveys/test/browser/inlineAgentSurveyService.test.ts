@@ -60,6 +60,7 @@ function responseContext(overrides?: Partial<IInlineAgentSurveyResponseContext>)
 		completedUserTurns: 1,
 		elapsedChatTimeMs: 0,
 		isLatestResponse: true,
+		isSystemInitiated: false,
 		isTerminalSuccess: true,
 		hasVisibleOutput: true,
 		isPendingInput: false,
@@ -129,6 +130,23 @@ suite('InlineAgentSurveyService', () => {
 		const ctx = responseContext();
 		await service.evaluateResponseCompletion(ctx);
 		assert.strictEqual(service.getPendingSurvey(ctx.chatResource, ctx.responseId), undefined);
+	});
+
+	test('hides persisted surveys and suppresses lifecycle telemetry when feedback is disabled', async () => {
+		const service = createService();
+		const ctx = responseContext();
+		await service.evaluateResponseCompletion(ctx);
+		assert.ok(service.getPendingSurvey(ctx.chatResource, ctx.responseId));
+
+		configurationService.setUserConfiguration('telemetry.feedback.enabled', false);
+		assert.strictEqual(service.getPendingSurvey(ctx.chatResource, ctx.responseId), undefined);
+
+		service.recordImpression(ctx);
+		service.recordDismiss(ctx);
+		service.recordUndo(ctx);
+		service.recordRating(ctx, InlineAgentSurveyRating.No);
+		service.recordSubmission(ctx, { rating: InlineAgentSurveyRating.No, reason: InlineAgentSurveyReason.WrongResult });
+		assert.deepStrictEqual(telemetry.events, []);
 	});
 
 	test('does not show when master treatment is disabled', async () => {

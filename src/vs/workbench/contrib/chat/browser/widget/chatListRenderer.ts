@@ -948,6 +948,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			completedUserTurns,
 			elapsedChatTimeMs: Math.max(0, Date.now() - chatModel.timestamp),
 			isLatestResponse: chatModel.lastRequest?.response?.id === element.id,
+			isSystemInitiated: element.model.request?.isSystemInitiated === true,
 			isTerminalSuccess: element.isComplete && !element.isCanceled && !element.errorDetails,
 			hasVisibleOutput: response.some(part => part.kind === 'markdownContent' && part.content.value.trim().length > 0),
 			isPendingInput: chatModel.requestNeedsInput.get() !== undefined,

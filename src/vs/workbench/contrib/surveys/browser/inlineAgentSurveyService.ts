@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -84,8 +85,8 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 
 	/** Response IDs that must never be rolled again: historical snapshots and live rolls. */
 	private readonly rolledResponses = new Set<string>();
-	/** Chats that have been snapshotted, so snapshotting is idempotent. */
-	private readonly snapshottedChats = new Set<string>();
+	private readonly _onDidChangeFeedbackEnabled = this._register(new Emitter<boolean>());
+	readonly onDidChangeFeedbackEnabled: Event<boolean> = this._onDidChangeFeedbackEnabled.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -94,6 +95,11 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('telemetry.feedback.enabled')) {
+				this._onDidChangeFeedbackEnabled.fire(this.isFeedbackEnabled);
+			}
+		}));
 	}
 
 	private chatKey(chatResource: URI): string {
@@ -121,16 +127,11 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 		this.storageService.store(STORAGE_KEY, JSON.stringify(state), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
-	private get feedbackEnabled(): boolean {
+	get isFeedbackEnabled(): boolean {
 		return this.configurationService.getValue<boolean>('telemetry.feedback.enabled') !== false;
 	}
 
 	snapshotHistoricalResponses(chatResource: URI, responseIds: readonly string[]): void {
-		const key = this.chatKey(chatResource);
-		if (this.snapshottedChats.has(key)) {
-			return;
-		}
-		this.snapshottedChats.add(key);
 		for (const id of responseIds) {
 			this.rolledResponses.add(id);
 		}
@@ -144,7 +145,7 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 		}
 		this.rolledResponses.add(context.responseId);
 
-		if (!this.feedbackEnabled) {
+		if (!this.isFeedbackEnabled) {
 			return;
 		}
 
@@ -194,6 +195,9 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 	}
 
 	getPendingSurvey(chatResource: URI, responseId: string): IInlineAgentSurveyPending | undefined {
+		if (!this.isFeedbackEnabled) {
+			return undefined;
+		}
 		const state = this.readState();
 		const pending = state.pending[this.chatKey(chatResource)];
 		if (!pending || pending.r !== responseId) {
@@ -203,6 +207,9 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 	}
 
 	recordImpression(context: IInlineAgentSurveyResponseContext): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		const key = this.chatKey(context.chatResource);
 		const state = this.readState();
 		if (state.impressed[key]) {
@@ -215,11 +222,17 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 	}
 
 	recordDismiss(context: IInlineAgentSurveyResponseContext): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		this.updateDismissed(context, true);
 		this.log('dismiss', context);
 	}
 
 	recordUndo(context: IInlineAgentSurveyResponseContext): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		this.updateDismissed(context, false);
 		this.log('undo', context);
 	}
@@ -235,10 +248,16 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 	}
 
 	recordRating(context: IInlineAgentSurveyResponseContext, rating: InlineAgentSurveyRating): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		this.log('rating', context, rating);
 	}
 
 	recordSubmission(context: IInlineAgentSurveyResponseContext, submission: IInlineAgentSurveySubmission): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		// Log before clearing pending so the trigger is still resolvable.
 		this.log('submission', context, submission.rating, submission.reason);
 		const key = this.chatKey(context.chatResource);
@@ -250,6 +269,9 @@ export class InlineAgentSurveyService extends Disposable implements IInlineAgent
 	}
 
 	private log(action: InlineAgentSurveyAction, context: IInlineAgentSurveyResponseContext, rating?: InlineAgentSurveyRating, reason?: InlineAgentSurveyReason): void {
+		if (!this.isFeedbackEnabled) {
+			return;
+		}
 		const pending = this.getPendingSurvey(context.chatResource, context.responseId);
 		this.telemetryService.publicLog2<InlineAgentSurveyEvent, InlineAgentSurveyClassification>('inlineAgentSurvey', {
 			action,

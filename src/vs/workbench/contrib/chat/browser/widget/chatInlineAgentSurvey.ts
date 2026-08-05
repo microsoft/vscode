@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -36,6 +37,11 @@ export class ChatInlineAgentSurvey extends Disposable {
 	private submitted = false;
 	private rating: InlineAgentSurveyRating | undefined;
 	private focused = false;
+	private feedbackDisabled: boolean;
+	private questionFirstButton: HTMLElement | undefined;
+	private firstReasonButton: HTMLElement | undefined;
+	private undoButton: HTMLElement | undefined;
+	private confirmationElement: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -48,6 +54,7 @@ export class ChatInlineAgentSurvey extends Disposable {
 		super();
 
 		this.dismissed = pending.dismissed;
+		this.feedbackDisabled = !isDebug && !surveyService.isFeedbackEnabled;
 		this.domNode = dom.append(parent, dom.$('.chat-inline-agent-survey'));
 		this.domNode.setAttribute('role', 'group');
 		this.domNode.setAttribute('aria-label', localize('inlineAgentSurvey.ariaLabel', "Agent quality survey"));
@@ -58,6 +65,14 @@ export class ChatInlineAgentSurvey extends Disposable {
 			this._onDidBlur.fire();
 		}));
 		if (!this.isDebug) {
+			this._register(this.surveyService.onDidChangeFeedbackEnabled(enabled => {
+				if (!enabled) {
+					this.feedbackDisabled = true;
+					this.render();
+				}
+			}));
+		}
+		if (!this.isDebug) {
 			this.surveyService.recordImpression(context);
 		}
 		this.render();
@@ -67,17 +82,53 @@ export class ChatInlineAgentSurvey extends Disposable {
 		return this.focused;
 	}
 
-	private render(): void {
+	private render(focusTarget?: 'question' | 'reasons' | 'undo' | 'confirmation'): void {
 		this.renderDisposables.clear();
 		dom.clearNode(this.domNode);
+		this.questionFirstButton = undefined;
+		this.firstReasonButton = undefined;
+		this.undoButton = undefined;
+		this.confirmationElement = undefined;
 
-		if (this.submitted) {
+		if (this.feedbackDisabled) {
+			this.renderDisabled();
+		} else if (this.submitted) {
 			this.renderConfirmation();
 		} else if (this.dismissed) {
 			this.renderDismissed();
 		} else {
 			this.renderQuestion();
 		}
+		this.focusAfterRender(focusTarget);
+	}
+
+	private focusAfterRender(focusTarget: 'question' | 'reasons' | 'undo' | 'confirmation' | undefined): void {
+		if (!focusTarget) {
+			return;
+		}
+		switch (focusTarget) {
+			case 'question':
+				this.questionFirstButton?.focus();
+				break;
+			case 'reasons':
+				this.firstReasonButton?.focus();
+				status(localize('inlineAgentSurvey.reasonsAnnounce', "Choose a reason to submit feedback."));
+				break;
+			case 'undo':
+				this.undoButton?.focus();
+				status(localize('inlineAgentSurvey.dismissedAnnounce', "Feedback skipped. Undo is available."));
+				break;
+			case 'confirmation': {
+				this.confirmationElement?.focus();
+				status(this.confirmationMessage());
+				break;
+			}
+		}
+	}
+
+	private renderDisabled(): void {
+		const disabled = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-dismissed'));
+		disabled.textContent = localize('inlineAgentSurvey.disabled', "Feedback is disabled.");
 	}
 
 	private renderQuestion(): void {
@@ -103,7 +154,7 @@ export class ChatInlineAgentSurvey extends Disposable {
 			if (!this.isDebug) {
 				this.surveyService.recordDismiss(this.context);
 			}
-			this.render();
+			this.render('undo');
 		}));
 
 		if (this.rating === InlineAgentSurveyRating.Partly || this.rating === InlineAgentSurveyRating.No) {
@@ -115,7 +166,11 @@ export class ChatInlineAgentSurvey extends Disposable {
 		const button = this.renderDisposables.add(new Button(container, { secondary: true, ariaLabel: label }));
 		button.label = label;
 		button.checked = this.rating === rating;
+		this.questionFirstButton ??= button.element;
 		this.renderDisposables.add(button.onDidClick(() => {
+			if (this.feedbackDisabled) {
+				return;
+			}
 			this.rating = rating;
 			if (!this.isDebug) {
 				this.surveyService.recordRating(this.context, rating);
@@ -124,7 +179,7 @@ export class ChatInlineAgentSurvey extends Disposable {
 				this.submit({ rating });
 				return;
 			}
-			this.render();
+			this.render('reasons');
 		}));
 	}
 
@@ -137,8 +192,9 @@ export class ChatInlineAgentSurvey extends Disposable {
 		for (const entry of REASONS) {
 			const button = this.renderDisposables.add(new Button(options, { secondary: true, ariaLabel: entry.label }));
 			button.label = entry.label;
+			this.firstReasonButton ??= button.element;
 			this.renderDisposables.add(button.onDidClick(() => {
-				if (this.rating === InlineAgentSurveyRating.Partly || this.rating === InlineAgentSurveyRating.No) {
+				if (!this.feedbackDisabled && (this.rating === InlineAgentSurveyRating.Partly || this.rating === InlineAgentSurveyRating.No)) {
 					this.submit({ rating: this.rating, reason: entry.reason });
 				}
 			}));
@@ -150,17 +206,20 @@ export class ChatInlineAgentSurvey extends Disposable {
 		dom.append(dismissed, dom.$('span', undefined, localize('inlineAgentSurvey.dismissed', "Feedback skipped.")));
 		const undo = dom.append(dismissed, dom.$<HTMLButtonElement>('button.chat-inline-agent-survey-undo', undefined, localize('inlineAgentSurvey.undo', "Undo")));
 		undo.type = 'button';
+		this.undoButton = undo;
 		this.renderDisposables.add(dom.addDisposableListener(undo, dom.EventType.CLICK, () => {
 			this.dismissed = false;
 			if (!this.isDebug) {
 				this.surveyService.recordUndo(this.context);
 			}
-			this.render();
+			this.render('question');
 		}));
 	}
 
 	private renderConfirmation(): void {
 		const confirmation = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-confirmation'));
+		confirmation.tabIndex = -1;
+		this.confirmationElement = confirmation;
 		const icon = dom.append(confirmation, dom.$('span'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 		icon.setAttribute('aria-hidden', 'true');
@@ -171,8 +230,18 @@ export class ChatInlineAgentSurvey extends Disposable {
 			dom.append(confirmation, dom.$('span', undefined, localize('inlineAgentSurvey.confirmation.partly', "Thanks. Tell us what would make this better.")));
 			this.addIssueReporterAction(confirmation, localize('inlineAgentSurvey.requestFeature', "Request a feature"), localize('inlineAgentSurvey.requestFeature.title', "Feature request for Copilot agent"));
 		} else {
-			dom.append(confirmation, dom.$('span', undefined, localize('inlineAgentSurvey.confirmation.yes', "Thanks for your feedback.")));
+			dom.append(confirmation, dom.$('span', undefined, this.confirmationMessage()));
 		}
+	}
+
+	private confirmationMessage(): string {
+		if (this.rating === InlineAgentSurveyRating.No) {
+			return localize('inlineAgentSurvey.confirmation.no', "Sorry this missed the mark.");
+		}
+		if (this.rating === InlineAgentSurveyRating.Partly) {
+			return localize('inlineAgentSurvey.confirmation.partly', "Thanks. Tell us what would make this better.");
+		}
+		return localize('inlineAgentSurvey.confirmation.yes', "Thanks for your feedback.");
 	}
 
 	private addIssueReporterAction(parent: HTMLElement, label: string, issueTitle: string): void {
@@ -184,11 +253,16 @@ export class ChatInlineAgentSurvey extends Disposable {
 	}
 
 	private submit(submission: IInlineAgentSurveySubmission): void {
+		if (this.feedbackDisabled || (!this.isDebug && !this.surveyService.isFeedbackEnabled)) {
+			this.feedbackDisabled = true;
+			this.render();
+			return;
+		}
 		if (!this.isDebug) {
 			this.surveyService.recordSubmission(this.context, submission);
 		}
 		this.submitted = true;
-		this.render();
+		this.render('confirmation');
 
 		const reason = submission.reason === undefined ? undefined : REASONS.find(entry => entry.reason === submission.reason)?.telemetryId;
 		if (this.isDebug) {

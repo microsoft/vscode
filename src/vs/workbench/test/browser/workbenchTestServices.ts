@@ -391,6 +391,8 @@ export function workbenchInstantiationService(
 class TestInlineAgentSurveyService implements IInlineAgentSurveyService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly isFeedbackEnabled = true;
+	readonly onDidChangeFeedbackEnabled = Event.None;
 
 	snapshotHistoricalResponses(): void { }
 	async evaluateResponseCompletion(_context: IInlineAgentSurveyResponseContext): Promise<void> { }

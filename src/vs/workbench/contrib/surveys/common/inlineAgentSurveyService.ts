@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInlineAgentSurveyEligibilityContext } from './inlineAgentSurveyScheduler.js';
 
@@ -95,6 +96,8 @@ export interface IInlineAgentSurveySubmission {
  */
 export interface IInlineAgentSurveyService {
 	readonly _serviceBrand: undefined;
+	readonly isFeedbackEnabled: boolean;
+	readonly onDidChangeFeedbackEnabled: Event<boolean>;
 
 	/**
 	 * Records all already-completed response IDs for a chat as historical and ineligible so they

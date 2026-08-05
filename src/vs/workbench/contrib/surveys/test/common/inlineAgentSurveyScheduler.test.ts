@@ -25,6 +25,7 @@ function eligibility(overrides?: Partial<IInlineAgentSurveyEligibilityContext>):
 		completedUserTurns: 1,
 		elapsedChatTimeMs: 0,
 		isLatestResponse: true,
+		isSystemInitiated: false,
 		isTerminalSuccess: true,
 		hasVisibleOutput: true,
 		isPendingInput: false,
@@ -97,6 +98,7 @@ suite('InlineAgentSurveyScheduler', () => {
 		assert.strictEqual(isResponseEligible(eligibility({ isTerminalSuccess: false })), false);
 		assert.strictEqual(isResponseEligible(eligibility({ hasVisibleOutput: false })), false);
 		assert.strictEqual(isResponseEligible(eligibility({ isLatestResponse: false })), false);
+		assert.strictEqual(isResponseEligible(eligibility({ isSystemInitiated: true })), false);
 		assert.strictEqual(isResponseEligible(eligibility({ isPendingInput: true })), false);
 	});
 

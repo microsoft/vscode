@@ -111,6 +111,8 @@ export interface IInlineAgentSurveyEligibilityContext {
 	readonly elapsedChatTimeMs: number;
 	/** True when this is the latest response in the transcript. */
 	readonly isLatestResponse: boolean;
+	/** True when the response was initiated by the system rather than a user request. */
+	readonly isSystemInitiated: boolean;
 	/** True when the response reached a terminal state without cancellation or error. */
 	readonly isTerminalSuccess: boolean;
 	/** True when the response produced substantive user-visible output. */
@@ -125,6 +127,9 @@ export interface IInlineAgentSurveyEligibilityContext {
  */
 export function isResponseEligible(context: IInlineAgentSurveyEligibilityContext): boolean {
 	if (!context.isCopilotProvider) {
+		return false;
+	}
+	if (context.isSystemInitiated) {
 		return false;
 	}
 	// Local Editor chat additionally requires Agent mode; Agents-window providers imply it.

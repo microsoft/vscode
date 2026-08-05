@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -43,7 +43,6 @@ class InlineAgentSurveyDebugContribution extends Disposable implements IWorkbenc
 					category: Categories.Developer,
 					f1: true,
 					precondition: InlineAgentSurveyDebugAvailableContext,
-					menu: [{ id: MenuId.CommandPalette, when: InlineAgentSurveyDebugAvailableContext }],
 				});
 			}
 

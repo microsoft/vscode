@@ -423,11 +423,9 @@
 	text-decoration: underline;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-	.interactive-item-container .chat-inline-agent-survey,
-	.interactive-item-container .chat-inline-agent-survey-reasons {
-		animation: chat-inline-agent-survey-enter 160ms ease-out;
-	}
+.monaco-enable-motion .interactive-item-container .chat-inline-agent-survey,
+.monaco-enable-motion .interactive-item-container .chat-inline-agent-survey-reasons {
+	animation: chat-inline-agent-survey-enter 160ms ease-out;
 }
 
 @keyframes chat-inline-agent-survey-enter {
