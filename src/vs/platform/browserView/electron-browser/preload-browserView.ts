@@ -162,7 +162,7 @@ function init() {
 		return id;
 	}
 
-	let contextMenuTarget: { ref: WeakRef<Element>; anchor?: { x: number; y: number } } | undefined;
+	let contextMenuTarget: { ref: WeakRef<Element>; anchor: { x: number; y: number } } | undefined;
 	window.addEventListener('contextmenu', (event) => {
 		if (!event.isTrusted) {
 			return;
@@ -176,10 +176,8 @@ function init() {
 			}
 			contextMenuTarget = {
 				ref: new WeakRef(findCommonVisibleAncestor(els) ?? target),
+				anchor: { x: event.clientX, y: event.clientY },
 			};
-			if (event.button === 2) {
-				contextMenuTarget.anchor = { x: event.clientX, y: event.clientY };
-			}
 		} else {
 			contextMenuTarget = undefined;
 		}
@@ -214,8 +212,8 @@ function init() {
 	});
 	ipcRenderer.on('vscode:browserView:showElementComment', (_event: unknown, { elementId }: { elementId: string }) => {
 		const element = getElement(elementId);
-		if (element) {
-			elementPicker.comment(element, elementId === 'context-menu-target' ? contextMenuTarget?.anchor : undefined);
+		if (element && contextMenuTarget) {
+			elementPicker.comment(element, contextMenuTarget.anchor);
 		}
 	});
 	ipcRenderer.on('vscode:browserView:hideHighlight', (_event: unknown) => {
@@ -767,13 +765,13 @@ class ElementPicker {
 		this._unmountWhenIdle();
 	}
 
-	comment(element: Element, anchor?: { x: number; y: number }): void {
+	comment(element: Element, anchor: { x: number; y: number }): void {
 		this._externalHighlightTarget = undefined;
 		if (this._selectionActive) {
 			this.stop();
 		}
 		this.start({ mode: commentElementSelectionMode });
-		this._showCommentComposer(element, anchor ?? this._getDefaultCommentAnchor(element), anchor !== undefined);
+		this._showCommentComposer(element, anchor, true);
 	}
 
 	updateComments(update: IBrowserElementCommentsUpdate): void {
