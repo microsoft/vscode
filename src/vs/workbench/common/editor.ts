@@ -176,8 +176,8 @@ export interface IEditorPane extends IComposite {
 	 */
 	getViewState(): object | undefined;
 
-	/** Returns the editor-scoped instantiation service when the editor provides one. */
-	getScopedInstantiationService?(): IInstantiationService | undefined;
+	/** An optional instantiation service scoped to the editor pane. */
+	readonly scopedInstantiationService?: IInstantiationService;
 
 	/**
 	 * An optional method to return the current selection in

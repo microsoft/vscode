@@ -274,11 +274,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return store;
 	}
 
-	getScopedInstantiationService(): IInstantiationService | undefined {
-		if (!this._singlePane || !this._scopedInstantiationService) {
-			return undefined;
-		}
-		return this._scopedInstantiationService;
+	get scopedInstantiationService(): IInstantiationService | undefined {
+		return this._singlePane ? this._scopedInstantiationService : undefined;
 	}
 
 	/**
