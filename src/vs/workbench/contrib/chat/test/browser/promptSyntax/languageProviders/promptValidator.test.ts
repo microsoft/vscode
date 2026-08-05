@@ -546,6 +546,17 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('reasoning effort is supported in agent file', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'reasoning-effort: low',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -557,7 +568,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
