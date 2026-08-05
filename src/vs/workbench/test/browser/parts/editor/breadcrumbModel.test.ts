@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { BreadcrumbsModel, FileElement } from '../../../../browser/parts/editor/breadcrumbsModel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -81,5 +82,14 @@ suite('Breadcrumb Model', function () {
 		assert.strictEqual(two.kind, FileKind.FILE);
 		assert.strictEqual(one.uri.toString(), 'foo:/outside');
 		assert.strictEqual(two.uri.toString(), 'foo:/outside/file.ts');
+	});
+
+	test('untitled uri has no file path elements', function () {
+
+		model = new BreadcrumbsModel(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		const elements = model.getElements();
+
+		assert.strictEqual(elements.length, 0);
+		assert.strictEqual(model.hasOutline(), false);
 	});
 });

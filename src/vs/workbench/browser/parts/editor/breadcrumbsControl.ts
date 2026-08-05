@@ -18,6 +18,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DocumentSymbol } from '../../../../editor/common/languages.js';
@@ -396,13 +397,11 @@ export class BreadcrumbsControl {
 		}
 	}
 
-	private show(): void {
+	private _setVisibility(visible: boolean): void {
 		const wasHidden = this.isHidden();
-
-		this._ckBreadcrumbsVisible.set(true);
-		this.domNode.classList.toggle('hidden', false);
-
-		if (wasHidden) {
+		this._ckBreadcrumbsVisible.set(visible);
+		this.domNode.classList.toggle('hidden', !visible);
+		if (wasHidden !== !visible) {
 			this._onDidVisibilityChange.fire();
 		}
 	}
@@ -418,7 +417,7 @@ export class BreadcrumbsControl {
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.hasProvider(uri)) {
+		if (!uri || (!this._fileService.hasProvider(uri) && uri.scheme !== Schemas.untitled)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -434,7 +433,6 @@ export class BreadcrumbsControl {
 		// display uri which can be derived from certain inputs
 		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		this.show();
 		this._ckBreadcrumbsPossible.set(true);
 		this._updateEditorTypeControl();
 
@@ -460,19 +458,26 @@ export class BreadcrumbsControl {
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
-				this._widget.setEnabled(false);
-				this._widget.setItems([new class extends BreadcrumbsItem {
-					render(container: HTMLElement): void {
-						container.textContent = localize('empty', "no elements");
-					}
-					equals(other: BreadcrumbsItem): boolean {
-						return other === this;
-					}
-					dispose(): void {
+				if (model.resource.scheme === Schemas.untitled && !model.hasOutline()) {
+					// untitled files have no file path — hide until symbols are available
+					this._setVisibility(false);
+				} else {
+					this._setVisibility(true);
+					this._widget.setEnabled(false);
+					this._widget.setItems([new class extends BreadcrumbsItem {
+						render(container: HTMLElement): void {
+							container.textContent = localize('empty', "no elements");
+						}
+						equals(other: BreadcrumbsItem): boolean {
+							return other === this;
+						}
+						dispose(): void {
 
-					}
-				}]);
+						}
+					}]);
+				}
 			} else {
+				this._setVisibility(true);
 				this._widget.setEnabled(true);
 				this._widget.setItems(items);
 				this._widget.reveal(items[items.length - 1]);
