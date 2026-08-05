@@ -11,6 +11,9 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
+import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
+import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
@@ -335,10 +338,7 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			try {
-				if (isPowerShell && tree.rootNode.hasError) {
-					// An erroring parse can produce truncated captures that hide
-					// part of the command line from rule matching, so require
-					// confirmation instead of judging the partial parse.
+				if (shouldRequireConfirmationForAutoApproveParse(isPowerShell ? 'powershell' : 'bash', tree.rootNode.hasError)) {
 					this._logService.trace('[CommandAutoApprover] PowerShell parse contains errors, requiring confirmation');
 					return undefined;
 				}
@@ -599,15 +599,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	grep: true,
 
 	// Safe git sub-commands
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-	'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+	...gitAutoApproveRules,
 
 	// Docker readonly sub-commands
 	'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
@@ -615,24 +607,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
 
 	// PowerShell
-	'Get-ChildItem': true,
-	'Get-Content': true,
-	'Get-Date': true,
-	'Get-Random': true,
-	'Get-Location': true,
-	'Set-Location': true,
-	'Write-Host': true,
-	'Write-Output': true,
-	'Out-String': true,
-	'Split-Path': true,
-	'Join-Path': true,
-	'Start-Sleep': true,
-	'Where-Object': true,
-	'/^Select-[a-z0-9]/i': true,
-	'/^Measure-[a-z0-9]/i': true,
-	'/^Compare-[a-z0-9]/i': true,
-	'/^Format-[a-z0-9]/i': true,
-	'/^Sort-[a-z0-9]/i': true,
+	...powershellAutoApproveRules,
 
 	// Package manager read-only commands
 	'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
@@ -664,11 +639,21 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 	rg: true,
 	'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
+	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 	sed: true,
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-	'/^sed\\b.*;W/': false,
-	sort: true,
+	// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+	// captured so the closing quote must match it, and whitespace and `!` are allowed
+	// around the optional address since sed ignores them. The option prefix also skips
+	// the separate operand consumed by -l/--line-length.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+	// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+	// Escaped characters are consumed before testing for the matching closing quote.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
+	'/^sort\\b(?!-)/': true,
 	'/^sort\\b.*\\s-(o|S)\\b/': false,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,

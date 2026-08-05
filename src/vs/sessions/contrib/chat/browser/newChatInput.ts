@@ -85,7 +85,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
@@ -104,7 +104,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
-const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
+const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -494,7 +494,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, parent, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -982,7 +982,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// keys off `isConnected` only, not the connecting phase.
 			const sessionActive = this.voiceSessionController.isConnected.get();
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
+			// Honor the shared `dictation.showButton` visibility toggle: hiding the
+			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
+			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive || !buttonShown);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
@@ -999,7 +1002,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Both the enable kill-switch and the model selection can change
 			// availability (e.g. an unsupported on-device platform becomes
 			// configured when switching to the cloud backend).
-			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model') || e.affectsConfiguration(DictationSettingId.ShowButton)) {
 				updateVisibility();
 			}
 		}));

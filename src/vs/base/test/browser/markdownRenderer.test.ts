@@ -354,6 +354,45 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
+	suite('Copy-safe hrefs', () => {
+		// Rich-text copy resolved empty hrefs against the workbench document, so every pasted
+		// link became a `workbench.html` URL. Clicks still route through `data-href`.
+		test('keeps the real href only for targets that resolve elsewhere', () => {
+			const md = new MarkdownString(`[web](https://example.com/page) [mail](mailto:user@example.com) [run](command:doFoo) [file](file:///home/user/a.ts) [ref](http://_vscodecontentref_/0)`, { isTrusted: true });
+
+			const result = store.add(renderMarkdown(md, { actionHandler: () => { } })).element;
+			assert.deepStrictEqual(
+				Array.from(result.querySelectorAll('a'), a => [a.getAttribute('href'), a.getAttribute('data-href'), a.getAttribute('draggable')]),
+				[
+					['https://example.com/page', 'https://example.com/page', 'false'],
+					['mailto:user@example.com', 'mailto:user@example.com', 'false'],
+					['', 'command:doFoo', 'false'],
+					['', 'file:///home/user/a.ts', 'false'],
+					['', 'http://_vscodecontentref_/0', 'false'],
+				]);
+		});
+
+		test('leaves the href empty when nothing intercepts clicks', () => {
+			// Without an action handler the anchor would navigate natively, bypassing the opener.
+			const md = new MarkdownString(`[web](https://example.com/page)`, {});
+
+			const anchor = store.add(renderMarkdown(md)).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['', 'https://example.com/page']);
+		});
+
+		test('keeps the resolved href for relative links against an https baseUri', () => {
+			const md = new MarkdownString(`[text](./foo)`, { isTrusted: true });
+			md.baseUri = URI.parse('https://example.com/path/');
+
+			const anchor = store.add(renderMarkdown(md, { actionHandler: () => { } })).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['https://example.com/path/foo', 'https://example.com/path/foo']);
+		});
+	});
+
 	test('Should use decoded file path as title for file:// links', () => {
 		const fileUri = URI.file('/home/user/project/lib.d.ts');
 		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});

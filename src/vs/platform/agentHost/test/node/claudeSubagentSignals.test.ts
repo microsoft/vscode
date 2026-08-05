@@ -95,7 +95,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			readMeta: readAction.action._meta,
 		}, {
 			taskMeta: { toolKind: 'subagent' },
-			readMeta: undefined,
+			readMeta: { toolKind: 'read' },
 		});
 	});
 

@@ -244,6 +244,27 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('uses the resolved usage model while preserving Auto selection', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		startTurn('turn-auto', 'hello', 'auto');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-auto', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-auto', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			modelSelectionKind: data.modelSelectionKind,
+		}, {
+			model: { trusted: true, value: 'gpt-5.5' },
+			modelSelectionKind: 'auto',
+		});
+	});
+
 	test('timeToFirstProgress is undefined when no visible progress arrives before completion', () => {
 		setupSession();
 		startTurn('turn-1');
