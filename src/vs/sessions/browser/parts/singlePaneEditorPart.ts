@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { DisposableMap } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +15,6 @@ import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorG
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
-import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './editorPartSizing.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
@@ -52,13 +51,13 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		};
 	}
 
-	// Double-click resets the sash to this width. Use the detail panel's default
-	// while editor content is hidden, not the 60% editor split.
+	// Double-click resets detail-only to its default; with editor content visible
+	// the grid distributes the Sessions and editor siblings evenly.
 	get preferredWidth(): number | undefined {
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return DockedAuxiliaryBarController.DEFAULT_WIDTH;
 		}
-		return Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.layoutService.mainContainerDimension.width * SIDE_PANE_WIDTH_RATIO));
+		return undefined;
 	}
 
 	// Matches the sessions list's minimum while only the detail panel is shown.
