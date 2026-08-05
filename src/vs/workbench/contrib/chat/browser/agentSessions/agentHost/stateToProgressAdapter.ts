@@ -2307,6 +2307,12 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 	if (tc.status !== ToolCallStatus.Streaming) {
 		return undefined;
 	}
+	// Partial read paths render as misleading file links, so wait for the complete input.
+	if (getToolKind(tc) === 'read') {
+		existing.updatePartialInput(undefined);
+		existing.updateStreamingMessage(localize('agentHost.streaming.readingFile', "Reading file"));
+		return undefined;
+	}
 	const partialInput = getStreamingToolInputForDisplay(tc);
 	if (partialInput !== undefined) {
 		existing.updatePartialInput(partialInput);

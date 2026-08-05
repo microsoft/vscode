@@ -1147,7 +1147,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _createToolCallMeta(toolName: string, parameters: Record<string, unknown> | undefined): Mutable<IToolCallMeta> {
-		const toolKind = getToolKind(toolName);
+		const toolKind = getToolKind(toolName, parameters);
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		return {
 			toolKind,
