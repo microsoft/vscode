@@ -16,7 +16,7 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
-import { buildHostLocalEventsPath, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildHostLocalEventsPath, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -186,6 +186,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessions(): ISession[] {
+		// Dedup only affects the displayed list; lookups (`getSession`,
+		// `getSessionForChatResource`) use the raw merged set so an EH row that is
+		// hidden here can still be resolved and migrated when clicked.
+		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+	}
+
+	private _getMergedSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			sessions.push(...provider.getSessions());
@@ -193,14 +200,52 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
+	/**
+	 * A legacy Copilot CLI session migrated in place to the agent host is briefly
+	 * listed by BOTH the extension-host provider (`copilotcli:/<id>`) and the
+	 * agent-host provider (`agent-host-copilotcli:/<id>`) for the same underlying
+	 * SDK session id — the workbench agent-session model caches the stale legacy
+	 * entry even after the extension stops reporting it. Drop the legacy entry so
+	 * exactly one row shows per session.
+	 */
+	private _dedupeMigratedCopilotCliSessions(sessions: ISession[]): ISession[] {
+		let migratedRawIds: Set<string> | undefined;
+		for (const session of sessions) {
+			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
+				if (rawId) {
+					(migratedRawIds ??= new Set<string>()).add(rawId);
+				}
+			}
+		}
+		if (!migratedRawIds) {
+			return sessions;
+		}
+		const result = sessions.filter(session => {
+			// Only the legacy extension-host scheme (`copilotcli:`) denotes a stale
+			// entry to drop. Remote agent-host Copilot sessions
+			// (`remote-<authority>-copilotcli:`) share the `copilotcli` session type but
+			// are distinct sessions that must never be deduped against a local migrated
+			// id, and the migrated entry itself uses `agent-host-copilotcli:`.
+			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
+				if (rawId && migratedRawIds!.has(rawId)) {
+					return false;
+				}
+			}
+			return true;
+		});
+		return result;
+	}
+
 	getSession(resource: URI): ISession | undefined {
-		return this.getSessions().find(s =>
+		return this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this.getSessions()) {
+		for (const session of this._getMergedSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };
@@ -216,6 +261,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
+	}
+
+	getAllProviderSessionTypes(): IProviderSessionType[] {
+		const result: IProviderSessionType[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			for (const sessionType of provider.sessionTypes) {
+				result.push({ providerId: provider.id, sessionType });
+			}
+		}
+		return result;
 	}
 
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {

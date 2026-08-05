@@ -15,6 +15,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -23,6 +24,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { resolveVoiceGlowColors } from '../voiceClient/voiceGlow.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -49,6 +52,25 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  * the start command, so target it in every state.
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
+
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+	if (!currentSession) {
+		return false;
+	}
+	try {
+		const resource = URI.parse(currentSession);
+		if (resource.scheme === 'sessions-voice') {
+			controller.setDraftTarget();
+		} else {
+			controller.setTargetSession(resource);
+			controller.activateSession(resource);
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 /** Number of animated waveform bars shown in the voice segment. */
 const WAVEFORM_BAR_COUNT = 5;
@@ -152,6 +174,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
+			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -284,6 +307,8 @@ export interface IVoiceInputModePillOptions {
 	readonly toggleDictation?: () => void;
 	/** Whether this is the focused or last-focused chat input that owns live state. */
 	readonly isActive?: IObservable<boolean>;
+	/** Whether the shared Voice Mode transport belongs to this input. */
+	readonly isVoiceActive?: IObservable<boolean>;
 }
 
 /**
@@ -347,13 +372,26 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super(undefined, action);
+	}
+
+	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
+	private _updateVoiceStateColors(container: HTMLElement): void {
+		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
+		container.style.setProperty('--voice-color-listening', colors.listening.toString());
+		container.style.setProperty('--voice-color-speaking', colors.speaking.toString());
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('monaco-segmented-icon-toggle-container', 'chat-voice-input-mode-item');
+
+		// Drive the pill + waveform colors from the same theme-derived accent as the
+		// input-box glow, so all three always match and adapt to the active theme.
+		this._updateVoiceStateColors(container);
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateVoiceStateColors(container)));
 
 		// A masked 2-slot viewport ("slot machine reel"). The reel holds three cells:
 		//   [ dictation ][ voice ][ listen ]
@@ -375,12 +413,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
 		}));
+		this._registerActivationKeys(this._dictationCell, () => this._onClickDictation());
 		this._register(addMicButtonContextMenuListener(
 			this._dictationCell,
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
-		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive, this.themeService));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
@@ -392,7 +431,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._voiceCell,
 			() => {
-				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
+				const ownsVoice = this._options?.isVoiceActive?.get() ?? this._options?.isActive?.get() ?? true;
+				const connectedish = (ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())) || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return getVoiceModeHoverContent(connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
 					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
@@ -402,8 +442,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// in hands-free mode.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
-			this._onClickVoicePowerToggle();
+			void this._onClickVoicePowerToggle();
 		}));
+		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle());
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
@@ -452,6 +493,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			}
 			this._onClickListen();
 		}));
+		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
 		// Dictation activity: driven directly by the built-in on-device speech-to-text
 		// service so the mic reliably fills while a dictation session is recording or
@@ -479,6 +521,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
+			const isVoiceActive = sim !== undefined || (this._options?.isVoiceActive?.read(reader) ?? isActive);
 
 			// Resolve the effective state — a simulation override wins over live state.
 			let isDictating: boolean;
@@ -494,8 +537,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				speaking = sim === 'speaking';
 			} else {
 				isDictating = isActive && dictationActive.read(reader);
-				connected = isActive && this.voiceSessionController.isConnected.read(reader);
-				connecting = isActive && this.voiceSessionController.isConnecting.read(reader);
+				connected = isVoiceActive && this.voiceSessionController.isConnected.read(reader);
+				connecting = isVoiceActive && this.voiceSessionController.isConnecting.read(reader);
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -679,6 +722,29 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	/**
+	 * Activate a segmented cell from the keyboard. The cells live inside a toolbar's
+	 * `ActionBar`, whose key handler runs the (no-op) placeholder action on Enter/Space
+	 * and calls `preventDefault`/`stopPropagation`, which would otherwise swallow the
+	 * native button activation. Handle Enter/Space here and stop the event before it
+	 * bubbles to the ActionBar so the focused cell's own gesture runs.
+	 */
+	private _registerActivationKeys(cell: HTMLElement, handler: () => void): void {
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_UP, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				handler();
+			}
+		}));
+	}
+
 	private _onClickDictation(): void {
 		this.voiceInputModeService.setSelectedMode('dictation');
 
@@ -691,7 +757,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	}
 
 	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
-	private _onClickVoicePowerToggle(): void {
+	private async _onClickVoicePowerToggle(): Promise<void> {
 		this.voiceInputModeService.setSelectedMode('voice');
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.
@@ -701,8 +767,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 		const controller = this.voiceSessionController;
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
+			if (this._options?.isVoiceActive?.get() === false) {
+				await retargetVoiceToCurrentSession(this.commandService, controller);
+				return;
+			}
 			controller.disconnect();
 		} else {
+			await retargetVoiceToCurrentSession(this.commandService, controller);
 			const targetWindow = getWindow(this._voiceCell);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}

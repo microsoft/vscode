@@ -172,8 +172,6 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	// Successful bang-command completion depends on POSIX shell command
-	// detection; Windows emits output but never reaches tool completion.
 	conformanceTest(context, 'a bang command runs locally and exposes terminal output', async function () {
 
 		const sessionUri = await createSession('bang-success');

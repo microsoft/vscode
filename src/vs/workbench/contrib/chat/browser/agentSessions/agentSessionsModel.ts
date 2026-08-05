@@ -29,6 +29,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -157,6 +158,44 @@ interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
+}
+
+/**
+ * Resolves the pull request associated with an agent session from its provider metadata,
+ * preferring an explicit `pullRequestUrl` and falling back to `pullRequestNumber` combined
+ * with `owner`/`name`. Returns `undefined` when the session has no associated pull request.
+ */
+export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'metadata'>): URI | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	const url = metadata.pullRequestUrl;
+	if (typeof url === 'string' && url) {
+		try {
+			return URI.parse(url);
+		} catch {
+			// Fall through to the number based lookup below.
+		}
+	}
+
+	const prNumber = metadata.pullRequestNumber;
+	const owner = metadata.owner;
+	const name = metadata.name;
+	if (typeof prNumber === 'number' && typeof owner === 'string' && owner && typeof name === 'string' && name) {
+		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+	}
+
+	return undefined;
+}
+
+/**
+ * The value for the `chatSessionPullRequest` context key for a session. Never returns an
+ * "unknown" value: callers here always have the session's metadata in hand.
+ */
+export function getAgentSessionPullRequestContextValue(session: Pick<IAgentSession, 'metadata'>): 'available' | 'none' {
+	return getAgentSessionPullRequestUri(session) ? 'available' : 'none';
 }
 
 export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
@@ -475,7 +514,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
+	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
 
@@ -551,6 +590,37 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	getSession(resource: URI): IAgentSession | undefined {
 		return this._sessions.get(resource);
+	}
+
+	/**
+	 * Hide the extension-host `copilotcli:` row when its agent-host
+	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
+	 * per legacy Copilot CLI session — the agent-host one, which migrates on open.
+	 * Only display is deduped; {@link getSession} and the cache use the full map so
+	 * a hidden row can still resolve.
+	 */
+	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
+		let migratedRawIds: Set<string> | undefined;
+		for (const session of sessions) {
+			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
+				if (rawId) {
+					(migratedRawIds ??= new Set<string>()).add(rawId);
+				}
+			}
+		}
+		if (!migratedRawIds) {
+			return sessions;
+		}
+		return sessions.filter(session => {
+			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
+				if (rawId && migratedRawIds!.has(rawId)) {
+					return false;
+				}
+			}
+			return true;
+		});
 	}
 
 	private _changedSignal: IObservable<void> | undefined;
@@ -669,6 +739,16 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
+				const shouldKeepOpenSessionRead = session.isRead === false
+					&& this.chatSessionsService.canSetChatSessionItemRead(session.resource)
+					&& !this.explicitlyMarkedUnreadSessions.has(session.resource)
+					&& !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
+				if (shouldKeepOpenSessionRead) {
+					this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+				}
+				if (session.isRead) {
+					this.explicitlyMarkedUnreadSessions.delete(session.resource);
+				}
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
@@ -681,7 +761,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
-					providerIsRead: session.isRead,
+					providerIsRead: shouldKeepOpenSessionRead ? true : session.isRead,
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
@@ -700,6 +780,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
 			) {
 				sessions.set(session.resource, session);
+			}
+		}
+		for (const resource of this.explicitlyMarkedUnreadSessions) {
+			if (!sessions.has(resource)) {
+				this.explicitlyMarkedUnreadSessions.delete(resource);
 			}
 		}
 
@@ -742,6 +827,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private static readonly UNREAD_MARKER = -1;
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
+	private readonly explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
 	 * Resolve the state entry for a session, honoring a one-way migration from
@@ -878,6 +964,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
 		if (this.ownsReadState(session)) {
+			if (read) {
+				this.explicitlyMarkedUnreadSessions.delete(session.resource);
+			} else {
+				this.explicitlyMarkedUnreadSessions.add(session.resource);
+			}
 			if (read === (session.providerIsRead ?? true)) {
 				return; // no change
 			}

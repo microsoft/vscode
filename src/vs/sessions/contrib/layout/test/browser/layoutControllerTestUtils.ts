@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -28,7 +29,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -37,6 +38,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+
+type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
 export function makeChange(filePath: string): ISessionFileChange {
 	return { uri: URI.file(filePath), insertions: 1, deletions: 0 };
@@ -130,6 +133,13 @@ export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
 	readonly layoutState?: readonly object[];
+	readonly sidePaneVisibilityState?: {
+		readonly editorVisible: boolean;
+		readonly auxiliaryBarVisible: boolean;
+	} | {
+		readonly newSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+		readonly existingSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+	};
 	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
 	readonly newSessionViewStateRaw?: string;
 	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
@@ -155,12 +165,15 @@ export interface ICreateOptions {
  */
 export interface ITestLayoutHarness {
 	readonly instaService: TestInstantiationService;
+	readonly layoutService: IAgentWorkbenchLayoutService;
 	storageService: TestStorageService;
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
+	onWillToggleSidePane: Emitter<void>;
+	onDidToggleSidePane: Emitter<ISidePaneToggleEvent>;
 	onDidRevealSidePane: Emitter<void>;
 	onDidChangeEditorMaximized: Emitter<void>;
 	onDidActiveEditorChange: Emitter<void>;
@@ -174,6 +187,9 @@ export interface ITestLayoutHarness {
 	activeAuxViewContainerIds: string[];
 	mainContainerWidth: number;
 	editorMaximized: boolean;
+	setEditorMaximizedCalls: boolean[];
+	toggleSidePaneCalls: number;
+	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
 	openedViewContainers: string[];
 	openedViews: string[];
@@ -232,6 +248,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		storageService.store('sessions.layoutState', raw, StorageScope.WORKSPACE, 0);
 		storageService.store('sessions.singlePane.layoutState', raw, StorageScope.WORKSPACE, 0);
 	}
+	if (options.sidePaneVisibilityState) {
+		storageService.store('sessions.singlePane.sidePaneVisibility', JSON.stringify(options.sidePaneVisibilityState), StorageScope.WORKSPACE, 0);
+	}
 	if (options.newSessionViewState) {
 		const raw = JSON.stringify(options.newSessionViewState);
 		storageService.store('sessions.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
@@ -249,15 +268,21 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
+	instaService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+		override publicLog2(): void { }
+	});
 
 	const harness: ITestLayoutHarness = {
 		instaService,
+		get layoutService() { return layoutService; },
 		storageService,
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
+		onWillToggleSidePane: store.add(new Emitter<void>()),
+		onDidToggleSidePane: store.add(new Emitter<ISidePaneToggleEvent>()),
 		onDidRevealSidePane: store.add(new Emitter<void>()),
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
 		onDidActiveEditorChange: store.add(new Emitter<void>()),
@@ -270,10 +295,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		activeAuxViewContainerIds: options.activeAuxViewContainerIds ? [...options.activeAuxViewContainerIds] : [CHANGES_VIEW_CONTAINER_ID, SESSIONS_FILES_CONTAINER_ID],
 		mainContainerWidth: options.mainContainerWidth ?? 2000,
 		editorMaximized: false,
+		setEditorMaximizedCalls: [],
+		toggleSidePaneCalls: 0,
+		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
 			[Parts.AUXILIARYBAR_PART, true],
 			[Parts.PANEL_PART, false],
 			[Parts.EDITOR_PART, true],
+			[Parts.CUSTOM_VIEW_GRID_PART, false],
 			...(options.initialPartVisibility ?? []),
 		]),
 		openedViewContainers: [],
@@ -368,11 +397,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
 
-	instaService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+	const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 		override isVisible(part: Parts): boolean {
 			return harness.partVisibility.get(part) ?? true;
 		}
-		override setPartHidden(hidden: boolean, part: Parts): void {
+		override setPartHidden(hidden: boolean, part: Parts, skipSidePaneReveal: boolean = false): void {
 			harness.setPartHiddenCalls.push({ hidden, part });
 			const wasVisible = harness.partVisibility.get(part) ?? true;
 			const sidePaneWasClosed = !(harness.partVisibility.get(Parts.EDITOR_PART) ?? true) && !(harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
@@ -380,7 +409,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			// Mirror production: fire the visibility change synchronously when it actually changes
 			if (wasVisible === hidden) {
 				harness.onDidChangePartVisibility.fire({ partId: part, visible: !hidden });
-				if (!hidden && sidePaneWasClosed && (part === Parts.EDITOR_PART || part === Parts.AUXILIARYBAR_PART)) {
+				if (!skipSidePaneReveal && !hidden && sidePaneWasClosed && (part === Parts.EDITOR_PART || part === Parts.AUXILIARYBAR_PART)) {
 					harness.onDidRevealSidePane.fire();
 				}
 			}
@@ -396,13 +425,64 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			this.setPartHidden(false, Parts.EDITOR_PART);
 		}
 		override readonly onDidChangePartVisibility = harness.onDidChangePartVisibility.event;
+		readonly onWillToggleSidePane = harness.onWillToggleSidePane.event;
+		readonly onDidToggleSidePane = harness.onDidToggleSidePane.event;
 		readonly onDidRevealSidePane = harness.onDidRevealSidePane.event;
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
+		setEditorMaximized(maximized: boolean): void {
+			harness.setEditorMaximizedCalls.push(maximized);
+			harness.editorMaximized = maximized;
+		}
+		isSidePaneVisible(): boolean {
+			return (harness.partVisibility.get(Parts.EDITOR_PART) ?? true) || (harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
+		}
+		toggleSidePane(): boolean {
+			harness.toggleSidePaneCalls++;
+			const getState = () => {
+				const editor = this.isVisible(Parts.EDITOR_PART);
+				const auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
+				return { editor, auxiliaryBar };
+			};
+			const before = getState();
+			const sidePaneWasVisible = before.editor || before.auxiliaryBar;
+			harness.onWillToggleSidePane.fire();
+			try {
+				const singlePane = options.singlePaneLayoutEnabled ?? false;
+				// Mirror SinglePaneWorkbench: un-maximize before toggling both parts.
+				if (singlePane && harness.editorMaximized) {
+					this.setEditorMaximized(false);
+				}
+				const visible = !this.isSidePaneVisible();
+				const suppression = this.suppressEditorPartAutoVisibility();
+				try {
+					if (visible) {
+						const restore = harness.sidePaneStateBeforeHide ?? (singlePane
+							? { editor: true, auxiliaryBar: false }
+							: { editor: true, auxiliaryBar: true });
+						this.setPartHidden(!restore.editor, Parts.EDITOR_PART, true);
+						this.setPartHidden(!restore.auxiliaryBar, Parts.AUXILIARYBAR_PART, true);
+					} else {
+						harness.sidePaneStateBeforeHide = getState();
+						this.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+						this.setPartHidden(true, Parts.EDITOR_PART);
+					}
+				} finally {
+					suppression.dispose();
+				}
+				if (!sidePaneWasVisible && this.isSidePaneVisible()) {
+					harness.onDidRevealSidePane.fire();
+				}
+			} finally {
+				harness.onDidToggleSidePane.fire({ before, after: getState() });
+			}
+			return this.isSidePaneVisible();
+		}
 		get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
-	} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
+	} as unknown as IAgentWorkbenchLayoutService;
+	instaService.stub(IWorkbenchLayoutService, layoutService);
 
 	instaService.stub(IViewsService, new class extends mock<IViewsService>() {
 		override readonly onDidChangeViewContainerVisibility = harness.onDidChangeViewContainerVisibility.event;

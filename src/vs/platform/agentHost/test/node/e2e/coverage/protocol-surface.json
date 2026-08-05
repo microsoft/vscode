@@ -5,15 +5,10 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 25,
+		"covered": 29,
 		"total": 29,
-		"percentage": 86.2,
-		"uncovered": [
-			"fetchTurns",
-			"invokeChangesetOperation",
-			"ping",
-			"reconnect"
-		]
+		"percentage": 100,
+		"uncovered": []
 	},
 	"notifications": {
 		"covered": 3,
@@ -28,38 +23,18 @@
 		]
 	},
 	"actions": {
-		"covered": 44,
+		"covered": 68,
 		"total": 85,
-		"percentage": 51.76,
+		"percentage": 80,
 		"uncovered": [
-			"annotations/entryRemoved",
-			"annotations/entrySet",
-			"annotations/removed",
-			"annotations/set",
-			"annotations/updated",
-			"changeset/cleared",
-			"changeset/contentChanged",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"changeset/filesReviewChanged",
-			"changeset/operationStatusChanged",
-			"changeset/operationsChanged",
-			"changeset/statusChanged",
-			"chat/activityChanged",
 			"chat/error",
 			"chat/inputAnswerChanged",
-			"chat/pendingMessageSet",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"chat/toolCallResultConfirmed",
-			"chat/turnsLoaded",
-			"chat/workingDirectoryRemoved",
-			"chat/workingDirectorySet",
-			"resourceWatch/changed",
-			"root/activeSessionsChanged",
-			"root/agentsChanged",
-			"root/terminalsChanged",
 			"session/activityChanged",
 			"session/creationFailed",
 			"session/customizationRemoved",
@@ -68,11 +43,7 @@
 			"session/mcpServerStartRequested",
 			"session/mcpServerStateChanged",
 			"session/mcpServerStopRequested",
-			"session/workingDirectoryRemoved",
-			"session/workingDirectorySet",
-			"terminal/cleared",
-			"terminal/commandDetectionAvailable",
-			"terminal/exited"
+			"terminal/commandDetectionAvailable"
 		]
 	}
 }

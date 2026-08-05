@@ -137,6 +137,66 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', 
 
 //#endregion
 
+//#region Issues
+
+export const enum GitHubIssueState {
+	Open = 'open',
+	Closed = 'closed',
+}
+
+/** Why an issue was closed (GitHub's `state_reason` on the REST issue payload). */
+export const enum GitHubIssueStateReason {
+	Completed = 'completed',
+	NotPlanned = 'not_planned',
+	Duplicate = 'duplicate',
+	Reopened = 'reopened',
+}
+
+export interface IGitHubIssue {
+	readonly number: number;
+	readonly title: string;
+	readonly body: string;
+	readonly state: GitHubIssueState;
+	readonly stateReason: GitHubIssueStateReason | undefined;
+	readonly author: IGitHubUser;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+	readonly closedAt: string | undefined;
+}
+
+/**
+ * Compute the issue status icon, mirroring how github.com colors issues: open is
+ * green, closed-as-completed is purple, and closed as not planned or duplicate is
+ * muted (the work was never done).
+ */
+export function computeIssueIcon(state: GitHubIssueState, stateReason: GitHubIssueStateReason | undefined): ThemeIcon {
+	if (state === GitHubIssueState.Open) {
+		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
+	}
+	if (stateReason === GitHubIssueStateReason.NotPlanned || stateReason === GitHubIssueStateReason.Duplicate) {
+		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
+	}
+	return { ...Codicon.issueClosed, color: themeColorFromId('charts.purple') };
+}
+
+/**
+ * Compute a single icon summarizing a set of issues: open wins over closed, and
+ * closed-as-completed wins over closed as not planned or duplicate. Issues whose
+ * live state is not loaded yet count as open, so the icon starts optimistic and
+ * only settles once every issue is known to be closed.
+ */
+export function computeAggregateIssueIcon(issues: readonly (IGitHubIssue | undefined)[]): ThemeIcon {
+	if (issues.length === 0 || issues.some(issue => !issue || issue.state === GitHubIssueState.Open)) {
+		return computeIssueIcon(GitHubIssueState.Open, undefined);
+	}
+
+	const allDiscarded = issues.every(issue =>
+		issue!.stateReason === GitHubIssueStateReason.NotPlanned || issue!.stateReason === GitHubIssueStateReason.Duplicate);
+	return computeIssueIcon(GitHubIssueState.Closed, allDiscarded ? GitHubIssueStateReason.NotPlanned : GitHubIssueStateReason.Completed);
+}
+
+//#endregion
+
 //#region Review Comments & Threads
 
 export interface IGitHubPRComment {

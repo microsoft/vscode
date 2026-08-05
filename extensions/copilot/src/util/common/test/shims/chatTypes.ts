@@ -80,6 +80,13 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseVoiceProgressPart {
+	constructor(
+		readonly id: vscode.ChatResponseVoiceProgressStage,
+		readonly value: string,
+	) { }
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;

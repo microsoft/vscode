@@ -17,7 +17,7 @@ This document covers the shared base and the **local** concrete provider. For th
 Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
 
 - **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
-- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema). When the host reports only read-only `folder` isolation because the workspace has no usable Git repository, the picker omits the isolation control rather than showing a disabled `Folder` label. This availability filter runs before presentation-specific `_shouldRenderProperty` overrides so the mobile-aware picker cannot reintroduce the unavailable control on desktop.
+- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema). A draft's initial config resolution owns `session.loading`; later picker mutations use `isSessionConfigResolving` without putting the whole composer back into loading, and Send waits for the tracked resolution (or draft cancellation) before reading the final config values. The desktop Worktree checkbox keeps its DOM node and focus across these updates, while resolving controls retain their normal visual weight and expose `aria-disabled`. When the host reports only read-only `folder` isolation because the workspace has no usable Git repository, the picker omits the isolation control rather than showing a disabled `Folder` label. This availability filter runs before presentation-specific `_shouldRenderProperty` overrides so the mobile-aware picker cannot reintroduce the unavailable control on desktop.
 
 `isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
 
@@ -26,6 +26,8 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
 - **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- The local provider rebinds its root/action/notification listeners on the initial `onAgentHostStart`. `LocalAgentHostServiceClient` exposes no-op getters before its protocol client exists, so rebinding is required when the service was instantiated while Agent Host was disabled and started later.
+- In web, Agent Host enablement additionally requires a remote authority. Web windows with a remote extension host use that server's Agent Host; serverless web keeps Agent Host disabled.
 - The local Codex session type is additionally gated directly on `chat.agentHost.codexAgent.enabled`. The Agents window does not register the OpenAI extension's Codex session type, so it has no separate Codex `preferAgentHost` setting.
 - The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
@@ -34,7 +36,7 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
   - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
   - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
-- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `false`, startup experiment).
+- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `true`, startup experiment).
 
 The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
 
@@ -88,6 +90,7 @@ To avoid an empty list on window startup — before the agent host has started, 
 
 - A subclass opts in by calling `_enableSessionCachePersistence(storageKey)` at the end of its constructor (once the identity fields that `createAdapter` depends on are set). This hydrates persisted summaries into `_sessionCache` immediately, so `getSessions()` returns cached sessions before any live list.
 - `createAdapter`/`updateAdapter` capture the source `IAgentSessionMetadata` in `_metaByRawId`; `onWillSaveState` lazily serializes the cache (overlaying mutable fields — title, `updatedAt`, `isRead`, `isArchived` — read from each adapter's observables), capped at the 100 most-recently-modified entries under `StorageScope.APPLICATION`.
+- Multi-root Editor sessions carry their originating workspace provenance in `_meta.multiRoot` as `{ workspaceFile }`. `workspaceFile` is the complete workspace configuration URI string; the Agent Host persists the validated object as JSON under the `multiRoot` session-database key, reconstructs it during listing/restoration, and the startup cache preserves it before the first live listing. The Editor session list matches this URI directly against `IWorkspace.configuration`; metadata-less sessions use current-folder containment without a separate workspace membership memento.
 - Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
 - `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
 
@@ -165,11 +168,12 @@ A quick chat is a **single-chat session** (`supportsMultipleChats: false`, force
 `sendRequest(chatId, chatResource, options)` for a draft session:
 
 1. Requires the draft and an active connection.
-2. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
-3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
-4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
-5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session. If commit detection times out or the connection is lost, the provisional skeleton is cleaned up and `sendRequest` rejects rather than returning an `InProgress` session that has no remaining lifecycle owner.
+2. Waits for any tracked dynamic-config resolution so a picker change cannot race the config captured for the first request.
+3. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
+4. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
+5. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
+6. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
+7. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session. If commit detection times out or the connection is lost, the provisional skeleton is cleaned up and `sendRequest` rejects rather than returning an `InProgress` session that has no remaining lifecycle owner.
 
 For an already-committed session (including a newly-created peer chat), `sendRequest` loads and holds the target chat model through `IChatService.sendRequest`, applies the cached model/agent input state before dispatch, clears the draft afterwards, then clears the provider-side "new chat" flag so status returns to the host-reported value. Holding the model reference is required for peer chats opened by the lightweight new-chat composer, because no `ChatWidget` owns that model while the first message is dispatched.
 

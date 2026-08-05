@@ -45,7 +45,6 @@ import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { AutomationsListWidget } from './automationsListWidget.js';
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
@@ -60,8 +59,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon, automationIcon } from './aiCustomizationIcons.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -286,13 +284,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
-	private automationsListWidget: AutomationsListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
 	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
 	private mcpContentContainer: HTMLElement | undefined;
 	private pluginContentContainer: HTMLElement | undefined;
-	private automationsContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
 	private toolsContentContainer: HTMLElement | undefined;
 	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
@@ -442,7 +438,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), icon: instructionsIcon, description: localize('instructionsDesc', "Set always-on instructions that guide AI behavior across your workspace or user profile.") },
 			[AICustomizationManagementSection.Prompts]: { label: localize('prompts', "Prompts"), icon: promptIcon, description: localize('promptsDesc', "Reusable prompt templates that can be invoked as slash commands.") },
 			[AICustomizationManagementSection.Hooks]: { label: localize('hooks', "Hooks"), icon: hookIcon, description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks.") },
-			[AICustomizationManagementSection.Automations]: { label: localize('automations', "Automations"), icon: automationIcon, description: localize('automationsDesc', "Schedule agent sessions to run on a cadence you choose.") },
 			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
 			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
@@ -520,7 +515,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					this.pluginListWidget?.layout(height - 16, width - 24);
 					this.toolsListWidget?.layout(height - 16, width - 24);
-					this.automationsListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
@@ -582,11 +576,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const activeId = this.harnessService.activeHarness.get();
 		const descriptor = this.harnessService.findHarnessById(activeId);
 		const hidden = new Set(descriptor?.hiddenSections ?? []);
-
-		// Also hide the Automations section when the feature setting is off.
-		if (this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
-			hidden.add(AICustomizationManagementSection.Automations);
-		}
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -689,9 +678,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled)) {
 				this.refreshPromptMigrationUi();
-			}
-			if (e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
-				this.rebuildVisibleSections();
 			}
 		}));
 
@@ -1027,13 +1013,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
-		// Container for Automations content
-		if (hasSections.has(AICustomizationManagementSection.Automations)) {
-			this.automationsContentContainer = DOM.append(contentInner, $('.automations-content-container'));
-			this.automationsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(AutomationsListWidget));
-			this.automationsContentContainer.appendChild(this.automationsListWidget.element);
-		}
-
 		for (const section of this.workspaceService.managementSections) {
 			if (!aiCustomizationManagementSectionRegistry.has(section)) {
 				continue;
@@ -1068,12 +1047,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
 			}));
 			this.pluginListWidget.fireItemCount();
-		}
-		if (this.automationsListWidget) {
-			this.editorDisposables.add(this.automationsListWidget.onDidChangeItemCount(count => {
-				this.updateSectionCount(AICustomizationManagementSection.Automations, count);
-			}));
-			this.automationsListWidget.fireItemCount();
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
@@ -1713,8 +1686,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Automations) {
-			this.automationsListWidget?.focus();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1761,7 +1732,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
 		const isToolsSection = this.selectedSection === AICustomizationManagementSection.Tools;
-		const isAutomationsSection = this.selectedSection === AICustomizationManagementSection.Automations;
 
 		if (this.welcomePage) {
 			this.welcomePage.container.style.display = isWelcome && !isEditorMode && !isMigrationMode && !isDetailMode ? '' : 'none';
@@ -1784,7 +1754,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
-		this.updateAutomationsContentVisibility(!isEditorMode && !isMigrationMode && !isDetailMode && isAutomationsSection);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -1831,20 +1800,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
-	}
-
-	private updateAutomationsContentVisibility(sectionVisible: boolean): void {
-		if (!this.automationsContentContainer) {
-			return;
-		}
-
-		if (sectionVisible) {
-			this.automationsContentContainer.style.display = '';
-			this.automationsListWidget?.setVisible(this.isVisible());
-		} else {
-			this.automationsListWidget?.setVisible(false);
-			this.automationsContentContainer.style.display = 'none';
-		}
 	}
 
 	/**
@@ -2021,7 +1976,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
-		this.updateAutomationsContentVisibility(this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Automations);
 		if (visible && this.dimension) {
 			this.layout(this.dimension);
 		}
@@ -2067,8 +2021,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Automations) {
-			this.automationsListWidget?.focus();
 		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
 			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
 		} else {
@@ -2123,13 +2075,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 		}
-	}
-
-	/**
-	 * Moves focus to a specific automation in the Automations section.
-	 */
-	public focusAutomation(automationId: string): void {
-		this.automationsListWidget?.focusAutomation(automationId);
 	}
 
 	public showPromptMigrationPage(): void {

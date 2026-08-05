@@ -576,6 +576,116 @@ suite('rawMessagesToMessagesAPI', function () {
 			expect(content[0]).toEqual({ type: 'redacted_thinking', data: 'blob123' });
 		});
 	});
+
+	suite('merging consecutive assistant messages', function () {
+		// #327646: merging rounds whose tool results were dropped used to splice several
+		// responses' signed thinking blocks into one assistant message, which the API
+		// rejects with "thinking or redacted_thinking blocks in the latest assistant
+		// message cannot be modified". Only one response's blocks may survive a merge.
+		function assistantRound(thinking: { text: string; encrypted: string; redacted?: boolean } | undefined, text: string, toolCallId?: string): Raw.ChatMessage {
+			return {
+				role: Raw.ChatRole.Assistant,
+				content: [
+					...(thinking ? [{ type: Raw.ChatCompletionContentPartKind.Opaque as const, value: { type: 'thinking', thinking: { id: thinking.encrypted, ...thinking } } }] : []),
+					{ type: Raw.ChatCompletionContentPartKind.Text, text },
+				],
+				...(toolCallId ? { toolCalls: [{ id: toolCallId, type: 'function' as const, function: { name: 'read_file', arguments: '{}' } }] } : {}),
+			};
+		}
+
+		test('drops all thinking when no merged round still owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old reasoning', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new reasoning', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('drops redacted_thinking blocks along with regular ones', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: '', encrypted: 'blobOLD', redacted: true }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('chains through three consecutive assistant messages', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'first', encrypted: 'sig1' }, 'a'),
+				assistantRound({ text: 'second', encrypted: 'sig2' }, 'b'),
+				assistantRound({ text: 'third', encrypted: 'sig3' }, 'c', 'toolu_c'),
+			]);
+			// Only the run belonging to the round that still owns a tool call survives.
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'third', signature: 'sig3' },
+					{ type: 'text', text: 'a' },
+					{ type: 'text', text: 'b' },
+					{ type: 'text', text: 'c' },
+					{ type: 'tool_use', id: 'toolu_c', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('keeps the thinking of the newest round that owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two', 'toolu_1'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'new', signature: 'sigNEW' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('falls back to the earlier round when only it owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one', 'toolu_1'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'old', signature: 'sigOLD' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('leaves consecutive user messages concatenated as-is', function () {
+			const result = rawMessagesToMessagesAPI([
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'world' }] },
+			]);
+			expect(result.messages).toEqual([{
+				role: 'user',
+				content: [
+					{ type: 'text', text: 'hello' },
+					{ type: 'text', text: 'world' },
+				],
+			}]);
+		});
+	});
 });
 
 suite('addToolsAndSystemCacheControl', function () {

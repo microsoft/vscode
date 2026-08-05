@@ -18,6 +18,10 @@ export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceCon
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
+export const enum AgentsVoiceSettingId {
+	ShowButton = 'agents.voice.showButton',
+}
+
 /**
  * Default dimensions for the Agents Voice floating window.
  */
