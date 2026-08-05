@@ -677,7 +677,7 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
 		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
@@ -703,6 +703,7 @@
 		background-position: 120% 0;
 	}
 
+	50%,
 	100% {
 		background-position: -120% 0;
 	}
