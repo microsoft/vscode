@@ -5543,6 +5543,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				invocationMessage: { markdown: 'Reading [foo.txt](file:///tmp/foo.txt)' },
 				toolInput: '{\n  "file_path": "/tmp/foo.txt"\n}',
 				confirmationTitle: 'Read file?',
+				_meta: { toolKind: 'read' },
 			},
 			permissionKind: 'read',
 			permissionPath: '/tmp/foo.txt',

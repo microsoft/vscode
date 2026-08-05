@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
@@ -20,10 +20,14 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { LayoutController } from '../../browser/desktopSessionLayoutController.js';
 import { SinglePaneLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/singlePaneLayoutController.js';
@@ -79,11 +83,25 @@ suite('LayoutController (desktop)', () => {
 		return store.add(harness.instaService.createInstance(TestSinglePaneController));
 	}
 
-	/** A stub real file editor whose resource lives under the session's `/repo` workspace folder. */
-	function makeWorkspaceFileEditor(path: string = '/repo/package.json'): FileEditorInput {
+	function makeFileEditor(path: string = '/repo/package.json'): FileEditorInput {
 		const fileEditor = Object.create(FileEditorInput.prototype) as FileEditorInput;
 		Object.defineProperty(fileEditor, 'resource', { value: URI.file(path) });
 		return fileEditor;
+	}
+
+	function makeDiffEditor(): DiffEditorInput {
+		return Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+	}
+
+	function makeMultiDiffEditor(): MultiDiffEditorInput {
+		return Object.create(MultiDiffEditorInput.prototype) as MultiDiffEditorInput;
+	}
+
+	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
+		const editor = Object.create(WebviewInput.prototype) as WebviewInput;
+		Object.defineProperty(editor, 'viewType', { value: viewType });
+		Object.defineProperty(editor, 'providerId', { value: providerId });
+		return editor;
 	}
 
 	function openEditor(editor: EditorInput): void {
@@ -399,7 +417,7 @@ suite('LayoutController (desktop)', () => {
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
 		harness.editorGroupsHaveContent = true;
-		harness.activeEditorInput = makeWorkspaceFileEditor();
+		harness.activeEditorInput = makeFileEditor();
 		harness.onDidEditorsChange.fire();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
@@ -456,7 +474,7 @@ suite('LayoutController (desktop)', () => {
 		// A file tab becomes active: the detail must stay closed (no force-reveal).
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = makeWorkspaceFileEditor();
+		harness.activeEditorInput = makeFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -467,6 +485,60 @@ suite('LayoutController (desktop)', () => {
 			reveals: 0,
 			openedFiles: false,
 		});
+	});
+
+	test('[single-pane] maps all diff editors to Changes and all file editors to Files', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await timeout(0);
+
+		const openedContainers: (string | undefined)[] = [];
+		for (const editor of [makeDiffEditor(), makeMultiDiffEditor(), makeFileEditor('/outside/repo.txt')]) {
+			harness.openedViewContainers = [];
+			harness.activeEditorInput = editor;
+			harness.onDidActiveEditorChange.fire();
+			await timeout(0);
+			openedContainers.push(harness.openedViewContainers[harness.openedViewContainers.length - 1]);
+		}
+
+		assert.deepStrictEqual(openedContainers, [
+			CHANGES_VIEW_CONTAINER_ID,
+			CHANGES_VIEW_CONTAINER_ID,
+			SESSIONS_FILES_CONTAINER_ID,
+		]);
+	});
+
+	test('[single-pane] maps Markdown preview editors to Files', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await timeout(0);
+
+		const openedContainers: (string | undefined)[] = [];
+		for (const [viewType, providerId] of [
+			['mainThreadWebview-markdown.preview', 'markdown.preview'],
+			['vscode.markdown.editor', undefined],
+			['vscode.markdown.preview.editor', undefined],
+		] as const) {
+			harness.openedViewContainers = [];
+			harness.activeEditorInput = makeWebviewEditor(viewType, providerId);
+			harness.onDidActiveEditorChange.fire();
+			await timeout(0);
+			openedContainers.push(harness.openedViewContainers[harness.openedViewContainers.length - 1]);
+		}
+
+		assert.deepStrictEqual(openedContainers, [
+			SESSIONS_FILES_CONTAINER_ID,
+			SESSIONS_FILES_CONTAINER_ID,
+			SESSIONS_FILES_CONTAINER_ID,
+		]);
 	});
 
 	test('[single-pane] reveals the Files detail when the empty Files placeholder becomes active', async () => {
@@ -550,7 +622,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = makeWorkspaceFileEditor();
+		harness.activeEditorInput = makeFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -566,7 +638,7 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = makeWorkspaceFileEditor();
+		harness.activeEditorInput = makeFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -2231,27 +2303,26 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes the Toggle Details command to the editor title layout cluster', () => {
+	test('[D7 single-pane] contributes Toggle Details after Hide Editor in the trailing editor header group', () => {
 		createSinglePaneController();
 
-		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
 
-		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor title layout cluster');
+		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		const when = items[0].when?.serialize() ?? '';
 		assert.deepStrictEqual({
+			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
 			order: items[0].order,
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
+			group: 'navigation',
 			icon: Codicon.listSelection.id,
-			// Conditional (hidden for tab types with no detail, e.g. browser and
-			// search), but keeps its trailing position after the always-present
-			// maximize (order 10) and hide-editor (order 20) items.
-			order: 30,
+			order: 20,
 			hasToggled: true,
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,

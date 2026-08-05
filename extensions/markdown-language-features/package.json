@@ -873,7 +873,7 @@
       },
       {
         "viewType": "vscode.markdown.editor",
-        "displayName": "Markdown Editor (Experimental)",
+        "displayName": "Markdown Editor",
         "priority": {
           "diffEditor": "explicit",
           "textEditor": "option"
