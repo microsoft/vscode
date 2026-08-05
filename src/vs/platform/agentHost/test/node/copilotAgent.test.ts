@@ -3002,6 +3002,38 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('multi-root session forwards additionalDirectories to the SDK session config', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: true });
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+
+				const repoA = URI.file('/repo-a');
+				const repoB = URI.file('/repo-b');
+				const session = AgentSession.uri('copilotcli', 'multi-root-sdk');
+				const result = await agent.createSession({ session, workingDirectories: [repoA, repoB] });
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', [repoA, repoB]);
+
+				assert.deepStrictEqual({
+					workingDirectory: capturedConfig?.workingDirectory,
+					additionalDirectories: capturedConfig?.additionalDirectories,
+				}, {
+					workingDirectory: repoA.fsPath,
+					additionalDirectories: [repoB.fsPath],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('session plugin enablement is projected from reducer state per session', async () => {
 			class PassthroughPluginManager extends TestAgentPluginManager {
 				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
