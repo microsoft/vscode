@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+            text: 'Run exactly this shell command, with no modifications: `node -e "console.log(JSON.parse(require(''fs'').readFileSync(''config.json'',''utf8'')).answer)"`. Then reply with its exact output only.'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+            text: 'Run exactly this shell command, with no modifications: `node -e "console.log(JSON.parse(require(''fs'').readFileSync(''config.json'',''utf8'')).answer)"`. Then reply with its exact output only.'
             origin:
               kind: user
       - channel: ${session_0}
@@ -31,7 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Running the exact command now and I’ll return only its raw output.
+            content: I’m running your exact command now and will return only the command output.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -52,7 +52,7 @@ rounds:
             content: |-
 
 
-              NESTED_VALUE_42
+              42
       - channel: ${chat_0}
         action:
           type: chat/turnComplete
