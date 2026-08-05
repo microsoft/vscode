@@ -55,15 +55,10 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Single-pane "layout" actions (maximize/restore, hide editor, toggle details)
-// render in the editor-title *layout* cluster (MenuId.EditorTitleLayout), after
-// the editor-title actions and their separator — mirroring the classic layout.
-// The detail-panel toggle is conditional (hidden for tab types with no detail,
-// e.g. browser and search — see `singlePaneLayoutToggleDetailsOrder` in
-// `singlePaneDetailsStrategy.ts`) and keeps its trailing position after
-// the hide chevron and maximize/restore.
-const singlePaneLayoutHideEditorOrder = 10;
+// Maximize/restore stays in the editor-title layout cluster. Hide Editor and
+// Toggle Details render together in the trailing editor-header layout group.
 const singlePaneLayoutMaximizeOrder = 20;
+const singlePaneHeaderHideEditorOrder = 10;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -207,15 +202,14 @@ class HideMainEditorPartAction extends Action2 {
 			title: localize2('hideMainEditorPart', "Hide Editor"),
 			icon: Codicon.chevronRight,
 			f1: false,
+			precondition: AuxiliaryBarVisibleContext,
 			menu: {
-				id: MenuId.EditorTitleLayout,
+				id: Menus.SessionsEditorHeaderLayout,
 				group: 'navigation',
-				order: singlePaneLayoutHideEditorOrder,
+				order: singlePaneHeaderHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					EditorMaximizedContext.negate(),
-					AuxiliaryBarVisibleContext,
 					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext)
 			}

@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -307,26 +307,47 @@ suite('Code Review Contributions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is shown in the single-pane Changes header only for created sessions with changes', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+	test('Run Code Review moves from the primary header to secondary overflow when the editor area is collapsed', () => {
+		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.codeReview.run');
+		const secondaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(item, 'expected Run Code Review action on the single-pane Changes editor header');
-		const when = item.when?.serialize() ?? '';
+		assert.ok(primaryItem, 'expected Run Code Review action on the single-pane Changes editor header');
+		assert.ok(secondaryItem, 'expected Run Code Review action in the collapsed editor header overflow');
+		const primaryWhen = primaryItem.when?.serialize() ?? '';
+		const secondaryWhen = secondaryItem.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			group: item.group,
-			order: item.order,
-			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
-			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+			primary: {
+				group: primaryItem.group,
+				order: primaryItem.order,
+				editorAreaGate: primaryWhen.includes(MainEditorAreaVisibleContext.key),
+			},
+			secondary: {
+				group: secondaryItem.group,
+				order: secondaryItem.order,
+				editorAreaGate: secondaryWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
+			},
+			hasSessionsWindowGate: primaryWhen.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: primaryWhen.includes(ActiveEditorContext.key) && primaryWhen.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: primaryWhen.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: primaryWhen.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: primaryWhen.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: primaryWhen.includes(SessionHasChangesContext.key),
+			hasCreatedGate: primaryWhen.includes(SessionIsCreatedContext.key),
 		}, {
-			group: '1_codeReview',
-			order: 1,
+			primary: {
+				group: '1_codeReview',
+				order: 1,
+				editorAreaGate: true,
+			},
+			secondary: {
+				group: 'secondary',
+				order: 10,
+				editorAreaGate: true,
+			},
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneLayoutGate: true,

@@ -17,6 +17,8 @@ export class EditorHeaderControl extends Disposable {
 	private readonly element: HTMLElement | undefined;
 	private readonly primaryActionsContainer: HTMLElement | undefined;
 	private readonly secondaryActionsContainer: HTMLElement | undefined;
+	private readonly layoutActionsSeparator: HTMLElement | undefined;
+	private readonly layoutActionsContainer: HTMLElement | undefined;
 	private readonly headerActions = this._register(new MutableDisposable());
 	private readonly breadcrumbsContainer: HTMLElement | undefined;
 	private readonly breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
@@ -50,6 +52,9 @@ export class EditorHeaderControl extends Disposable {
 			breadcrumbsParent = primaryContainer;
 			this.primaryActionsContainer = append(primaryContainer, $('.editor-group-header-primary-actions.has-no-actions'));
 			this.secondaryActionsContainer = append(secondaryContainer, $('.editor-group-header-secondary-actions.has-no-actions'));
+			this.layoutActionsSeparator = append(secondaryContainer, $('.editor-group-header-actions-separator'));
+			this.layoutActionsSeparator.setAttribute('aria-hidden', 'true');
+			this.layoutActionsContainer = append(secondaryContainer, $('.editor-group-header-layout-actions.has-no-actions'));
 			this._register(toDisposable(() => this.element?.remove()));
 			this._register(this.groupView.onDidActiveEditorChange(() => this.renderActions(true)));
 			this.renderActions(false);
@@ -94,14 +99,18 @@ export class EditorHeaderControl extends Disposable {
 	}
 
 	private updateVisibility(relayout: boolean): void {
-		if (!this.showHeader || !this.element || !this.primaryActionsContainer || !this.secondaryActionsContainer) {
+		if (!this.showHeader || !this.element || !this.primaryActionsContainer || !this.secondaryActionsContainer || !this.layoutActionsContainer || !this.layoutActionsSeparator) {
 			if (relayout) {
 				this.groupView.relayout();
 			}
 			return;
 		}
 		const hasMenuActions = !this.primaryActionsContainer.classList.contains('has-no-actions')
-			|| !this.secondaryActionsContainer.classList.contains('has-no-actions');
+			|| !this.secondaryActionsContainer.classList.contains('has-no-actions')
+			|| !this.layoutActionsContainer.classList.contains('has-no-actions');
+		const showLayoutSeparator = !this.secondaryActionsContainer.classList.contains('has-no-actions')
+			&& !this.layoutActionsContainer.classList.contains('has-no-actions');
+		this.layoutActionsSeparator.classList.toggle('visible', showLayoutSeparator);
 		this.visible = this.breadcrumbsVisible || hasMenuActions;
 		this.element.style.display = this.visible ? '' : 'none';
 		if (relayout) {
@@ -110,18 +119,21 @@ export class EditorHeaderControl extends Disposable {
 	}
 
 	private renderActions(relayout: boolean): void {
-		if (!this.primaryActionsContainer || !this.secondaryActionsContainer) {
+		if (!this.primaryActionsContainer || !this.secondaryActionsContainer || !this.layoutActionsContainer) {
 			return;
 		}
 		this.headerActions.clear();
 		reset(this.primaryActionsContainer);
 		reset(this.secondaryActionsContainer);
+		reset(this.layoutActionsContainer);
 		this.primaryActionsContainer.classList.add('has-no-actions');
 		this.secondaryActionsContainer.classList.add('has-no-actions');
+		this.layoutActionsContainer.classList.add('has-no-actions');
 
 		const headerPrimaryMenuId = this.menuIds?.headerPrimary;
 		const headerSecondaryMenuId = this.menuIds?.headerSecondary;
-		if (!headerPrimaryMenuId && !headerSecondaryMenuId) {
+		const headerLayoutMenuId = this.menuIds?.headerLayout;
+		if (!headerPrimaryMenuId && !headerSecondaryMenuId && !headerLayoutMenuId) {
 			this.updateVisibility(relayout);
 			return;
 		}
@@ -139,6 +151,10 @@ export class EditorHeaderControl extends Disposable {
 		}
 		if (headerSecondaryMenuId) {
 			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, toolbarOptions));
+			store.add(toolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
+		}
+		if (headerLayoutMenuId) {
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, toolbarOptions));
 			store.add(toolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;

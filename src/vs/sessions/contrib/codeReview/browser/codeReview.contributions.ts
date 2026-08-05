@@ -10,7 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -40,10 +40,17 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	singlePaneDetailPanel.negate(),
 );
 
-// Code review in the single-pane Changes editor header: on the left
-// (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
-// action (separated by a divider), whether the editor area is visible or
-// collapsed.
+const singlePaneCodeReviewWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+	singlePaneDetailPanel,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext,
+	SessionWorkspaceIsVirtualContext.toNegated(),
+	SessionIsCreatedContext,
+	SessionHasChangesContext,
+);
+
 class RunSessionCodeReviewAction extends Action2 {
 
 	static readonly ID = 'sessions.codeReview.run';
@@ -69,16 +76,13 @@ class RunSessionCodeReviewAction extends Action2 {
 					id: Menus.SessionsEditorHeaderPrimary,
 					group: '1_codeReview',
 					order: 1,
-					when: ContextKeyExpr.and(
-						IsSessionsWindowContext,
-						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-						singlePaneDetailPanel,
-						IsAuxiliaryWindowContext.toNegated(),
-						IsTopRightEditorGroupContext,
-						SessionWorkspaceIsVirtualContext.toNegated(),
-						SessionIsCreatedContext,
-						SessionHasChangesContext,
-					),
+					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext),
+				},
+				{
+					id: Menus.SessionsEditorHeaderSecondary,
+					group: 'secondary',
+					order: 10,
+					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext.toNegated()),
 				},
 			],
 		});

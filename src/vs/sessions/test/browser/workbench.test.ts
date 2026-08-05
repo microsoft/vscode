@@ -15,6 +15,7 @@ import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPa
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
+import { Menus } from '../../browser/menus.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -1152,11 +1153,23 @@ suite('Sessions - Workbench', () => {
 		// Breadcrumbs render inside the full-width header row between the tab bar
 		// and the editor content only in the single-pane Agents Window. The classic
 		// editor part must keep its default (below-tabs) placement.
-		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => { showHeader?: boolean; menuIds?: unknown };
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => {
+			showHeader?: boolean;
+			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
+		};
 		const options = getOptions.call({});
 
-		assert.strictEqual(options.showHeader, true);
-		assert.ok(options.menuIds, 'single-pane group view still contributes menuIds');
+		assert.deepStrictEqual({
+			showHeader: options.showHeader,
+			headerPrimary: options.menuIds?.headerPrimary,
+			headerSecondary: options.menuIds?.headerSecondary,
+			headerLayout: options.menuIds?.headerLayout,
+		}, {
+			showHeader: true,
+			headerPrimary: Menus.SessionsEditorHeaderPrimary,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
+			headerLayout: Menus.SessionsEditorHeaderLayout,
+		});
 	});
 
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
