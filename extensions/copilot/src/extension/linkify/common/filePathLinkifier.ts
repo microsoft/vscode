@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
-import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { getWorkspaceFileDisplayPath, IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { hasDriveLetter } from '../../../util/vs/base/common/extpath';
 import { Schemas } from '../../../util/vs/base/common/network';
@@ -12,10 +12,38 @@ import * as path from '../../../util/vs/base/common/path';
 import { isWindows } from '../../../util/vs/base/common/platform';
 import * as resources from '../../../util/vs/base/common/resources';
 import { isUriComponents } from '../../../util/vs/base/common/uri';
-import { Uri } from '../../../vscodeTypes';
+import { Location, Position, Range, Uri } from '../../../vscodeTypes';
 import { coalesceParts, LinkifiedPart, LinkifiedText, LinkifyLocationAnchor } from './linkifiedText';
 import { IContributedLinkifier, LinkifierContext } from './linkifyService';
 import { IStatCache } from './statCache';
+
+/**
+ * Matches a trailing `:line` or `:line:column` suffix on a file path.
+ * Only matches when the line part is purely numeric, to avoid false positives
+ * with things like URI schemes or other colon-separated segments.
+ */
+const lineColumnSuffixRe = /^(?<filePath>.+?):(?<line>\d+)(?::(?<column>\d+))?$/;
+
+/**
+ * Parses a trailing `:line` or `:line:column` suffix from a file path text.
+ * Returns the clean file path and 1-based line/column numbers, or undefined if no valid suffix is found.
+ */
+function parseLineColumnSuffix(pathText: string): { path: string; line: number; column: number | undefined } | undefined {
+	const match = lineColumnSuffixRe.exec(pathText);
+	if (!match?.groups) {
+		return undefined;
+	}
+	const line = parseInt(match.groups['line'], 10);
+	if (line < 1) {
+		return undefined;
+	}
+	const colStr = match.groups['column'];
+	const column = colStr ? parseInt(colStr, 10) : undefined;
+	if (column !== undefined && column < 1) {
+		return undefined;
+	}
+	return { path: match.groups['filePath'], line, column };
+}
 
 // Create a single regex which runs different regexp parts in a big `|` expression.
 const pathMatchRe = new RegExp(
@@ -57,9 +85,20 @@ export class FilePathLinkifier implements IContributedLinkifier {
 
 			const pathText = match.groups?.['inlineCodePath'] ?? match.groups?.['plainTextPath'] ?? '';
 
-			parts.push(this.resolvePathText(pathText, context)
+			// Parse optional :line or :line:column suffix
+			const lineColInfo = parseLineColumnSuffix(pathText);
+			const cleanPath = lineColInfo ? lineColInfo.path : pathText;
+
+			parts.push(this.resolvePathText(cleanPath, context)
 				.then(uri => {
 					if (uri) {
+						if (lineColInfo) {
+							const line = lineColInfo.line - 1;
+							const col = lineColInfo.column ? lineColInfo.column - 1 : 0;
+							const location = new Location(uri, new Range(new Position(line, col), new Position(line, col)));
+							const displayPath = getWorkspaceFileDisplayPath(this.workspaceService, uri);
+							return new LinkifyLocationAnchor(location, `${displayPath}#L${lineColInfo.line}`);
+						}
 						return new LinkifyLocationAnchor(uri);
 					}
 					return matched;
