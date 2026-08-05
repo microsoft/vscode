@@ -219,7 +219,6 @@ export function resolveAutomationModelIdentifier(
 }
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
-const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
@@ -635,25 +634,6 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
-	constructor() {
-		super({
-			id: AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID,
-			title: localize2('automation.form.workspacePicker.action', "Automations Workspace Picker"),
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.ChatInputSecondary,
-				group: 'navigation',
-				order: 0,
-				when: ChatContextKeys.inAutomationsDialog,
-			}],
-		});
-	}
-
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
-
 registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 	constructor() {
 		super({
@@ -936,12 +916,6 @@ export function renderForm(
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
 			}
-			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => {
-					container.classList.add('chat-input-picker-item');
-					workspacePicker.render(container);
-				}, undefined, itemOptions);
-			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				const item = instantiationService.createInstance(
 					AutomationIsolationGroupActionViewItem,
@@ -1007,8 +981,9 @@ export function renderForm(
 	}));
 	const newChatInputHost = DOM.append(promptHost, $('.automation-form-new-chat-input'));
 	newChatInput.render(newChatInputHost, promptHost);
-	const newChatSessionTypePickerHost = DOM.append(newChatInputHost, $('.automation-form-new-chat-session-type-picker.chat-secondary-toolbar'));
-	newChatInput.sessionTypePicker.render(newChatSessionTypePickerHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
+	const newChatPickersHost = DOM.append(newChatInputHost, $('.automation-form-new-chat-pickers.chat-secondary-toolbar'));
+	newChatInput.sessionTypePicker.render(newChatPickersHost, { className: 'sessions-chat-session-type-picker chat-input-picker-item' });
+	workspacePicker.render(newChatPickersHost).classList.add('chat-input-picker-item');
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {

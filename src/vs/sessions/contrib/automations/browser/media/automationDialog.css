@@ -307,25 +307,26 @@
 	display: none;
 }
 
-.automation-form-new-chat-session-type-picker.chat-secondary-toolbar {
+.automation-form-new-chat-pickers.chat-secondary-toolbar {
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size60);
 	margin-top: var(--vscode-spacing-size40);
 	padding: 0;
 	min-width: 0;
 }
 
-.automation-form-new-chat-session-type-picker > .sessions-chat-picker-slot {
+.automation-form-new-chat-pickers > .sessions-chat-picker-slot {
 	min-width: 0;
 }
 
-.automation-form-new-chat-session-type-picker .sessions-chat-picker-slot.chat-input-picker-item .action-label .sessions-chat-dropdown-label {
+.automation-form-new-chat-pickers .sessions-chat-picker-slot.chat-input-picker-item .action-label .sessions-chat-dropdown-label {
 	min-width: 0;
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: inherit;
 }
 
-.automation-form-new-chat-session-type-picker .sessions-chat-picker-slot.chat-input-picker-item .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+.automation-form-new-chat-pickers .sessions-chat-picker-slot.chat-input-picker-item .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
