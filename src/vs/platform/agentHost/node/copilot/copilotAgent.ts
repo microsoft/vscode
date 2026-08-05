@@ -928,6 +928,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		this._sessions.clearAndDisposeAll();
+		this._sdkSessionsById.clear();
 		this._mcpNotificationSubs.clearAndDisposeAll();
 		try {
 			await this._stopClient();

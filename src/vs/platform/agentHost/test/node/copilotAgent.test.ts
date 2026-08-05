@@ -77,6 +77,10 @@ function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
 }
 
+function sdkSessionsMap(agent: CopilotAgent): Map<string, CopilotAgentSession> {
+	return (agent as unknown as { _sdkSessionsById: Map<string, CopilotAgentSession> })._sdkSessionsById;
+}
+
 function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
 }
@@ -1365,6 +1369,8 @@ suite('CopilotAgent', () => {
 			},
 			dispose: () => calls.failed.dispose++,
 		});
+		sdkSessionsMap(agent).set('cancelled-sdk-session', sessionsMap(agent).get('cancelled')!.defaultChat!);
+		sdkSessionsMap(agent).set('failed-sdk-session', sessionsMap(agent).get('failed')!.defaultChat!);
 		try {
 			await agent.listSessions();
 			const abort = agent.chats.abort(cancelledChat);
@@ -1381,6 +1387,7 @@ suite('CopilotAgent', () => {
 				secondFailedTurnIds: [...(secondResult?.failedTurnIds ?? [])],
 				stopCount: client.stopCallCount,
 				remainingSessions: sessionsMap(agent).size,
+				remainingSdkSessions: sdkSessionsMap(agent).size,
 				errorEvents: telemetryService.errorEvents,
 			}, {
 				calls: {
@@ -1390,6 +1397,7 @@ suite('CopilotAgent', () => {
 				secondFailedTurnIds: ['failed-turn'],
 				stopCount: 1,
 				remainingSessions: 0,
+				remainingSdkSessions: 0,
 				errorEvents: [{
 					eventName: 'agentHost.copilotConnectionClosed',
 					data: {
