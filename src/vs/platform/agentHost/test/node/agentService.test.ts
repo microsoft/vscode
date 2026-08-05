@@ -507,7 +507,6 @@ suite('AgentService (node dispatcher)', () => {
 		localService.registerProvider(agent);
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		const session = await localService.createSession({
 			provider: agent.id,
@@ -533,7 +532,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 		const override = {
 			workspaceFile: 'file:///work/override.code-workspace',
-			name: 'Override',
 		};
 		const overridden = await localService.createSession({
 			provider: agent.id,
@@ -580,7 +578,6 @@ suite('AgentService (node dispatcher)', () => {
 		localService.registerProvider(agent);
 		const multiRoot = {
 			workspaceFile: 'file:///work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		const session = await localService.createSession({
 			provider: agent.id,
@@ -1445,7 +1442,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.sessionMetadataOverrides = {
-				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
@@ -1461,7 +1458,6 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const multiRoot = {
 				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-				name: 'Demo Workspace',
 			};
 			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
 			const sessionId = 'test-session-multi-root';
@@ -1469,7 +1465,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.sessionMetadataOverrides = {
-				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -1486,7 +1482,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.sessionMetadataOverrides = {
-				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -2649,11 +2645,10 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
 			copilotAgent.sessionMetadataOverrides = {
-				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace', name: 'Spoof' } },
+				_meta: { multiRoot: { workspaceFile: 'file:///provider-spoof.code-workspace' } },
 			};
 			const multiRoot = {
 				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-				name: 'Demo Workspace',
 			};
 			await db.setMetadata(SESSION_META_MULTI_ROOT_KEY, JSON.stringify(multiRoot));
 

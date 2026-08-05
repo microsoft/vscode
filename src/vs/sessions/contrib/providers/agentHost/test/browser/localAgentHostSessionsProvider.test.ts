@@ -351,7 +351,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -1416,7 +1416,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
 			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
