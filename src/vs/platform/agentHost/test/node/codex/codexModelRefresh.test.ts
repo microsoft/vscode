@@ -175,6 +175,66 @@ suite('CodexAgent model refresh', () => {
 		}]);
 	});
 
+	test('does not treat a custom provider named chatgpt as a ChatGPT subscription', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'apiKey' }, requiresOpenaiAuth: false };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'chatgpt' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
+			provider: 'chatgpt',
+			meta: undefined,
+		}]);
+	});
+
+	test('does not relabel a custom provider when ChatGPT authentication is available', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: false };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'custom-provider' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
+			provider: 'custom-provider',
+			meta: undefined,
+		}]);
+	});
+
 	test('signs out through app-server and refreshes account state', async () => {
 		const agent = createAgent(disposables, async () => []);
 		const requests: string[] = [];

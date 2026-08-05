@@ -180,6 +180,7 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
  */
 const CODEX_RESPONSES_ENDPOINT = '/responses';
 const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
+const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
@@ -1399,8 +1400,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
-			const modelProvider = configResponse.config.model_provider ?? 'openai';
-			const pickerProvider = account.status === 'signedIn' && account.authType === 'chatgpt' ? 'chatgpt' : modelProvider;
+			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
+			const usesChatGPTSubscription = modelProvider === CODEX_OPENAI_MODEL_PROVIDER && account.status === 'signedIn' && account.authType === 'chatgpt';
+			const pickerProvider = usesChatGPTSubscription ? 'chatgpt' : modelProvider;
 			const data = [] as ModelListResponse['data'];
 			let cursor: string | null = null;
 			do {
@@ -1417,7 +1419,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					name: model.displayName,
 					supportsVision: model.inputModalities.includes('image'),
 					configSchema,
-					_meta: createAgentModelSourceMeta(pickerProvider === 'chatgpt' ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
+					_meta: createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 				}));
 			this._codexModels = models;
 		} catch (err) {
