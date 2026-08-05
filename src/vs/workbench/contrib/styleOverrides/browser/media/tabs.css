@@ -21,9 +21,6 @@
 	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
-	/* Gap between the tab's clickable box and the visible pill (.tab-fill). Tune
-	 * this to resize the pill without touching the tab's full-height hit area. */
-	/* --modern-ui-tab-pill-inset: var(--vscode-spacing-size20); */
 }
 
 .style-override.monaco-workbench.vs {
@@ -52,7 +49,6 @@
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
-	/* margin-right: var(--vscode-spacing-size40) !important; */
 	padding: 0 var(--vscode-spacing-size60) 0 var(--vscode-spacing-size40) !important;
 	--tab-border-top-color: transparent !important;
 }
@@ -67,20 +63,6 @@
 
 .style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
 	row-gap: 0;
-}
-
-/* Wrapping tabs use the same fake gap as single-row tabs: transparent inset
- * borders on every side + no margin/row-gap, so the pills float but the hit
- * boxes stay flush for good clickability. The tab background is the pill here
- * (the fill is single-row only), so clip it to the padding box; the enlarged
- * radius keeps the inset corners at the small radius. */
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
-	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2) !important;
-	border: var(--vscode-spacing-size20) solid transparent !important;
-	margin-right: 0 !important;
-	align-items: center;
-	background-clip: padding-box !important;
-	border-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20)) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
@@ -160,80 +142,53 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-/* Match the tabs container to the 32px tab height (24px pill token + 8px
- * gutter) so the full-height tabs are not clipped by the base 24px height.
- * Wrapping and high-contrast keep the base height (they use the 24px model). */
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container {
-	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
-}
-
-/*
- * Modern UI: enlarge the clickable tab area while keeping a floating rounded
- * pill. The tab fills the full title-bar height (so the whole area is
- * clickable) and a dedicated `.tab-fill` child renders the visible pill -- a
- * real element rather than a pseudo because the tab's ::before/::after are
- * reserved for drop-target indicators. Transparent inset borders (the pill gap)
- * shrink the tab's padding box to the pill region, so the fill, the
- * active/selected indicator and the close button all align to it automatically.
- * The container/scrollable padding is dropped so total height stays 32px.
- * Scoped to skip wrapping and high-contrast, which keep the original model.
- */
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) {
+/* Grow the hit area around the fixed-height pill without overriding the base
+ * tab height. Transparent block borders become clickable gutter while keeping
+ * the label, action, and indicator geometry tied to the pill height. */
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) {
 	padding-top: 0;
 }
 
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element {
 	padding-bottom: 0;
 }
 
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
-	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2) !important;
-	border:  var(--vscode-spacing-size20) solid transparent !important;
-	margin-right: 0 !important;
-	align-items: center;
-	background-color: transparent !important;
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container,
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
 }
 
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab > .tab-fill {
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
+	border-block: var(--vscode-spacing-size40) solid transparent;
+}
+
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab {
+	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
+	border-block: var(--vscode-spacing-size20) solid transparent;
+}
+
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab > .tab-fill {
 	display: block;
 	position: absolute;
-	inset: 0;
-	z-index: 0;
+	inset: 0 var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
 	pointer-events: none;
-	height: 24px;
-	margin-top: 2px;
 }
 
-/* Keep the label above the pill fill (the actions/indicator already sit higher). */
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab > .tab-label {
-	position: relative;
-	z-index: 1;
-}
-
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab.active > .tab-fill {
-	background-color: var(--modern-ui-tab-active-background);
-}
-
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab.selected:not(.active) > .tab-fill {
-	background-color: var(--vscode-tab-selectedBackground);
-}
-
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab:not(.active):not(.selected):hover > .tab-fill {
+.style-override .part.editor .tabs-container > .tab:hover > .tab-fill {
 	background-color: var(--modern-ui-tab-hover-background);
 }
 
-.style-override .part.editor .tabs-container > .tab.active {
-	background-color: var(--modern-ui-tab-active-background) !important;
+.style-override .part.editor .tabs-container > .tab.selected > .tab-fill {
+	background-color: var(--vscode-tab-selectedBackground);
+}
+
+.style-override .part.editor .tabs-container > .tab.active > .tab-fill {
+	background-color: var(--modern-ui-tab-active-background);
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
-}
-
-.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
-	background-color: var(--vscode-tab-selectedBackground) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
@@ -257,16 +212,6 @@
 
 .style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
 	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
-}
-
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover .tab-fill {
-	background-color: var(--modern-ui-tab-hover-background) !important;
-}
-
-/* Wrapping keeps the tab-background model (the pill fill is single-row only, so
- * it stays hidden), so hover sits on the tab itself, mirroring active/selected. */
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:not(.active):not(.selected):hover {
-	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
@@ -298,7 +243,7 @@
 	top: 0;
 	right: 0;
 	bottom: 0;
-	margin: var(--vscode-spacing-size20);
+	margin: 0 var(--vscode-spacing-size20);
 	width: 24px;
 	overflow: visible;
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
@@ -313,7 +258,6 @@
 	right: auto;
 	left: 0;
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
-	margin: var(--vscode-spacing-size20) 0;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-actions {
@@ -387,11 +331,6 @@
 	font-family: var(--vscode-icon-pinned-font-family);
 }
 
-/* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
-.style-override .part.editor .tabs-container > .tab.sticky-compact {
-	background-color: transparent !important;
-}
-
 .style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .sticky-tabs-background {
 	position: absolute;
 	top: 0;
@@ -405,14 +344,6 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 11;
-}
-
-.style-override .part.editor .tabs-container > .tab.sticky-compact.active {
-	background-color: var(--modern-ui-tab-active-background) !important;
-}
-
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):not(.selected):hover {
-	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container {

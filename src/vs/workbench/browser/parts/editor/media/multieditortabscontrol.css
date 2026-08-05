@@ -270,7 +270,7 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-fill {
+.tabs-container > .tab > .tab-fill {
 	display: none; /* only rendered as a pill background by the Modern UI style override */
 }
 
