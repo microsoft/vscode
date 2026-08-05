@@ -13,7 +13,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostOctoKitService, type GitHubIssueOrPullRequest } from './shared/agentHostOctoKitService.js';
+import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
@@ -53,6 +53,7 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
+	readonly octoKitService?: IAgentHostOctoKitService;
 	readonly copilotApiService?: ICopilotApiService;
 }
 
@@ -81,7 +82,6 @@ export class AgentHostSessionTitleController extends Disposable {
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 	) {
 		super();
 	}
@@ -420,7 +420,8 @@ export class AgentHostSessionTitleController extends Disposable {
 	private async _appendGitHubContext(promptContent: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
 		const references = this._parseGitHubReferences(promptContent);
 		const githubToken = this._options.getGitHubToken?.();
-		if (references.length === 0 || !githubToken) {
+		const octoKitService = this._options.octoKitService;
+		if (references.length === 0 || !githubToken || !octoKitService) {
 			return promptContent;
 		}
 
@@ -429,7 +430,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		try {
 			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
 				try {
-					const value = await this._octoKitService.getIssueOrPullRequest(
+					const value = await octoKitService.getIssueOrPullRequest(
 						reference.owner,
 						reference.repo,
 						reference.number,

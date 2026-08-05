@@ -148,8 +148,9 @@ suite('AgentHostSessionTitleController', () => {
 			getGitHubCopilotToken,
 			getGitHubToken,
 			gitHubContextRequestTimeout,
+			octoKitService,
 			copilotApiService,
-		}, new NullLogService(), octoKitService));
+		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
 	}
 
