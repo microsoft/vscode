@@ -10,7 +10,7 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
@@ -38,7 +38,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		this.modelGroups.set(vendor.vendor, []);
 	}
 
-	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata): void {
+	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata, groupName?: string): void {
 		this.models.set(identifier, metadata);
 		const models = this.modelsByVendor.get(vendorId) || [];
 		models.push(identifier);
@@ -46,16 +46,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 		// Add to model groups - create a single default group per vendor
 		const groups = this.modelGroups.get(vendorId) || [];
-		if (groups.length === 0) {
-			groups.push({
+		let group = groupName ? groups.find(candidate => candidate.group?.name === groupName) : groups[0];
+		if (!group) {
+			group = {
 				group: {
 					vendor: vendorId,
-					name: this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default'
+					name: groupName ?? (this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default')
 				},
 				modelIdentifiers: []
-			});
+			};
+			groups.push(group);
 		}
-		groups[0].modelIdentifiers.push(identifier);
+		group.modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
 	}
 
@@ -301,6 +303,87 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 4);
+	});
+
+	test('distinguishes the ChatGPT subscription from a custom group with the same name', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', source: 'chatgptSubscription' },
+		});
+		service.addModel('custom', 'custom:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.custom'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'custom',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		}, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entries = model.filter('');
+		const groups = entries.filter(isLanguageModelProviderEntry).map(entry => ({
+			id: entry.id,
+			label: entry.label,
+			chatgptSubscription: entry.chatgptSubscription,
+		}));
+		const models = entries.filter(entry => !isLanguageModelProviderEntry(entry) && !isLanguageModelGroupEntry(entry)) as ILanguageModelEntry[];
+
+		assert.deepStrictEqual({
+			groups,
+			providerLabels: models.map(entry => getManageModelsProviderLabel(entry.model)),
+		}, {
+			groups: [
+				{ id: 'chatgpt-ChatGPT-chatgptSubscription', label: 'ChatGPT', chatgptSubscription: true },
+				{ id: 'custom-ChatGPT-configured', label: 'ChatGPT', chatgptSubscription: false },
+			],
+			providerLabels: ['ChatGPT', 'ChatGPT'],
+		});
+	});
+
+	test('shows the first-party ChatGPT subscription header even when it is the only group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', source: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+
+		assert.deepStrictEqual(model.filter('').map(entry => ({
+			type: entry.type,
+			label: isLanguageModelProviderEntry(entry) ? entry.label : undefined,
+			chatgptSubscription: isLanguageModelProviderEntry(entry) ? entry.chatgptSubscription : undefined,
+		})), [
+			{ type: 'vendor', label: 'ChatGPT', chatgptSubscription: true },
+			{ type: 'model', label: undefined, chatgptSubscription: undefined },
+		]);
 	});
 
 	test('should filter by provider name (vendor ID and display name)', () => {

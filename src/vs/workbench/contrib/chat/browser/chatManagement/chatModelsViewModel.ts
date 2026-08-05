@@ -6,7 +6,7 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
+import { getLanguageModelProviderDisplayName, ILanguageModelChatMetadata, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -34,11 +34,16 @@ export const SEARCH_SUGGESTIONS = {
 export interface ILanguageModelProvider {
 	vendor: ILanguageModelProviderDescriptor;
 	group: ILanguageModelsProviderGroup;
+	source?: 'chatgptSubscription';
 }
 
 export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
 	provider: ILanguageModelProvider;
 	hidden: boolean;
+}
+
+export function getManageModelsProviderLabel(model: ILanguageModel): string {
+	return model.provider.group.name;
 }
 
 export interface ILanguageModelEntry {
@@ -67,6 +72,7 @@ export interface ILanguageModelProviderEntry {
 	templateId: string;
 	collapsed: boolean;
 	hidden: boolean;
+	chatgptSubscription: boolean;
 	vendorEntry: ILanguageModelProvider;
 }
 
@@ -176,7 +182,8 @@ export class ChatModelsViewModel extends Disposable {
 
 	private doFilter(): void {
 		const viewModelEntries: IViewModelEntry[] = [];
-		const shouldShowGroupHeaders = this.languageModelGroups.length > 1;
+		const shouldShowGroupHeaders = this.languageModelGroups.length > 1
+			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.chatgptSubscription);
 
 		for (const group of this.languageModelGroups) {
 			if (this.collapsedGroups.has(group.group.id)) {
@@ -246,7 +253,9 @@ export class ChatModelsViewModel extends Disposable {
 			if (lowerProviders.length > 0) {
 				const matchesProvider = lowerProviders.some(provider =>
 					modelEntry.provider.vendor.vendor.toLowerCase() === provider ||
-					modelEntry.provider.vendor.displayName.toLowerCase() === provider
+					modelEntry.provider.vendor.displayName.toLowerCase() === provider ||
+					modelEntry.provider.group.vendor.toLowerCase() === provider ||
+					modelEntry.provider.group.name.toLowerCase() === provider
 				);
 				if (!matchesProvider) {
 					continue;
@@ -340,7 +349,7 @@ export class ChatModelsViewModel extends Disposable {
 		const result: ILanguageModelEntriesGroup[] = [];
 		if (this.groupBy === ChatModelGroup.Vendor) {
 			for (const model of languageModels) {
-				const groupId = this.getProviderGroupId(model.provider.group);
+				const groupId = this.getProviderGroupId(model.provider);
 				let group = result.find(group => group.group.id === groupId);
 				if (!group) {
 					group = {
@@ -352,7 +361,7 @@ export class ChatModelsViewModel extends Disposable {
 				group.models.push(model);
 			}
 			for (const statusGroup of this.languageModelGroupStatuses) {
-				const groupId = this.getProviderGroupId(statusGroup.provider.group);
+				const groupId = this.getProviderGroupId(statusGroup.provider);
 				let group = result.find(group => group.group.id === groupId);
 				if (!group) {
 					group = {
@@ -391,7 +400,7 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private createLanguageModelProviderEntry(provider: ILanguageModelProvider): ILanguageModelProviderEntry {
-		const id = this.getProviderGroupId(provider.group);
+		const id = this.getProviderGroupId(provider);
 		return {
 			type: 'vendor',
 			id,
@@ -399,6 +408,7 @@ export class ChatModelsViewModel extends Disposable {
 			templateId: VENDOR_ENTRY_TEMPLATE_ID,
 			collapsed: this.collapsedGroups.has(id),
 			hidden: this.languageModelsService.isGroupHidden(provider.group.vendor, provider.group.name),
+			chatgptSubscription: provider.source === 'chatgptSubscription',
 			vendorEntry: {
 				group: provider.group,
 				vendor: provider.vendor
@@ -449,7 +459,7 @@ export class ChatModelsViewModel extends Disposable {
 		const models: ILanguageModel[] = [];
 		const languageModelsGroups = this.languageModelsService.getLanguageModelGroups(vendor.vendor);
 		for (const group of languageModelsGroups) {
-			const provider: ILanguageModelProvider = {
+			const defaultProvider: ILanguageModelProvider = {
 				group: group.group ?? {
 					vendor: vendor.vendor,
 					name: vendor.displayName
@@ -458,7 +468,7 @@ export class ChatModelsViewModel extends Disposable {
 			};
 			if (group.status) {
 				this.languageModelGroupStatuses.push({
-					provider,
+					provider: defaultProvider,
 					status: {
 						message: group.status.message,
 						severity: group.status.severity
@@ -481,6 +491,14 @@ export class ChatModelsViewModel extends Disposable {
 				if (ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
 					continue;
 				}
+				const provider = metadata.modelGroup ? {
+					vendor,
+					group: {
+						vendor: metadata.modelGroup.id,
+						name: getLanguageModelProviderDisplayName(this.languageModelsService, metadata.modelGroup.id),
+					},
+					source: metadata.modelGroup.source,
+				} satisfies ILanguageModelProvider : defaultProvider;
 				models.push({
 					identifier,
 					metadata,
@@ -495,7 +513,7 @@ export class ChatModelsViewModel extends Disposable {
 	getModelsForGroup(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry): ILanguageModel[] {
 		if (isLanguageModelProviderEntry(group)) {
 			return this.languageModels.filter(m =>
-				this.getProviderGroupId(m.provider.group) === group.id
+				this.getProviderGroupId(m.provider) === group.id
 			);
 		}
 
@@ -530,8 +548,8 @@ export class ChatModelsViewModel extends Disposable {
 		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}`;
 	}
 
-	private getProviderGroupId(group: ILanguageModelsProviderGroup): string {
-		return `${group.vendor}-${group.name}`;
+	private getProviderGroupId(provider: ILanguageModelProvider): string {
+		return `${provider.group.vendor}-${provider.group.name}-${provider.source ?? 'configured'}`;
 	}
 
 	toggleCollapsed(viewModelEntry: IViewModelEntry): void {

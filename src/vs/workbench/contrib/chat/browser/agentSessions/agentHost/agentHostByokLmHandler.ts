@@ -18,7 +18,9 @@ import {
 	IByokLmOutputItem,
 	IByokLmReasoningItem,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
@@ -31,6 +33,7 @@ import {
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
 const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
+const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -51,6 +54,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -59,9 +64,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		this._register(Event.debounce(this._languageModelsService.onDidChangeLanguageModels, () => undefined, 500)(() => {
 			this._onDidChangeModels.fire();
 		}));
+		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
+			this._onDidChangeModels.fire();
+		}));
 	}
 
 	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return { output: [], error: 'BYOK models are disabled by policy.' };
+		}
+
 		const modelIdentifier = this._resolveModelIdentifier(request.vendor, request.modelId);
 		if (!modelIdentifier) {
 			return { output: [], error: `No BYOK model found for ${request.vendor}/${request.modelId}` };
@@ -134,6 +146,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	}
 
 	async listModels(_token: CancellationToken): Promise<IByokLmModelInfo[]> {
+		if (!this._chatEntitlementService.clientByokEnabled) {
+			return [];
+		}
+
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);

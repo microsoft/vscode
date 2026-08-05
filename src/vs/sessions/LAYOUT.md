@@ -116,6 +116,8 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 No menubar, no editor actions, no `WindowTitle` dependency.
 
+The account widget shows overlapping provider identities only for accounts that are currently verified as signed in. Its panel keeps provider and status groups in a stable order: Copilot, ChatGPT (or its sign-in action), then contributed account status such as Codebase Semantic Index, with dividers between groups. Subscription usage uses a two-row metric layout with the plan and percentage first, followed by reset timing and the usage label.
+
 ### Session Picker (Center)
 
 The center section shows a clickable session picker widget. When a session is active it renders:
@@ -177,6 +179,8 @@ The header and the composite bar are deliberately separate widgets: the header r
 **Pitfall:** don't cap the chat viewport width in `SessionView` layout when you need edge-aligned scrollbars. Keep the viewport full-width and center only the inner chat content so alignment and scroll ergonomics both hold.
 
 **Pitfall:** Agents chat styles shared by session views and editor-hosted chats must provide a fallback when they reference SessionView-scoped CSS variables. Editor-hosted chats live outside the SessionView subtree, so an unresolved variable invalidates the entire declaration.
+
+**Pitfall:** Changed-file rows must share left-aligned insertion and deletion column widths derived from the current list, with tabular numerals, so every `+` and `-` starts on the same vertical line. Apply the measured widths directly to rendered count spans rather than introducing unregistered CSS variables; keep the labels on the compact edit-session type role and spacing, since bold weights or per-value padding make the row stats too heavy.
 
 **Pitfall:** a meta-row action view item that renders a `Button` (`.monaco-text-button`) cannot color a codicon glyph via a normal inline `style.color`, because `button.css` forces `.monaco-text-button .codicon { color: inherit !important }`. To give a meta icon its own theme color (e.g. the PR state color), set the color inline **with `!important` priority** (`el.style.setProperty('color', value, 'important')`) — an inline `!important` declaration wins over an external author `!important` rule in the cascade.
 

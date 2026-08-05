@@ -72,6 +72,7 @@ import '../workbench/services/extensionManagement/electron-browser/extensionGall
 import '../workbench/services/extensionManagement/electron-browser/extensionTipsService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataSyncService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataAutoSyncService.js';
+import '../workbench/contrib/userDataSync/electron-browser/userDataSyncUtilChannel.contribution.js';
 import '../workbench/services/timer/electron-browser/timerService.js';
 import '../workbench/services/environment/electron-browser/shellEnvironmentService.js';
 import '../workbench/services/integrity/electron-browser/integrityService.js';
