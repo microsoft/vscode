@@ -631,7 +631,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _mcpNotificationSubs = this._register(new DisposableMap<string>());
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
-	private readonly _sessionSequencer = new SequencerByKey<string>();
 	/**
 	 * Sessions created by a client but not yet materialized into a Copilot
 	 * SDK session + worktree + on-disk metadata. Materialization is deferred
