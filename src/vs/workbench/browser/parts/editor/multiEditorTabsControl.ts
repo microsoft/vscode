@@ -905,7 +905,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Tab Fill (Modern UI pill background). A real element is used because the
 		// tab's ::before/::after pseudo-elements are reserved for drop-target indicators.
-		const tabFillContainer = $('.tab-fill');
+		const tabFillContainer = $('.tab-fill', { 'aria-hidden': true });
 		tabContainer.appendChild(tabFillContainer);
 
 		// Tab Border Top

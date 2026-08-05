@@ -49,7 +49,7 @@
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
-	padding: 0 var(--vscode-spacing-size60) 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
 	--tab-border-top-color: transparent !important;
 }
 
