@@ -246,7 +246,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		item: ChatTreeItem,
 		private readonly _wasOpenedFromInput: boolean,
 		private readonly _storageService: IStorageService,
-		private readonly _inlineAgentSurveyService: IInlineAgentSurveyService,
+		private readonly _inlineAgentSurveyService?: IInlineAgentSurveyService,
 	) {
 		super();
 		this._storageDisposables.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, this._storageDisposables)(() => {
@@ -412,7 +412,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			}
 		}
 
-		const survey = this._inlineAgentSurveyService.getPendingSurvey(item.sessionResource, item.id);
+		const survey = this._inlineAgentSurveyService?.getPendingSurvey(item.sessionResource, item.id);
 		if (survey?.dismissed) {
 			contentParts.push(localize('inlineAgentSurveyDismissedAccessibleView', "Agent quality survey: feedback skipped. Return to the chat response to undo."));
 		} else if (survey) {

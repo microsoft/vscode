@@ -135,6 +135,7 @@ import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '..
 import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IInlineAgentSurveyResponseContext, IInlineAgentSurveyService, IInlineAgentSurveySubmission, InlineAgentSurveyRating } from '../../contrib/surveys/common/inlineAgentSurveyService.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
 import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -381,9 +382,24 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
+	instantiationService.stub(IInlineAgentSurveyService, new TestInlineAgentSurveyService());
 	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
 
 	return instantiationService;
+}
+
+class TestInlineAgentSurveyService implements IInlineAgentSurveyService {
+
+	declare readonly _serviceBrand: undefined;
+
+	snapshotHistoricalResponses(): void { }
+	async evaluateResponseCompletion(_context: IInlineAgentSurveyResponseContext): Promise<void> { }
+	getPendingSurvey() { return undefined; }
+	recordImpression(_context: IInlineAgentSurveyResponseContext): void { }
+	recordDismiss(_context: IInlineAgentSurveyResponseContext): void { }
+	recordUndo(_context: IInlineAgentSurveyResponseContext): void { }
+	recordRating(_context: IInlineAgentSurveyResponseContext, _rating: InlineAgentSurveyRating): void { }
+	recordSubmission(_context: IInlineAgentSurveyResponseContext, _submission: IInlineAgentSurveySubmission): void { }
 }
 
 export class TestServiceAccessor {
