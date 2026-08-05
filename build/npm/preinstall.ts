@@ -129,17 +129,22 @@ function installHeaders() {
 		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
 		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
+	// A shell is only required to launch the .cmd shim on Windows. Running the
+	// node-gyp binary directly on other platforms keeps repo paths that contain
+	// spaces intact (a shell would split them on whitespace).
+	const shell = process.platform === 'win32';
+
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell });
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell });
 	}
 
 	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
