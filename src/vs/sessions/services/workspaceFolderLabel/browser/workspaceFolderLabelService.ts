@@ -30,7 +30,7 @@ export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabe
 				.flatMap(session => session.workspace.get()?.folders ?? [])
 				.find(folder => this.isWorkspaceFolder(folder, workspaceFolder));
 		if (folder) {
-			const repositoryName = this.labelService.getUriBasenameLabel(folder.root);
+			const repositoryName = folder.name;
 			if (verbose && !this.uriIdentityService.extUri.isEqual(folder.root, folder.workingDirectory)) {
 				const branchName = folder.gitRepository?.branchName ?? this.labelService.getUriBasenameLabel(folder.workingDirectory);
 				return `${repositoryName} (${branchName})`;

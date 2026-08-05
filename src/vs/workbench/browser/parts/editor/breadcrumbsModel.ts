@@ -24,6 +24,10 @@ export class FileElement {
 		readonly kind: FileKind,
 		readonly label?: string
 	) { }
+
+	equals(other: FileElement): boolean {
+		return isEqual(this.uri, other.uri) && this.label === other.label;
+	}
 }
 
 type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };

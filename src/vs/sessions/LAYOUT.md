@@ -145,9 +145,10 @@ folders, breadcrumbs retain the root segment for disambiguation but show only it
 without the synthetic branch suffix. The Files view retains the full root labels.
 
 Workspace-folder presentation is owned by `IWorkspaceFolderLabelService`. The standard workbench
-implementation preserves configured workspace-folder names; the Agents implementation resolves the
-repository identity from session metadata, returning the plain repository name for breadcrumbs and
-the verbose `repository (branch)` form used by workspace projection and the Files view.
+implementation provides no override, leaving the existing URI-derived breadcrumb label unchanged;
+the Agents implementation resolves the repository display name from session metadata, returning the
+plain repository name for breadcrumbs and the verbose `repository (branch)` form used by workspace
+projection and the Files view.
 
 ### Agent Host Filter (Left)
 

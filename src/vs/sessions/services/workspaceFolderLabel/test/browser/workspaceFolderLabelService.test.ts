@@ -31,7 +31,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				folders: [{
 					root: repository,
 					workingDirectory,
-					name: 'vscode-tools',
+					name: 'microsoft/vscode-tools',
 					description: undefined,
 					gitRepository: {
 						uri: repository,
@@ -70,8 +70,8 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			plain: service.getWorkspaceFolderLabel(workspaceFolder),
 			verbose: service.getWorkspaceFolderLabel(workspaceFolder, true),
 		}, {
-			plain: 'vscode-tools',
-			verbose: 'vscode-tools (add-sandeep-to-readme-26eb9789)',
+			plain: 'microsoft/vscode-tools',
+			verbose: 'microsoft/vscode-tools (add-sandeep-to-readme-26eb9789)',
 		});
 	});
 

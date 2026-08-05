@@ -47,6 +47,19 @@ suite('Breadcrumb Model', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('file element equality includes the rendered label', function () {
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		const uri = URI.parse('foo:/worktrees/project-feature');
+
+		assert.deepStrictEqual({
+			sameLabel: new FileElement(uri, FileKind.ROOT_FOLDER, 'project').equals(new FileElement(uri, FileKind.ROOT_FOLDER, 'project')),
+			changedLabel: new FileElement(uri, FileKind.ROOT_FOLDER, 'project').equals(new FileElement(uri, FileKind.ROOT_FOLDER, 'renamed-project')),
+		}, {
+			sameLabel: true,
+			changedLabel: false,
+		});
+	});
+
 	test('only uri, inside workspace', function () {
 
 		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
