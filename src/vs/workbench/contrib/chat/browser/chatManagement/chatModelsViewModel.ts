@@ -10,6 +10,7 @@ import { getLanguageModelProviderDisplayName, ILanguageModelChatMetadata, ILangu
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
+import { ILanguageModelSourcePresentation, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
@@ -34,7 +35,8 @@ export const SEARCH_SUGGESTIONS = {
 export interface ILanguageModelProvider {
 	vendor: ILanguageModelProviderDescriptor;
 	group: ILanguageModelsProviderGroup;
-	source?: 'chatgptSubscription';
+	sourceId?: string;
+	sourcePresentation?: ILanguageModelSourcePresentation;
 }
 
 export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
@@ -72,7 +74,7 @@ export interface ILanguageModelProviderEntry {
 	templateId: string;
 	collapsed: boolean;
 	hidden: boolean;
-	chatgptSubscription: boolean;
+	sourcePresentation?: ILanguageModelSourcePresentation;
 	vendorEntry: ILanguageModelProvider;
 }
 
@@ -183,7 +185,7 @@ export class ChatModelsViewModel extends Disposable {
 	private doFilter(): void {
 		const viewModelEntries: IViewModelEntry[] = [];
 		const shouldShowGroupHeaders = this.languageModelGroups.length > 1
-			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.chatgptSubscription);
+			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.sourcePresentation !== undefined);
 
 		for (const group of this.languageModelGroups) {
 			if (this.collapsedGroups.has(group.group.id)) {
@@ -383,6 +385,9 @@ export class ChatModelsViewModel extends Disposable {
 			});
 		}
 		for (const group of result) {
+			if (isLanguageModelProviderEntry(group.group)) {
+				group.group.hidden = group.models.length > 0 && group.models.every(model => model.hidden);
+			}
 			group.models.sort((a, b) => {
 				if (a.provider.vendor.isDefault && b.provider.vendor.isDefault) {
 					return a.metadata.name.localeCompare(b.metadata.name);
@@ -407,12 +412,9 @@ export class ChatModelsViewModel extends Disposable {
 			label: provider.group.name,
 			templateId: VENDOR_ENTRY_TEMPLATE_ID,
 			collapsed: this.collapsedGroups.has(id),
-			hidden: this.languageModelsService.isGroupHidden(provider.group.vendor, provider.group.name),
-			chatgptSubscription: provider.source === 'chatgptSubscription',
-			vendorEntry: {
-				group: provider.group,
-				vendor: provider.vendor
-			},
+			hidden: false,
+			sourcePresentation: provider.sourcePresentation,
+			vendorEntry: provider,
 		};
 	}
 
@@ -491,13 +493,17 @@ export class ChatModelsViewModel extends Disposable {
 				if (ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
 					continue;
 				}
+				const sourcePresentation = metadata.modelGroup?.sourceId
+					? languageModelSourcePresentationRegistry.get(metadata.vendor, metadata.modelGroup.sourceId)
+					: undefined;
 				const provider = metadata.modelGroup ? {
 					vendor,
 					group: {
 						vendor: metadata.modelGroup.id,
-						name: getLanguageModelProviderDisplayName(this.languageModelsService, metadata.modelGroup.id),
+						name: sourcePresentation?.label ?? getLanguageModelProviderDisplayName(this.languageModelsService, metadata.modelGroup.id),
 					},
-					source: metadata.modelGroup.source,
+					sourceId: metadata.modelGroup.sourceId,
+					sourcePresentation,
 				} satisfies ILanguageModelProvider : defaultProvider;
 				models.push({
 					identifier,
@@ -526,13 +532,11 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	toggleGroupHidden(entry: ILanguageModelProviderEntry): void {
-		this.languageModelsService.setGroupHidden(entry.vendorEntry.group.vendor, entry.vendorEntry.group.name, !entry.hidden);
+		this.languageModelsService.setModelsHidden(this.getModelsForGroup(entry).map(model => model.identifier), !entry.hidden);
 	}
 
 	setModelsHidden(entries: readonly ILanguageModelEntry[], hidden: boolean): void {
-		for (const entry of entries) {
-			this.languageModelsService.setModelHidden(entry.model.identifier, hidden);
-		}
+		this.languageModelsService.setModelsHidden(entries.map(entry => entry.model.identifier), hidden);
 	}
 
 	private refreshVisibility(): void {
@@ -549,7 +553,7 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private getProviderGroupId(provider: ILanguageModelProvider): string {
-		return `${provider.group.vendor}-${provider.group.name}-${provider.source ?? 'configured'}`;
+		return `${provider.group.vendor}-${provider.group.name}-${provider.sourceId ?? 'configured'}`;
 	}
 
 	toggleCollapsed(viewModelEntry: IViewModelEntry): void {

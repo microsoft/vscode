@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -35,6 +36,7 @@ import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileT
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
+import { sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -627,6 +629,8 @@ export class ChatListWidget extends Disposable {
 			this.handleContextMenu(e);
 		}));
 
+		this._register(dom.addDisposableListener(this._container, 'copy', e => this.handleCopy(e)));
+
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this._settingChangeCounter++;
@@ -636,6 +640,89 @@ export class ChatListWidget extends Disposable {
 	}
 
 	//#region Internal event handlers
+
+	/**
+	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here
+	 * don't paste as `vscode-file:` targets or local paths. Selections whose links all resolve
+	 * elsewhere are left to the browser, which keeps the styling other apps rely on.
+	 */
+	private handleCopy(e: ClipboardEvent): void {
+		const selection = dom.getWindow(this._container).getSelection();
+		if (!selection || selection.isCollapsed || selection.rangeCount === 0 || !e.clipboardData) {
+			return;
+		}
+
+		// Cloning a range never yields the anchors around it, so ask the selection what it
+		// touches: otherwise a selection inside a link looks clean while the browser still
+		// copies the enclosing anchor.
+		// eslint-disable-next-line no-restricted-syntax
+		const touched = Array.from(this._container.querySelectorAll('a, img'))
+			.filter(element => selection.containsNode(element, true));
+		if (!touched.length) {
+			return;
+		}
+
+		const ranges: Range[] = [];
+		for (let i = 0; i < selection.rangeCount; i++) {
+			const range = selection.getRangeAt(i);
+			if (!dom.isAncestor(range.commonAncestorContainer, this._container)) {
+				return;
+			}
+			ranges.push(range);
+		}
+
+		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
+			return;
+		}
+
+		const holder = this._container.ownerDocument.createElement('div');
+		for (const fragment of fragments) {
+			holder.appendChild(fragment);
+		}
+
+		e.clipboardData.setData(Mimes.text, selection.toString());
+		e.clipboardData.setData(Mimes.html, holder.innerHTML);
+		e.preventDefault();
+	}
+
+	/**
+	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
+	 * lies between the range boundaries, which drops both the heading or list item giving the
+	 * text its shape and, for a partly selected link, the rest of its label.
+	 */
+	private cloneSelectedContents(range: Range): DocumentFragment {
+		let content: Node = range.cloneContents();
+
+		for (
+			let ancestor = range.commonAncestorContainer;
+			ancestor && ancestor !== this._container;
+			ancestor = ancestor.parentNode as Node
+		) {
+			if (!dom.isHTMLElement(ancestor)) {
+				continue;
+			}
+
+			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
+			// reference rather than a fragment of its label.
+			if (ancestor.tagName === 'A') {
+				content = ancestor.cloneNode(true);
+				continue;
+			}
+
+			const wrapper = ancestor.cloneNode(false);
+			wrapper.appendChild(content);
+			content = wrapper;
+		}
+
+		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+			return content as DocumentFragment;
+		}
+
+		const fragment = this._container.ownerDocument.createDocumentFragment();
+		fragment.appendChild(content);
+		return fragment;
+	}
 
 	/**
 	 * Update scroll-down button visibility based on scroll position and scroll lock.

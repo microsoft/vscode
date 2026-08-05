@@ -621,6 +621,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
+			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)

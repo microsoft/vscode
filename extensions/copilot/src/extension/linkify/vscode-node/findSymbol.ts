@@ -91,3 +91,21 @@ export function extractSymbolNamesInCode(inlineCode: string): string[] {
 	// It won't handle symbol parts that include spaces or special characters
 	return Array.from(inlineCode.matchAll(/[#\w$][\w\d$]*/g), x => x[0]);
 }
+
+/** An identifier chain joined by member access, e.g. `Foo.bar` or `Foo::bar`. */
+const qualifiedName = /^[#$A-Za-z_][\w$]*(?:(?:\.|::|->)[#$A-Za-z_][\w$]*)*$/;
+
+/**
+ * Splits a qualified symbol reference such as `TextModel.undo()` into the names it addresses.
+ *
+ * Yields nothing unless the whole text really is a qualified name: inline code like `mx:text`
+ * addresses no symbol, and guessing one from its fragments links to whatever unrelated
+ * declaration happens to share a word.
+ */
+export function extractQualifiedSymbolParts(inlineCode: string): string[] {
+	const name = inlineCode.trim()
+		.replace(/<[^<>]*>/g, '')
+		.replace(/\([^()]*\)$/, '');
+
+	return qualifiedName.test(name) ? name.split(/\.|::|->/) : [];
+}
