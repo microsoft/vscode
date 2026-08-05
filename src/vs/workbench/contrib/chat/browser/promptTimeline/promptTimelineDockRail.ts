@@ -223,12 +223,29 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		for (let i = 0; i < this._rows.length; i++) {
 			this._rows[i].button.classList.toggle('preview', i === index);
 		}
+		const previewDot = this._findNearestDotIndex(index);
 		for (let i = 0; i < this._dots.length; i++) {
-			this._dots[i].classList.toggle('preview', this._dotTicks[i] === index);
+			this._dots[i].classList.toggle('preview', i === previewDot);
 		}
 		if (index >= 0) {
 			this._revealRow(index);
 		}
+	}
+
+	private _findNearestDotIndex(tickIndex: number): number {
+		if (tickIndex < 0) {
+			return -1;
+		}
+		let nearestDot = -1;
+		let bestDelta = Number.POSITIVE_INFINITY;
+		for (let i = 0; i < this._dotTicks.length; i++) {
+			const delta = Math.abs(this._dotTicks[i] - tickIndex);
+			if (delta < bestDelta) {
+				bestDelta = delta;
+				nearestDot = i;
+			}
+		}
+		return nearestDot;
 	}
 
 	/**
@@ -381,17 +398,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	 * ({@link MAX_REST_DOTS}) the nearest dot stands in for the active prompt.
 	 */
 	private _updateActiveDot(activeIndex: number): void {
-		let activeDot = -1;
-		if (activeIndex >= 0) {
-			let bestDelta = Number.POSITIVE_INFINITY;
-			for (let i = 0; i < this._dotTicks.length; i++) {
-				const delta = Math.abs(this._dotTicks[i] - activeIndex);
-				if (delta < bestDelta) {
-					bestDelta = delta;
-					activeDot = i;
-				}
-			}
-		}
+		const activeDot = activeIndex >= 0 ? this._findNearestDotIndex(activeIndex) : -1;
 		for (let i = 0; i < this._dots.length; i++) {
 			this._dots[i].classList.toggle('active', i === activeDot);
 		}

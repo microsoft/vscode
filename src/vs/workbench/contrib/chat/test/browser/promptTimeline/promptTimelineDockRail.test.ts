@@ -11,15 +11,14 @@ import { PromptTick } from '../../../browser/promptTimeline/promptTimelineModel.
 suite('PromptTimelineDockRail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const ticks: readonly PromptTick[] = [
-		{ requestId: 'one', allRequestIds: ['one'], text: 'One', timestamp: 1, count: 1, ariaLabel: 'One' },
-		{ requestId: 'two', allRequestIds: ['two'], text: 'Two', timestamp: 2, count: 1, ariaLabel: 'Two' },
-		{ requestId: 'three', allRequestIds: ['three'], text: 'Three', timestamp: 3, count: 1, ariaLabel: 'Three' },
-	];
+	function tick(index: number): PromptTick {
+		const requestId = String(index);
+		return { requestId, allRequestIds: [requestId], text: requestId, timestamp: index, count: 1, ariaLabel: requestId };
+	}
 
 	test('pairs row and dot hover feedback', () => {
 		const rail = store.add(new PromptTimelineDockRail());
-		rail.setTicks(ticks);
+		rail.setTicks(Array.from({ length: 3 }, (_, index) => tick(index)));
 
 		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-row'));
 		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-dot'));
@@ -45,6 +44,25 @@ suite('PromptTimelineDockRail', () => {
 				rows: [false, false, true],
 				dots: [false, false, true],
 			},
+		});
+	});
+
+	test('maps row hover to the nearest sampled dot when capped', () => {
+		const rail = store.add(new PromptTimelineDockRail());
+		rail.setTicks(Array.from({ length: 51 }, (_, index) => tick(index)));
+
+		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-row'));
+		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-dot'));
+		rows[25].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+		assert.deepStrictEqual({
+			dotCount: dots.length,
+			previewRow: rows.findIndex(row => row.classList.contains('preview')),
+			previewDot: dots.findIndex(dot => dot.classList.contains('preview')),
+		}, {
+			dotCount: 50,
+			previewRow: 25,
+			previewDot: 24,
 		});
 	});
 });

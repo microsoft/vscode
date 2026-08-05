@@ -404,18 +404,30 @@ export class PromptTimelineModel extends Disposable {
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
 		let activeTop = -1;
-		for (const item of items) {
-			if (isRequestVM(item)) {
-				const top = this.widget.getElementTop(item);
-				if (top === undefined) {
-					continue;
-				}
-				if (!isScrolledToBottom && top > scrollTop + threshold) {
+		if (isScrolledToBottom) {
+			for (let i = items.length - 1; i >= 0; i--) {
+				const item = items[i];
+				if (isRequestVM(item)) {
+					activeRequestId = item.id;
+					activeTimestamp = item.timestamp;
+					activeTop = this.widget.getElementTop(item) ?? -1;
 					break;
 				}
-				activeRequestId = item.id;
-				activeTimestamp = item.timestamp;
-				activeTop = top;
+			}
+		} else {
+			for (const item of items) {
+				if (isRequestVM(item)) {
+					const top = this.widget.getElementTop(item);
+					if (top === undefined) {
+						continue;
+					}
+					if (top > scrollTop + threshold) {
+						break;
+					}
+					activeRequestId = item.id;
+					activeTimestamp = item.timestamp;
+					activeTop = top;
+				}
 			}
 		}
 
