@@ -191,7 +191,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -237,6 +237,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
+		preferenceKey: overrides?.preferenceKey,
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 	};
 
@@ -361,6 +362,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, { connectionName: undefined, address: 'myhost:9999' });
 
 		assert.strictEqual(provider.label, 'myhost:9999');
+	});
+
+	test('remoteLocationPreferenceKey defaults to the live address when no stable preference key is given (e.g. tunnels/WSL)', () => {
+		const provider = createProvider(disposables, connection, { address: 'tunnel:abc123' });
+		assert.strictEqual(provider.remoteLocationPreferenceKey, 'tunnel:abc123');
+	});
+
+	test('remoteLocationPreferenceKey is distinct from the live forwarded address for a real SSH host', () => {
+		const provider = createProvider(disposables, connection, { address: 'localhost:4321', preferenceKey: 'ssh:my-host-alias' });
+		assert.strictEqual(provider.remoteAddress, 'localhost:4321');
+		assert.strictEqual(provider.remoteLocationPreferenceKey, 'ssh:my-host-alias');
 	});
 
 	test('session type icons use per-agent codicons', () => {

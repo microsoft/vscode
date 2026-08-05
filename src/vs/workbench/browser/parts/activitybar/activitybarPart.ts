@@ -8,7 +8,8 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -273,23 +274,34 @@ export class ActivitybarPart extends Part {
 	override layout(width: number, height: number): void {
 		super.layout(width, height, 0, 0);
 
-		if (!this.compositeBar.value) {
-			return;
+		if (!this.content) {
+			return; // not created yet
 		}
 
-		// When floating panels are enabled, reserve the horizontal gutters and bottom
-		// gutter used by the activity bar. The grid column is grown by the horizontal
-		// amount (see minimum/maximumWidth), with matching margins in floatingPanels.css.
-		const gutter = this.floatingGutter;
-		const contentWidth = Math.max(0, width - gutter);
-		const bottomGutter = this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0;
-		const contentHeight = Math.max(0, height - bottomGutter);
+		const { top, bottom } = this.getFloatingGutters();
+		const contentWidth = Math.max(0, width - this.floatingGutter);
+		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
+		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height);
+	}
+
+	/**
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`. Each one
+	 * doubles on the window edge the activity bar faces.
+	 */
+	private getFloatingGutters(): { top: number; bottom: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { top: 0, bottom: 0 };
+		}
+
+		return {
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
+			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+		};
 	}
 
 	toJSON(): object {

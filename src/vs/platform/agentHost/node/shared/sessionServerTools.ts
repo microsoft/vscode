@@ -227,6 +227,7 @@ interface ISerializedGitState {
 interface ISerializedGitHubState {
 	readonly owner?: string;
 	readonly repo?: string;
+	/** Most recent pull request in this compact tool-facing session summary. */
 	readonly pullRequestUrl?: string;
 }
 
@@ -490,7 +491,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrl) {
+		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrls?.length) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -531,7 +532,7 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	const result: Mutable<ISerializedGitHubState> = {};
 	if (github.owner !== undefined) { result.owner = github.owner; }
 	if (github.repo !== undefined) { result.repo = github.repo; }
-	if (github.pullRequestUrl !== undefined) { result.pullRequestUrl = github.pullRequestUrl; }
+	if (github.pullRequestUrls?.[0] !== undefined) { result.pullRequestUrl = github.pullRequestUrls[0]; }
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 

@@ -342,7 +342,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
 	readonly warningText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**
