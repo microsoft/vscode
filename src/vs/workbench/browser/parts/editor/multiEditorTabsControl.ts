@@ -35,10 +35,10 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
-import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
+import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { basenameOrAuthority } from '../../../../base/common/resources.js';
@@ -122,6 +122,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
+	private readonly closeOtherEditorTabsInGroupAction = this._register(this.instantiationService.createInstance(CloseOtherEditorTabsInGroupAction, CloseOtherEditorTabsInGroupAction.ID, CloseOtherEditorTabsInGroupAction.LABEL));
+
+	// Alt-hold alternative to a tab's close action (JetBrains-style); see updateTabActionsForAltState().
+	private wantsCloseOthersAction = false;
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
@@ -173,6 +177,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+
+		// React to Alt being held/released to swap in the "Close Other Editors" tab action
+		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateTabActionsForAltState()));
+	}
+
+	private updateTabActionsForAltState(): void {
+		const wantsCloseOthersAction = ModifierKeyEmitter.getInstance().keyStatus.altKey;
+		if (wantsCloseOthersAction === this.wantsCloseOthersAction) {
+			return;
+		}
+
+		this.wantsCloseOthersAction = wantsCloseOthersAction;
+		this.redraw();
 	}
 
 	protected override create(parent: HTMLElement): HTMLElement {
@@ -922,37 +939,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		const tabActionListener = tabActionBar.onWillRun(e => {
-			if (e.action.id === this.closeEditorAction.id) {
+			if (e.action.id === this.closeEditorAction.id || e.action.id === this.closeOtherEditorTabsInGroupAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
 		});
 
-		// Alt+Click to close other tabs. Capture-phase click, not mousedown, pre-empts the button's own action.
-		const tabActionsAltClickListener = addDisposableListener(tabActionsContainer, EventType.CLICK, e => {
-			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey || !this.groupsView.partOptions.closeOtherTabsOnAltClick) {
-				return;
-			}
-
-			// Sticky tabs show Unpin here, not Close; leave Unpin's own click alone.
-			const isSticky = this.tabsModel.isSticky(tabIndex);
-			if (isSticky && this.groupsView.partOptions.tabActionUnpinVisibility) {
-				return;
-			}
-
-			EventHelper.stop(e, true);
-
-			const editor = this.tabsModel.getEditorByIndex(tabIndex);
-			if (!editor) {
-				return;
-			}
-
-			this.blockRevealActiveTabOnce();
-
-			const editorsToClose = this.groupView.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(other => other !== editor);
-			this.groupView.closeEditors(editorsToClose);
-		}, true /* capture */);
-
-		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, tabActionsAltClickListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Fade Hider
 		// Hides the tab fade to the right when tab action left and sizing shrink/fixed, ::after, ::before are already used
@@ -1647,9 +1639,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
+		// Alt swaps a visible Close action to Close Other Editors; Unpin is unaffected.
+		const wantsCloseOthersAction = hasCloseAction && this.wantsCloseOthersAction;
+
 		let tabAction;
 		if (hasAction) {
-			tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+			tabAction = hasUnpinAction ? this.unpinEditorAction : wantsCloseOthersAction ? this.closeOtherEditorTabsInGroupAction : this.closeEditorAction;
 		} else {
 			// Even if the action is not visible, add it as it contains the dirty indicator
 			tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;

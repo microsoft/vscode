@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { createTabBarTestContext, ITabBarTestEditorSpec } from './editorTabBarTestUtils.js';
 
-suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
+suite('MultiEditorTabsControl - Alt-hold Close Other Editors action', () => {
 
 	const disposables = new DisposableStore();
 	let container: HTMLElement;
@@ -22,6 +24,13 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		{ resource: URI.file('/project/package.json'), active: true },
 	];
 
+	suiteSetup(() => {
+		// Warm up the ModifierKeyEmitter singleton before the leak tracker starts so its
+		// long-lived DisposableStore (created on first getInstance()) isn't flagged as a
+		// leak of whichever test happens to construct a MultiEditorTabsControl first.
+		ModifierKeyEmitter.getInstance();
+	});
+
 	setup(() => {
 		container = document.createElement('div');
 		document.body.appendChild(container);
@@ -30,12 +39,18 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 	teardown(() => {
 		disposables.clear();
 		container.remove();
+		// ModifierKeyEmitter is a process-wide singleton; don't let Alt state leak into other tests.
+		ModifierKeyEmitter.getInstance().resetKeyStatus();
 	});
 
-	// The actual clickable node a real mouse click lands on: a descendant <li class="action-item">
-	// of .tab-actions, not .tab-actions itself. Dispatching there (rather than on .tab-actions)
-	// matters for the propagation-stopping test below: a real click's ancestor chain is what
-	// lets our capture-phase listener on .tab-actions run before the action item's own listener.
+	function pressAlt(): void {
+		mainWindow.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, bubbles: true }));
+	}
+
+	function releaseAlt(): void {
+		mainWindow.dispatchEvent(new KeyboardEvent('keyup', { altKey: false, bubbles: true }));
+	}
+
 	function getActionItem(titleContainer: HTMLElement, tabIndex: number): HTMLElement {
 		const actionItems = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab .tab-actions .action-item');
 		const target = actionItems[tabIndex];
@@ -43,32 +58,42 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		return target;
 	}
 
-	function altClickCloseButton(titleContainer: HTMLElement, tabIndex: number): void {
-		altClickAndCheckIfReachedTarget(titleContainer, tabIndex);
+	function getActionIcon(titleContainer: HTMLElement, tabIndex: number): HTMLElement {
+		const icon = getActionItem(titleContainer, tabIndex).querySelector<HTMLElement>('.action-label');
+		assert.ok(icon, `expected an action-label element at tab index ${tabIndex}`);
+		return icon;
 	}
 
-	// Also reports whether the click reached the action item's own listener, so tests can tell
-	// "nothing closed because the gesture correctly no-opped" apart from "nothing closed because
-	// the click got swallowed before it could do anything at all" (including the button's own
-	// normal action).
-	function altClickAndCheckIfReachedTarget(titleContainer: HTMLElement, tabIndex: number): boolean {
-		const target = getActionItem(titleContainer, tabIndex);
-		let reachedTarget = false;
-		const listener = () => { reachedTarget = true; };
-		target.addEventListener('click', listener);
-		try {
-			target.dispatchEvent(new MouseEvent('click', { altKey: true, button: 0, bubbles: true, cancelable: true }));
-		} finally {
-			target.removeEventListener('click', listener);
-		}
-		return reachedTarget;
+	function clickCloseButton(titleContainer: HTMLElement, tabIndex: number): void {
+		getActionItem(titleContainer, tabIndex).dispatchEvent(new MouseEvent('click', { button: 0, bubbles: true, cancelable: true }));
 	}
 
-	test('closes every other non-sticky tab when the setting is enabled', () => {
-		const { model, titleContainer } = createTabBarTestContext(container, {
-			editors,
-			partOptions: { closeOtherTabsOnAltClick: true },
-		}, disposables);
+	test('shows Close by default and swaps to Close Other Editors while Alt is held', () => {
+		const { titleContainer } = createTabBarTestContext(container, { editors }, disposables);
+
+		// Re-queried fresh each time, not cached: swapping the pushed action rebuilds the
+		// action item's DOM (ActionBar.clear() + push()), so a stale reference from before
+		// the swap would silently keep pointing at the removed node.
+		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close'), 'expected the plain Close icon by default');
+
+		pressAlt();
+		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close-all'), 'expected the Close Other Editors icon while Alt is held');
+
+		releaseAlt();
+		assert.ok(getActionIcon(titleContainer, 1).classList.contains('codicon-close'), 'expected to revert to the plain Close icon once Alt is released');
+	});
+
+	test('sticky tabs keep showing Unpin regardless of Alt', () => {
+		const { titleContainer } = createTabBarTestContext(container, { editors }, disposables);
+
+		assert.ok(getActionIcon(titleContainer, 0).classList.contains('codicon-pinned'), 'expected the Unpin icon on the sticky tab');
+
+		pressAlt();
+		assert.ok(getActionIcon(titleContainer, 0).classList.contains('codicon-pinned'), 'Alt should not affect the sticky tab\'s Unpin icon');
+	});
+
+	test('clicking while Alt is held closes every other non-sticky tab', () => {
+		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		// Don't assume which resource ends up rendered at index 1 (the model's
 		// openPositioning setting can reorder tabs on open) — read it back instead.
@@ -78,7 +103,8 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		assert.ok(model.isSticky(stickyEditor));
 		assert.ok(!model.isSticky(clickedEditor));
 
-		altClickCloseButton(titleContainer, 1);
+		pressAlt();
+		clickCloseButton(titleContainer, 1);
 
 		const remaining = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.strictEqual(remaining.length, 2);
@@ -92,10 +118,7 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		// the exact same instance — used elsewhere to reuse a singleton editor pane. The
 		// close-others filter must key off identity, not matches(), or such a tab wrongly
 		// survives whenever the clicked tab happens to be of the same loosely-matching type.
-		const { model, titleContainer } = createTabBarTestContext(container, {
-			editors,
-			partOptions: { closeOtherTabsOnAltClick: true },
-		}, disposables);
+		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		const stickyEditor = beforeOrder[0];
@@ -109,7 +132,8 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		const originalMatches = looselyMatchingEditor.matches.bind(looselyMatchingEditor);
 		looselyMatchingEditor.matches = other => other === clickedEditor || originalMatches(other);
 
-		altClickCloseButton(titleContainer, 2);
+		pressAlt();
+		clickCloseButton(titleContainer, 2);
 
 		const remaining = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.strictEqual(remaining.length, 2);
@@ -118,57 +142,35 @@ suite('MultiEditorTabsControl - Alt+click close other tabs', () => {
 		assert.ok(!remaining.includes(looselyMatchingEditor), 'the loosely-matching tab should still be closed');
 	});
 
-	test('does not trigger on a sticky tab whose visible action is Unpin, not Close', () => {
-		// Sticky tabs show an Unpin button by default (tabActionUnpinVisibility), not Close.
-		// This gesture is specifically about the close button; Alt+clicking a sticky tab's
-		// Unpin button should just unpin it, not also close every other tab.
-		const { model, titleContainer } = createTabBarTestContext(container, {
-			editors,
-			partOptions: { closeOtherTabsOnAltClick: true },
-		}, disposables);
+	test('clicking a sticky tab\'s Unpin button while Alt is held does not close other tabs', () => {
+		// Unpin's actual effect on the model isn't exercised here: unlike the close actions
+		// (which call IEditorGroupsService directly), UnpinEditorAction runs through
+		// ICommandService.executeCommand(), whose target command is only registered by
+		// editorCommands.ts's setup(), never invoked in this lightweight harness. What's in
+		// scope for this suite is that Alt held over the Unpin icon doesn't also fire "close
+		// others" - see the icon-stays-Unpin test above for that half of the guarantee.
+		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.ok(model.isSticky(beforeOrder[0]), 'expected tab 0 to be sticky in this fixture');
 
-		// Must reach the target: proves the click fell through to the Unpin button's own
-		// action rather than merely being swallowed alongside "close others" no-opping.
-		const reached = altClickAndCheckIfReachedTarget(titleContainer, 0);
-		assert.strictEqual(reached, true, 'the click should have reached the Unpin button');
+		pressAlt();
+		clickCloseButton(titleContainer, 0);
 
-		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
-		assert.deepStrictEqual(afterOrder, beforeOrder, 'nothing should have closed');
+		assert.strictEqual(model.getEditors(EditorsOrder.SEQUENTIAL).length, beforeOrder.length, 'nothing should have closed');
 	});
 
-	test('stops the click before it reaches the action item\'s own click listener', () => {
-		// Our gesture is handled by a capture-phase listener on .tab-actions, an ancestor of
-		// the action item the click actually lands on. If it doesn't stop the event there,
-		// the action item's own listener (actionViewItems.ts) still runs afterwards and closes
-		// this tab too, on top of "close others".
-		const { titleContainer } = createTabBarTestContext(container, {
-			editors,
-			partOptions: { closeOtherTabsOnAltClick: true },
-		}, disposables);
-
-		const reached = altClickAndCheckIfReachedTarget(titleContainer, 1);
-
-		assert.strictEqual(reached, false, 'the click should have been stopped before reaching the action item');
-	});
-
-	test('does nothing when the setting is disabled (default)', () => {
-		const { model, titleContainer } = createTabBarTestContext(container, {
-			editors,
-			// closeOtherTabsOnAltClick left at its default (false).
-		}, disposables);
+	test('without Alt, clicking closes only that one tab', () => {
+		const { model, titleContainer } = createTabBarTestContext(container, { editors }, disposables);
 
 		const beforeOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
+		const clickedEditor = beforeOrder[1];
 
-		// Must reach the target: proves the click fell through to the button's own normal
-		// close action rather than being swallowed by a listener that ignored the setting.
-		const reached = altClickAndCheckIfReachedTarget(titleContainer, 1);
-		assert.strictEqual(reached, true, 'the click should have reached the close button');
+		clickCloseButton(titleContainer, 1);
 
-		const afterOrder = model.getEditors(EditorsOrder.SEQUENTIAL);
-		assert.deepStrictEqual(afterOrder, beforeOrder);
+		const remaining = model.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.strictEqual(remaining.length, beforeOrder.length - 1);
+		assert.ok(!remaining.includes(clickedEditor));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

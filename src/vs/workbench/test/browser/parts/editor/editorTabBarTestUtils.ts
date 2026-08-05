@@ -19,7 +19,7 @@ import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions } from '../..
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
-import { ICloseEditorsFilter } from '../../../../services/editor/common/editorGroupsService.js';
+import { ICloseEditorsFilter, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 
@@ -131,6 +131,15 @@ export function createTabBarTestContext(container: HTMLElement, options: ITabBar
 			}
 			return true;
 		}
+		override async closeEditor(editor: EditorInput | undefined = model.activeEditor ?? undefined): Promise<boolean> {
+			if (editor) {
+				model.closeEditor(editor);
+			}
+			return true;
+		}
+		override unstickEditor(editor: EditorInput): void {
+			model.unstick(editor);
+		}
 	};
 
 	const groupsView = new class extends mock<IEditorGroupsView>() {
@@ -140,6 +149,14 @@ export function createTabBarTestContext(container: HTMLElement, options: ITabBar
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly onDidVisibilityChange = Event.None;
 	};
+
+	// So that actions resolved via @IEditorGroupsService (CloseEditorTabAction, UnpinEditorAction,
+	// CloseOtherEditorTabsInGroupAction) operate on this same model when clicked for real, not the
+	// unrelated group workbenchInstantiationService() stubs by default.
+	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+		override getGroup(id: number) { return id === groupView.id ? groupView : undefined; }
+		override get activeGroup() { return groupView; }
+	});
 
 	const editorPartsView = new class extends mock<IEditorPartsView>() {
 		override get count() { return 1; }
