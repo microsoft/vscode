@@ -30,7 +30,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../../common/theme.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -289,7 +289,7 @@ function createFixtureEditorTitleActions(store: DisposableStore, menuId: MenuId)
 // Rendering
 // ============================================================================
 
-interface IRenderOptions {
+export interface IEditorTabBarFixtureOptions {
 	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
 	readonly editors?: IEditorSpec[];
@@ -302,6 +302,8 @@ interface IRenderOptions {
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
 	readonly active?: boolean;
 	readonly dropTargetBetweenTabs?: boolean;
+	readonly showHeader?: boolean;
+	readonly headerMenuIds?: IEditorGroupMenuIds;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -338,7 +340,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	}
 }
 
-function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options: IEditorTabBarFixtureOptions): void {
 	const { container, disposableStore, theme } = ctx;
 
 	const width = options.width ?? 820;
@@ -407,6 +409,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		override isSelected(editorOrIndex: EditorInput | number) { return model.isSelected(editorOrIndex); }
 		override createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle) { return createEditorActions(disposables, menuId); }
 		override relayout() { this.relayoutFn(); }
+		override readonly onDidActiveEditorChange = Event.None;
 	};
 
 	// Separate reference returned as the active group when this group is inactive, so that
@@ -463,8 +466,8 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		groupsView,
 		groupView,
 		model,
-		undefined,
-		false,
+		options.headerMenuIds,
+		options.showHeader ?? false,
 	));
 
 	const layout = () => {
@@ -485,8 +488,8 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	layout();
 }
 
-function render(modernUI: boolean, options: Omit<IRenderOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, { ...options, modernUI });
+function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
+	return (ctx: ComponentFixtureContext) => renderEditorTabBarFixture(ctx, { ...options, modernUI });
 }
 
 function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentFixtureAdditionalTheme[] = []) {

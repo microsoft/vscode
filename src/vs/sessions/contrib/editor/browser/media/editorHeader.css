@@ -11,23 +11,14 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
-	display: none;
+	display: flex;
 	align-items: center;
 	align-content: center;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 0;
-	column-gap: var(--vscode-spacing-size80, 8px);
-}
-
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars:has(
-	.breadcrumbs-in-header > .breadcrumbs-below-tabs:not(.hidden),
-	.editor-group-header-primary-actions:not(.has-no-actions),
-	.editor-group-header-secondary-actions:not(.has-no-actions)
-) {
-	display: flex;
 	min-height: 29px;
 	padding: 2px var(--vscode-spacing-size80, 8px);
+	column-gap: var(--vscode-spacing-size80, 8px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary {

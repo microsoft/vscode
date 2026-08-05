@@ -29,7 +29,7 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header .breadcrumbs-in-header > .breadcrumbs-below-tabs .breadcrumbs-control .outline-element-icon {
-	padding-right: 3px;
+	padding-right: var(--vscode-spacing-size40, 4px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header .breadcrumbs-in-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item {
