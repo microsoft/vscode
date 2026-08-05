@@ -348,6 +348,10 @@
 	pointer-events: none;
 }
 
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-and-actions-container:not(.wrapping) > .monaco-scrollable-element > .sticky-tabs-background {
+	height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40) * 2);
+}
+
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 11;
 }
