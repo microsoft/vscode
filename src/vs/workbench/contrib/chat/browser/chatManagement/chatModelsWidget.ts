@@ -527,6 +527,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const providerIcon = DOM.append(nameContainer, $('.model-provider-icon'));
+		providerIcon.setAttribute('aria-hidden', 'true');
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
 		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
 		deprecationLinkContainer.style.display = 'none';
@@ -556,8 +557,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
-		if (entry.chatgptSubscription) {
-			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+		if (entry.sourcePresentation?.icon) {
+			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(entry.sourcePresentation.icon));
 			templateData.providerIcon.style.display = '';
 		}
 
@@ -1081,9 +1082,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.chatgptSubscription
-			? localize('models.chatgptSubscriptionProvider', "Models provided by your ChatGPT subscription")
-			: '';
+		templateData.providerElement.textContent = entry.sourcePresentation?.description ?? '';
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IProviderColumnTemplateData): void {

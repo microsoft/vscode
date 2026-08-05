@@ -120,7 +120,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
 		provider.updateModels([
 			{ id: '@provider=vscode-proxy:gpt-5.6-sol', provider: 'copilot', name: 'GPT-5.6 Sol' },
-			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' },
+			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol', _meta: { modelSourceId: 'chatgptSubscription' } },
 		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
@@ -130,8 +130,16 @@ suite('AgentHostLanguageModelProvider', () => {
 			group: info.metadata.modelGroup,
 		})), [
 			{ identifier: 'codex:@provider=vscode-proxy:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'copilot' } },
-			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', source: 'chatgptSubscription' } },
+			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', sourceId: 'chatgptSubscription' } },
 		]);
+	});
+
+	test('does not infer a trusted source from provider names', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
+		provider.updateModels([{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' }]);
+
+		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		assert.deepStrictEqual(info.metadata.modelGroup, { id: 'chatgpt' });
 	});
 
 	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {

@@ -298,8 +298,12 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly modelGroup?: {
 		readonly id: string;
-		/** Identifies a first-party provider group that must remain distinct from user-configured groups with the same name. */
-		readonly source?: 'chatgptSubscription';
+		/**
+		 * Identifies a trusted source presentation owned by this model's vendor.
+		 * Source ids are resolved together with {@link ILanguageModelChatMetadata.vendor},
+		 * so another vendor cannot claim the same presentation by reusing the id.
+		 */
+		readonly sourceId?: string;
 	};
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the

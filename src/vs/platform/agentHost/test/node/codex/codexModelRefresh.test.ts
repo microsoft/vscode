@@ -115,10 +115,12 @@ suite('CodexAgent model refresh', () => {
 			provider: model.provider,
 			id: model.id,
 			name: model.name,
+			meta: model._meta,
 		})), [{
 			provider: 'chatgpt',
 			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 			name: 'GPT-5.6-Sol',
+			meta: { modelSourceId: 'chatgptSubscription' },
 		}]);
 	});
 
@@ -166,9 +168,10 @@ suite('CodexAgent model refresh', () => {
 
 		await agent['_refreshCodexModels']();
 
-		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id })), [{
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id, meta: model._meta })), [{
 			provider: 'custom-provider',
 			id: toCodexModelSelectionId('custom-provider', 'gpt-5.6-sol'),
+			meta: undefined,
 		}]);
 	});
 
