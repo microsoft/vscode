@@ -31,6 +31,13 @@ import {
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
 } from './agentService.js';
+import {
+	AgentHostClaudeMultiRootEnabledConfigKey,
+	AgentHostCodexEnabledConfigKey,
+	AgentHostCodexMultiRootEnabledConfigKey,
+	AgentHostCopilotMultiRootEnabledConfigKey,
+	AgentHostSystemProxyEnabledConfigKey,
+} from './agentHostSchema.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -94,6 +101,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostSystemProxyEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
 			type: 'boolean',
@@ -103,6 +111,7 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			agentHost: { key: AgentHostCopilotMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeMultiRootEnabledSettingId]: {
 			type: 'boolean',
@@ -112,12 +121,14 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
 		},
 		[AgentHostCodexMultiRootEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
 			included: false,
+			agentHost: { key: AgentHostCodexMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',
@@ -157,6 +168,10 @@ configurationRegistry.registerConfiguration({
 			// Allow the default to be overridden by an experiment. Uses `startup`
 			// to match the sibling agent-host provider settings.
 			experiment: { mode: 'startup' },
+			// Always mirrored, including when `false`: the host only acts on enable, so a
+			// forwarded `false` takes effect on the next agent host restart (otherwise
+			// in-progress Codex sessions would have to be stopped).
+			agentHost: { key: AgentHostCodexEnabledConfigKey },
 			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
 				name: 'Codex3PIntegration',
