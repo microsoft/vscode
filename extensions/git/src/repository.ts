@@ -2041,11 +2041,18 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		// Compute the base directory for each glob pattern (the fixed
-		// prefix before any wildcard characters). This will be used to
-		// optimize the upward traversal when adding parent directories.
-		const filePatternBases = new Set<string>();
+		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
+		// Only a pattern that ends in ** asks for an entire folder. Collect the folder
+		// of each such pattern (the fixed prefix before any wildcard characters) so that
+		// large ignored folders (ex: node_modules) are copied using a single recursive
+		// copy operation instead of one operation per file.
+		const candidateFolders = new Set<string>();
 		for (const pattern of worktreeIncludeFiles) {
+			if (!/(^|[\/\\])\*\*$/.test(pattern)) {
+				continue;
+			}
+
 			const segments = pattern.split(/[\/\\]/);
 			const fixedSegments: string[] = [];
 			for (const seg of segments) {
@@ -2054,21 +2061,42 @@ export class Repository implements Disposable {
 				}
 				fixedSegments.push(seg);
 			}
-			filePatternBases.add(path.join(this.root, ...fixedSegments));
-		}
 
-		// Add the folder paths for git ignored files, walking
-		// up only to the nearest file pattern base directory.
-		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+			// Only coalesce when the terminal ** is the pattern's first wildcard. Otherwise
+			// the fixed prefix is an ancestor of what the pattern actually matches (ex:
+			// ignored/*/cache/** yields "ignored"), and the recursive copy would pull in
+			// unrelated content from that ancestor.
+			if (fixedSegments.length !== segments.length - 1) {
+				continue;
+			}
 
-		for (const filePath of gitIgnoredFiles) {
-			let dir = path.dirname(filePath);
-			while (dir !== this.root && !gitIgnoredPaths.has(dir)) {
-				gitIgnoredPaths.add(dir);
-				if (filePatternBases.has(dir)) {
+			const folder = path.join(this.root, ...fixedSegments);
+			if (folder === this.root) {
+				// The pattern is not anchored to a folder (ex: **/node_modules/**)
+				continue;
+			}
+
+			// Only coalesce if the pattern actually matched something in the folder
+			for (const filePath of gitIgnoredFiles) {
+				if (filePath.startsWith(folder + path.sep)) {
+					candidateFolders.add(folder);
 					break;
 				}
-				dir = path.dirname(dir);
+			}
+		}
+
+		// The copy operation is recursive, so a folder is only used when the folder
+		// itself is git ignored. Copying a folder that is not git ignored would copy
+		// tracked files from this repository into the worktree, overwriting the files
+		// that were just checked out.
+		if (candidateFolders.size !== 0) {
+			try {
+				for (const folder of await this.checkIgnore(Array.from(candidateFolders))) {
+					gitIgnoredPaths.add(folder);
+				}
+			} catch (err) {
+				// Fall back to copying the individual files
+				this.logger.warn(`[Repository][_getWorktreeIncludePaths] Failed to determine whether folder(s) are git ignored: ${err}`);
 			}
 		}
 
