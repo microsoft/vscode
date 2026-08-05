@@ -2335,7 +2335,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	async ensureSessionAdopted(session: URI): Promise<boolean> {
 		const sessionId = AgentSession.id(session);
-		return this._sessionSequencer.queue(sessionId, async () => {
+		return this._queueSession(sessionId, async () => {
 			// A genuine native / already-adopted session always has a persisted
 			// working directory. The session DB FILE can also exist without any
 			// real metadata (checkpoint / changeset / git services create it via
