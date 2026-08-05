@@ -61,7 +61,9 @@ import {
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 import { recordAhpSurface } from './ahpSurfaceCoverage.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isCI, isWindows } from '../../../../base/common/platform.js';
+
+const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -71,7 +73,7 @@ interface IPendingCall {
 }
 
 function getProtocolOperationTimeout(): number {
-	if (process.env['AGENT_HOST_E2E_COVERAGE'] === '1') {
+	if (AGENT_HOST_E2E_COVERAGE) {
 		return 30_000;
 	}
 	return isWindows ? 8_000 : 5_000;
@@ -625,7 +627,7 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
-const SERVER_SHUTDOWN_TIMEOUT_MS = isWindows || process.env['AGENT_HOST_E2E_COVERAGE'] === '1' ? 30_000 : 5_000;
+const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
 export async function stopServer(server: IServerHandle | undefined): Promise<void> {
@@ -682,10 +684,8 @@ export interface IMockScenario {
 	readonly definition: unknown;
 }
 
-const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
-
 export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTimeoutMs: number): number {
-	return AGENT_HOST_E2E_COVERAGE || isWindows ? extendedTimeoutMs : normalTimeoutMs;
+	return AGENT_HOST_E2E_COVERAGE || isCI || isWindows ? extendedTimeoutMs : normalTimeoutMs;
 }
 
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

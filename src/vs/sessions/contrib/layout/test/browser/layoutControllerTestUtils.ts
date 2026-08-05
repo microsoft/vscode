@@ -133,6 +133,13 @@ export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
 	readonly layoutState?: readonly object[];
+	readonly sidePaneVisibilityState?: {
+		readonly editorVisible: boolean;
+		readonly auxiliaryBarVisible: boolean;
+	} | {
+		readonly newSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+		readonly existingSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+	};
 	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
 	readonly newSessionViewStateRaw?: string;
 	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
@@ -240,6 +247,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		// same harness serves both the LayoutController and SinglePaneLayoutController tests.
 		storageService.store('sessions.layoutState', raw, StorageScope.WORKSPACE, 0);
 		storageService.store('sessions.singlePane.layoutState', raw, StorageScope.WORKSPACE, 0);
+	}
+	if (options.sidePaneVisibilityState) {
+		storageService.store('sessions.singlePane.sidePaneVisibility', JSON.stringify(options.sidePaneVisibilityState), StorageScope.WORKSPACE, 0);
 	}
 	if (options.newSessionViewState) {
 		const raw = JSON.stringify(options.newSessionViewState);

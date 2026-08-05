@@ -59,8 +59,8 @@ suite('AgentHostCommitOperationContribution', () => {
 		const sessionChangesetUri = buildSessionChangesetUri(sessionKey);
 
 		const actual = [
-			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', pullRequestBranchName: 'feature/test' } }),
-			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', pullRequestBranchName: 'feature/other' } }),
+			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' } }),
+			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/other' } }),
 		];
 
 		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [['commit'], []]);
