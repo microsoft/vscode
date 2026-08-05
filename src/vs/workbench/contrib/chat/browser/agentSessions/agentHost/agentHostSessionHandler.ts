@@ -10,7 +10,7 @@ import { getErrorCode, isCancellationError } from '../../../../../../base/common
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -90,6 +90,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
@@ -841,6 +842,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
+	/**
+	 * Working-directory synchronizer registrations, keyed by session URI. Each
+	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
+	 */
+	private readonly _workingDirectoryRegistrations = this._register(new DisposableMap<string>());
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -879,6 +885,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostSessionWorkingDirectorySynchronizer private readonly _workingDirectorySynchronizer: IAgentHostSessionWorkingDirectorySynchronizer,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
@@ -2499,6 +2506,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		// This waits only for local trust checks and ordered optimistic dispatch;
+		// working-directory action envelopes are not a turn-start barrier.
+		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const chatURI = this._getChatURI(request.sessionResource);
@@ -5718,11 +5731,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref?.object.value instanceof Error) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
+			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
 			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri), 'AgentHostSessionHandler');
 			this._sessionSubscriptions.set(sessionUri, ref);
+			this._workingDirectoryRegistrations.set(sessionUri, this._workingDirectorySynchronizer.register({
+				session: URI.parse(sessionUri),
+				provider: this._config.provider,
+				connection: this._config.connection,
+				subscription: ref.object,
+			}));
 		}
 		return ref.object;
 	}
@@ -5784,6 +5804,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (ref) {
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
+			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {

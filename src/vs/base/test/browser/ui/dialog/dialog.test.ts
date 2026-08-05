@@ -73,4 +73,51 @@ suite('Dialog', () => {
 		dialog.dispose();
 		await result;
 	});
+
+	test('renders a plain string detail as text', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		const dialog = disposables.add(new Dialog(container, 'Message', ['OK'], {
+			detail: 'Some detail text',
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		const detailElement = container.querySelector('.dialog-message-detail')!;
+		assert.strictEqual(detailElement.textContent, 'Some detail text');
+		assert.strictEqual(detailElement.children.length, 0);
+
+		dialog.dispose();
+		await result;
+	});
+
+	test('prefers a pre-rendered detailElement over plain detail text and makes its links keyboard-focusable', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+
+		const rendered = $('div.rendered-markdown');
+		const link = append(rendered, $('a'));
+		link.textContent = 'Command Link';
+
+		const dialog = disposables.add(new Dialog(container, 'Message', ['OK'], {
+			detail: 'ignored plain-text detail',
+			detailElement: rendered,
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		const detailElement = container.querySelector('.dialog-message-detail')!;
+		assert.strictEqual(detailElement.contains(rendered), true);
+		assert.strictEqual(detailElement.textContent, 'Command Link');
+		assert.strictEqual(link.tabIndex, 0);
+
+		dialog.dispose();
+		await result;
+	});
 });

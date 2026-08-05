@@ -10,17 +10,42 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
-import { ChangesetHasOperationsContext } from '../../browser/changesViewService.js';
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('primary header actions gate themselves to the single-pane Changes editor', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'chatEditing.versionsPicker' || item.command.id === 'workbench.changesView.action.viewChanges');
+
+		assert.deepStrictEqual(items.map(item => {
+			const when = item.when?.serialize() ?? '';
+			return {
+				id: item.command.id,
+				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			};
+		}), [
+			{
+				id: 'chatEditing.versionsPicker',
+				hasActiveEditorGate: true,
+				hasSinglePaneConfigGate: true,
+			},
+			{
+				id: 'workbench.changesView.action.viewChanges',
+				hasActiveEditorGate: true,
+				hasSinglePaneConfigGate: true,
+			},
+		]);
+	});
 
 	test('collapse all diffs is contributed to the single-pane editor header (right)', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
@@ -185,30 +210,31 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Create Pull Request anchor is contributed to the editor tabs title menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Create Pull Request anchor is contributed to the right-side title bar menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
+		const editorTitleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
 
-		assert.ok(item, 'expected the changes header actions anchor on the editor tabs title menu');
+		assert.ok(item, 'expected the changes header actions anchor on the title bar session menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
+			editorTitleItem,
 			group: item.group,
 			order: item.order,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: when.includes(ChangesetHasOperationsContext.key),
+			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasChangesGate: when.includes(SessionHasChangesContext.key),
 		}, {
+			editorTitleItem: undefined,
 			group: 'navigation',
 			order: 5,
 			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
 			hasAuxiliaryWindowGate: true,
-			hasTopRightEditorGroupGate: true,
+			hasSinglePaneLayoutGate: true,
 			hasChangesGate: true,
 		});
 	});
