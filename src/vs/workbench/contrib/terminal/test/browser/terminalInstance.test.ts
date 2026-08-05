@@ -18,9 +18,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
@@ -142,6 +142,12 @@ class TestTerminalWorkspaceTrustRequestService extends mock<IWorkspaceTrustReque
 	}
 }
 
+class TestTerminalWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagementService>() {
+	constructor(override readonly workspaceTrustInitialized: Promise<void>) {
+		super();
+	}
+}
+
 suite('Workbench - TerminalInstance', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -177,7 +183,10 @@ suite('Workbench - TerminalInstance', () => {
 			return instance;
 		}
 
-		async function createTerminalInstanceForTrust(shellLaunchConfig: IShellLaunchConfig, trustResult: Promise<boolean>): Promise<{
+		async function createTerminalInstanceForTrust(shellLaunchConfig: IShellLaunchConfig, trustResult: Promise<boolean>, options?: {
+			remoteAuthority?: string;
+			workspaceTrustInitialized?: Promise<void>;
+		}): Promise<{
 			instance: TerminalInstance;
 			terminalInstanceService: TestTerminalInstanceService;
 			workspaceTrustRequestService: TestTerminalWorkspaceTrustRequestService;
@@ -207,8 +216,9 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 			instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
-				override readonly remoteAuthority = 'ssh-remote+test';
+				override readonly remoteAuthority = options?.remoteAuthority === undefined ? 'ssh-remote+test' : options.remoteAuthority;
 			});
+			instantiationService.stub(IWorkspaceTrustManagementService, new TestTerminalWorkspaceTrustManagementService(options?.workspaceTrustInitialized ?? new DeferredPromise<void>().p));
 			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService(trustResult);
 			instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, shellLaunchConfig));
@@ -232,7 +242,8 @@ suite('Workbench - TerminalInstance', () => {
 			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
 				executable: '/usr/bin/zsh',
 				cwd: URI.file('/home/test'),
-				isRemoteResolverTerminal: true,
+				[remoteResolverTerminal]: true,
+				hideFromUser: true,
 				isTransient: true
 			}, trustResult.p);
 
@@ -241,13 +252,101 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual({
 				trustRequestCount: workspaceTrustRequestService.requestCount,
 				createProcessCount: terminalInstanceService.createProcessCount,
-				persistedResolverFlag: instance.shellLaunchConfig.isRemoteResolverTerminal
+				persistedResolverFlag: instance.shellLaunchConfig[remoteResolverTerminal]
 			}, {
 				trustRequestCount: 0,
 				createProcessCount: 1,
 				persistedResolverFlag: undefined
 			});
 			instance.dispose();
+		});
+
+		test('remote resolver terminal marker is ignored outside the resolver bootstrap constraints', async () => {
+			const serializedMarker: IShellLaunchConfig & { isRemoteResolverTerminal: boolean } = {
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				hideFromUser: true,
+				isTransient: true,
+				isRemoteResolverTerminal: true
+			};
+			const cases: { label: string; shellLaunchConfig: IShellLaunchConfig; options?: { remoteAuthority?: string; workspaceTrustInitialized?: Promise<void> } }[] = [
+				{
+					label: 'serialized marker',
+					shellLaunchConfig: serializedMarker
+				},
+				{
+					label: 'visible terminal',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, isTransient: true }
+				},
+				{
+					label: 'persistent terminal',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true }
+				},
+				{
+					label: 'remote terminal',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.parse('vscode-remote://ssh-remote+test/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
+				},
+				{
+					label: 'non-file URI cwd',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.parse('untitled:/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
+				},
+				{
+					label: 'string cwd',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: '/home/test', [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
+				},
+				{
+					label: 'local window',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true },
+					options: { remoteAuthority: '' }
+				},
+				{
+					label: 'trust already initialized',
+					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true },
+					options: { workspaceTrustInitialized: Promise.resolve() }
+				}
+			];
+			const results = [];
+
+			for (const testCase of cases) {
+				const trustResult = new DeferredPromise<boolean>();
+				const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust(testCase.shellLaunchConfig, trustResult.p, testCase.options);
+				const processCreation = createProcess(instance);
+				await timeout(0);
+				results.push({
+					label: testCase.label,
+					trustRequestCount: workspaceTrustRequestService.requestCount,
+					createProcessCount: terminalInstanceService.createProcessCount
+				});
+				instance.dispose();
+				trustResult.complete(true);
+				await processCreation;
+			}
+
+			deepStrictEqual(results, cases.map(testCase => ({
+				label: testCase.label,
+				trustRequestCount: 1,
+				createProcessCount: 0
+			})));
+		});
+
+		test('trust denial does not create a local terminal process', async () => {
+			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, Promise.resolve(false));
+
+			await createProcess(instance);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount,
+				isDisposed: instance.isDisposed
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0,
+				isDisposed: true
+			});
 		});
 
 		test('ordinary local terminal waits for workspace trust in a remote workspace', async () => {

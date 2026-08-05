@@ -976,7 +976,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
-		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.file;
+		const initialConfig = options?.config;
+		const configCwd = initialConfig && !hasKey(initialConfig, { extensionIdentifier: true }) && !hasKey(initialConfig, { profileName: true }) ? initialConfig.cwd : undefined;
+		const cwd = options?.cwd ?? configCwd;
+		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(cwd) && cwd.scheme === Schemas.file;
 		if (this._terminalProfileService.availableProfiles.length === 0) {
 			const isPtyTerminal = options?.config && hasKey(options.config, { customPtyImplementation: true });
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {

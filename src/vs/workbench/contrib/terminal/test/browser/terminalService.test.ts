@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail, strictEqual } from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProfile, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
-import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
+import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -51,6 +53,32 @@ suite('Workbench - TerminalService', () => {
 	});
 
 	suite('background terminals', () => {
+		test('should not wait for profiles when config has a local cwd in a remote workspace', async () => {
+			const profilesReady = new DeferredPromise<void>();
+			instantiationService.stub(ITerminalProfileService, 'profilesReady', profilesReady.p);
+			instantiationService.stub(IRemoteAgentService, 'getConnection', {
+				remoteAuthority: 'ssh-remote+test'
+			} as IRemoteAgentConnection);
+			const instance = {
+				...createTerminalInstance(),
+				onDisposed: Event.None
+			} as ITerminalInstance;
+			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', (config: IShellLaunchConfig | ITerminalProfile) => config as IShellLaunchConfig);
+			instantiationService.stub(ITerminalInstanceService, 'createInstance', instance);
+			terminalService.registerProcessSupport(true);
+
+			const terminalCreation = terminalService.createTerminal({
+				config: {
+					cwd: URI.file('/home/test'),
+					hideFromUser: true
+				},
+				skipContributedProfileCheck: true,
+			});
+
+			strictEqual(await raceTimeout(terminalCreation, 50), instance);
+			profilesReady.complete();
+		});
+
 		test('should remove disposed hidden terminals and their listeners', async () => {
 			const disposalEmitters = Array.from({ length: 3 }, () => store.add(new Emitter<ITerminalInstance>()));
 			const instances = disposalEmitters.map((emitter, index) => ({

@@ -493,6 +493,8 @@ export interface IHeartbeatService {
 }
 
 
+export const remoteResolverTerminal = Symbol('remoteResolverTerminal');
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
@@ -628,10 +630,10 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
-	 * Whether this terminal is used to bootstrap a remote authority resolver. This is consumed by
+	 * Marks a terminal as being used to bootstrap a remote authority resolver. This is consumed by
 	 * the terminal instance and must not be forwarded to or persisted by the pty host.
 	 */
-	isRemoteResolverTerminal?: boolean;
+	[remoteResolverTerminal]?: true;
 
 	/**
 	 * The icon for the terminal, used primarily in the terminal tab.
