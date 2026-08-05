@@ -424,6 +424,7 @@
  * elements in the dialog's actual message body text retain the
  * intended 20px indent.
  */
+.automation-form-prompt-host .sessions-chat-config-toolbar .monaco-action-bar .actions-container,
 .automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container,
 .automation-form-prompt-host .chat-secondary-toolbar .monaco-action-bar .actions-container {
 	padding-inline-start: 0;
