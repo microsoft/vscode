@@ -2652,6 +2652,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					entry = undefined;
 				}
 			}
+			if (!entry) {
+				this._logService.info(`[Copilot:${context.sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
+			}
 			entry ??= await this._resumeSession(context.sessionId, workingDirectories);
 
 			// Reset per-turn streaming state on the session so that the
