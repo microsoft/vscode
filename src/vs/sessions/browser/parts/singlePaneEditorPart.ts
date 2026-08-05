@@ -29,15 +29,15 @@ import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
  * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
- * supplied via {@link getGroupViewOptions}) whenever the active editor opts in via
- * {@link IEditorPane.getHeaderActions}; the part only reacts to its height to
- * reposition the docked auxiliary bar.
+ * supplied via {@link getGroupViewOptions}) and also hosts breadcrumbs in that row
+ * for text file editors. The part only reacts to the header's height to reposition
+ * the docked auxiliary bar.
  */
 export class SinglePaneMainEditorPart extends MainEditorPart {
 
 	private _auxiliaryBar: SinglePaneAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
-	private readonly _groupHeaderListeners = this._register(new DisposableMap<EditorGroupView>());
+	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		return {
@@ -47,7 +47,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
-			}
+			},
+			showHeader: true
 		};
 	}
 
@@ -108,7 +109,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	protected override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 		const container = super.createContentArea(parent, options);
 
-		this._registerGroupHeaders();
+		this._registerGroupRelayoutListeners();
 
 		const layoutService = this.layoutService as IAgentWorkbenchLayoutService;
 		this._dockedAuxBar = this._register(new DockedAuxiliaryBarController(
@@ -122,7 +123,10 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getHeaderHeight: () => (this.activeGroup as EditorGroupView).headerHeight,
+				getHeaderHeight: () => {
+					const { total, offset } = (this.activeGroup as EditorGroupView).titleHeight;
+					return total - offset;
+				},
 			},
 		));
 
@@ -130,19 +134,18 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	}
 
 	/**
-	 * Repositions the docked auxiliary bar when a group's header height changes,
-	 * so the aux bar and sash stay aligned with the editor content below the header.
+	 * Keeps the docked auxiliary bar aligned after group-local relayouts.
 	 */
-	private _registerGroupHeaders(): void {
+	private _registerGroupRelayoutListeners(): void {
 		for (const group of this.groups) {
-			this._registerGroupHeader(group as EditorGroupView);
+			this._registerGroupRelayoutListener(group as EditorGroupView);
 		}
-		this._register(this.onDidAddGroup(group => this._registerGroupHeader(group as EditorGroupView)));
-		this._register(this.onDidRemoveGroup(group => this._groupHeaderListeners.deleteAndDispose(group as EditorGroupView)));
+		this._register(this.onDidAddGroup(group => this._registerGroupRelayoutListener(group as EditorGroupView)));
+		this._register(this.onDidRemoveGroup(group => this._groupRelayoutListeners.deleteAndDispose(group as EditorGroupView)));
 	}
 
-	private _registerGroupHeader(group: EditorGroupView): void {
-		this._groupHeaderListeners.set(group, group.onDidChangeHeaderHeight(() => this._dockedAuxBar?.layout()));
+	private _registerGroupRelayoutListener(group: EditorGroupView): void {
+		this._groupRelayoutListeners.set(group, group.onDidRelayout(() => this._dockedAuxBar?.layout()));
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
