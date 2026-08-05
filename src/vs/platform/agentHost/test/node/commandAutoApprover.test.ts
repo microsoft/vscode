@@ -113,6 +113,50 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('find . -exec rm {} ;'), 'denied');
 		});
 
+		test('handles sort with blocked args', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sort input.txt'),
+				approver.shouldAutoApprove('sort --check input.txt'),
+				approver.shouldAutoApprove('sort --check=quiet input.txt'),
+				approver.shouldAutoApprove('sort "--check" input.txt'),
+				approver.shouldAutoApprove('sort --buffer-size=1K input.txt'),
+				approver.shouldAutoApprove('sort -o output.txt input.txt'),
+				approver.shouldAutoApprove('sort -S 1G input.txt'),
+				approver.shouldAutoApprove('sort --compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program /bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-prog=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-p=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --com=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --co=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort "--compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort \'--compress-prog=/bin/sh\' input.txt'),
+				approver.shouldAutoApprove('sort \\-\\-compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program\\=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --"compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort $\'--compress-program=/bin/sh\' input.txt'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
+		});
+
 		test('handles sed with blocked args', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),

@@ -10,6 +10,7 @@ import { type IConfigurationPropertySchema } from '../../../../../platform/confi
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
+import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -326,13 +327,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
 			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 
-			// sort
-			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
-			//   blocked currently
-			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
-			//   of service.
-			'/^sort\\b(?!-)/': true,
-			'/^sort\\b.*\\s-(o|S)\\b/': false,
+			...sortAutoApproveRules,
 
 			// tree
 			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
