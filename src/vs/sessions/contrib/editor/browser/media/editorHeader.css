@@ -42,8 +42,21 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions,
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions {
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-layout-actions {
 	display: contents;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions-separator {
+	display: none;
+	align-self: stretch;
+	width: var(--vscode-strokeThickness);
+	margin: 0 var(--vscode-spacing-size40, 4px);
+	background-color: var(--vscode-editorGroup-border);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions-separator.visible {
+	display: block;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar,
@@ -60,6 +73,7 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-layout-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {
 	gap: var(--vscode-spacing-size40, 4px);
 }
