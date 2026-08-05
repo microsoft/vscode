@@ -65,7 +65,7 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override dispose(): void { /* noop */ }
 }
 
-class StubTunnelService extends Disposable {
+class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeTunnels = this._register(new Emitter<void>());
@@ -83,9 +83,21 @@ class StubTunnelService extends Disposable {
 	}
 
 	getCachedTunnels(): ICachedTunnel[] { return this._cached; }
+	async listTunnels(): Promise<ITunnelInfo[]> { return []; }
+	readonly canDeleteTunnels = true;
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
+	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
+		this._cached = [{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, authProvider }, ...this._cached.filter(cached => cached.tunnelId !== tunnel.tunnelId)];
+		this._onDidChangeTunnels.fire();
+	}
+	removeCachedTunnel(tunnelId: string): void {
+		this._cached = this._cached.filter(tunnel => tunnel.tunnelId !== tunnelId);
+		this._onDidChangeTunnels.fire();
+	}
 	isAutoConnectSuppressed(id: string): boolean { return this._suppressed.has(id); }
 	suppressAutoConnect(id: string): void { this._suppressed.add(id); }
 	clearAutoConnectSuppression(id: string): void { this._suppressed.delete(id); }
+	async getAuthProvider(): Promise<'github' | 'microsoft' | undefined> { return undefined; }
 
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		this.connectCalls.push({ tunnel, authProvider, options });
@@ -172,7 +184,7 @@ suite('TunnelAgentHostContribution', () => {
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -226,7 +238,7 @@ suite('TunnelAgentHostContribution', () => {
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
 		instantiationService.stub(IConfigurationService, configurationService);

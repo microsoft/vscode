@@ -6673,22 +6673,61 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 		});
 	});
 
-	test('getSessionMessages on subagent URI returns [] when parent session is not materialized', async () => {
+	test('getSessionMessages on subagent URI reconstructs correlation after parent release', async () => {
 		const { agent, sdk } = createTestContext(disposables);
-		const parentUri = AgentSession.uri(agent.id, 'parent');
-		const subagentUri = URI.parse(`${parentUri.toString()}/subagent/tool-call-1`);
+		const parentSessionId = 'parent';
+		const toolCallId = 'tool-call-1';
+		const agentId = 'agent1';
+		const parentUri = AgentSession.uri(agent.id, parentSessionId);
+		const subagentUri = buildSubagentSessionUri(parentUri.toString(), toolCallId);
+		sdk.sessionMessagesById.set(parentSessionId, [
+			makeUserSessionMessage('parent-user', 'delegate'),
+			{
+				...makeAssistantMessage(parentSessionId, [
+					{ type: 'tool_use', id: toolCallId, name: 'Task', input: { prompt: 'subagent task' } },
+				]),
+				parent_agent_id: null,
+			},
+			{
+				...makeUserToolResultMessage(parentSessionId, toolCallId, [
+					{ type: 'text', text: 'done' },
+					{ type: 'text', text: `agentId: ${agentId} (use SendMessage with to: '${agentId}')` },
+				]),
+				parent_agent_id: null,
+				session_id: parentSessionId,
+				uuid: 'parent-tool-result',
+			},
+		]);
+		sdk.subagentMessagesByKey.set(`${parentSessionId}::${agentId}`, [
+			makeUserSessionMessage('subagent-user', 'subagent task'),
+			makeAssistantSessionMessage('subagent-assistant', 'subagent response'),
+		]);
 
-		const turns = await agent.getSessionMessages(subagentUri);
+		const turns = await agent.getSessionMessages(URI.parse(subagentUri));
 
-		// Parent session was never materialized, so the per-session
-		// SubagentRegistry is unreachable — early-return branch must
-		// fire and the parent SDK path must NOT.
 		assert.deepStrictEqual({
-			turns,
-			sdkParentCalls: sdk.getSessionMessagesCalls.length,
+			turns: turns.map(turn => ({
+				message: turn.message.text,
+				response: turn.responseParts
+					.filter(part => part.kind === ResponsePartKind.Markdown)
+					.map(part => part.content),
+			})),
+			parentCalls: sdk.getSessionMessagesCalls,
+			subagentCalls: sdk.getSubagentMessagesCalls,
 		}, {
-			turns: [],
-			sdkParentCalls: 0,
+			turns: [{
+				message: 'subagent task',
+				response: ['subagent response'],
+			}],
+			parentCalls: [{
+				sessionId: parentSessionId,
+				options: { includeSystemMessages: true },
+			}],
+			subagentCalls: [{
+				sessionId: parentSessionId,
+				agentId,
+				options: undefined,
+			}],
 		});
 	});
 
