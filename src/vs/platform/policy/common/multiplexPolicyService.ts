@@ -5,13 +5,10 @@
 
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
-import { Iterable } from '../../../base/common/iterator.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
-
-	private readonly policyValueSources = new Map<string, PolicyValueSource>();
 
 	constructor(
 		private readonly policyServices: ReadonlyArray<IPolicyService>,
@@ -28,7 +25,7 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 
 	override async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
 		await this._updatePolicyDefinitions(policyDefinitions);
-		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
+		return this.getPolicyValues();
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
@@ -36,13 +33,8 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 		this.updatePolicies();
 	}
 
-	override getPolicyValueSource(name: string): PolicyValueSource | undefined {
-		return this.policyValueSources.get(name);
-	}
-
 	private updatePolicies(): void {
-		this.policies.clear();
-		this.policyValueSources.clear();
+		this.clearPolicyValues();
 		const updated: string[] = [];
 		for (const service of this.policyServices) {
 			const definitions = service.policyDefinitions;
@@ -51,11 +43,7 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 				this.policyDefinitions[name] = definitions[name];
 				if (value !== undefined) {
 					updated.push(name);
-					this.policies.set(name, value);
-					const source = service.getPolicyValueSource(name);
-					if (source !== undefined) {
-						this.policyValueSources.set(name, source);
-					}
+					this.updatePolicyValue(name, value, service.getPolicyValueSource(name));
 				}
 			}
 		}

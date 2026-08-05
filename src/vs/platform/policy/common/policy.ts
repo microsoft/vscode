@@ -68,6 +68,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 
 	public policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	protected policies = new Map<PolicyName, PolicyValue>();
+	private readonly policyValueSources = new Map<PolicyName, PolicyValueSource | undefined>();
 
 	protected readonly _onDidChange = this._register(new Emitter<readonly PolicyName[]>());
 	readonly onDidChange = this._onDidChange.event;
@@ -86,7 +87,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 
-		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
+		return this.getPolicyValues();
 	}
 
 	getPolicyValue(name: PolicyName): PolicyValue | undefined {
@@ -94,11 +95,45 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	}
 
 	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
-		return this.policies.has(name) ? PolicyValueSource.Device : undefined;
+		return this.getStoredPolicyValueSource(name);
+	}
+
+	private getStoredPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
+		if (!this.policies.has(name)) {
+			return undefined;
+		}
+		return this.policyValueSources.has(name) ? this.policyValueSources.get(name) : PolicyValueSource.Device;
 	}
 
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {
 		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition: toSerializablePolicyDefinition(definition), value: this.policies.get(name)! } }), {});
+	}
+
+	protected getPolicyValues(): IStringDictionary<PolicyValue> {
+		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
+	}
+
+	protected updatePolicyValue(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource | undefined): boolean {
+		if (value === undefined) {
+			const valueDeleted = this.policies.delete(name);
+			const sourceDeleted = this.policyValueSources.delete(name);
+			return valueDeleted || sourceDeleted;
+		}
+
+		const valueChanged = this.policies.get(name) !== value;
+		const sourceChanged = this.getStoredPolicyValueSource(name) !== source;
+		if (!valueChanged && !sourceChanged) {
+			return false;
+		}
+
+		this.policies.set(name, value);
+		this.policyValueSources.set(name, source);
+		return true;
+	}
+
+	protected clearPolicyValues(): void {
+		this.policies.clear();
+		this.policyValueSources.clear();
 	}
 
 	protected abstract _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void>;

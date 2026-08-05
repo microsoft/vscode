@@ -12,21 +12,10 @@ import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contr
 
 class TestPolicyService extends AbstractPolicyService {
 
-	private readonly sources = new Map<PolicyName, PolicyValueSource>();
-
 	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | null = PolicyValueSource.Device): void {
 		const type = typeof value === 'string' ? 'string' : typeof value === 'number' ? 'number' : 'boolean';
 		this.policyDefinitions[name] = { type };
-		this.policies.set(name, value);
-		if (source !== null) {
-			this.sources.set(name, source);
-		} else {
-			this.sources.delete(name);
-		}
-	}
-
-	override getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
-		return this.sources.get(name);
+		this.updatePolicyValue(name, value, source ?? undefined);
 	}
 
 	fireChange(): void {
