@@ -47,7 +47,7 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
@@ -393,13 +393,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
 		let connectOnDemand: (() => Promise<void>) | undefined;
 		let disconnectOnDemand: (() => Promise<void>) | undefined;
+		let preferenceKey: string | undefined;
 		if (sshConnection) {
 			connectOnDemand = () => this._connectSSHOnDemand(sshConnection, entry.name, address);
 			disconnectOnDemand = () => this._disconnectSSHOnDemand(sshConnection);
+			// The stable key SSHRemoteAgentHostService reads its preference
+			// by (see computeSSHConnectionKey's docs) - NOT the live
+			// forwarded `address` above, which changes per-connection.
+			preferenceKey = computeSSHConnectionKey({
+				sshConfigHost: sshConnection.sshConfigHost,
+				username: sshConnection.user,
+				host: sshConnection.hostName,
+				port: sshConnection.port,
+			});
 		}
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
+			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand, preferenceKey });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
@@ -479,12 +489,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
 		const sshConfigHost = connection.sshConfigHost;
 		if (!sshConfigHost) {
+			// `_connectSSHOnDemand` is only ever invoked from the on-demand
+			// "Connect" action, so this is always user-initiated — set
+			// explicitly for clarity even though it matches the default.
 			await this._sshService.connect({
 				host: connection.hostName,
 				port: connection.port,
 				username: connection.user ?? connection.hostName,
 				authMethod: SSHAuthMethod.Agent,
 				name,
+				userInitiated: true,
 			});
 			return;
 		}
@@ -514,7 +528,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			pending: this._pendingSSHReconnects,
 			states: this._sshReconnectStates,
 			getOrCreateState: key => this._getOrCreateSSHReconnectState(key),
-			doConnect: () => this._sshService.reconnect(sshConfigHost, name).then(() => undefined),
+			// Thread userInitiated through to the actual reconnect() call, not
+			// just the local bookkeeping above: a silent/background attempt
+			// (the default here — options.userInitiated is only set `true`
+			// by the on-demand connect path) must never open the
+			// endpoint-selection picker and must never silently attach to an
+			// `editor`-owned endpoint, per the SSH service's selection policy.
+			doConnect: () => this._sshService.reconnect(sshConfigHost, name, !!options.userInitiated).then(() => undefined),
 			schedule: state => this._scheduleSSHReconnect(sshConfigHost, name, address, state as SSHReconnectState),
 		});
 	}

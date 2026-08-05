@@ -54,4 +54,26 @@ suite('ModelPickerHover', () => {
 			{ discountPercent: -10, category: 'Powerful', badges: ['High cost'], promoText: undefined },
 		]);
 	});
+
+	test('promo hover text omits the end date when the promo has none', () => {
+		const results = ['2026-07-20T23:59:59Z', 'not a date', undefined].map(endsAt => {
+			const model = createModel(`promo-${endsAt}`, `Promo ${endsAt}`);
+			model.metadata = {
+				...model.metadata,
+				promo: { id: `test-promo-${endsAt}`, discountPercent: 20, endsAt, message: 'Limited time offer' },
+			} as ILanguageModelChatMetadata;
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			const promoText = hover.element.querySelector('.chat-model-hover-promo-text')?.textContent?.trim();
+			// The formatted date is locale/timezone dependent, so only assert on the sentence around it.
+			return promoText?.replace(/Ends .+\.$/, 'Ends <date>.');
+		});
+
+		assert.deepStrictEqual(results, [
+			'Limited time offer Ends <date>.',
+			'Limited time offer',
+			'Limited time offer',
+		]);
+	});
 });
