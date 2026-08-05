@@ -9,6 +9,13 @@ import { extUri, extUriBiasedIgnorePathCase } from '../../../../base/common/reso
 import { URI } from '../../../../base/common/uri.js';
 import { ActionType, type SessionWorkingDirectoryAction } from './sessionActions.js';
 
+function areDirectorySetsEqual(first: readonly URI[], second: readonly URI[]): boolean {
+	const toKey = (directory: URI) => extUri.getComparisonKey(directory);
+	const firstSet = new ResourceSet(first, toKey);
+	const secondSet = new ResourceSet(second, toKey);
+	return firstSet.size === secondSet.size && [...firstSet].every(directory => secondSet.has(directory));
+}
+
 /**
  * Compares two additional (non-primary) working-directory lists. A session's
  * additional directories are unordered peers, so only membership matters.
@@ -17,22 +24,25 @@ export function areAdditionalWorkingDirectoriesEqual(first: readonly URI[] | und
 	if (!first || !second) {
 		return first === second;
 	}
-	const toKey = (directory: URI) => extUri.getComparisonKey(directory);
-	const firstSet = new ResourceSet(first, toKey);
-	const secondSet = new ResourceSet(second, toKey);
-	return firstSet.size === secondSet.size && [...firstSet].every(directory => secondSet.has(directory));
+	return areDirectorySetsEqual(first, second);
 }
 
 /**
- * Compares two complete session working-directory sets, where index 0 is the
- * session's primary process root and the remaining entries are unordered peers.
+ * Compares two complete session working-directory sets. `hasImmutablePrimary`
+ * is the owning agent's {@link MultipleWorkingDirectoriesCapability.immutablePrimary}
+ * capability: when set, index 0 is a fixed process root and is compared by
+ * position while the remaining entries are unordered peers. Agents without it
+ * treat every directory as an equal peer.
  */
-export function areSessionWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
+export function areSessionWorkingDirectoriesEqual(first: readonly URI[] | undefined, second: readonly URI[] | undefined, hasImmutablePrimary: boolean): boolean {
 	if (!first || !second) {
 		return first === second;
 	}
+	if (!hasImmutablePrimary) {
+		return areDirectorySetsEqual(first, second);
+	}
 	return extUri.isEqual(first[0], second[0])
-		&& areAdditionalWorkingDirectoriesEqual(first.slice(1), second.slice(1));
+		&& areDirectorySetsEqual(first.slice(1), second.slice(1));
 }
 
 /**

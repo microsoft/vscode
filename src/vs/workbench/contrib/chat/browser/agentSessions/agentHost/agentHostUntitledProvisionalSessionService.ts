@@ -73,7 +73,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
@@ -452,13 +452,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const desired = this._computeEntryWorkingDirectories(entry);
 		return generation
 			&& this._sameUri(generation.workingDirectory, entry.workingDirectory)
-			&& areSessionWorkingDirectoriesEqual(generation.workingDirectories, desired)
+			&& this._sameWorkingDirectories(entry.provider, generation.workingDirectories, desired)
 			? generation
 			: undefined;
 	}
 
 	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
 		return first === undefined || second === undefined ? first === second : isEqual(first, second);
+	}
+
+	/** Provider-agnostic: only an agent advertising `immutablePrimary` pins index 0. */
+	private _sameWorkingDirectories(provider: string, first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
+		return areSessionWorkingDirectoriesEqual(first, second, hasImmutablePrimaryWorkingDirectory(this._agentHostService.rootState.value, provider));
 	}
 
 	private _newProvisionalUri(provider: string): URI {
@@ -509,7 +514,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				|| entry.disposed
 				|| entry.configVersion !== configVersion
 				|| !this._sameUri(entry.workingDirectory, workingDirectory)
-				|| !areSessionWorkingDirectoriesEqual(this._computeEntryWorkingDirectories(entry), workingDirectories)) {
+				|| !this._sameWorkingDirectories(entry.provider, this._computeEntryWorkingDirectories(entry), workingDirectories)) {
 				await this._disposeBackend(created, 'obsolete provisional candidate');
 				continue;
 			}
@@ -632,7 +637,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				if (oldEntry.configVersion !== configVersion
 					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
-					|| !areSessionWorkingDirectoriesEqual(this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
+					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
 						this._restoreImportedConversation(newSessionResource, imported);

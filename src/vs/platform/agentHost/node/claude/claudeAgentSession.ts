@@ -485,7 +485,9 @@ export class ClaudeAgentSession extends Disposable {
 			this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 		}
 		const currentWorkingDirectories = this.workingDirectories;
-		if (!areSessionWorkingDirectoriesEqual(previousWorkingDirectories, currentWorkingDirectories)) {
+		// Claude advertises `multipleWorkingDirectories.immutablePrimary`, so its
+		// process root is pinned at index 0.
+		if (!areSessionWorkingDirectoriesEqual(previousWorkingDirectories, currentWorkingDirectories, true)) {
 			this._watchCustomizations(currentWorkingDirectories);
 		}
 		if (!this.workingDirectory) {

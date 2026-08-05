@@ -28,8 +28,19 @@ suite('Session working directories', () => {
 		const changedPrimary = [URI.file('/workspace/a'), URI.file('/workspace/primary'), URI.file('/workspace/b')];
 
 		assert.deepStrictEqual([
-			areSessionWorkingDirectoriesEqual(first, reorderedAdditional),
-			areSessionWorkingDirectoriesEqual(first, changedPrimary),
+			areSessionWorkingDirectoriesEqual(first, reorderedAdditional, true),
+			areSessionWorkingDirectoriesEqual(first, changedPrimary, true),
+		], [true, false]);
+	});
+
+	test('compares every directory as an equal peer without an immutable primary', () => {
+		const first = [URI.file('/workspace/primary'), URI.file('/workspace/a')];
+		const reordered = [URI.file('/workspace/a'), URI.file('/workspace/primary')];
+		const different = [URI.file('/workspace/a'), URI.file('/workspace/b')];
+
+		assert.deepStrictEqual([
+			areSessionWorkingDirectoriesEqual(first, reordered, false),
+			areSessionWorkingDirectoriesEqual(first, different, false),
 		], [true, false]);
 	});
 
