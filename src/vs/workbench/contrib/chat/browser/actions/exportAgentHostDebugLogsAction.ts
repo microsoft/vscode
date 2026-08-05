@@ -31,7 +31,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
-import { findCopilotLogsForSession, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
+import { findRelevantCopilotLogs, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
@@ -207,21 +207,18 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	// 5. Copilot SDK process logs under <COPILOT_HOME>/logs do not include the
-	// session id in the filename, but relevant entries include it in the content.
+	// 5. Copilot SDK process logs under <COPILOT_HOME>/logs.
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
-	if (rawSessionId) {
-		const copilotLogsDir = activeSession?.isLocal
-			? buildLocalCopilotLogsUri(userHome)
-			: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined;
-		if (copilotLogsDir) {
-			const copilotLogFiles = await findCopilotLogsForSession(copilotLogsDir, rawSessionId, fileService, logService);
-			for (const file of copilotLogFiles) {
-				try {
-					files.push(await createDebugLogFile(file.path, file.resource, fileService, file.size));
-				} catch (error) {
-					logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
-				}
+	const copilotLogsDir = activeSession?.isLocal === false
+		? remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined
+		: buildLocalCopilotLogsUri(userHome);
+	if (copilotLogsDir) {
+		const copilotLogFiles = await findRelevantCopilotLogs(copilotLogsDir, rawSessionId, fileService, logService);
+		for (const file of copilotLogFiles) {
+			try {
+				files.push(await createDebugLogFile(file.path, file.resource, fileService, file.size));
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
 	}
