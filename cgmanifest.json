@@ -602,11 +602,11 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "906a02039fe8d29721f3eec1e46406be8c4bee39"
+					"commitHash": "ea7bcdc996f7b53f50661a9de7e2a25e8b44587a"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",
-			"version": "0.0.46-0"
+			"version": "0.0.46-31"
 		},
 		{
 			"component": {
