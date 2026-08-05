@@ -7,6 +7,7 @@ import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView } from './editor.js';
 
@@ -141,7 +142,10 @@ export class EditorHeaderControl extends Disposable {
 		const store = new DisposableStore();
 		const scopedInstantiationService = this.groupView.activeEditorPane?.scopedInstantiationService ?? this.instantiationService;
 		const toolbarOptions = {
-			menuOptions: { shouldForwardArgs: true },
+			menuOptions: {
+				arg: EditorResourceAccessor.getOriginalUri(this.groupView.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
+				shouldForwardArgs: true,
+			},
 			highlightToggledItems: true,
 			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
 		};

@@ -111,9 +111,9 @@ suite('Sessions - Layout Actions', () => {
 		assert.ok(hideWhen.includes(HasDockedDetailsContext.key));
 		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
 
-		// Add File as Context stays an editor-title action, not a layout action.
-		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		// Add File as Context stays a right-header action, not a layout action.
+		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(headerIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 });

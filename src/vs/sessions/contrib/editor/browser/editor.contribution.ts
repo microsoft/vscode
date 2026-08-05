@@ -494,7 +494,10 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 				? !!item.command.source
 				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
 			if (isExtensionItem) {
-				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, item));
+				const group = item.group === 'navigation'
+					? 'extension/navigation'
+					: `secondary/extension/${item.group ?? 'other'}`;
+				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, { ...item, group }));
 			}
 		}
 	}
