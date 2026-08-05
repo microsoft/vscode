@@ -1413,6 +1413,32 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('toolCallStateToStreamingInvocation defers partial input display for read tools', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-read-stream',
+				toolName: 'view',
+				displayName: 'Read',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				invocationMessage: invocation.invocationMessage,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+			}, {
+				invocationMessage: 'Read',
+				partialInput: undefined,
+				streamingMessage: undefined,
+			});
+		});
+
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const invocation = toolCallStateToStreamingInvocation({
