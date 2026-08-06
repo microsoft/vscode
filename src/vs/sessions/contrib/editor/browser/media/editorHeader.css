@@ -16,7 +16,7 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto auto;
+	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: center;
 	min-width: 0;
 	flex: 1 1 auto;
@@ -45,17 +45,9 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-layout-actions {
 	display: flex;
-	grid-column: 4;
+	grid-column: 3;
 	align-items: center;
 	flex-shrink: 0;
-}
-
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions-separator {
-	grid-column: 3;
-	align-self: stretch;
-	width: var(--vscode-strokeThickness);
-	margin: 0 var(--vscode-spacing-size40, 4px);
-	background-color: var(--vscode-editorGroup-border);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar,

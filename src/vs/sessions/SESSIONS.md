@@ -256,7 +256,7 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
-Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
 ---
 
@@ -411,6 +411,13 @@ active. Only accepted comments created after the active review registration are
 included in plan submission, so pre-existing or already-submitted session feedback
 is not resent or cleared. Ownership snapshots include hidden feedback states so a
 pre-existing comment cannot become plan-owned merely by transitioning to accepted.
+
+Agent-host feedback is session-scoped and shared by every peer chat. The feedback
+server tools normalize chat channels to the parent annotations channel, while the
+review-confirmation command bridge resolves the rendered `IChat.resource` through
+`ISessionsManagementService.getSessionForChatResource` before reading or mutating
+feedback. This keeps the unreviewed count, picker contents, and reveal selection on
+the same parent session even when the tool is invoked from an additional chat.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
