@@ -738,7 +738,7 @@ export class CodeApplication extends Disposable {
 		// there (honoring experiment overrides + policy + web), which the main
 		// process cannot fully observe.
 		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform));
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
