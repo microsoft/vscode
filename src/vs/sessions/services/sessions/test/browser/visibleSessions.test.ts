@@ -74,8 +74,7 @@ suite('VisibleSessions', () => {
 		return model;
 	}
 
-	function snapshot(model: VisibleSessions): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
-		const visible = model.visibleSessions.get();
+	function snapshot(model: VisibleSessions, visible = model.visibleSessions.get()): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
 		return {
 			visible: visible.map(s => s?.sessionId),
 			active: model.activeSession.get()?.sessionId,
@@ -203,10 +202,11 @@ suite('VisibleSessions', () => {
 			model.setActive(B);            // [A, B] active:B
 			const visibleSessionsBeforeActivation = model.visibleSessions.get();
 			model.setActive(A);            // [A, B] active:A — A keeps its slot
+			const visibleSessionsAfterActivation = model.visibleSessions.get();
 
 			assert.deepStrictEqual({
-				...snapshot(model),
-				visibleSessionsReferencePreserved: model.visibleSessions.get() === visibleSessionsBeforeActivation,
+				...snapshot(model, visibleSessionsAfterActivation),
+				visibleSessionsReferencePreserved: visibleSessionsAfterActivation === visibleSessionsBeforeActivation,
 			}, {
 				visible: ['A', 'B'],
 				active: 'A',
@@ -251,18 +251,23 @@ suite('VisibleSessions', () => {
 		test('setActive(undefined) when an empty slot already exists keeps it (no duplicate)', () => {
 			const model = createModel();
 			const A = stubSession('A');
-			const B = stubSession('B');
 
 			model.setActive(A);
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
-			model.setActive(B);            // active empty slot is non-sticky → replaced by B
-			model.setActive(undefined);    // active B is non-sticky → replaced by empty slot
+			model.setActive(A);            // active flips to A (sticky); empty slot remains
+			const visibleSessionsBeforeActivation = model.visibleSessions.get();
+			model.setActive(undefined);    // activates the existing empty slot
+			const visibleSessionsAfterActivation = model.visibleSessions.get();
 
-			assert.deepStrictEqual(snapshot(model), {
+			assert.deepStrictEqual({
+				...snapshot(model, visibleSessionsAfterActivation),
+				visibleSessionsReferencePreserved: visibleSessionsAfterActivation === visibleSessionsBeforeActivation,
+			}, {
 				visible: ['A', undefined],
 				active: undefined,
 				sticky: ['A'],
+				visibleSessionsReferencePreserved: true,
 			});
 		});
 

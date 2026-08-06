@@ -82,7 +82,7 @@ send:           composer → management.sendNewChatRequest()  // model: provider
 focus a slot:   part.onDidFocusSession → view.setActive → updates active visible slot
 ```
 
-Activating a session that already has a visible slot updates only `activeSession` and its
+Activating a session or empty slot that is already visible updates only `activeSession` and its
 `preserveFocus` intent. It does not republish `visibleSessions`: focus changes are not slot/catalog
 changes, and keeping that observable stable prevents per-session menus and other catalog consumers
 from rebuilding while an anchored picker is opening.
