@@ -5708,8 +5708,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (isRoutedResponse && lastResponseSummary) {
 				isCurrentRoutedCompletion = true;
 				this._routedRequests.delete(sessionKey);
-			} else if (routedRequest.phase !== 'queued' && !lastResponseSummary) {
-				this._routedRequests.delete(sessionKey);
+			} else if (isRoutedResponse && !lastResponseSummary) {
+				this.logService.trace(`[voice] retaining routed request through summary-less idle session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
 			} else {
 				this.logService.trace(`[voice] suppressing idle response that does not belong to routed request session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
 				return;

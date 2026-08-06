@@ -4046,6 +4046,7 @@ suite('VoiceSessionController', () => {
 		controller.markRoutedRequestPending(resource);
 
 		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
+		handleStateChange.call(controller, sessionId, 'idle', undefined, undefined, undefined);
 		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The current omni request is complete.', undefined);
 
 		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
