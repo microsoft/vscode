@@ -51,7 +51,8 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 
 // #region --- New Chat Widget ---
 
-const MIN_REQUESTS_FOR_TIPS = 2;
+/** Minimum number of started sessions required before showing tips. */
+const MIN_SESSIONS_FOR_TIPS = 2;
 
 export class NewChatWidget extends Disposable {
 
@@ -474,8 +475,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private isChatTipSuppressed(): boolean {
-		const requestsSent = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
-		return requestsSent < MIN_REQUESTS_FOR_TIPS || this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+		const sessionCount = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		return sessionCount < MIN_SESSIONS_FOR_TIPS || this.isInputOnboardingVisible() || this._isInputNotificationVisible;
 	}
 
 	private updateChatTipVisibility(): void {
