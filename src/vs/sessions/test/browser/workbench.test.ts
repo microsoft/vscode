@@ -7,7 +7,7 @@ import assert from 'assert';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
@@ -63,6 +63,7 @@ suite('Sessions - Workbench', () => {
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
+	const updateModernUITabs = Reflect.get(Workbench.prototype, 'updateModernUITabs') as (this: ITestWorkbench, configurationService: { getValue<T>(key: string): T }) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -235,6 +236,7 @@ suite('Sessions - Workbench', () => {
 						});
 						sideBarNodeVisible = visible;
 					}
+
 					gridVisibility.set(view, visible);
 					visibilityChanges.push(visible);
 					if (visible && sizing?.type === 'distribute') {
@@ -307,6 +309,33 @@ suite('Sessions - Workbench', () => {
 		Object.setPrototypeOf(host, options.single ? SinglePaneWorkbench.prototype : Workbench.prototype);
 		return host as unknown as ITestWorkbench;
 	}
+
+	test('gates modern tabs on the Modern UI setting', () => {
+		const host = createHost();
+		let enabled = true;
+		const configurationKeys: string[] = [];
+		const configurationService = {
+			getValue<T>(key: string): T {
+				configurationKeys.push(key);
+				return enabled as T;
+			}
+		};
+
+		updateModernUITabs.call(host, configurationService);
+		enabled = false;
+		updateModernUITabs.call(host, configurationService);
+
+		assert.deepStrictEqual({
+			configurationKeys,
+			classToggles: host.classToggles,
+		}, {
+			configurationKeys: [LayoutSettings.MODERN_UI, LayoutSettings.MODERN_UI],
+			classToggles: [
+				{ name: 'modern-ui-tabs', force: true },
+				{ name: 'modern-ui-tabs', force: false },
+			],
+		});
+	});
 
 	// The real SplitView calls `Part.setVisible` when a view's grid visibility
 	// changes, which the workbench maps back onto the desired part visibility.

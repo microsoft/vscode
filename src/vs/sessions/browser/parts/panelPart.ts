@@ -5,6 +5,7 @@
 
 import '../../../workbench/browser/parts/panel/media/panelpart.css';
 import './media/panelPart.css';
+import './media/paneCompositeTabs.css';
 import { IAction } from '../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';

@@ -97,11 +97,153 @@
 	padding: 4px;
 }
 
-.agent-sessions-workbench .part.editor .tabs-container > .tab.active {
+.agent-sessions-workbench:not(.modern-ui-tabs) .part.editor .tabs-container > .tab.active {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-top-container,
 .agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
+}
+
+/* Modern UI editor tabs */
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab {
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
+	font-size: var(--vscode-agents-fontSize-body1) !important;
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact),
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.close-action-off:not(.sticky-compact) {
+	flex-direction: row;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
+	padding-right: var(--vscode-spacing-size280) !important;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact),
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
+	padding-left: var(--vscode-spacing-size240) !important;
+	padding-right: var(--vscode-spacing-size80) !important;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-fill {
+	display: block;
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-label {
+	position: relative;
+	z-index: 1;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active) > .tab-fill {
+	background-color: var(--vscode-tab-selectedBackground);
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active > .tab-fill {
+	background-color: var(--modern-ui-editor-tab-action-active-background);
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-fill,
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-actions {
+	position: absolute;
+	z-index: 7;
+	inset: 0 0 0 auto;
+	margin: 0;
+	width: 24px;
+	overflow: visible;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-actions > .monaco-action-bar {
+	width: 24px;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left > .tab-actions {
+	inset: 0 auto 0 0;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:not(.close-action-off):hover > .tab-actions,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:not(.close-action-off) > .tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.active:not(.close-action-off):hover > .tab-actions,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.active:not(.close-action-off) > .tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-active-background);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.selected:not(.active):not(.close-action-off):hover > .tab-actions,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.selected:not(.active):not(.close-action-off) > .tab-actions:focus-within {
+	background-color: var(--vscode-tab-selectedBackground);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:not(.dirty):not(.sticky):not(:hover) > .tab-actions .action-label:not(:focus) {
+	opacity: 0;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.dirty > .tab-actions .action-label,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.pinned-action-off) > .tab-actions .action-label,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:not(.close-action-off):hover > .tab-actions .action-label,
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-actions .action-label:focus {
+	opacity: 1;
+}
+
+.agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab.dirty.dirty-border-top > .tab-border-top-container {
+	display: block !important;
+	position: absolute;
+	z-index: 8;
+	inset: 0 0 auto;
+	width: 100%;
+	height: var(--vscode-spacing-size20);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
+	background-color: var(--tab-dirty-border-top-color);
+	pointer-events: none;
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab {
+	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:is(.active, .selected):not(:focus) > .tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:not(.active):not(.selected):not(:focus):hover > .tab-fill {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:focus > .tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab:hover > .tab-actions,
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .part.editor .tabs-container > .tab > .tab-actions:focus-within {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
 }

@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+	padding: 0;
+	text-transform: none !important;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 22px;
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: var(--modern-ui-tab-active-background) !important;
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover {
+	background-color: var(--modern-ui-tab-hover-background);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	background-color: transparent !important;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus-visible):hover {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

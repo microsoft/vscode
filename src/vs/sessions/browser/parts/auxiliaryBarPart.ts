@@ -5,6 +5,7 @@
 
 import '../../../workbench/browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import './media/auxiliaryBarPart.css';
+import './media/paneCompositeTabs.css';
 import { localize } from '../../../nls.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
