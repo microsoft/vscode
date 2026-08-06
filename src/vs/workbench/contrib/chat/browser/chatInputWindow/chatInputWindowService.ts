@@ -480,7 +480,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(auxiliaryWindow.container.children)
 				.filter(child => child !== this._row)
-				.reduce((height, child) => height + (child as HTMLElement).offsetHeight, 0);
+				.reduce((height, child) => {
+					const element = child as HTMLElement;
+					const position = auxiliaryWindow.window.getComputedStyle(element).position;
+					return position === 'absolute' || position === 'fixed'
+						? height
+						: height + element.offsetHeight;
+				}, 0);
 			const contentHeight = rowHeight + extraHeight + 2;
 			if (contentHeight === lastContentHeight) {
 				return;
