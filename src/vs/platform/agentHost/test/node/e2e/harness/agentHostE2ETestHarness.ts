@@ -19,7 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	getInlineToolInput, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -280,6 +280,32 @@ export interface IAgentHostE2EProviderConfig {
 	readonly exitPlanModeToolName: string;
 	/** File-creation tool that exposes model-generated argument deltas, when supported. */
 	readonly streamingFileCreateToolName?: string;
+	/** Alternate model used to verify a client-selected model reaches the provider. */
+	readonly modelSwitchTarget?: string;
+	/** Model used to switch an already-running provider session a second time. */
+	readonly modelSwitchReturnTarget?: string;
+	/** Provider-specific prompt that reliably triggers one interactive input request. */
+	readonly interactiveInputPrompt?: string;
+	/** Provider-specific prompt that expects a cancelled interactive input request. */
+	readonly cancelledInputPrompt?: string;
+	/** Provider-specific prompt that triggers a freeform text input request. */
+	readonly textInputPrompt?: string;
+	/** Provider-specific prompt that triggers a multi-select input request. */
+	readonly multiSelectInputPrompt?: string;
+	/** Provider supports a session with no working directory through the full model path. */
+	readonly supportsWorkspacelessE2E?: boolean;
+	/** Provider supports multiple workspace roots through the full model path. */
+	readonly supportsMultipleWorkingDirectoriesE2E?: boolean;
+	/** Provider exposes runtime slash commands through AHP completions after materialization. */
+	readonly supportsRuntimeSlashCommandsE2E?: boolean;
+	/** Provider supports shared default-chat attachment scenarios. */
+	readonly supportsAttachmentsE2E?: boolean;
+	/** Provider supports truncating a materialized conversation and continuing. */
+	readonly supportsTruncateE2E?: boolean;
+	/** Provider supports worktree include-file materialization in deterministic replay. */
+	readonly supportsWorktreeIncludeFilesE2E?: boolean;
+	/** Provider can deterministically replay cancellation while paused on input or approval. */
+	readonly supportsPausedTurnCancellationE2E?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).
@@ -487,7 +513,24 @@ export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient
 	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void): Promise<IDrivenTurnResult> {
+export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => c.dispatch({
+		channel: buildDefaultChatUri(session),
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
+		},
+	}));
+}
+
+export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+}
+
+async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -549,8 +592,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 				action: {
 					type: ActionType.ChatInputCompleted,
 					requestId: action.request.id,
-					response: ChatInputResponseKind.Accept,
-					answers: getAcceptedAnswers(action.request),
+					response: inputResponse,
+					answers: inputResponse === ChatInputResponseKind.Accept ? getAcceptedAnswers(action.request) : undefined,
 				},
 			});
 			continue;

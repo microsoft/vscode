@@ -15,6 +15,91 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot SDK rejects the host's interactive denial result variant
+
+- Test: `declining a file creation tool prevents the mutation and completes the turn`.
+- Scope: Copilot.
+- Expected: declining the create tool returns a valid rejection result to the SDK and the model continues without creating the file.
+- Observed: the host returns `denied-interactively-by-user`, while the bundled SDK accepts `reject`; the SDK reports `permission host returned malformed payload`.
+- Gate: the Copilot variant is disabled at the test declaration in `fileOperationsSuite.ts`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "declining a file creation tool"
+  ```
+
+### Client-pushed plugin MCP coverage is provider-scoped
+
+- Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.
+- Scope: Claude and Codex.
+- Expected: providers that consume client-pushed plugin customizations expose the parsed plugin and can execute its MCP tools through deterministic replay.
+- Observed:
+  - Claude does not publish the client-pushed plugin through this customization path; its native customization discovery uses separate `.claude` roots.
+  - Codex publishes the plugin catalog, but its model-backed recording path is unavailable in this harness because live Responses requests fail before the model turn with a malformed authorization-header response.
+- Gate: the suite excludes Claude; Codex runs host-only catalog/toggle coverage while model-backed MCP scenarios run only for Copilot.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "client plugin exposes"
+  ```
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "plugin MCP tool executes"
+  ```
+
+### Claude paused-turn cancellation is not replay-stable
+
+- Tests:
+  - `cancelling a turn paused for input allows a replacement turn`
+  - `cancelling a turn paused for file-tool approval allows a replacement turn`
+- Scope: Claude replay.
+- Expected: cancelling while the turn waits for input or tool approval ends that turn and allows a fresh replacement turn to complete.
+- Observed: replay either continues the cancelled input turn's response or reports a chat error before the replacement can complete.
+- Gate: `supportsPausedTurnCancellationE2E` is enabled only for Copilot.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "cancelling a turn paused"
+  ```
+
+### Codex retains a client plugin after the active client is removed
+
+- Test: `removing the active client removes its plugin customization`.
+- Scope: Codex.
+- Expected: `session/activeClientRemoved` removes the departing client's plugin from the session customization catalog.
+- Observed: the active client is removed but the plugin customization remains in session state.
+- Gate: the Codex variant is disabled at the `providerHostOnlyTest` declaration in `mcpPluginSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "removing the active client removes its plugin customization"
+  ```
+
+### Claude truncation does not produce a replay-stable follow-up request
+
+- Test: `truncating a materialized chat removes later context and allows continuation`.
+- Scope: Claude.
+- Expected: after `chat/truncated` removes the second turn, the follow-up model request contains the first turn and follow-up only.
+- Observed: live recording sends the expected pruned request, while replay rebuilds the follow-up request with the removed second turn still present.
+- Gate: `supportsTruncateE2E` is enabled only for Copilot.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "truncating a materialized chat"
+  ```
+
 ## Structural coverage gaps
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
@@ -139,6 +224,55 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
+
+### Branch changeset stays stale after a second edit to the same file
+
+- Test: `a second edit updates one changeset entry in place`.
+- Scope: conformance reference provider, branch changeset subscribed across two host-local turns.
+- Expected: after the second turn adds a third line, the existing file entry keeps its identity and updates from `+2 -1` to `+3 -1`.
+- Observed: the changeset remains ready with the first turn's `+2 -1` diff and never publishes the second edit.
+- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "a second edit updates one changeset entry in place"
+  ```
+
+### Multi-client subscriptions do not consistently isolate and broadcast channel traffic
+
+- Tests:
+  - `a chat action is broadcast to every subscribed client`
+  - `an unsubscribed client stops receiving channel actions`
+  - `terminal output is streamed to every subscribed client`
+  - `root session summaries are broadcast to every subscribed client`
+- Scope: conformance reference provider with two initialized AHP clients connected to one real host.
+- Expected: every client subscribed to a chat, terminal, or root channel receives its actions and notifications; unsubscribing one client does not affect another client's subscription.
+- Observed: the additional client receives no chat draft, terminal data, or root summary notification, and after it unsubscribes the shared client's next session action does not echo.
+- Gate: each affected `conformanceTest` is disabled at its declaration in `protocolContractsSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
+  ```
+
+### Discard changes fails for an untracked file
+
+- Test: `discarding an untracked file removes it from disk`.
+- Scope: conformance reference provider, uncommitted changeset with one untracked file.
+- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
+- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
+- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "discarding an untracked file"
+  ```
 
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 

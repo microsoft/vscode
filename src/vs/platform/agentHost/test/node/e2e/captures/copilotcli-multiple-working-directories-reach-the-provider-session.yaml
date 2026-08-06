@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read ${workdir}/secondary-marker.txt using your file tools; do not run a shell command. Reply with only its exact contents.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/secondary-marker.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read ${workdir}/secondary-marker.txt using your file tools; do not run a shell command. Reply with only its exact contents.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/secondary-marker.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 1. SECONDARY_ROOT_VALUE
+    response:
+      content: SECONDARY_ROOT_VALUE
+      stopReason: end_turn

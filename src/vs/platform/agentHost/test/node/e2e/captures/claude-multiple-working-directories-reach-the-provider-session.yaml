@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read ${workdir}/secondary-marker.txt using your file tools; do not run a shell command. Reply with only its exact contents.
+    response:
+      content:
+        - type: text
+          text: I'll read that file.
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/secondary-marker.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read ${workdir}/secondary-marker.txt using your file tools; do not run a shell command. Reply with only its exact contents.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll read that file.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/secondary-marker.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tSECONDARY_ROOT_VALUE"
+    response:
+      content: SECONDARY_ROOT_VALUE
+      stopReason: end_turn

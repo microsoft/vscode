@@ -9,10 +9,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { buildDefaultChatUri, getInlineToolInput } from '../../../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
-import type { ChatToolCallCompleteAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
+import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
+import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
+import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -60,6 +63,181 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
 		omitToolCallSuccessForToolNames: config.provider === 'codex' ? ['shell'] : [],
 	} as const;
+
+	if (config.streamingFileCreateToolName && config.provider !== 'codex') {
+		(config.provider !== 'copilotcli' ? test : test.skip)('declining a file creation tool prevents the mutation and completes the turn', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-decline-create-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(context.client, config, `decline-create-${config.provider}`, createdSessions, URI.file(workspace));
+			const chatUri = buildDefaultChatUri(sessionUri);
+			const turnId = 'turn-decline-create';
+			dispatchTurn(
+				context.client,
+				sessionUri,
+				turnId,
+				'Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".',
+				1,
+			);
+			const started = await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/toolCallStart')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).turnId === turnId
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === config.streamingFileCreateToolName,
+				90_000,
+			);
+			const toolCallId = (getActionEnvelope(started).action as ChatToolCallStartAction).toolCallId;
+			const readyNotification = await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/toolCallReady')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).turnId === turnId
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+				90_000,
+			);
+			const ready = getActionEnvelope(readyNotification).action as ChatToolCallReadyAction;
+			context.client.dispatch({
+				channel: chatUri,
+				clientSeq: 2,
+				action: {
+					type: ActionType.ChatToolCallConfirmed,
+					turnId,
+					toolCallId: ready.toolCallId,
+					approved: false,
+					reason: ToolCallCancellationReason.Denied,
+				},
+			});
+			let lastReadyServerSeq = getActionEnvelope(readyNotification).serverSeq;
+			let clientSeq = 3;
+			while (true) {
+				const notification = await context.client.waitForNotification(n => {
+					if (getActionEnvelope(n).channel !== chatUri) {
+						return false;
+					}
+					if (isActionNotification(n, 'chat/turnComplete')) {
+						return (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId;
+					}
+					if (!isActionNotification(n, 'chat/toolCallReady')) {
+						return false;
+					}
+					const action = getActionEnvelope(n).action as ChatToolCallReadyAction;
+					return action.turnId === turnId && getActionEnvelope(n).serverSeq > lastReadyServerSeq;
+				}, 90_000);
+				if (isActionNotification(notification, 'chat/turnComplete')) {
+					break;
+				}
+				const repeatedReady = getActionEnvelope(notification).action as ChatToolCallReadyAction;
+				lastReadyServerSeq = getActionEnvelope(notification).serverSeq;
+				context.client.dispatch({
+					channel: chatUri,
+					clientSeq: clientSeq++,
+					action: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId,
+						toolCallId: repeatedReady.toolCallId,
+						approved: false,
+						reason: ToolCallCancellationReason.Denied,
+					},
+				});
+			}
+			assert.strictEqual(existsSync(join(workspace, 'denied.txt')), false);
+		});
+
+		(config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for file-tool approval allows a replacement turn', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-cancel-file-approval-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(context.client, config, `cancel-file-approval-${config.provider}`, createdSessions, URI.file(workspace));
+			const chatUri = buildDefaultChatUri(sessionUri);
+			const turnId = 'turn-cancel-file-approval';
+			dispatchTurn(
+				context.client,
+				sessionUri,
+				turnId,
+				'Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".',
+				1,
+			);
+			const started = await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/toolCallStart')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).turnId === turnId
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === config.streamingFileCreateToolName,
+				90_000,
+			);
+			const toolCallId = (getActionEnvelope(started).action as ChatToolCallStartAction).toolCallId;
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/toolCallReady')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).turnId === turnId
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+				90_000,
+			);
+			context.client.dispatch({
+				channel: chatUri,
+				clientSeq: 2,
+				action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
+			});
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnCancelled')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
+				30_000,
+			);
+			const replacement = await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				'turn-after-file-approval-cancel',
+				'Reply exactly "replacement".',
+				3,
+			);
+
+			assert.deepStrictEqual({
+				fileExists: existsSync(join(workspace, 'cancelled.txt')),
+				replacement: replacement.responseText.trim(),
+			}, {
+				fileExists: false,
+				replacement: 'replacement',
+			});
+		});
+	}
+
+	if (config.provider === 'copilotcli') {
+		test('auto-approve mode executes a file creation without prompting', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-auto-approve-create-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(context.client, config, 'auto-approve-create', createdSessions, URI.file(workspace));
+			context.client.dispatch({
+				channel: sessionUri,
+				clientSeq: 1,
+				action: {
+					type: ActionType.SessionConfigChanged,
+					config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+				},
+			});
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'session/configChanged') && getActionEnvelope(n).channel === sessionUri,
+				30_000,
+			);
+
+			const result = await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				'turn-auto-approve-create',
+				'Create approved.txt containing exactly APPROVED_CONTENT using your file creation tool, then reply exactly "created".',
+				2,
+			);
+
+			assert.deepStrictEqual({
+				file: readFileSync(join(workspace, 'approved.txt'), 'utf8'),
+				sawPendingConfirmation: result.sawPendingConfirmation,
+				responseEndsWithCreated: result.responseText.trim().endsWith('created'),
+			}, {
+				file: 'APPROVED_CONTENT',
+				sawPendingConfirmation: false,
+				responseEndsWithCreated: true,
+			});
+		});
+	}
 
 	fileOperationTest(context, 'reads an existing text file', async function () {
 		this.timeout(180_000);
@@ -316,6 +494,54 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		assert.strictEqual(readFileSync(join(workspace, 'edit.txt'), 'utf8'), 'AFTER_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
+
+	if (config.provider === 'claude') {
+		test('file edit before and after content can be read from session storage', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-session-db-file-edit-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'stored-edit.txt'), 'BEFORE_STORED_VALUE');
+			const sessionUri = await createRealSession(context.client, config, 'session-db-file-edit', createdSessions, URI.file(workspace));
+			const turnId = 'turn-session-db-file-edit';
+
+			await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				turnId,
+				'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
+				1,
+			);
+			const edit = context.client.receivedNotifications(n =>
+				isActionNotification(n, 'chat/toolCallComplete')
+				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
+			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
+				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+			assert.ok(edit?.before?.content.uri);
+			assert.ok(edit.after?.content.uri);
+
+			const [before, after] = await Promise.all([
+				context.client.call<ResourceReadResult>('resourceRead', {
+					channel: ROOT_STATE_URI,
+					uri: edit.before.content.uri,
+					encoding: ContentEncoding.Utf8,
+				}),
+				context.client.call<ResourceReadResult>('resourceRead', {
+					channel: ROOT_STATE_URI,
+					uri: edit.after.content.uri,
+					encoding: ContentEncoding.Utf8,
+				}),
+			]);
+
+			assert.deepStrictEqual({
+				before: before.data,
+				after: after.data,
+			}, {
+				before: 'BEFORE_STORED_VALUE',
+				after: 'AFTER_STORED_VALUE',
+			});
+		});
+	}
 
 	(portableShellToolReplayEnabled ? test : test.skip)('creates a file in a new nested directory', async function () {
 		this.timeout(180_000);

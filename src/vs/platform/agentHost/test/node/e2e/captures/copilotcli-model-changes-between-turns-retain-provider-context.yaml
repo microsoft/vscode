@@ -1,0 +1,30 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word MARIGOLD. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word MARIGOLD. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            The model has been switched from claude-opus-4.6 to claude-sonnet-5.
+            </tools_changed_notice>
+
+            Reply with only the exact code word I asked you to remember.
+    response:
+      content: MARIGOLD
+      stopReason: end_turn
