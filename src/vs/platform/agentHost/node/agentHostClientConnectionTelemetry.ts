@@ -5,6 +5,8 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 
+export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
+
 export interface IAgentHostClientConnectionCounts {
 	readonly connectedClientCount: number;
 	readonly connectedTransportCount: number;
@@ -16,16 +18,21 @@ export interface IAgentHostClientConnectedResult extends IAgentHostClientConnect
 }
 
 export class AgentHostClientConnectionTelemetryTracker extends Disposable {
-	private readonly _seenClients = new Set<string>();
+	private readonly _recentlyDisconnectedClients = new Map<string, number>();
 	private readonly _activeTransports = new Map<string, Set<object>>();
 
+	constructor(private readonly _historyRetentionMs = AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION) {
+		super();
+	}
+
 	hasSeenClient(clientId: string): boolean {
-		return this._seenClients.has(clientId);
+		this._pruneDisconnectedClientHistory();
+		return this._activeTransports.has(clientId) || this._recentlyDisconnectedClients.has(clientId);
 	}
 
 	connect(clientId: string, transportToken: object): IAgentHostClientConnectedResult {
-		const isReconnect = this._seenClients.has(clientId);
-		this._seenClients.add(clientId);
+		const isReconnect = this.hasSeenClient(clientId);
+		this._recentlyDisconnectedClients.delete(clientId);
 		let transports = this._activeTransports.get(clientId);
 		if (!transports) {
 			transports = new Set();
@@ -40,14 +47,25 @@ export class AgentHostClientConnectionTelemetryTracker extends Disposable {
 		transports?.delete(transportToken);
 		if (transports?.size === 0) {
 			this._activeTransports.delete(clientId);
+			this._recentlyDisconnectedClients.set(clientId, Date.now());
 		}
+		this._pruneDisconnectedClientHistory();
 		return this._counts(clientId);
 	}
 
 	override dispose(): void {
-		this._seenClients.clear();
+		this._recentlyDisconnectedClients.clear();
 		this._activeTransports.clear();
 		super.dispose();
+	}
+
+	private _pruneDisconnectedClientHistory(): void {
+		const cutoff = Date.now() - this._historyRetentionMs;
+		for (const [clientId, disconnectedAt] of this._recentlyDisconnectedClients) {
+			if (disconnectedAt <= cutoff) {
+				this._recentlyDisconnectedClients.delete(clientId);
+			}
+		}
 	}
 
 	private _counts(clientId: string): IAgentHostClientConnectionCounts {

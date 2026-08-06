@@ -60,7 +60,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
-import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 /** Default capacity of the server-side action replay buffer. */
@@ -749,34 +749,39 @@ export class ProtocolServerHandler extends Disposable {
 			initializationDisposables,
 		};
 		this._attachConnection(params.clientId, client);
-		if (existingRecord.state === 'grace') {
-			existingRecord.disconnectTimeouts.dispose();
+		try {
+			// Re-establish the reverse-RPC filesystem authority for this client.
+			// The prior transport's `onClose` disposed the previous registration,
+			// so without this step any subsequent `resourceRead` / `resourceWrite`
+			// / etc. from the agent host would fail with "no connection registered
+			// for authority" until the client disconnected and re-initialized.
+			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
+
+			const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
+			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
+			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
+
+			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
+			client.telemetryConnectionActive = true;
+			if (existingRecord.state === 'grace') {
+				existingRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._telemetryReporter.clientConnection({
+				action: 'connected',
+				context: client.telemetryContext,
+				clientId: client.clientId,
+				clientImplementationName: client.clientInfo?.name,
+				clientImplementationVersion: client.clientInfo?.version,
+				protocolVersion: client.protocolVersion,
+				...counts,
+			});
+
+			return { client, responsePromise };
+		} catch (error) {
+			this._rollbackFailedInitialization(client, existingRecord);
+			throw error;
 		}
-		const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
-		client.telemetryConnectionActive = true;
-		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
-		this._telemetryReporter.clientConnection({
-			action: 'connected',
-			context: client.telemetryContext,
-			clientId: client.clientId,
-			clientImplementationName: client.clientInfo?.name,
-			clientImplementationVersion: client.clientInfo?.version,
-			protocolVersion: client.protocolVersion,
-			...counts,
-		});
-
-		// Re-establish the reverse-RPC filesystem authority for this client.
-		// The prior transport's `onClose` disposed the previous registration,
-		// so without this step any subsequent `resourceRead` / `resourceWrite`
-		// / etc. from the agent host would fail with "no connection registered
-		// for authority" until the client disconnected and re-initialized.
-		this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
-
-		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
-		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
-
-		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
-		return { client, responsePromise };
 	}
 
 	/**
@@ -1194,7 +1199,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * closes.
 	 */
 	private _pruneClientRecords(): void {
-		const cutoff = Date.now() - CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT * 10;
+		const cutoff = Date.now() - AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION;
 		for (const [clientId, record] of this._clients) {
 			if (record.state === 'grace'
 				&& record.disconnectTimeouts.size === 0

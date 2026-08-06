@@ -93,6 +93,18 @@ class FailingAgentHostFileSystemProvider extends AgentHostFileSystemProvider {
 	}
 }
 
+class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemProvider {
+	private _registrationCount = 0;
+
+	override registerAuthority(authority: string, connection: IRemoteFilesystemConnection) {
+		this._registrationCount++;
+		if (this._registrationCount === 2) {
+			throw new Error('registration failed');
+		}
+		return super.registerAuthority(authority, connection);
+	}
+}
+
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { eventName: string; data: unknown }[] = [];
 
@@ -1254,6 +1266,26 @@ suite('ProtocolServerHandler', () => {
 		]);
 	});
 
+	test('expires disconnected client reconnect history', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const tracker = disposables.add(new AgentHostClientConnectionTelemetryTracker(100));
+			const firstTransport = {};
+			assert.strictEqual(tracker.connect('client', firstTransport).isReconnect, false);
+			tracker.disconnect('client', firstTransport);
+			assert.strictEqual(tracker.hasSeenClient('client'), true);
+
+			await new Promise(resolve => setTimeout(resolve, 101));
+
+			assert.deepStrictEqual({
+				hasSeenClient: tracker.hasSeenClient('client'),
+				isReconnect: tracker.connect('client', {}).isReconnect,
+			}, {
+				hasSeenClient: false,
+				isReconnect: false,
+			});
+		});
+	});
+
 	test('does not count a client when initialization fails after negotiation', () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
@@ -1287,6 +1319,61 @@ suite('ProtocolServerHandler', () => {
 			counts: [],
 			events: [],
 			responseCode: JSON_RPC_INTERNAL_ERROR,
+		});
+	});
+
+	test('rolls back reconnect when filesystem authority registration fails', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const localTelemetry = new TestTelemetryService();
+		const localHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+			localDisposables.add(new FailingReconnectAgentHostFileSystemProvider()),
+			logService,
+			localTelemetry,
+		));
+		const counts: number[] = [];
+		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
+
+		const initialTransport = new MockProtocolTransport();
+		localServer.simulateConnection(initialTransport);
+		initialTransport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'reconnecting-client',
+		}));
+		initialTransport.simulateClose();
+
+		const failedTransport = new MockProtocolTransport();
+		localServer.simulateConnection(failedTransport);
+		failedTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'reconnecting-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		const failedResponseCode = (findResponse(failedTransport.sent, 2) as { error: { code: number } }).error.code;
+		failedTransport.simulateClose();
+
+		const retryTransport = new MockProtocolTransport();
+		localServer.simulateConnection(retryTransport);
+		const retryResponsePromise = waitForResponse(retryTransport, 3);
+		retryTransport.simulateMessage(request(3, 'reconnect', {
+			clientId: 'reconnecting-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await retryResponsePromise;
+
+		assert.deepStrictEqual({
+			counts,
+			connectionActions: localTelemetry.events.map(event => (event.data as { action: string }).action),
+			failedResponseCode,
+		}, {
+			counts: [1, 0, 1],
+			connectionActions: ['connected', 'disconnected', 'connected'],
+			failedResponseCode: JSON_RPC_INTERNAL_ERROR,
 		});
 	});
 
