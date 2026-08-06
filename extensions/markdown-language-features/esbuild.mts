@@ -5,6 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { run } from '../esbuild-extension-common.mts';
+import { updatePackageJsonFile } from './scripts/updateMarkdownEditorPackageJson.mts';
 
 const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'dist');
@@ -25,4 +26,5 @@ run({
 	},
 	srcDir,
 	outdir: outDir,
+	beforeBuild: () => updatePackageJsonFile('write'),
 }, process.argv, copyServerWorkerMain);
