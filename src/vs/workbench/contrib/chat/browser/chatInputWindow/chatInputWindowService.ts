@@ -617,7 +617,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		let layingOut = false;
 		let lastPendingHeight: number | undefined;
 		let lastPendingWidth: number | undefined;
-		let confirmationWidgetLaidOut = false;
+		let confirmationWidgetLayoutHeight = 0;
 		let displayedResource: string | undefined;
 		const layout = () => {
 			if (layingOut || !panel.classList.contains('shown')) {
@@ -628,7 +628,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				const width = Math.max(0, panel.clientWidth);
 				if (lastPendingHeight === undefined || lastPendingWidth !== width) {
 					if (lastPendingWidth !== width) {
-						confirmationWidgetLaidOut = false;
+						confirmationWidgetLayoutHeight = 0;
 					}
 					lastPendingWidth = width;
 					widget.layout(lastPendingHeight ?? CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
@@ -658,7 +658,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					? widget.contentHeight
 					: renderedContentHeight;
 				const minimumHeight = panel.classList.contains('question') ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
-				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
+				const measuredHeight = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
+				// Approval content (diff summaries, risk badges, button rows) can
+				// render after the first frame. Grow to accommodate it, but never
+				// shrink this prompt and re-enter a resize oscillation.
+				const height = panel.classList.contains('question')
+					? measuredHeight
+					: Math.max(lastPendingHeight ?? 0, measuredHeight);
 				const heightChanged = height !== lastPendingHeight;
 				if (heightChanged) {
 					lastPendingHeight = height;
@@ -667,11 +673,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}
 				if (panel.classList.contains('question') && heightChanged) {
 					widget.layout(height, width);
-				} else if (!panel.classList.contains('question') && !confirmationWidgetLaidOut) {
-					// Constrain the virtual list once so its row is positioned below
-					// the input/header. Repeating this with each measured height
-					// creates an endless resize oscillation.
-					confirmationWidgetLaidOut = true;
+				} else if (!panel.classList.contains('question') && height > confirmationWidgetLayoutHeight) {
+					// Keep the virtual row constrained below the input/header, and
+					// allow only monotonic growth when approval details render late.
+					confirmationWidgetLayoutHeight = height;
 					widget.layout(height, width);
 					scheduleLayout();
 				}
@@ -688,7 +693,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._pendingPromptIndex = 0;
 				lastPendingHeight = undefined;
 				lastPendingWidth = undefined;
-				confirmationWidgetLaidOut = false;
+				confirmationWidgetLayoutHeight = 0;
 				displayedResource = undefined;
 				this._activePendingSessionResource = undefined;
 				this._voiceConfirmationPending.set(false, undefined);
@@ -704,7 +709,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (displayedResource !== resource) {
 				displayedResource = resource;
 				lastPendingHeight = undefined;
-				confirmationWidgetLaidOut = false;
+				confirmationWidgetLayoutHeight = 0;
 			}
 			this._voiceConfirmationPending.set(true, undefined);
 			panel.classList.add('shown');
@@ -733,6 +738,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(previous, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex - 1)));
 		this._windowDisposables.add(dom.addDisposableListener(next, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex + 1)));
 		this._windowDisposables.add(widget.onDidChangeContentHeight(scheduleLayout));
+		const pendingMutationObserver = new auxiliaryWindow.window.MutationObserver(scheduleLayout);
+		pendingMutationObserver.observe(widget.domNode, { childList: true, subtree: true, attributes: true });
+		this._windowDisposables.add(toDisposable(() => pendingMutationObserver.disconnect()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', scheduleLayout));
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {

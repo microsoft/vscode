@@ -4093,6 +4093,16 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(voiceClientService.requests, []);
 	});
 
+	test('heard omni responses remain deduplicated across voice reconnects', () => {
+		const controller = createController(new TestVoiceClientService());
+		const sessionId = 'vscode-chat://omni-target';
+		(Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>).set(sessionId, 'the completed response');
+
+		controller.disconnect('explicit');
+
+		assert.strictEqual((Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>).get(sessionId), 'the completed response');
+	});
+
 	test('does not mark an omni-routed confirmation as pending in the sessions list', () => {
 		const controller = createController(new TestVoiceClientService());
 		const resource = URI.parse('vscode-chat://omni-target');

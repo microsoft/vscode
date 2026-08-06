@@ -2180,7 +2180,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._droppingRenarration.clear();
 		this._solicitedNarrationIds.clear();
 		this._cancelledPendingNarrationIds.clear();
-		this._lastHeardTranscriptById.clear();
 		this._awaitingReplyForSession = undefined;
 		this._prevSessionStates.clear();
 		for (const t of this._userCancelledSessions.values()) { clearTimeout(t); }
