@@ -4038,9 +4038,25 @@ suite('VoiceSessionController', () => {
 
 	test('narrates the completion summary for the current omni-routed request', () => {
 		const voiceClientService = new TestVoiceClientService();
-		const controller = createController(voiceClientService);
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
 		const resource = URI.parse('vscode-chat://omni-target');
 		const sessionId = resource.toString();
+		const lastRequest = {
+			id: 'local-queued-request-id',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', true),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
 		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
 		const cacheResponseSummary = Reflect.get(controller, '_cacheResponseSummary') as (sessionId: string, state: string, summary: string | undefined) => void;
 		controller.setTargetSession(resource, 'existing_session');
@@ -4141,15 +4157,33 @@ suite('VoiceSessionController', () => {
 	test('a queued routed request suppresses the session previous idle response', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
-		const controller = createController(voiceClientService, ttsPlaybackService);
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, ttsPlaybackService, undefined, undefined, undefined, undefined, chatService);
 		const resource = URI.parse('vscode-chat://omni-target');
 		const sessionId = resource.toString();
+		const lastRequest = {
+			id: 'previous-request',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('previousPending', undefined),
+				isIncomplete: observableValue('previousIncomplete', false),
+				response: { value: [], getMarkdown: () => 'The response from before the queued request.' },
+			},
+		};
+		let lastRequestId = lastRequest.id;
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [{ ...lastRequest, id: lastRequestId }],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
 		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
 		controller.setTargetSession(resource, 'existing_session');
 		controller.markRoutedRequestPending(resource);
+		controller.markRoutedRequestPending(resource, 'new-request');
 
 		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The response from before the queued request.', undefined);
 		voiceClientService.fireAudioResponse({
@@ -4169,6 +4203,7 @@ suite('VoiceSessionController', () => {
 			responseId: 'old-response-after-prompt',
 			transcript: 'The response from before the queued request.',
 		});
+		lastRequestId = 'new-request';
 		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
 		voiceClientService.fireAudioResponse({
 			audio: 'new queued response',
@@ -4187,6 +4222,35 @@ suite('VoiceSessionController', () => {
 			playedAudio: ['new queued response'],
 			narrations: [],
 		});
+	});
+
+	test('a queued routed request does not inherit the previous request busy state', () => {
+		const chatService = new ControllableChatService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://busy-omni-target');
+		const previousRequest = {
+			id: 'previous-request',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('previousPending', undefined),
+				isIncomplete: observableValue('previousIncomplete', true),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Busy omni target',
+			getRequests: () => [previousRequest],
+			lastRequestObs: observableValue('previousLastRequest', previousRequest),
+		} as unknown as IChatModel]);
+
+		controller.markRoutedRequestPending(resource);
+		controller.markRoutedRequestPending(resource, 'new-request');
+
+		assert.deepStrictEqual(
+			Reflect.get(controller, '_routedRequests'),
+			new Map([[resource.toString(), { requestId: 'new-request', phase: 'queued' }]]),
+		);
 	});
 
 	test('an older idle response does not clear a newly queued routed request', () => {

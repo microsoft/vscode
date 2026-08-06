@@ -1765,6 +1765,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** The id of the request model created for this queued message. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.

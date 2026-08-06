@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
+import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -52,26 +52,38 @@ suite('ChatSessionRoutingController', () => {
 		assert.strictEqual(result?.toString(), docs.uri.toString());
 	});
 
-	test('bounds the enrichment shortlist with local metadata before model scoring', () => {
+	test('bounds transcript enrichment after every candidate receives model scoring', () => {
 		const candidates = Array.from({ length: 13 }, (_, index) => ({
 			sessionId: `s${index}`,
-			label: index === 0 ? 'Authentication migration' : `Unrelated session ${index}`,
+			label: `Session ${index}`,
 			status: index === 12 ? 'working' : 'idle',
 			lastActivity: index,
 		}));
-		const shortlist = selectRouterShortlist(candidates, 'continue the authentication migration');
+		const shortlist = selectRouterShortlist(candidates, [
+			{ sessionId: 's0', confidence: 0.9 },
+			{ sessionId: 's3', confidence: 0.8 },
+		]);
 
 		assert.deepStrictEqual({
 			length: shortlist.length,
 			first: shortlist[0].sessionId,
 			second: shortlist[1].sessionId,
+			third: shortlist[2].sessionId,
 			excluded: candidates.filter(candidate => !shortlist.includes(candidate)).map(candidate => candidate.sessionId),
 		}, {
 			length: 12,
 			first: 's0',
-			second: 's12',
+			second: 's3',
+			third: 's12',
 			excluded: ['s1'],
 		});
+	});
+
+	test('selects the highest-confidence route without a sticky-session override', () => {
+		assert.deepStrictEqual(selectBestSessionRoute([
+			{ sessionId: 'best', confidence: 0.9 },
+			{ sessionId: 'previous', confidence: 0.86 },
+		]), { sessionId: 'best', confidence: 0.9 });
 	});
 
 	test('keeps the sticky default for a weak related-session match', () => {

@@ -18,7 +18,6 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -34,12 +33,6 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 
 import './media/chatSessionRouting.css';
-
-/**
- * When the last-used session is within this confidence margin of the top match,
- * it is preferred so repeated turns keep landing on the same session.
- */
-const ROUTE_AMBIGUITY_MARGIN = 0.05;
 
 /** Maximum number of high-confidence session options shown in the destination picker. */
 const ROUTE_MAX_CHOICES = 6;
@@ -58,9 +51,6 @@ const ROUTE_ENRICH_MAX_CANDIDATES = 12;
  */
 const ROUTE_AUTOSEND_DELAY_MS = 10000;
 
-/** Workspace-scoped memory of the last routed session, biasing the next turn. */
-const LAST_TARGET_STORAGE_KEY = 'chat.sessionRouting.lastTarget';
-
 /** Resolved destination for a submitted request: an existing session or a new one. */
 type PendingTarget =
 	| { readonly kind: 'session'; readonly sessionId: string; readonly label: string; readonly confidence: number }
@@ -75,6 +65,7 @@ type NewSessionTarget = {
 interface IDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
 	readonly resource?: URI;
+	readonly requestId?: string;
 	readonly reason?: string;
 	readonly completion?: Promise<IDispatchResult>;
 }
@@ -104,21 +95,41 @@ export function resolveNewSessionWorkspaceFolder(
 
 export function selectRouterShortlist(
 	candidates: readonly IRoutableSession[],
-	utterance: string,
+	preliminaryResults: readonly ISessionRouteResult[],
 	limit: number = ROUTE_ENRICH_MAX_CANDIDATES,
 ): IRoutableSession[] {
 	if (candidates.length <= limit) {
 		return [...candidates];
 	}
-	const lexicalScores = new Map(heuristicScore({ utterance, sessions: candidates }).map(result => [result.sessionId, result.confidence]));
-	return [...candidates]
+
+	const candidatesById = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
+	const selectedIds = new Set<string>();
+	const shortlist: IRoutableSession[] = [];
+	for (const result of preliminaryResults) {
+		const candidate = candidatesById.get(result.sessionId);
+		if (candidate && !selectedIds.has(candidate.sessionId)) {
+			selectedIds.add(candidate.sessionId);
+			shortlist.push(candidate);
+			if (shortlist.length === limit) {
+				return shortlist;
+			}
+		}
+	}
+
+	const fallback = candidates
+		.filter(candidate => !selectedIds.has(candidate.sessionId))
 		.sort((a, b) =>
-			(lexicalScores.get(b.sessionId) ?? 0) - (lexicalScores.get(a.sessionId) ?? 0)
-			|| sessionStatusPriority(b.status) - sessionStatusPriority(a.status)
+			sessionStatusPriority(b.status) - sessionStatusPriority(a.status)
 			|| (b.lastActivity ?? 0) - (a.lastActivity ?? 0)
 			|| a.label.localeCompare(b.label)
-			|| a.sessionId.localeCompare(b.sessionId))
-		.slice(0, limit);
+			|| a.sessionId.localeCompare(b.sessionId));
+	shortlist.push(...fallback.slice(0, limit - shortlist.length));
+	return shortlist;
+}
+
+export function selectBestSessionRoute(results: readonly ISessionRouteResult[]): ISessionRouteResult | undefined {
+	const top = results[0];
+	return top && isHighConfidenceSessionRoute(top) ? top : undefined;
 }
 
 function sessionStatusPriority(status: string | undefined): number {
@@ -266,8 +277,7 @@ export interface IChatSessionRoutingHost {
  * submitted utterance against existing agent sessions, resolves a pending target
  * (best match above threshold, else a new session), then shows a ranked panel
  * that counts down and auto-sends. The user can change or fan out the selection,
- * abort, or keep typing to cancel before it fires. The last routed session is
- * remembered to bias the next turn.
+ * abort, or keep typing to cancel before it fires.
  */
 export class ChatSessionRoutingController extends Disposable {
 
@@ -285,7 +295,6 @@ export class ChatSessionRoutingController extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ISessionRouter private readonly sessionRouter: ISessionRouter,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -368,10 +377,16 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 
-		// Bound content resolution and model input before any remote scoring. The
-		// local rank only chooses which candidates receive semantic scoring; it
-		// never decides the destination itself.
-		const shortlist = selectRouterShortlist(candidates, utterance);
+		// Every candidate receives a lightweight semantic pass before we bound the
+		// more expensive transcript enrichment. This prevents an older, generically
+		// named but relevant session from being excluded by local metadata alone.
+		const preliminaryResults = candidates.length > ROUTE_ENRICH_MAX_CANDIDATES
+			? await this._route(candidates, utterance, token)
+			: [];
+		if (token.isCancellationRequested) {
+			return true;
+		}
+		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
 			return true;
@@ -448,25 +463,14 @@ export class ChatSessionRoutingController extends Disposable {
 
 	/**
 	 * Pick the single pending target the badge pre-selects: the top match if it
-	 * clears the confidence threshold (biased toward the last-used session on a
-	 * tie within the ambiguity margin), otherwise a brand-new session.
+	 * clears the confidence threshold, otherwise a brand-new session.
 	 */
 	private _resolveTarget(results: ISessionRouteResult[], candidates: IRoutableSession[], newSessionTarget: NewSessionTarget): PendingTarget {
 		const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
-		const top = results[0];
-		if (!top || !isHighConfidenceSessionRoute(top)) {
+		const chosen = selectBestSessionRoute(results);
+		if (!chosen) {
 			return newSessionTarget;
 		}
-
-		// Prefer the last-used session when it is within the ambiguity margin of
-		// the top match, so repeated turns keep landing on the same session.
-		const lastTargetId = this.storageService.get(LAST_TARGET_STORAGE_KEY, StorageScope.WORKSPACE);
-		const preferred = lastTargetId
-			? results.find(r => r.sessionId === lastTargetId
-				&& isHighConfidenceSessionRoute(r)
-				&& (top.confidence - r.confidence) <= ROUTE_AMBIGUITY_MARGIN)
-			: undefined;
-		const chosen = preferred ?? top;
 		return {
 			kind: 'session',
 			sessionId: chosen.sessionId,
@@ -1085,7 +1089,7 @@ export class ChatSessionRoutingController extends Disposable {
 		}));
 	}
 
-	/** Dispatch a resolved pending target, remembering it for next time. */
+	/** Dispatch a resolved pending target. */
 	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IDispatchResult> {
 		if (target.kind === 'new') {
 			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target.folder);
@@ -1123,7 +1127,7 @@ export class ChatSessionRoutingController extends Disposable {
 					agentIdSilent: getChatSessionType(target),
 					queue: ChatRequestQueueKind.Queued,
 				});
-				requestId = ref.object.lastRequest?.id;
+				requestId = result.requestId ?? (result.status === 'sent' ? ref.object.lastRequest?.id : undefined);
 			} finally {
 				ref.dispose();
 			}
@@ -1137,8 +1141,6 @@ export class ChatSessionRoutingController extends Disposable {
 			if (notifyRoute && result.resource) {
 				this.host.onDidResolveRoute?.(result.resource, 'existing_session', requestOptions.isVoiceModeInput, requestId);
 			}
-			// Remember this session so the next request biases toward it.
-			this.storageService.store(LAST_TARGET_STORAGE_KEY, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return result;
 		} catch (err) {
@@ -1185,7 +1187,7 @@ export class ChatSessionRoutingController extends Disposable {
 					this.host.onWillDispatchRoute?.(ref.object.sessionResource);
 				}
 				result = await this._sendRequest(ref.object.sessionResource, utterance, requestOptions);
-				requestId = ref.object.lastRequest?.id;
+				requestId = result.requestId ?? (result.status === 'sent' ? ref.object.lastRequest?.id : undefined);
 			} finally {
 				ref.dispose();
 			}
@@ -1222,6 +1224,7 @@ export class ChatSessionRoutingController extends Disposable {
 			return {
 				status: 'queued',
 				resource,
+				requestId: result.requestId,
 				completion: this._resolveQueuedCompletion(resource, result.deferred),
 			};
 		}

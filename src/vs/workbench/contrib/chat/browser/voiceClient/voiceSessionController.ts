@@ -2870,14 +2870,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	markRoutedRequestPending(resource: URI, requestId?: string): void {
 		const sessionKey = this._sessionKey(resource.toString());
 		const wasAlreadyMarked = this._routedRequests.has(sessionKey);
-		this._routedRequests.set(sessionKey, { requestId, phase: 'queued' });
+		const routedRequest = { requestId, phase: 'queued' as const };
+		this._routedRequests.set(sessionKey, routedRequest);
 		if (!wasAlreadyMarked) {
 			this._discardResponsesSupersededByPending(sessionKey);
 		}
 
 		const model = this.chatService.getSession(resource);
-		const lastRequest = model?.getRequests().at(-1);
-		if (model && (!requestId || lastRequest?.id === requestId)) {
+		if (model && this._isCurrentRoutedRequest(resource.toString(), routedRequest)) {
 			const state = this._getAgentStateInfo(model);
 			if (state.state === 'thinking') {
 				this._routedRequests.set(sessionKey, { requestId, phase: 'running' });
@@ -5681,22 +5681,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
 		const routedRequest = this._routedRequests.get(sessionKey);
-		if (routedRequest && currentState === 'thinking') {
-			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
-		} else if (routedRequest && currentState === 'waiting_for_confirmation') {
-			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
-		} else if (routedRequest && currentState === 'idle') {
-			const model = this.chatService.getSession(URI.parse(sessionId));
-			const lastRequest = model?.getRequests().at(-1);
-			const isRoutedResponse = routedRequest.phase !== 'queued'
-				|| (!!routedRequest.requestId && lastRequest?.id === routedRequest.requestId);
-			if (isRoutedResponse && lastResponseSummary) {
-				this._routedRequests.delete(sessionKey);
-			} else if (isRoutedResponse && !lastResponseSummary) {
-				this.logService.trace(`[voice] retaining routed request through summary-less idle session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
-			} else {
-				this.logService.trace(`[voice] suppressing idle response that does not belong to routed request session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
+		if (routedRequest) {
+			if (!this._isCurrentRoutedRequest(sessionId, routedRequest)) {
+				this.logService.trace(`[voice] suppressing ${currentState} state that does not belong to routed request session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
 				return;
+			}
+			if (currentState === 'thinking') {
+				this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
+			} else if (currentState === 'waiting_for_confirmation') {
+				this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
+			} else if (currentState === 'idle' && lastResponseSummary) {
+				this._routedRequests.delete(sessionKey);
+			} else if (currentState === 'idle') {
+				this.logService.trace(`[voice] retaining routed request through summary-less idle session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
 			}
 		}
 		if (currentState === 'idle' || currentState === 'waiting_for_confirmation') {
@@ -5781,6 +5778,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 		return this.chatService.getSession(resource);
+	}
+
+	private _isCurrentRoutedRequest(sessionId: string, routedRequest: { requestId: string | undefined }): boolean {
+		if (!routedRequest.requestId) {
+			return false;
+		}
+		return this._modelForSession(sessionId)?.getRequests().at(-1)?.id === routedRequest.requestId;
 	}
 
 	/**
@@ -6340,9 +6344,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _cacheResponseSummary(sessionId: string, state: string, summary: string | undefined): void {
 		const sessionKey = this._sessionKey(sessionId);
 		const routedRequest = this._routedRequests.get(sessionKey);
-		if (routedRequest && state === 'thinking') {
+		const isCurrentRoutedRequest = routedRequest && this._isCurrentRoutedRequest(sessionId, routedRequest);
+		if (isCurrentRoutedRequest && state === 'thinking') {
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
-		} else if (routedRequest && state === 'waiting_for_confirmation') {
+		} else if (isCurrentRoutedRequest && state === 'waiting_for_confirmation') {
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
 		}
 		if (state === 'idle' && summary) {
