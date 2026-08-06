@@ -390,13 +390,14 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
-function pendingResponsePartModel(resource: URI, part: IChatProgressResponseContent, detail = 'Needs approval', reportPending = true): IChatModel {
+function pendingResponsePartModel(resource: URI, part: IChatProgressResponseContent, detail = 'Needs approval', reportPending = true, requestId = 'req-1'): IChatModel {
 	const response = {
+		onDidChange: Event.None,
 		isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', reportPending ? { detail } : undefined),
 		isIncomplete: observableValue('incomplete', false),
 		response: { value: [part], getMarkdown: () => '' },
 	};
-	const lastRequest = { response };
+	const lastRequest = { id: requestId, response };
 	return {
 		sessionResource: resource,
 		title: 'Chat',
@@ -1649,6 +1650,89 @@ suite('VoiceSessionController', () => {
 				confirmationType: scenario.expectedType,
 			},
 		})));
+	});
+
+	test('assigns occurrence ids to same-text generic confirmations', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/sequential-confirmations');
+		const confirmation = (): IChatConfirmation => ({
+			kind: 'confirmation',
+			title: 'Allow this action?',
+			message: 'Review the requested action.',
+			data: {},
+		});
+		const pendingIdFor = Reflect.get(controller, '_pendingIdFor') as (sessionId: string) => string;
+		chatService.setModels([pendingResponsePartModel(sessionResource, confirmation(), 'Needs approval', true, 'routed-request')]);
+		const firstPendingId = pendingIdFor.call(controller, sessionResource.toString());
+		chatService.setModels([pendingResponsePartModel(sessionResource, confirmation(), 'Needs approval', true, 'routed-request')]);
+		const secondPendingId = pendingIdFor.call(controller, sessionResource.toString());
+
+		assert.notStrictEqual(firstPendingId, secondPendingId);
+	});
+
+	test('replaces an in-flight tool approval with the next identical approval', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/sequential-tool-approvals');
+		const waitingTool = (toolCallId: string) => new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolCallId = toolCallId;
+			override readonly toolId = 'runInTerminal';
+			override readonly invocationMessage = 'Run zsh command';
+			override readonly state = observableValue<IChatToolInvocation.State>(`${toolCallId}State`, {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm run build' },
+				confirmationMessages: {
+					title: 'Run zsh command?',
+					message: 'Installs dependencies - pulls untrusted third-party code.',
+				},
+				confirm: () => { },
+			});
+		}();
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource, 'existing_session');
+		const firstTool = waitingTool('first-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+
+		const secondTool = waitingTool('second-tool');
+		const secondModel = pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([secondModel]);
+		const secondState = getAgentStateInfo.call(controller, secondModel);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		handleStateChange.call(controller, sessionResource.toString(), secondState.state, secondState.detail, undefined, sessionResource.toString(), secondState.confirmation_type);
+
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
+		});
 	});
 
 	test('same confirmation text with a new type is not deduplicated', async () => {

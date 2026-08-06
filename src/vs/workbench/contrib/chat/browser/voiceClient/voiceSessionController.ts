@@ -4469,7 +4469,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			const info = this._getAgentStateInfo(model);
 			if (info.state === 'waiting_for_confirmation' && info.detail) {
-				return { kind: 'confirmation', text: info.detail, confirmationType: info.confirmation_type };
+				const pending = this._pendingNarrationReference(model);
+				return { kind: 'confirmation', text: info.detail, confirmationType: info.confirmation_type, ...(pending ? { pending } : {}) };
 			}
 			if (info.state === 'idle' && info.last_response_summary) {
 				return { kind: 'response', text: info.last_response_summary };
@@ -4508,10 +4509,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * like no change at all and is never narrated.
 	 */
 	private _pendingIdFor(sessionId: string): string {
-		// Only meaningful while a session is showing a pending item; callers skip
-		// it otherwise rather than walk a settled response's parts for nothing.
-		const model = this._modelForSession(sessionId);
-		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
+		// Track every actionable pending part, including generic confirmations and
+		// elicitations that do not have a structured wire payload. Two sequential
+		// confirmations can render identical text and briefly pass through thinking;
+		// their per-part occurrence id is what keeps debounce from collapsing that
+		// waiting -> thinking -> waiting burst into a false no-op.
+		const selected = this._selectPendingPart(this._modelForSession(sessionId));
+		return selected ? derivePendingId(selected.requestId, selected.part) : '';
 	}
 
 	/**
@@ -4546,6 +4550,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			text: formatQuestionPrompt(question, pending.allow_skip === true),
 			pending: { pendingId: pending.pending_id },
 		};
+	}
+
+	/** Identify the exact structured approval being narrated, not merely its text. */
+	private _pendingNarrationReference(model: IChatModel | undefined | null): { pendingId: string } | undefined {
+		const pending = model ? this._buildPendingPayload(model) : undefined;
+		return pending ? { pendingId: pending.pending_id } : undefined;
 	}
 
 	/**
@@ -5764,7 +5774,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (question) {
 				this._narrate(sessionId, question.kind, question.text, undefined, undefined, undefined, question.pending);
 			} else {
-				this._narrate(sessionId, 'confirmation', detail, undefined, undefined, confirmationType);
+				const pending = this._pendingNarrationReference(this._modelForSession(sessionId));
+				this._narrate(sessionId, 'confirmation', detail, undefined, undefined, confirmationType, pending);
 			}
 		}
 	}
