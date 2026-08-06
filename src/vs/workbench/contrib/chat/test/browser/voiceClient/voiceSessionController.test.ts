@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotification, INotificationHandle, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -36,7 +36,7 @@ import { IVoiceSessionController, VoiceSessionController } from '../../../browse
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -216,9 +216,15 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 
 class VoiceTestNotificationService extends TestNotificationService {
 	readonly notifications: INotification[] = [];
+	readonly prompts: { severity: Severity; message: string; choices: readonly IPromptChoice[] }[] = [];
 
 	override notify(notification: INotification): INotificationHandle {
 		this.notifications.push(notification);
+		return new NoOpNotification();
+	}
+
+	override prompt(severity: Severity, message: string, choices: IPromptChoice[]): INotificationHandle {
+		this.prompts.push({ severity, message, choices });
 		return new NoOpNotification();
 	}
 }
@@ -4450,6 +4456,75 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(mic.abortCalls, 0);
 		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
 	});
+
+	test('names the cause when the account is not permitted', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4003, reason: 'Voice Mode needs a verified @microsoft.com email', kind: 'fatal' });
+
+		assert.strictEqual(controller.statusText.get(), 'Voice Mode needs a verified @microsoft.com email');
+		assert.strictEqual(controller.voiceState.get(), 'error');
+		assert.strictEqual(notificationService.prompts.length, 1);
+	});
+
+	test('treats an idle timeout as expected rather than an error', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1001, reason: 'Session idle timeout', kind: 'expected' });
+
+		assert.strictEqual(controller.voiceState.get(), 'idle');
+		assert.strictEqual(notificationService.prompts.length, 0, 'an expected end of session must not interrupt with a toast');
+	});
+
+	test('falls back to the server reason for a code this build does not know', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4002, reason: 'Backend says hello', kind: 'fatal' });
+
+		assert.strictEqual(controller.statusText.get(), 'Backend says hello');
+	});
+
+	test('never leaves Reconnecting displayed after a terminal close', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1000, reason: '', kind: 'expected' });
+
+		assert.ok(!controller.statusText.get().startsWith('Reconnecting'), controller.statusText.get());
+		assert.strictEqual(controller.isReconnecting.get(), false);
+	});
+
+	test('offers Open Settings when no backend URL is configured', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 0, reason: '', kind: 'fatal', clientSide: true });
+
+		assert.strictEqual(notificationService.prompts.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 1);
+	});
+
+	test('an immediate fatal close after open does not activate the microphone', () => {
+		// Covers the second-order effect of accept-before-close: every rejection
+		// now arrives on a socket that briefly opened. Auto-listen goes through
+		// pttDown, so asserting on a startCapture counter would pass even if
+		// auto-listen fired.
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, micCaptureService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4001, reason: 'Sign in', kind: 'fatal' });
+		clock.tick(2000);
+
+		assert.strictEqual(micCaptureService.pttDownCalls.length, 0, 'auto-listen must not fire after a terminal close');
+	});
 });
 
 suite('VoiceSessionController live transcription', () => {
@@ -4657,4 +4732,5 @@ suite('VoiceSessionController live transcription', () => {
 			persisted: ['open the file'],
 		});
 	});
+
 });

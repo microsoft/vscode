@@ -23,6 +23,7 @@ import {
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
+	IVoiceConnectionIssue,
 	IVoiceFatalDisconnect,
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
@@ -33,6 +34,7 @@ import {
 	VoiceNarrationKind,
 	isVoiceCheckpointId,
 } from '../../common/voiceClient/voiceClientService.js';
+import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
 const PING_INTERVAL_MS = 25_000;
@@ -133,6 +135,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onFatalDisconnect = this._register(new Emitter<IVoiceFatalDisconnect>());
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect> = this._onFatalDisconnect.event;
+
+	private readonly _onConnectionIssue = this._register(new Emitter<IVoiceConnectionIssue>());
+	readonly onConnectionIssue: Event<IVoiceConnectionIssue> = this._onConnectionIssue.event;
 
 	private readonly _onTurnAutoEnded = this._register(new Emitter<IVoiceTurnAutoEnded>());
 	readonly onTurnAutoEnded: Event<IVoiceTurnAutoEnded> = this._onTurnAutoEnded.event;
@@ -317,6 +322,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		const baseUrl = this._getWsUrl();
 		if (!baseUrl) {
 			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
+			// Returning quietly here left the user with a spinner and no explanation.
+			this._onFatalDisconnect.fire({ code: 0, reason: '', kind: 'fatal', clientSide: true });
+			this._cleanup();
 			return;
 		}
 		const url = this._authToken
@@ -327,8 +335,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
-			this._reconnectAttempts = 0;
-			this._reconnectStartedAt = undefined;
+			// Deliberately does NOT reset the retry budget. The backend accepts the
+			// socket before closing it so that a refusal can carry a close code, so
+			// an open socket no longer proves anything — resetting here would refill
+			// the give-up budget on every failing cycle, pinning the fast 2s cadence
+			// forever and making MAX_RECONNECT_DURATION_MS unreachable. The reset
+			// happens on `session_init` / `session_resumed` instead.
 			this._isResuming = !!this._lastSessionId;
 			this._sessionStartedOnSocket = false;
 			this._setConnected(true);
@@ -379,6 +391,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
+					// A confirmed session is the only proof the connection works, so
+					// this is where the retry budget resets. See `ws.onopen`.
+					this._resetReconnectBudget();
 					// Adopt the server's session id even when a resume failed and it
 					// started a fresh session; keeping the old id stalled reconnect (`_isResuming`).
 					this._lastSessionId = msg.session_id;
@@ -386,6 +401,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'session_resumed':
+					this._resetReconnectBudget();
 					this._lastSessionId = msg.session_id;
 					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
@@ -501,20 +517,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		ws.onclose = (evt: CloseEvent) => {
 			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
-				if (evt.code === 1000 || evt.code === 1001) {
-					this._cleanup();
-					return;
-				}
-
-				// Fatal errors that should NOT trigger reconnection. These are
-				// terminal: emit a dedicated fatal-disconnect signal (distinct
-				// from a transient drop) so the controller tears down to a clean,
-				// recoverable state instead of showing "Reconnecting..." forever.
-				// The common cause is another window taking over the single voice
-				// session (backend evicts this one with 4008).
-				if (evt.code === 4001 || evt.code === 4008 || evt.code === 4029) {
-					this._logService.warn(`[voice] fatal close code ${evt.code}: ${evt.reason}, not reconnecting`);
-					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '' });
+				// Every terminal outcome reports itself — a refusal, an expected end
+				// of session, or a clean shutdown. Exiting quietly is what used to
+				// strand the UI on "Reconnecting..." with nothing reconnecting.
+				if (isTerminalCloseCode(evt.code)) {
+					const kind = voiceCloseCodeInfo(evt.code)?.kind ?? 'fatal';
+					this._logService.warn(`[voice] terminal close ${evt.code} (${kind}): ${evt.reason}, not reconnecting`);
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '', kind });
 					this._cleanup();
 					return;
 				}
@@ -526,9 +535,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				const elapsed = Date.now() - this._reconnectStartedAt;
 				if (elapsed >= MAX_RECONNECT_DURATION_MS) {
 					this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
+					// Previously this cleaned up silently, leaving the UI on
+					// "Reconnecting..." permanently with no further events.
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '', kind: 'fatal' });
 					this._cleanup();
 					return;
 				}
+
+				// Retryable: say what we are waiting on rather than a bare spinner.
+				this._onConnectionIssue.fire({ code: evt.code, reason: evt.reason ?? '' });
 
 				this._reconnectAttempts++;
 				this._stopPing();
@@ -574,6 +589,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSentById.clear();
 		this._invalidatedSessionIds.clear();
 		this._setConnected(false);
+	}
+
+	/**
+	 * Reset the reconnect budget. Called only when the backend confirms a
+	 * session, never merely because the socket opened — see `ws.onopen`.
+	 */
+	private _resetReconnectBudget(): void {
+		this._reconnectAttempts = 0;
+		this._reconnectStartedAt = undefined;
 	}
 
 	private _startPing(): void {

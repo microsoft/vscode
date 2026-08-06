@@ -6,6 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -22,7 +23,8 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
@@ -42,7 +44,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
@@ -318,6 +320,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  settles to a clean, restartable state instead of a stuck "Reconnecting...".
 	 *  Cleared on the next {@link connect}. */
 	private _fatalDisconnect = false;
+	/** Last `error` frame detail, kept so a close with no reason can use it. */
+	private _lastErrorDetail: string | undefined;
 
 	private readonly _pendingToolConfirmations = observableValue<readonly IPendingToolConfirmation[]>(this, []);
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]> = this._pendingToolConfirmations;
@@ -1179,8 +1183,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 				const isResuming = this.voiceClientService.isResuming;
 
-				// --- Telemetry: session/connect ---
 				const now = Date.now();
+				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
+				if (
+					connectAttemptGeneration !== this._connectAttemptGeneration ||
+					sessionInitializationGeneration !== this._sessionInitializationGeneration ||
+					!this.voiceClientService.isConnected ||
+					(!this._isConnecting.get() && !this._isReconnecting.get())
+				) {
+					return;
+				}
+
+				// Telemetry runs only after the staleness guard. The backend accepts
+				// a socket before refusing it (so the refusal can carry a close
+				// code), so every rejection briefly looks like a connection; logging
+				// above the guard would count each one as a session that starts and
+				// never ends, corrupting the very metrics used to judge this.
+				// --- Telemetry: session/connect ---
 				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
 				if (this._telemetryFirstConnect) {
 					this._telemetryFirstConnect = false;
@@ -1198,15 +1217,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
 				}
 				this._telemetryLastConnectMs = now;
-				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
-				if (
-					connectAttemptGeneration !== this._connectAttemptGeneration ||
-					sessionInitializationGeneration !== this._sessionInitializationGeneration ||
-					!this.voiceClientService.isConnected ||
-					(!this._isConnecting.get() && !this._isReconnecting.get())
-				) {
-					return;
-				}
 				if (isResuming) {
 					this.micCaptureService.stopCapture();
 				}
@@ -1968,6 +1978,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Errors (only surface if not in connecting/reconnect phase)
 		this._voiceEventDisposables.add(this.voiceClientService.onError(detail => {
+			// Retained even while connecting: a fatal close arriving moments later
+			// uses this as its reason when the close frame carries none.
+			this._lastErrorDetail = detail;
 			if (!this._isConnecting.get()) {
 				this._voiceState.set('error', undefined);
 				this._statusText.set(`Error: ${detail}`, undefined);
@@ -1975,7 +1988,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}));
 
 		this._voiceEventDisposables.add(this.voiceClientService.onFatalDisconnect(e => {
-			this._handleFatalDisconnect(e.code, e.reason);
+			this._handleFatalDisconnect(e);
+		}));
+
+		// A retryable failure still deserves an explanation rather than a bare
+		// "Reconnecting..." spinner.
+		this._voiceEventDisposables.add(this.voiceClientService.onConnectionIssue(e => {
+			if (this._isReconnecting.get()) {
+				this._statusText.set(this._reconnectingMessage(e.reason), undefined);
+			}
 		}));
 
 		await this.voiceClientService.connect(window, authToken);
@@ -2008,7 +2029,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (notifyUser) {
 			this.notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('voice.connectFailed', "Voice mode could not connect. Please try again."),
+				// "Please try again" implies retrying will help; for an unreachable
+				// host it will not, so name what the user can actually check.
+				message: localize('voice.unreachableToast', "Couldn't reach the voice service. Check your connection and try again."),
 			});
 		}
 	}
@@ -2178,7 +2201,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * instead of leaving the UI stuck on "Reconnecting...". Fires before the
 	 * connection-state change, so `_fatalDisconnect` short-circuits that path.
 	 */
-	private _handleFatalDisconnect(code: number, reason: string): void {
+	private _handleFatalDisconnect(event: IVoiceFatalDisconnect): void {
+		const { code, reason } = event;
 		this.logService.warn(`[voice] fatal disconnect code=${code} reason=${reason}; tearing down (no reconnect)`);
 		this._fatalDisconnect = true;
 		// No reconnect is coming: release the mic and playback so the OS
@@ -2225,17 +2249,117 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._isReconnecting.set(false, tx);
 			this._isConnected.set(false, tx);
 		});
-		this._voiceState.set('error', undefined);
-		// Code 4008 = the session was taken over by another window. Surface an
-		// actionable message; any other fatal code shows the server reason.
-		const message = code === 4008
-			? localize('voice.movedToAnotherWindow', "Voice moved to another window. Tap to start.")
-			: (reason || localize('voice.fatalDisconnect', "Voice disconnected. Tap to start."));
+		const kind = event.kind ?? voiceCloseCodeInfo(code)?.kind ?? 'fatal';
+		const message = this._fatalDisconnectMessage(event);
+		this._voiceState.set(kind === 'expected' ? 'idle' : 'error', undefined);
 		this._statusText.set(message, undefined);
-		// The status text only renders into a plain div, so screen-reader users
-		// otherwise get no notification that recording stopped or that another
-		// window took over. Announce it assertively via ARIA.
-		ariaAlert(message);
+
+		// Close out the telemetry session this connection opened. The backend
+		// accepts a socket before refusing it (so the refusal can carry a close
+		// code), which means the connected-handler has already logged a session
+		// start; without this every refusal would be a session that never ends.
+		this._endTelemetrySession();
+
+		if (kind === 'fatal') {
+			// prompt() announces to screen readers itself, so ariaAlert here would
+			// double-speak. Only the toast-less path needs the manual announcement.
+			this._promptFatalDisconnect(event, message);
+		} else {
+			// The status text only renders into a plain div, so screen-reader users
+			// otherwise get no notification that recording stopped or that another
+			// window took over. Announce it assertively via ARIA.
+			ariaAlert(message);
+		}
+	}
+
+	/**
+	 * Resolve the message shown for a terminal close. Localized strings win so
+	 * the UI is translated; the server `reason` is the fallback for a code this
+	 * client build does not know, which is what keeps a newer backend useful
+	 * against an older client.
+	 */
+	private _fatalDisconnectMessage(event: IVoiceFatalDisconnect): string {
+		if (event.clientSide) {
+			return localize('voice.notConfigured', "Voice Mode has no backend URL configured.");
+		}
+		switch (event.code) {
+			case VoiceCloseCode.Unauthenticated:
+				return localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
+			case VoiceCloseCode.Forbidden:
+				// The server reason names the accepted domains, which is more useful
+				// than the generic string; fall back when it is absent.
+				return event.reason || localize('voice.noAccess', "Your GitHub account doesn't have access to Voice Mode.");
+			case VoiceCloseCode.SessionReplaced:
+				return localize('voice.movedToAnotherWindow', "Voice moved to another window. Tap to start.");
+			case VoiceCloseCode.ServerBusy:
+			case 1013:
+				return localize('voice.serverBusy', "Voice Mode is at capacity right now. Try again in a moment.");
+			case VoiceCloseCode.InternalError:
+			case 1011:
+				return localize('voice.internalError', "The voice service hit an error. Try again in a moment.");
+			case VoiceCloseCode.AuthUnavailable:
+				return localize('voice.authUnavailable', "Can't reach GitHub to check your account. Try again in a moment.");
+			case 1000:
+			case 1001:
+				// The backend still uses 1001 for an idle timeout, deliberately.
+				return localize('voice.sessionEnded', "Voice session ended. Tap to start.");
+			case 1006:
+				return localize('voice.unreachable', "Couldn't reach the voice service. Check your connection and try again.");
+			default:
+				return event.reason || this._lastErrorDetail || localize('voice.fatalDisconnect', "Voice disconnected. Tap to start.");
+		}
+	}
+
+	/** Status text while retrying, naming the cause when the server gave one. */
+	private _reconnectingMessage(reason: string): string {
+		return reason
+			? localize('voice.reconnectingBecause', "Reconnecting - {0}", reason)
+			: localize('voice.reconnecting', "Reconnecting...");
+	}
+
+	/**
+	 * Surface a fatal disconnect as a notification with the one action that can
+	 * actually resolve it. `prompt` is the platform's documented path for a
+	 * message plus choices (see INotification.actions).
+	 */
+	private _promptFatalDisconnect(event: IVoiceFatalDisconnect, message: string): void {
+		// An unknown or unreachable failure is still worth a Retry button.
+		const action = event.clientSide ? 'openSettings' : (voiceCloseCodeInfo(event.code)?.action ?? 'retry');
+		const choices: IPromptChoice[] = [];
+		if (action === 'signIn') {
+			choices.push({
+				label: localize('voice.signInAction', "Sign in"),
+				// Force the sign-in dialog: the user may already be signed in with a
+				// token that is expired or missing the user:email scope, in which
+				// case plain setup can no-op and leave them stuck.
+				run: () => { void this.commandService.executeCommand('workbench.action.chat.triggerSetupForceSignIn'); },
+			});
+		} else if (action === 'retry') {
+			choices.push({
+				label: localize('voice.retryAction', "Retry"),
+				run: () => { void this.connect(this._window ?? mainWindow); },
+			});
+		} else if (action === 'openSettings') {
+			choices.push({
+				label: localize('voice.openSettingsAction', "Open Settings"),
+				run: () => { void this.commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' }); },
+			});
+		}
+		this.notificationService.prompt(Severity.Error, message, choices);
+	}
+
+	/** Emit the session-ended pair for a session telemetry already opened. */
+	private _endTelemetrySession(): void {
+		if (!this._telemetrySessionStart) {
+			return;
+		}
+		const durationSec = Math.round((Date.now() - this._telemetrySessionStart) / 1000);
+		this.telemetryService.publicLog2<VoiceSessionEndedEvent, VoiceSessionEndedClassification>('voiceSessionEnded', {
+			turnCount: this._telemetryTurnCount,
+			durationSec,
+			reconnectCount: this._telemetryReconnectCount,
+		});
+		this._telemetrySessionStart = undefined;
 	}
 
 	private _onConnectionLost(): void {

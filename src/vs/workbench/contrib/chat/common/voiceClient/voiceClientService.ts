@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { VoiceCloseKind } from './voiceCloseCodes.js';
 import type { ChatVoiceProgressStage } from '../chatService/chatService.js';
 
 /**
@@ -258,12 +259,29 @@ export interface IVoiceTurnAutoEnded {
 }
 
 /**
- * Payload for a terminal, non-recoverable websocket close (see
+ * Payload for a terminal websocket close (see
  * {@link IVoiceClientService.onFatalDisconnect}). `code` is the websocket close
  * code (e.g. 4008 when another window takes over the session); `reason` is the
  * server-provided close reason, if any.
+ *
+ * `kind` separates a real failure from an expected end of session: an idle
+ * timeout should not paint the UI red or interrupt with a toast. `clientSide`
+ * marks a failure that never reached the network at all, such as an
+ * unconfigured backend URL.
  */
 export interface IVoiceFatalDisconnect {
+	readonly code: number;
+	readonly reason: string;
+	readonly kind?: VoiceCloseKind;
+	readonly clientSide?: boolean;
+}
+
+/**
+ * A recoverable connection problem. Unlike {@link IVoiceFatalDisconnect} the
+ * client keeps retrying; this exists so the UI can say WHY it is retrying
+ * instead of showing a bare "Reconnecting...".
+ */
+export interface IVoiceConnectionIssue {
 	readonly code: number;
 	readonly reason: string;
 }
@@ -417,12 +435,19 @@ export interface IVoiceClientService {
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
 	/**
-	 * Fired on a terminal, non-recoverable close (e.g. code 4008 when another
-	 * window takes over the single voice session). Distinct from a transient
-	 * disconnect: consumers should tear down to a clean, restartable state
-	 * rather than entering a reconnect loop.
+	 * Fired on a terminal close — a refusal, an expected end of session, or a
+	 * give-up after exhausting reconnects. Consumers should tear down to a
+	 * clean, restartable state rather than entering a reconnect loop. Every
+	 * terminal outcome reports itself: exiting quietly is what used to strand
+	 * the UI on "Reconnecting..." with nothing reconnecting.
 	 */
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect>;
+
+	/**
+	 * Fired on a recoverable close, before a reconnect is scheduled, so the UI
+	 * can explain what it is waiting on.
+	 */
+	readonly onConnectionIssue: Event<IVoiceConnectionIssue>;
 	/**
 	 * Fired when the backend ends a held turn on its own (server VAD silence or
 	 * a matched stop phrase). Consumers stop capturing for that turn and clear
