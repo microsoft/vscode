@@ -4474,7 +4474,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (info.state === 'waiting_for_confirmation' && info.detail) {
 				return { kind: 'confirmation', text: info.detail, confirmationType: info.confirmation_type };
 			}
-			if (info.state === 'idle' && info.last_response_summary) {
+			if (info.state === 'idle' && info.last_response_summary && !this._isOmniRoutedSession(resource.toString())) {
 				return { kind: 'response', text: info.last_response_summary };
 			}
 			return undefined;
@@ -4483,6 +4483,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (session?.status === AgentSessionStatus.NeedsInput) {
 			// Detail lives on the model; load it and let the state-change path narrate once it renders.
 			this._ensureModelLoaded(resource);
+			return undefined;
+		}
+		if (this._isOmniRoutedSession(resource.toString())) {
 			return undefined;
 		}
 		if (session?.status === AgentSessionStatus.Completed) {
@@ -4882,6 +4885,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return { flushed: false, finalTranscripts: [] };
 		}
+		if (this._isOmniRoutedSession(sessionId)) {
+			this._deferredResponses.delete(key);
+			this._clearPendingResponse(key);
+			this.logService.trace(`[voice] discarding cached response for live-only omni session=${key.slice(-32)}`);
+			return { flushed: false, finalTranscripts: [] };
+		}
 
 		const responses = this._deferredResponses.get(key);
 		if (!responses || responses.length === 0) {
@@ -5013,7 +5022,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * its transcript matches the last reply actually heard for the session.
 	 * That dedupe is durable: focus/context refreshes must never replay a response
 	 * the user already heard. A genuinely new reply (different text) still plays,
-	 * and an actively awaited reply bypasses this check.
+	 * including while another reply from the same session is awaited.
 	 * The whole response (including continuation chunks) is dropped until final.
 	 *
 	 * This is purely content-based: it never suppresses a reply just because the
@@ -5045,10 +5054,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return true;
 		}
 		if (!isFirstChunk) {
-			return false;
-		}
-		// A solicited reply the user is actively awaiting always plays.
-		if (this._awaitingReplyAudio && this._awaitingReplyForSession === sessionId) {
 			return false;
 		}
 		const sessionKey = this._sessionKey(sessionId);
@@ -5719,6 +5724,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// A deferred narration from the previous turn is now stale.
 			this._clearDeferred(sessionKey);
 		}
+		if (currentState === 'idle' && this._isOmniRoutedSession(sessionId)) {
+			this._lastResponseSummaryById.delete(sessionKey);
+			this._clearPendingResponse(sessionKey);
+			this._clearDeferred(sessionKey);
+			this.logService.trace(`[voice] skipping cached response summary for live-only omni session=${sessionKey.slice(-32)}`);
+			return;
+		}
 		const targetSessionId = this._targetSession.get()?.toString();
 		if (this._hasDraftTarget.get() || (targetSessionId && !this._isSameSession(sessionId, targetSessionId))) {
 			// A pinned target makes Voice Mode session-bound. Other sessions keep
@@ -6347,6 +6359,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *   completion never narrates the previous reply.
 	 */
 	private _cacheResponseSummary(sessionId: string, state: string, summary: string | undefined): void {
+		if (this._isOmniRoutedSession(sessionId)) {
+			this._lastResponseSummaryById.delete(this._sessionKey(sessionId));
+			return;
+		}
 		if (state === 'idle' && summary) {
 			this._lastResponseSummaryById.set(sessionId, summary);
 		} else if (state === 'thinking') {

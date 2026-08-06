@@ -928,12 +928,10 @@ export class ChatSessionRoutingController extends Disposable {
 		const trackActivity = () => {
 			if (!trackingActivity) {
 				trackingActivity = true;
-				this._trackDeliveryActivity(store, resource, label, mark, labelEl);
+				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued');
 			}
 		};
-		if (result.status === 'sent') {
-			trackActivity();
-		}
+		trackActivity();
 
 		if (result.completion) {
 			void result.completion.then(completion => {
@@ -947,7 +945,7 @@ export class ChatSessionRoutingController extends Disposable {
 					trackActivity();
 				} else if (completion.reason === 'Request was removed from queue') {
 					mark.replaceChildren(renderIcon(Codicon.pass));
-					labelEl.textContent = localize('chatSessionRouting.queuedCompleted', "Completed request for {0}", label);
+					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 					ariaAlert(labelEl.textContent);
 					trackActivity();
 				} else {
@@ -959,22 +957,26 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement): void {
+	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean): void {
 		const model = this.chatService.getSession(resource);
 		let lastAnnouncement = labelElement.textContent;
+		let observedActivity = !waitForActivity;
 		const update = (requestInProgress = model?.requestInProgress.get() ?? false, needsInput = !!model?.requestNeedsInput.get()) => {
 			const sessionStatus = this.agentSessionsService.model.getSession(resource)?.status;
-			let icon = Codicon.pass;
+			let icon = waitForActivity && !observedActivity ? Codicon.clock : Codicon.pass;
 			if (needsInput || sessionStatus === AgentSessionStatus.NeedsInput) {
+				observedActivity = true;
 				icon = Codicon.question;
 				labelElement.textContent = localize('chatSessionRouting.needsInputIn', "{0} needs your input", label);
 			} else if (requestInProgress || sessionStatus === AgentSessionStatus.InProgress) {
+				observedActivity = true;
 				icon = Codicon.loading;
 				labelElement.textContent = localize('chatSessionRouting.runningIn', "Running in {0}", label);
 			} else if (sessionStatus === AgentSessionStatus.Failed) {
+				observedActivity = true;
 				icon = Codicon.error;
 				labelElement.textContent = localize('chatSessionRouting.failedIn', "Failed in {0}", label);
-			} else if (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests) {
+			} else if (observedActivity && (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests)) {
 				labelElement.textContent = localize('chatSessionRouting.completedIn', "Completed in {0}", label);
 			}
 			mark.replaceChildren(renderIcon(icon));

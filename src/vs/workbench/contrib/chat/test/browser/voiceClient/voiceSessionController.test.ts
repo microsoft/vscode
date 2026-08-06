@@ -4018,7 +4018,7 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
-	test('narrates a completed omni-routed response when its session is not shown', () => {
+	test('does not narrate a cached response summary for an omni-routed session', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
 		const resource = URI.parse('vscode-chat://omni-target');
@@ -4031,7 +4031,7 @@ suite('VoiceSessionController', () => {
 			narrations: voiceClientService.requests.map(request => ({ sessionId: request.sessionId, kind: request.kind, text: request.text })),
 			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
 		}, {
-			narrations: [{ sessionId: resource.toString(), kind: 'response', text: 'The omni task is complete.' }],
+			narrations: [],
 			pendingResponses: 0,
 		});
 	});
@@ -4173,6 +4173,31 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'The completed response.'), false);
 		assert.deepStrictEqual(voiceClientService.requests, []);
+	});
+
+	test('an awaited reply does not replay an already heard omni response', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+		(Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>).set(sessionId, 'the old completed response');
+		(Reflect.get(controller, '_setAwaitingReply') as () => void).call(controller);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'old response audio',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'old-response-rerender',
+			transcript: 'The old completed response.',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, []);
 	});
 
 	test('heard omni responses remain deduplicated across voice reconnects', () => {
