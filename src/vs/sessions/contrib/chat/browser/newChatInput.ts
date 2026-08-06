@@ -1291,6 +1291,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	attach(uris: URI[]): void {
 		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
+
+	getVoiceModels() {
+		return this._sessionModelSelectionModel.state.get().models;
+	}
+
+	selectVoiceModel(identifier: string): boolean {
+		return this._sessionModelSelectionModel.selectModel(identifier);
+	}
 }
 
 // #endregion

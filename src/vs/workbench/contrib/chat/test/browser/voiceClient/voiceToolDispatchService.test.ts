@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
+import { IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -18,6 +18,83 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+
+suite('VoiceToolDispatchService - model selection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const model = (identifier: string, name: string, id = name): ILanguageModelChatMetadataAndIdentifier => ({
+		identifier,
+		metadata: { name, id, family: id, vendor: 'copilot' },
+	} as ILanguageModelChatMetadataAndIdentifier);
+
+	test('matches a unique normalized model name', () => {
+		const result = resolveVoiceModel([
+			model('copilot/gpt-5', 'GPT-5'),
+			model('copilot/claude', 'Claude Sonnet 4'),
+		], 'gpt 5');
+
+		assert.deepStrictEqual(result, {
+			ok: true,
+			identifier: 'copilot/gpt-5',
+			selected_model: { identifier: 'copilot/gpt-5', name: 'GPT-5', vendor: 'copilot' },
+		});
+	});
+
+	test('returns candidates instead of guessing between ambiguous names', () => {
+		const result = resolveVoiceModel([
+			model('copilot/gpt-5-fast', 'GPT-5'),
+			model('openai/gpt-5', 'GPT-5'),
+		], 'GPT-5');
+
+		assert.strictEqual(result.ok, false);
+		assert.strictEqual(result.reason, 'ambiguous_model');
+		assert.deepStrictEqual(result.available_models?.map(candidate => candidate.identifier), ['copilot/gpt-5-fast', 'openai/gpt-5']);
+	});
+});
+
+suite('VoiceToolDispatchService - session actions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('focusing a session also retargets subsequent voice turns', async () => {
+		const resource = URI.parse('agent-session://test/target');
+		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return { sessions: [{ isArchived: () => false, resource }] } as IAgentSessionsModel;
+			}
+		};
+		const chatService = new class extends mock<IChatService>() {
+			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+		};
+		const service = new VoiceToolDispatchService(
+			agentSessionsService,
+			chatService,
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IEditorService>() { },
+			new class extends mock<IWorkspaceContextService>() { },
+			new class extends mock<IFileService>() { },
+		);
+		let switchedTo: URI | undefined;
+		let target: URI | undefined;
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async getCurrentSessionResource(): Promise<undefined> { return undefined; }
+			override async switchToSession(value: URI): Promise<boolean> { switchedTo = value; return true; }
+			override setTargetSession(value: URI): void { target = value; }
+		}());
+
+		const result = JSON.parse(await service.dispatchToolCall({
+			name: 'focus_session',
+			args: { coding_session_id: resource.toString() },
+		} as unknown as IVoiceToolCall));
+
+		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
+		assert.strictEqual(switchedTo?.toString(), resource.toString());
+		assert.strictEqual(target?.toString(), resource.toString());
+	});
+});
 
 suite('VoiceToolDispatchService - respondToSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +123,9 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IEditorService>() { },
+			new class extends mock<IWorkspaceContextService>() { },
+			new class extends mock<IFileService>() { },
 		);
 	}
 

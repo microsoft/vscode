@@ -424,6 +424,7 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
 	override getAllWidgets() { return []; }
+	override getWidgetBySessionResource(): undefined { return undefined; }
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -1346,6 +1347,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual({
 			pendingContext: pendingContext ? {
 				id: pendingContext['id'],
+				session_type: pendingContext['session_type'],
 				is_active: pendingContext['is_active'],
 				agent_state: pendingContext['agent_state'],
 				agent_state_detail: pendingContext['agent_state_detail'],
@@ -1362,6 +1364,7 @@ suite('VoiceSessionController', () => {
 		}, {
 			pendingContext: {
 				id: sessionResource.toString(),
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'waiting_for_confirmation',
 				agent_state_detail: [
@@ -1388,6 +1391,7 @@ suite('VoiceSessionController', () => {
 			resolvedContext: {
 				id: sessionResource.toString(),
 				label: 'Chat',
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'idle',
 			},
@@ -3816,6 +3820,55 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(session.agent_state, 'waiting_for_confirmation');
 		assert.strictEqual(session.label, 'Auth fix');
+	});
+
+	test('grounds the active session with its selected model and attachment names', () => {
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('vscode-chat://regular/session-aware');
+		const lastRequest = {
+			id: 'request-1',
+			response: {
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', false),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		const model = {
+			sessionResource: resource,
+			title: 'Session awareness',
+			lastMessageDate: Date.now(),
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+			inputModel: {
+				state: observableValue('inputState', {
+					selectedModel: {
+						identifier: 'copilot/gpt-5',
+						metadata: { name: 'GPT-5', vendor: 'copilot' },
+					},
+					attachments: [{ kind: 'file', name: 'voiceSessionController.ts' }, { kind: 'file', name: 'README.md' }],
+				}),
+			},
+		} as unknown as IChatModel;
+		chatService.setModels([model]);
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		controller.setActiveSessionShown(resource);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => IVoiceSessionContext;
+
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.deepStrictEqual({
+			session_type: session.session_type,
+			is_active: session.is_active,
+			selected_model: session.selected_model,
+			attachment_names: session.attachment_names,
+			attachment_count: session.attachment_count,
+		}, {
+			session_type: 'chat',
+			is_active: true,
+			selected_model: { identifier: 'copilot/gpt-5', name: 'GPT-5', vendor: 'copilot' },
+			attachment_names: ['voiceSessionController.ts', 'README.md'],
+			attachment_count: 2,
+		});
 	});
 
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {

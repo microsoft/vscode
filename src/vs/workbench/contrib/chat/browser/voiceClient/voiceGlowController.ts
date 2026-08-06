@@ -249,7 +249,7 @@ export interface IVoiceRimLight extends IDisposable {
 	/** Pin to a representative still frame (reduced motion). */
 	driveStatic(level: number): void;
 	/** Re-mount with a freshly resolved accent / theme. */
-	refresh(accent: Color, theme: GlowThemeKind): void;
+	refresh(accent: Color, theme: GlowThemeKind, background?: Color): void;
 }
 
 /**
@@ -277,7 +277,7 @@ const RIM_SIZE_FLOOR = 0.35;
  * The rim lives in its own absolutely-positioned slot, so hosts that rebuild
  * their button contents don't tear it out.
  */
-export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool'): IVoiceRimLight {
+export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool', background?: Color): IVoiceRimLight {
 	const store = new DisposableStore();
 	const doc = target.ownerDocument;
 
@@ -292,8 +292,8 @@ export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: G
 	const mount = store.add(new MutableDisposable<IMountedLayer>());
 	let level = 0.3;
 
-	const remount = (nextAccent: Color, nextTheme: GlowThemeKind) => {
-		const rim = resolveVoiceRimAccent(nextAccent, mood, nextTheme);
+	const remount = (nextAccent: Color, nextTheme: GlowThemeKind, nextBackground?: Color) => {
+		const rim = resolveVoiceRimAccent(nextAccent, mood, nextTheme, nextBackground);
 		// Measured lazily: hosts commonly build the button before it is attached,
 		// and a detached element has no box to measure.
 		const height = target.getBoundingClientRect().height;
@@ -314,7 +314,7 @@ export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: G
 		});
 		mount.value.driveStatic(level);
 	};
-	remount(accent, theme);
+	remount(accent, theme, background);
 
 	return {
 		drive: (input: number) => {
@@ -417,7 +417,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			this._target.classList.toggle('voice-listening', state === 'listening');
 			this._target.classList.toggle('voice-processing', state === 'processing');
 			this._target.classList.toggle('voice-speaking', state === 'speaking');
-			this._target.style.setProperty('--voice-accent', voiceGlowStateColor(state, this._colors).toString());
+			const accent = resolveVoiceRimAccent(voiceGlowStateColor(state, this._colors), mood, this._themeKind(), this._colors.background);
+			this._target.style.setProperty('--voice-accent', `hsl(${accent.hue} ${accent.saturation}% ${accent.lightness}%)`);
 		}
 
 		if (this._front && !reducedMotion) {
@@ -509,7 +510,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme);
+		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme, this._colors.background);
 		return mountRimLayers(host, {
 			theme,
 			mood,
