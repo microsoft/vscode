@@ -31,7 +31,6 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
-import { ContributionEnablementState } from '../../../../../../workbench/contrib/chat/common/enablement.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 
@@ -166,11 +165,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		authenticateMcpServer(_sessionResource: URI, _serverId: string) {
 			return Promise.resolve(false);
 		},
-		getMcpServerEnablement() {
-			return ContributionEnablementState.EnabledProfile;
-		},
-		setMcpServerEnablement() { },
-		prepareMcpServersForTurn() { },
+		setMcpServerGlobalEnablement() { },
 		async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>) {
 			await beforeShow?.();
 		},

@@ -183,8 +183,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session
-	 * (index 0 = primary), or an empty array when none are known. Used as the
-	 * workspace identity for durable MCP-server enablement.
+	 * (index 0 = primary), or an empty array when none are known.
 	 */
 	getWorkingDirectories(sessionId: string): readonly string[];
 
@@ -195,6 +194,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+	/** Sets a session MCP server's global enablement in the agent host. */
+	setMcpServerGlobalEnablement(sessionId: string, serverId: string, enabled: boolean): void;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

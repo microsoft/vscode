@@ -41,12 +41,11 @@ function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): Age
 	} as AgentHostMcpServer;
 }
 
-function createAgentHostCustomizations(enablement: ContributionEnablementState): { service: IAgentHostCustomizationService; calls: [URI, string, ContributionEnablementState][] } {
-	const calls: [URI, string, ContributionEnablementState][] = [];
+function createAgentHostCustomizations(): { service: IAgentHostCustomizationService; calls: [URI, string, boolean][] } {
+	const calls: [URI, string, boolean][] = [];
 	const service = {
-		getMcpServerEnablement: () => enablement,
-		setMcpServerEnablement: (sessionResource: URI, serverName: string, state: ContributionEnablementState) => {
-			calls.push([sessionResource, serverName, state]);
+		setMcpServerGlobalEnablement: (sessionResource: URI, serverId: string, enabled: boolean) => {
+			calls.push([sessionResource, serverId, enabled]);
 		},
 	} as unknown as IAgentHostCustomizationService;
 	return { service, calls };
@@ -114,20 +113,22 @@ suite('mcpListWidget', () => {
 	suite('getAgentHostMcpServerEnablementActions', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
 
-		test('offers Enable + Enable (Workspace) when disabled and workbench has a workspace', () => {
-			const { service, calls } = createAgentHostCustomizations(ContributionEnablementState.DisabledProfile);
-			const server = createAgentHostServer();
-			const actions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, sessionResource, server, false));
-			assert.deepStrictEqual(actions.map(a => a.label), ['Enable', 'Enable (Workspace)']);
-			runAction(actions[1]);
-			assert.deepStrictEqual(calls, [[sessionResource, server.name, ContributionEnablementState.EnabledWorkspace]]);
+		test('offers Disable for enabled servers and dispatches a global decision', () => {
+			const { service, calls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ enabled: true });
+			const actions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, sessionResource, server));
+			assert.deepStrictEqual(actions.map(a => a.label), ['Disable']);
+			runAction(actions[0]);
+			assert.deepStrictEqual(calls, [[sessionResource, server.id, false]]);
 		});
 
-		test('offers only Disable when enabled and workbench is empty', () => {
-			const { service } = createAgentHostCustomizations(ContributionEnablementState.EnabledProfile);
-			const server = createAgentHostServer();
-			const actions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, sessionResource, server, true));
-			assert.deepStrictEqual(actions.map(a => a.label), ['Disable']);
+		test('offers Enable for disabled servers', () => {
+			const { service, calls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ enabled: false });
+			const actions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, sessionResource, server));
+			assert.deepStrictEqual(actions.map(a => a.label), ['Enable']);
+			runAction(actions[0]);
+			assert.deepStrictEqual(calls, [[sessionResource, server.id, true]]);
 		});
 	});
 
@@ -149,25 +150,23 @@ suite('mcpListWidget', () => {
 
 	suite('getActiveSessionServerOptionsActions', () => {
 		test('composes lifecycle, durable, session, and options actions without duplicating groups', () => {
-			const { service } = createAgentHostCustomizations(ContributionEnablementState.EnabledProfile);
+			const { service } = createAgentHostCustomizations();
 			const server = createAgentHostServer({ enabled: true, status: McpServerStatus.Ready });
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
 			const commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
 			const actions = trackActions(disposables, getActiveSessionServerOptionsActions(
 				commandService,
 				service,
-				false,
 				sessionResource,
 				server,
 			));
 
 			const labels = actions.map(a => a instanceof Separator ? '(separator)' : a.label);
-			// Stop Server (lifecycle) -> separator -> profile/workspace/session enablement -> separator -> Server Options
+			// Stop Server (lifecycle) -> separator -> global/session enablement -> separator -> Server Options
 			assert.deepStrictEqual(labels, [
 				'Stop Server',
 				'(separator)',
 				'Disable',
-				'Disable (Workspace)',
 				'Disable (Session)',
 				'(separator)',
 				'Server Options',

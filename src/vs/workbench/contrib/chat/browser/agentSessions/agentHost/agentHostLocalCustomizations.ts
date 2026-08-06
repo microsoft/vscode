@@ -7,15 +7,15 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { isContributionEnabled } from '../../../common/enablement.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -149,7 +149,8 @@ export async function resolveLocalCustomAgents(
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
 		if (agent.source === AICustomizationSources.plugin
-			&& (!plugin || syncProvider.isDisabled(plugin.uri) || !isContributionEnabled(plugin.enablement.get()))) {
+			&& (!plugin || !agentPluginService.enablementModel.readProfileEnabled(plugin.uri.toString()))) {
+			// TODO step 9 (container cascade): Let the host apply the plugin's enablement to its agents.
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
@@ -280,9 +281,8 @@ export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCo
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
- * are already synced via their owning plugin's customization ref. Disabled
- * servers and servers whose launch cannot be expressed declaratively are
- * skipped.
+ * are already synced via their owning plugin's customization ref. Servers whose
+ * launch cannot be expressed declaratively are skipped.
  *
  * Workspace-discovered servers are also excluded by default: the agent host
  * discovers workspace `.mcp.json` itself, so syncing them would duplicate. The
@@ -303,9 +303,6 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
-			continue;
-		}
-		if (!isContributionEnabled(server.enablement.get())) {
 			continue;
 		}
 		const definitions = server.readDefinitions().get();
@@ -338,7 +335,14 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 				continue;
 			}
 		}
-		result.push({ name: server.definition.label, configuration });
+		result.push({
+			name: server.definition.label,
+			configuration,
+			enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+				kind: CustomizationEnablementKind.Global,
+				enabled: mcpService.enablementModel.readProfileEnabled(server.definition.id),
+			}),
+		});
 	}
 	return result;
 }
@@ -388,6 +392,10 @@ export async function resolveCustomizationRefs(
 					uri: key as ProtocolURI,
 					name: plugin.label,
 					nonce: nonce?.toString(16),
+					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+						kind: CustomizationEnablementKind.Global,
+						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+					}),
 				};
 			})();
 			pluginRefs.set(key, promise);
@@ -398,12 +406,6 @@ export async function resolveCustomizationRefs(
 		if (entry.source === AICustomizationSources.plugin) {
 			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
 			if (!plugin) {
-				continue;
-			}
-			if (syncProvider.isDisabled(plugin.uri)) {
-				continue;
-			}
-			if (!isContributionEnabled(plugin.enablement.get())) {
 				continue;
 			}
 			addPluginRef(plugin);
@@ -418,12 +420,6 @@ export async function resolveCustomizationRefs(
 	// de-duplicates those already found through prompt-file enumeration.
 	for (const plugin of plugins) {
 		if (pluginRefs.has(plugin.uri.toString())) {
-			continue;
-		}
-		if (syncProvider.isDisabled(plugin.uri)) {
-			continue;
-		}
-		if (!isContributionEnabled(plugin.enablement.get())) {
 			continue;
 		}
 		if (plugin.hooks.get().length === 0

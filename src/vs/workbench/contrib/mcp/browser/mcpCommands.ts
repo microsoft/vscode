@@ -393,13 +393,21 @@ function mcpServerStatusToLabel(status: McpServerStatus): string {
 	}
 }
 
-type AgentHostMcpServerEnablementAction = 'enableProfile' | 'disableProfile' | 'enableWorkspace' | 'disableWorkspace';
+type AgentHostMcpServerEnablementAction = 'enableProfile' | 'disableProfile' | 'enableWorkspace' | 'disableWorkspace' | 'toggleGlobal';
 
 interface AgentHostEnablementItemType extends IQuickPickItem {
 	action: AgentHostMcpServerEnablementAction;
 }
 
-function getAgentHostMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean): AgentHostEnablementItemType[] {
+function getAgentHostMcpServerEnablementItems(enabled: boolean): AgentHostEnablementItemType[] {
+	// TODO step 7: Offer the full scoped action matrix.
+	return [{
+		label: enabled ? localize('mcp.agentHost.disable', 'Disable') : localize('mcp.agentHost.enable', 'Enable'),
+		action: 'toggleGlobal',
+	}];
+}
+
+function getLocalMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean): AgentHostEnablementItemType[] {
 	const items: AgentHostEnablementItemType[] = [];
 	if (disabled) {
 		items.push({ label: localize('mcp.agentHost.enable', 'Enable'), action: 'enableProfile' });
@@ -415,7 +423,7 @@ function getAgentHostMcpServerEnablementItems(disabled: boolean, isEmptyWorkbenc
 	return items;
 }
 
-function enablementStateForAction(action: AgentHostMcpServerEnablementAction): ContributionEnablementState {
+function enablementStateForAction(action: Exclude<AgentHostMcpServerEnablementAction, 'toggleGlobal'>): ContributionEnablementState {
 	switch (action) {
 		case 'enableProfile':
 			return ContributionEnablementState.EnabledProfile;
@@ -425,8 +433,6 @@ function enablementStateForAction(action: AgentHostMcpServerEnablementAction): C
 			return ContributionEnablementState.EnabledWorkspace;
 		case 'disableWorkspace':
 			return ContributionEnablementState.DisabledWorkspace;
-		default:
-			return assertNever(action);
 	}
 }
 
@@ -485,14 +491,14 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		}
 
 		const localServer = findLocalMcpServer(mcpService, server);
-		const durableEnablement = localServer
-			? localServer.enablement.get()
-			: agentHostCustomizations.getMcpServerEnablement(agentHostSession, server.name);
-		const durableDisabled = isContributionDisabled(durableEnablement);
+		const durableEnablement = localServer?.enablement.get();
+		const durableDisabled = durableEnablement !== undefined && isContributionDisabled(durableEnablement);
 		const isEmptyWorkbench = aiCustomizationWorkspaceService.getActiveProjectRoot() === undefined;
 		items.push(
 			{ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') },
-			...getAgentHostMcpServerEnablementItems(durableDisabled, isEmptyWorkbench),
+			...(localServer
+				? getLocalMcpServerEnablementItems(durableDisabled, isEmptyWorkbench)
+				: getAgentHostMcpServerEnablementItems(server.enabled)),
 			{
 				label: server.enabled
 					? localize('mcp.agentHost.disableSession', 'Disable (Session)')
@@ -546,11 +552,14 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			return;
 		}
 
+		if (picked.action === 'toggleGlobal') {
+			agentHostCustomizations.setMcpServerGlobalEnablement(agentHostSession, server.id, !server.enabled);
+			return;
+		}
+
 		const state = enablementStateForAction(picked.action);
 		if (localServer) {
 			mcpService.enablementModel.setEnabled(localServer.definition.id, state);
-		} else {
-			agentHostCustomizations.setMcpServerEnablement(agentHostSession, server.name, state);
 		}
 	}
 }

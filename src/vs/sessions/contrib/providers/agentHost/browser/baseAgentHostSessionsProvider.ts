@@ -3457,6 +3457,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 	}
 
+	setMcpServerGlobalEnablement(sessionId: string, serverId: string, enabled: boolean): void {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!sessionState || !cached || !connection) {
+			return;
+		}
+		const server = (sessionState.customizations ?? [])
+			.flatMap(c => c.type === CustomizationType.McpServer ? [c] : c.children?.filter(c => c.type === CustomizationType.McpServer) ?? [])
+			.find(c => c.id === serverId);
+		if (!server) {
+			return;
+		}
+		connection.dispatch(cached.backendUri.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: server.id,
+			// TODO step 7: Select the enablement scope based on the requested action.
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+		});
+	}
+
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
 		const connection = this.connection;
 		if (!connection) {

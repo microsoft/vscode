@@ -593,30 +593,16 @@ export function getSessionEnablementAction(server: AgentHostMcpServer): IAction 
 	);
 }
 
-/** Creates durable profile/workspace actions for an agent-host-only server. */
-export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, isEmptyWorkbench: boolean): IAction[] {
-	const disabled = isContributionDisabled(agentHostCustomizations.getMcpServerEnablement(sessionResource, server.name));
-	const actions: IAction[] = [];
-	if (disabled) {
-		actions.push(new Action('mcpServer.agentHost.enable', localize('agentHostMcpServerEnable', "Enable"), undefined, true, () => {
-			agentHostCustomizations.setMcpServerEnablement(sessionResource, server.name, ContributionEnablementState.EnabledProfile);
-		}));
-		if (!isEmptyWorkbench) {
-			actions.push(new Action('mcpServer.agentHost.enableWorkspace', localize('agentHostMcpServerEnableForWorkspace', "Enable (Workspace)"), undefined, true, () => {
-				agentHostCustomizations.setMcpServerEnablement(sessionResource, server.name, ContributionEnablementState.EnabledWorkspace);
-			}));
-		}
-	} else {
-		actions.push(new Action('mcpServer.agentHost.disable', localize('agentHostMcpServerDisable', "Disable"), undefined, true, () => {
-			agentHostCustomizations.setMcpServerEnablement(sessionResource, server.name, ContributionEnablementState.DisabledProfile);
-		}));
-		if (!isEmptyWorkbench) {
-			actions.push(new Action('mcpServer.agentHost.disableWorkspace', localize('agentHostMcpServerDisableForWorkspace', "Disable (Workspace)"), undefined, true, () => {
-				agentHostCustomizations.setMcpServerEnablement(sessionResource, server.name, ContributionEnablementState.DisabledWorkspace);
-			}));
-		}
-	}
-	return actions;
+/** Creates the temporary global-only enablement action for an agent-host-only server. */
+export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
+	// TODO step 7: Offer the full scoped action matrix.
+	return [new Action(
+		server.enabled ? 'mcpServer.agentHost.disable' : 'mcpServer.agentHost.enable',
+		server.enabled ? localize('agentHostMcpServerDisable', "Disable") : localize('agentHostMcpServerEnable', "Enable"),
+		undefined,
+		true,
+		() => agentHostCustomizations.setMcpServerGlobalEnablement(sessionResource, server.id, !server.enabled),
+	)];
 }
 
 /** Creates durable profile/workspace actions for a locally backed built-in server row. */
@@ -646,7 +632,7 @@ export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serv
 }
 
 /** Composes lifecycle, durable, session, and options actions for an agent-host-only row. */
-export function getActiveSessionServerOptionsActions(commandService: ICommandService, agentHostCustomizations: IAgentHostCustomizationService, isEmptyWorkbench: boolean, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
+export function getActiveSessionServerOptionsActions(commandService: ICommandService, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
 	const actions: IAction[] = [];
 
 	const lifecycleAction = getActiveSessionServerLifecycleAction(server);
@@ -654,7 +640,7 @@ export function getActiveSessionServerOptionsActions(commandService: ICommandSer
 		actions.push(lifecycleAction);
 	}
 
-	const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, server, isEmptyWorkbench);
+	const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, server);
 	if (durableActions.length > 0) {
 		if (actions.length > 0) {
 			actions.push(new Separator());
@@ -1477,8 +1463,7 @@ export class McpListWidget extends Disposable {
 
 		if (e.element.type === 'session-server-item') {
 			const disposables = new DisposableStore();
-			const isEmptyWorkbench = this.workspaceService.getActiveProjectRoot() === undefined;
-			const activeSessionActions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, isEmptyWorkbench, this.customizationHarnessService.activeSessionResource.get(), e.element.server);
+			const activeSessionActions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), e.element.server);
 			activeSessionActions.forEach(action => isDisposable(action) && disposables.add(action));
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,

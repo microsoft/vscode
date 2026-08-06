@@ -829,6 +829,17 @@ export interface PluginCustomization extends ContainerCustomizationBase {
 export interface ClientPluginCustomization extends PluginCustomization {
 	/** Opaque version token used by the host to detect changes. */
 	nonce?: string;
+	/**
+	 * Explicit enablement decisions for children this plugin contributes,
+	 * keyed by child name (for MCP servers, the server name as it appears in
+	 * the bundled `.mcp.json`).
+	 *
+	 * Bundled children are discovered by the host rather than published by the
+	 * client, so the client cannot attach `enablement` to them directly. This
+	 * carries the client's global decision for each one; the host applies it
+	 * under the child's durable key.
+	 */
+	childEnablement?: Record<string, CustomizationEnablement[]>;
 }
 
 /**

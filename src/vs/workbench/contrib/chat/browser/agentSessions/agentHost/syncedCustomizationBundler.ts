@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
@@ -12,8 +13,9 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
 // Re-export so existing consumers don't need to change their import source.
@@ -85,6 +87,7 @@ export interface ISyncedCustomizationOrigin {
 export interface ISyncableMcpServer {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly enablement: readonly CustomizationEnablement[];
 }
 
 interface IBundleResult {
@@ -205,10 +208,14 @@ export class SyncedCustomizationBundler extends Disposable {
 		// adapter reads this file relative to the plugin root. Servers are
 		// sorted by name so the serialized content (and nonce) is stable.
 		let mcpContent: string | undefined;
+		const childEnablement: Record<string, CustomizationEnablement[]> = {};
 		if (mcpServers.length > 0) {
 			const servers: Record<string, IMcpServerConfiguration> = {};
 			for (const server of [...mcpServers].sort((a, b) => a.name.localeCompare(b.name))) {
+				// Deliberately retain disabled servers: step 4's host gate must
+				// apply childEnablement before the SDK discovers this `.mcp.json`.
 				servers[server.name] = server.configuration;
+				childEnablement[server.name] = server.enablement.slice();
 			}
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
@@ -225,6 +232,14 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Nothing changed since the last successful bundle — reuse it and skip
 		// the delete + rewrite of the in-memory plugin tree.
 		if (nonce === this._lastNonce && this._lastRef) {
+			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
+				return {
+					ref: {
+						...this._lastRef.ref,
+						childEnablement,
+					},
+				};
+			}
 			return this._lastRef;
 		}
 
@@ -261,6 +276,11 @@ export class SyncedCustomizationBundler extends Disposable {
 				uri: rootUriString,
 				name: DISPLAY_NAME,
 				nonce,
+				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+					kind: CustomizationEnablementKind.Global,
+					enabled: true,
+				}),
+				...(mcpServers.length > 0 ? { childEnablement } : {}),
 			},
 		};
 		this._lastRef = result;

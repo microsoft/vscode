@@ -17,7 +17,6 @@ import { AgentCustomization, CustomizationType } from '../../../../platform/agen
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
@@ -28,12 +27,10 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IStorageService storageService: IStorageService,
 	) {
-		super(instantiationService, logService, storageService);
+		super(instantiationService, logService);
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
-				this._clearMcpServerTracking(session.resource);
 				this._disposeMcpDiagnostics(session.resource);
 			}
 			this._fireCustomAgentsChanged();
@@ -74,8 +71,11 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
 			authenticate: request => provider.authenticate(request),
-			setCustomizationEnabled: (rawId, enabled) => {
+			setMcpServerSessionEnabled: (rawId, enabled) => {
 				servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.setEnabled(enabled);
+			},
+			setMcpServerGlobalEnabled: (rawId, enabled) => {
+				provider.setMcpServerGlobalEnablement(session.sessionId, rawId, enabled);
 			},
 			startMcpServer: rawId => {
 				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
