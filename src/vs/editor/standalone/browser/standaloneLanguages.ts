@@ -14,7 +14,7 @@ import { ILanguageExtensionPoint, ILanguageService } from '../../common/language
 import { LanguageConfiguration } from '../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { ModesRegistry } from '../../common/languages/modesRegistry.js';
-import { LanguageSelector } from '../../common/languageSelector.js';
+import { LanguageSelector, score } from '../../common/languageSelector.js';
 import * as model from '../../common/model.js';
 import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
 import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
@@ -760,6 +760,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		onLanguageEncountered: <any>onLanguageEncountered,
 		// eslint-disable-next-line local/code-no-any-casts
 		getEncodedLanguageId: <any>getEncodedLanguageId,
+		// eslint-disable-next-line local/code-no-any-casts
+		score: <any>score,
 
 		// provider methods
 		// eslint-disable-next-line local/code-no-any-casts
