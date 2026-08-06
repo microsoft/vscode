@@ -384,12 +384,41 @@ export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 
  * fingerprint); the renderer owns the actual policy, since it holds the trust
  * store and the UI. The renderer must answer via
  * {@link ISSHRemoteAgentHostMainService.respondHostKeyVerification} with the
- * same `requestId`, otherwise the connection stalls until `readyTimeout`.
+ * same `requestId`, otherwise the connection stalls until the deadline.
  *
  * (`ISSHRemoteAgentHostMainService` is a misnomer inherited from its siblings:
  * it and the WSL/tunnel equivalents are all registered in `sharedProcessMain`,
  * so they run in the shared process, not the main process.)
  */
+/**
+ * Error name for a connect attempt refused because the server's host key was
+ * not trusted. Matching on the name (rather than `instanceof`) is deliberate:
+ * the error is raised in the shared process and inspected in the renderer, and
+ * only `name`/`message` survive IPC serialization.
+ */
+export const SSH_HOST_KEY_DENIED_ERROR_NAME = 'SSHHostKeyDenied';
+
+/**
+ * Raised when host key verification refused the connection.
+ *
+ * The host key UI owns the conversation about *why* — either the user
+ * declined the prompt themselves, or a specific, actionable notification
+ * (with a "Forget Saved Host Key" action) is already on screen. Callers should
+ * therefore not add a generic "failed to connect" error on top; see
+ * {@link isSSHHostKeyDeniedError}.
+ */
+export class SSHHostKeyDeniedError extends Error {
+	constructor(displayHost: string) {
+		super(`Host key verification failed for ${displayHost}`);
+		this.name = SSH_HOST_KEY_DENIED_ERROR_NAME;
+	}
+}
+
+/** Whether `error` is an {@link SSHHostKeyDeniedError}, including across IPC. */
+export function isSSHHostKeyDeniedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
+}
+
 export interface ISSHHostKeyVerificationRequest {
 	readonly requestId: string;
 	readonly connectionKey: string;
@@ -458,7 +487,7 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Fires when the SSH server requests keyboard-interactive auth (typically
 	 * a password prompt). The renderer must answer via {@link respondKeyboardInteractive}
 	 * with the same `requestId`, otherwise the auth attempt will hang until the
-	 * SSH `readyTimeout` elapses.
+	 * SSH handshake deadline elapses.
 	 */
 	readonly onDidRequestKeyboardInteractive: Event<ISSHKeyboardInteractiveRequest>;
 

@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest } from '../../common/sshRemoteAgentHost.js';
+import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { computeHostKeyFingerprint, parseKnownHosts, type IKnownHostsEntry } from '../../node/sshKnownHosts.js';
 
@@ -189,8 +189,12 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			void service.respondHostKeyVerification(request.requestId, trusted);
 		}));
 		try {
-			const result = await service.connectSSHForTest(config).then(() => 'resolved', err => `rejected: ${err.message}`);
-			return { requests, result };
+			let error: unknown;
+			const result = await service.connectSSHForTest(config).then(() => 'resolved', err => {
+				error = err;
+				return `rejected: ${err.message}`;
+			});
+			return { requests, result, error };
 		} finally {
 			store.dispose();
 		}
@@ -225,13 +229,24 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			});
 	});
 
-	test('declining fails the connection before authentication', async () => {
+	test('declining fails the connection with a clean host key error', async () => {
+		// ssh2 reports this as "Host denied (verification failed)". That is
+		// jargon, and the host key UI has already explained what happened, so
+		// the connect attempt surfaces a recognizable error instead.
 		const service = createService();
-		const { result } = await connectAnswering(service, false);
+		const { result, error } = await connectAnswering(service, false);
 
 		assert.deepStrictEqual(
-			{ verdict: service.client.verdict, result },
-			{ verdict: false, result: 'rejected: Host denied (verification failed)' });
+			{
+				verdict: service.client.verdict,
+				result,
+				denied: isSSHHostKeyDeniedError(error),
+			},
+			{
+				verdict: false,
+				result: 'rejected: Host key verification failed for test-host',
+				denied: true,
+			});
 	});
 
 	test('reports the known_hosts verdict for a matching entry', async () => {

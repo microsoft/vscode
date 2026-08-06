@@ -35,6 +35,7 @@ import {
 	type ISSHResolvedConfig,
 	type SSHAgentHostLifecycle,
 	type SSHStrictHostKeyChecking,
+	SSHHostKeyDeniedError,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -746,8 +747,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * Pending host key verifications awaiting a verdict from the renderer,
 	 * keyed by `requestId`. Every entry must eventually be settled — leaving
 	 * one unanswered suspends the SSH handshake until the deadline elapses.
+	 *
+	 * `onUserDenied` lets the owning connect attempt distinguish "the renderer
+	 * refused this key" from any other handshake failure, so it can surface a
+	 * clean error instead of ssh2's internal wording.
 	 */
-	private readonly _pendingHostKeyRequests = new Map<string, { verify: (trusted: boolean) => void }>();
+	private readonly _pendingHostKeyRequests = new Map<string, { verify: (trusted: boolean) => void; onUserDenied?: () => void }>();
 	private _hostKeyRequestCounter = 0;
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
@@ -1418,6 +1423,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// gathering evidence at that moment can bail out instead of registering
 		// itself after cancellation has already swept the set.
 		let hostKeyVerificationAborted = false;
+		// Set when the renderer refuses a host key for this attempt, so the
+		// resulting handshake failure can be reported as what it actually is.
+		let hostKeyDenied = false;
 		// Forward references into the connect promise below, following the same
 		// pattern the keyboard-interactive path already uses.
 		let armDeadline: ((ms: number) => void) | undefined;
@@ -1446,6 +1454,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					// A human is now in the loop; stop holding them to the
 					// network-sized deadline.
 					armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+					return () => { hostKeyDenied = true; };
 				},
 				() => hostKeyVerificationAborted,
 				() => armDeadline?.(HANDSHAKE_TIMEOUT_MS),
@@ -1511,7 +1520,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			client.on('error', (err: Error) => {
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
-				rejectConnect(err, false);
+				// ssh2 reports a refused host key as "Host denied (verification
+				// failed)", which is both jargon and redundant — the host key
+				// UI has already told the user what happened.
+				rejectConnect(hostKeyDenied ? new SSHHostKeyDeniedError(displayHost) : err, false);
 			});
 
 			// A server can drop the connection cleanly mid-handshake (for
@@ -1520,7 +1532,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// connect promise would never settle and any outstanding host key
 			// prompt would be left on screen forever.
 			client.on('close', () => {
-				rejectConnect(new Error(`SSH connection to ${config.host} closed before the handshake completed`), false);
+				rejectConnect(
+					hostKeyDenied
+						? new SSHHostKeyDeniedError(displayHost)
+						: new Error(`SSH connection to ${config.host} closed before the handshake completed`),
+					false);
 			});
 
 			// A server may announce its full host key set over the
@@ -1785,7 +1801,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		port: number,
 		key: Buffer,
 		verify: (permitted: boolean) => void,
-		onRequest: (requestId: string) => void,
+		onRequest: (requestId: string) => (() => void) | void,
 		isAborted: () => boolean,
 		onPromptSettled: () => void,
 	): Promise<void> {
@@ -1833,8 +1849,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
 			prompted = true;
-			onRequest(requestId);
-			this._pendingHostKeyRequests.set(requestId, { verify: verifyOnce });
+			const onUserDenied = onRequest(requestId) ?? undefined;
+			this._pendingHostKeyRequests.set(requestId, { verify: verifyOnce, onUserDenied });
 			this._onDidRequestHostKeyVerification.fire({
 				requestId,
 				connectionKey,
@@ -1864,6 +1880,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 		this._pendingHostKeyRequests.delete(requestId);
 		this._logService.info(`${LOG_PREFIX} Host key ${trusted ? 'accepted' : 'rejected'} for request ${requestId}`);
+		if (!trusted) {
+			// Let the connect attempt report this as a host key refusal rather
+			// than surfacing ssh2's "Host denied (verification failed)".
+			pending.onUserDenied?.();
+		}
 		pending.verify(trusted);
 	}
 
