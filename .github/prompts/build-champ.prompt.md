@@ -33,7 +33,7 @@ You are the build champion for the VS Code team. Your task is to triage a {{buil
 
 ## Warning Message
 <message>
-**⚠️ Known Issues with Build Champion Agent ⚠️**
+**⚠️ Known Issues with Build Champion Agent**
 This agent should be used in parallel while investigating build failures, as it has some known issues:
 1. **Double check the error discovered by the agent:** The agent often confuses missing `.build/logs` as an infrastructure issue. This is incorrect, as the missing logs are typically caused by test or build failures.
 2. **Pay attention to the build numbers discovered by the agent:** The agent sometimes incorrectly finds the previous successful build.
