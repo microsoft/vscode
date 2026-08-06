@@ -2157,6 +2157,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (startedRequest) {
 						return;
 					}
+					if (request.toolCall.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+						&& readToolCallMeta(request.toolCall).toolSearchCandidates === undefined) {
+						return;
+					}
 					const execute = (contextSessionResource: URI | undefined) => {
 						startedRequest = request;
 						unobservedTimer.clear();
