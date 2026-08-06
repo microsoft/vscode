@@ -343,9 +343,9 @@ export interface InlineValuesProvider {
 	 */
 	onDidChangeInlineValues?: Event<void> | undefined;
 	/**
-	 * Provide the "inline values" for the given range and document. Multiple hovers at the same
-	 * position will be merged by the editor. A hover can have a range which defaults
-	 * to the word range at the position when omitted.
+	 * Provide "inline value" information for a given document and range.
+	 * The editor calls this method whenever debugging stops in the given document.
+	 * The returned inline values information is rendered in the editor at the end of lines.
 	 */
 	provideInlineValues(model: model.ITextModel, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
 }
