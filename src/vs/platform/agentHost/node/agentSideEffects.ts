@@ -78,7 +78,7 @@ import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
-import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -1408,10 +1408,12 @@ export class AgentSideEffects extends Disposable {
 					// not the whole session. Route it to a per-chat title update so
 					// the session title stays independent.
 					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
-					this._persistSessionFlag(sessionChannel, `customChatTitle:${chatChannel}`, action.title);
+					this._persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatChannel), action.title);
+					this._persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatChannel), AGENT_HOST_TITLE_SOURCE_USER);
 					break;
 				}
-				this._persistSessionFlag(channel, 'customTitle', action.title);
+				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, action.title);
+				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 				break;
 			}
 			case ActionType.ChatPendingMessageSet: {

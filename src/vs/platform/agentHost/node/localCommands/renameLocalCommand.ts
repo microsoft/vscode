@@ -9,6 +9,7 @@ import { localize } from '../../../../nls.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseRenameCommand } from '../agentHostRenameCommand.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandHandling, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
 
 /**
@@ -45,13 +46,15 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 		if (chatTarget) {
 			// Rename only this chat, independently of the session title.
 			this._context.updateChatTitle(sessionChannel, chatTarget, title);
-			this._context.persistSessionFlag(sessionChannel, `customChatTitle:${chatTarget}`, title);
+			this._context.persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatTarget), title);
+			this._context.persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatTarget), AGENT_HOST_TITLE_SOURCE_USER);
 		} else {
 			this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 			// Server-dispatched actions bypass `handleAction`, so persist the
 			// new title here directly (the client-dispatched rename path relies
 			// on the `SessionTitleChanged` case in `handleAction` instead).
-			this._context.persistSessionFlag(sessionChannel, 'customTitle', title);
+			this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, title);
+			this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		}
 		// Acknowledge the rename with a brief response so the turn has visible
 		// content in the transcript.

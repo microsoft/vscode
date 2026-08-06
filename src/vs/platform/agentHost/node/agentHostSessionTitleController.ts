@@ -15,8 +15,10 @@ import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
+export const AGENT_HOST_SESSION_TITLE_MAX_LENGTH = MAX_TITLE_LENGTH;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
 const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
@@ -105,7 +107,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		this._provisionalTitles.delete(key);
 		this._applySeedTitle(channel, additionalChat, fallbackTitle);
 		if (replacesProvisionalTitle) {
-			this._persistSeedTitle(channel, additionalChat, fallbackTitle);
+			this._persistAutoTitle(channel, additionalChat, fallbackTitle);
 		}
 		this._generateTitleSoon(
 			key,
@@ -114,7 +116,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			fallbackTitle,
 			title => this._applySeedTitle(channel, additionalChat, title),
 			() => this._currentSeedTitle(channel, additionalChat) === this._lastAppliedTitle.get(key),
-			title => this._persistSeedTitle(channel, additionalChat, title),
+			title => this._persistAutoTitle(channel, additionalChat, title),
 		);
 	}
 
@@ -133,7 +135,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		this._provisionalTitles.add(key);
 		this._applySeedTitle(channel, additionalChat, title);
-		this._persistSeedTitle(channel, additionalChat, title);
+		this._persistAutoTitle(channel, additionalChat, title);
 	}
 
 	/** Trims, collapses whitespace, and length-caps a candidate title. */
@@ -156,17 +158,29 @@ export class AgentHostSessionTitleController extends Disposable {
 	private _applySeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
 		if (additionalChat) {
 			this._applyTitle(additionalChat, title, t => this._stateManager.updateChatTitle(channel, additionalChat, t));
+			this._persistAutoTitleSource(channel, additionalChat);
 		} else {
 			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
 				type: ActionType.SessionTitleChanged,
 				title: t,
 			}));
+			this._persistAutoTitleSource(channel, undefined);
 		}
 	}
 
 	/** Persists `title` as the custom title of the addressed peer chat or session. */
-	private _persistSeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
-		this._persistSessionFlag(channel, additionalChat ? `customChatTitle:${additionalChat}` : 'customTitle', title);
+	private _persistAutoTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
+		if (additionalChat) {
+			this._persistSessionFlag(channel, customChatTitleMetadataKey(additionalChat), title);
+			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(additionalChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+			return;
+		}
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+	}
+
+	private _persistAutoTitleSource(channel: ProtocolURI, additionalChat: ProtocolURI | undefined): void {
+		this._persistSessionFlag(channel, additionalChat ? customChatTitleSourceMetadataKey(additionalChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	/** The live title of the addressed peer chat or session. */
@@ -229,7 +243,10 @@ export class AgentHostSessionTitleController extends Disposable {
 			if (!context) {
 				return;
 			}
-			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
+			const apply = (title: string) => {
+				this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
+				this._persistAutoTitleSource(channel, chatChannel);
+			};
 			this._generateTitleSoon(
 				chatChannel,
 				context,
@@ -237,7 +254,7 @@ export class AgentHostSessionTitleController extends Disposable {
 				lastApplied,
 				apply,
 				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
-				title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
+				title => this._persistAutoTitle(channel, chatChannel, title),
 			);
 			return;
 		}
@@ -254,10 +271,13 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (!context) {
 			return;
 		}
-		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
-			type: ActionType.SessionTitleChanged,
-			title: t,
-		}));
+		const apply = (title: string) => {
+			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionTitleChanged,
+				title: t,
+			}));
+			this._persistAutoTitleSource(channel, undefined);
+		};
 		this._generateTitleSoon(
 			channel,
 			context,
@@ -265,7 +285,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			lastApplied,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
+			title => this._persistAutoTitle(channel, undefined, title),
 		);
 	}
 
@@ -295,6 +315,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (isAdditionalChat) {
 			const key = chatChannel;
 			this._lastAppliedTitle.set(key, fallbackTitle);
+			this._persistAutoTitleSource(channel, key);
 			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
 			this._generateTitleSoon(
 				key,
@@ -303,12 +324,13 @@ export class AgentHostSessionTitleController extends Disposable {
 				fallbackTitle,
 				apply,
 				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
-				title => this._persistSessionFlag(channel, `customChatTitle:${key}`, title),
+				title => this._persistAutoTitle(channel, key, title),
 			);
 			return;
 		}
 
 		this._lastAppliedTitle.set(channel, fallbackTitle);
+		this._persistAutoTitleSource(channel, undefined);
 		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.SessionTitleChanged,
 			title: t,
@@ -320,7 +342,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			fallbackTitle,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
+			title => this._persistAutoTitle(channel, undefined, title),
 		);
 	}
 
@@ -634,12 +656,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(err => {
-			this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
+		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
 	private _cancelTitleGeneration(session: ProtocolURI): void {

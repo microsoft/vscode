@@ -7,6 +7,25 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 
+export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
+export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';
+export const AGENT_HOST_TITLE_SOURCE_USER = 'user';
+export const AGENT_HOST_TITLE_SOURCE_AGENT = 'agent';
+export const AGENT_HOST_TITLE_SOURCE_AUTO = 'auto';
+
+export type AgentHostTitleSource =
+	| typeof AGENT_HOST_TITLE_SOURCE_USER
+	| typeof AGENT_HOST_TITLE_SOURCE_AGENT
+	| typeof AGENT_HOST_TITLE_SOURCE_AUTO;
+
+export function customChatTitleMetadataKey(chat: string): string {
+	return `customChatTitle:${chat}`;
+}
+
+export function customChatTitleSourceMetadataKey(chat: string): string {
+	return `customChatTitleSource:${chat}`;
+}
+
 /**
  * Fire-and-forget persistence of a single session-metadata key/value pair to a
  * session's database. Opens the database, writes the value, and disposes the

@@ -49,7 +49,8 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
-import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, type AgentHostTitleSource, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -63,6 +64,7 @@ import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvid
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { SessionServerToolName } from '../common/serverToolNames.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -835,6 +837,8 @@ export class AgentService extends Disposable implements IAgentService {
 			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
 				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: { id: options.model.id } } : {}) }
 				: undefined),
+			renameSession: (session, title) => this._renameSessionFromTool(session, title),
+			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
 			// Reads the `create_session` spawn depth from a session's `_meta` (0 when absent).
@@ -877,6 +881,108 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
 			hasMoreHistory: !!chatState.turnsNextCursor,
 		};
+	}
+
+	private async _renameSessionFromTool(session: URI, title: string): Promise<IRenameTitleResult> {
+		const currentTitle = await this._readCurrentSessionTitle(session);
+		const source = await this._readPersistedTitleSource(session, SESSION_CUSTOM_TITLE_SOURCE_KEY);
+		if (source === AGENT_HOST_TITLE_SOURCE_USER) {
+			return { outcome: 'skippedUser', title: currentTitle ?? title };
+		}
+		if (source === AGENT_HOST_TITLE_SOURCE_AGENT) {
+			return { outcome: 'skippedAgent', title: currentTitle ?? title };
+		}
+		if (source !== AGENT_HOST_TITLE_SOURCE_AUTO && this._hasMeaningfulExistingTitle(currentTitle)) {
+			return { outcome: 'skippedMeaningful', title: currentTitle! };
+		}
+
+		if (this._stateManager.getSessionState(session.toString())?.title !== title) {
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
+		}
+		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_KEY, title);
+		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		return { outcome: 'renamed', title };
+	}
+
+	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
+		if (isDefaultChatUri(chat.toString())) {
+			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a non-default chat.`);
+		}
+		const exists = await this._peerChatExists(session, chat);
+		if (!exists) {
+			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
+		}
+
+		const currentTitle = await this._readCurrentChatTitle(session, chat);
+		const source = await this._readPersistedTitleSource(session, customChatTitleSourceMetadataKey(chat.toString()));
+		if (source === AGENT_HOST_TITLE_SOURCE_USER) {
+			return { outcome: 'skippedUser', title: currentTitle ?? title };
+		}
+		if (source === AGENT_HOST_TITLE_SOURCE_AGENT) {
+			return { outcome: 'skippedAgent', title: currentTitle ?? title };
+		}
+		if (source !== AGENT_HOST_TITLE_SOURCE_AUTO && this._hasMeaningfulExistingTitle(currentTitle)) {
+			return { outcome: 'skippedMeaningful', title: currentTitle! };
+		}
+
+		if (this._stateManager.getSessionState(session.toString())) {
+			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
+		}
+		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleMetadataKey(chat.toString()), title);
+		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleSourceMetadataKey(chat.toString()), AGENT_HOST_TITLE_SOURCE_AGENT);
+		return { outcome: 'renamed', title };
+	}
+
+	private async _readCurrentSessionTitle(session: URI): Promise<string | undefined> {
+		const liveTitle = this._stateManager.getSessionState(session.toString())?.title;
+		if (liveTitle) {
+			return liveTitle;
+		}
+		return (await this.listSessions()).find(candidate => candidate.session.toString() === session.toString())?.summary;
+	}
+
+	private async _readCurrentChatTitle(session: URI, chat: URI): Promise<string | undefined> {
+		const liveTitle = this._stateManager.getChatState(chat.toString())?.title
+			?? this._stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.title;
+		if (liveTitle !== undefined) {
+			return liveTitle;
+		}
+		return this._readPersistedChatTitle(session, chat);
+	}
+
+	private async _readPersistedTitleSource(session: URI, key: string): Promise<AgentHostTitleSource | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const raw = await ref.object.getMetadata(key);
+			return raw === AGENT_HOST_TITLE_SOURCE_USER || raw === AGENT_HOST_TITLE_SOURCE_AGENT || raw === AGENT_HOST_TITLE_SOURCE_AUTO ? raw : undefined;
+		} catch {
+			return undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private _hasMeaningfulExistingTitle(title: string | undefined): title is string {
+		if (!title) {
+			return false;
+		}
+		const normalized = title.trim().replace(/\s+/g, ' ');
+		if (!normalized) {
+			return false;
+		}
+		const folded = normalized.toLowerCase();
+		return folded !== 'session' && folded !== 'chat' && folded !== 'new session' && folded !== 'new chat' && !folded.startsWith('forked: ');
+	}
+
+	private async _peerChatExists(session: URI, chat: URI): Promise<boolean> {
+		if (this._stateManager.getSessionState(session.toString())?.chats.some(candidate => candidate.resource === chat.toString())) {
+			return true;
+		}
+		const persisted = await this._readPersistedPeerChatCatalog(session);
+		return persisted?.some(candidate => candidate.uri === chat.toString()) === true;
 	}
 
 	/**
