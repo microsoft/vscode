@@ -98,6 +98,8 @@ The `sessions.showSessionsPicker` command globally prioritizes non-archived sess
 
 The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
+Both the shared session composer and the new-session composer keep Monaco's layout host free of horizontal padding. Their visual inset comes from the surrounding container or host margin so Monaco measures the actual usable width and keeps its vertical scrollbar inside the rounded input boundary, including while the in-progress border is visible.
+
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
 ### Layer 3 — Providers (`contrib/providers/`)

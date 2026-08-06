@@ -4656,7 +4656,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// for the same 64px total horizontal gutter or the editor overflows its
 			// container and renders wider than the message content above it.
 			inputPartHorizontalPadding: this.options.inputPartHorizontalPadding ?? (this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24)),
-			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
+			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 16,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
 		};

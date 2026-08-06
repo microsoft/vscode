@@ -81,13 +81,15 @@ export interface ChatInputFixtureOptions {
 	readonly width?: number;
 	/** Supplies models so the picker renders provider icons. */
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Renders the in-progress border treatment. */
+	readonly working?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], working = false, voiceControl } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -197,6 +199,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			inputPart.inputEditor.setSelection(selection);
 		}
 	}
+	session.querySelector('.chat-input-container')?.classList.toggle('working', working);
 	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
 	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
 	await new Promise(r => setTimeout(r, 50));

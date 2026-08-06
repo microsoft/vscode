@@ -34,6 +34,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			value: 'word word word word word word word word word word word word word word word word word word word word word word word word',
 		})
 	}),
+	SessionsWindowInProgressWithScrollbar: defineComponentFixture({
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			value: 'word '.repeat(500),
+			working: true,
+		})
+	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
 	// rendered. These cut-out pieces use `.monaco-editor-background`, which must
 	// remain opaque so the selection corners render correctly.
