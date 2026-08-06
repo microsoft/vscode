@@ -13,7 +13,7 @@ import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sand
  * `boolean` (not the `false` literal) so the Windows branches are not flagged
  * as unreachable by control-flow narrowing.
  */
-const WINDOWS_SANDBOX_SUPPORTED: boolean = false;
+const WINDOWS_SANDBOX_SUPPORTED: boolean = true;
 
 /**
  * Per-platform filesystem rule bundle accepted under each `fileSystem.<os>`
