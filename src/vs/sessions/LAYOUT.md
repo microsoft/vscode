@@ -139,6 +139,19 @@ In the single-pane layout, activating the session header **Changes** pill is tre
 editor open: it reveals the docked editor area and opens the Changes multi-diff editor even though
 managed Changes tab activations remain excluded from automatic reveal.
 
+Editor breadcrumbs omit the workspace-root segment when the Agents Window has one workspace folder.
+The active session already establishes the repository/worktree context, so breadcrumbs start at the
+first path segment within the workspace (for example, `src > services > session.ts`) instead of
+repeating the synthetic `repository (branch)` workspace-folder label. With multiple workspace
+folders, breadcrumbs retain the root segment for disambiguation but show only its plain folder name,
+without the synthetic branch suffix. The Files view retains the full root labels.
+
+Workspace-folder presentation is owned by `IWorkspaceFolderLabelService`. The standard workbench
+implementation provides no override, leaving the existing URI-derived breadcrumb label unchanged;
+the Agents implementation resolves the repository display name from session metadata, returning the
+plain repository name for breadcrumbs and the verbose `repository (branch)` form used by workspace
+projection and the Files view.
+
 ### Agent Host Filter (Left)
 
 When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.

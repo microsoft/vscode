@@ -15,7 +15,7 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { chatDictationActiveMicGlow } from '../../common/widget/chatColors.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { createVoiceRimLight, IVoiceRimLight } from '../voiceClient/voiceGlowController.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from './chatSpeechToTextService.js';
 
 export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
 
@@ -134,6 +134,7 @@ export function setupDictationMicGlow(
 	};
 
 	const update = (active = isActive?.get() !== false) => {
+		active = active && isDictationActiveOnSurface(service, 'chat');
 		const phase = active ? getDictationMicGlowPhase(service.state, service.isPreparingModel) : 'off';
 		target.classList.toggle('dictation-mic-active', phase !== 'off');
 		target.classList.toggle('dictation-mic-settling', phase === 'settling');
