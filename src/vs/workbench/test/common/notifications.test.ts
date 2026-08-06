@@ -81,7 +81,11 @@ suite('Notifications', () => {
 		}));
 
 		item1.progress.infinite();
+		assert.strictEqual(item1.hasProgress, true);
+		assert.strictEqual(item1.sticky, true);
 		item1.progress.done();
+		assert.strictEqual(item1.hasProgress, false);
+		assert.strictEqual(item1.sticky, false);
 
 		assert.strictEqual(called, 2);
 
