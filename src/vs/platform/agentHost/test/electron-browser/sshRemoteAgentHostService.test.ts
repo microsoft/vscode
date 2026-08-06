@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { IDialogService } from '../../../dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService } from '../../../dialogs/common/dialogs.js';
 import { INotificationService, Severity, type INotification, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -1059,6 +1059,8 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 	let confirmCalls: number;
 	/** When set, the confirm dialog blocks on this until the test releases it. */
 	let confirmGate: (() => Promise<void>) | undefined;
+	/** The options the last confirm dialog was opened with. */
+	let lastConfirmOptions: IConfirmation | undefined;
 
 	setup(() => {
 		mainService = disposables.add(new MockSSHMainService());
@@ -1083,9 +1085,11 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		confirmResult = false;
 		confirmCalls = 0;
 		confirmGate = undefined;
+		lastConfirmOptions = undefined;
 		instantiationService.stub(IDialogService, {
-			confirm: (async () => {
+			confirm: (async (confirmation: IConfirmation) => {
 				confirmCalls++;
+				lastConfirmOptions = confirmation;
 				if (confirmGate) {
 					await confirmGate();
 				}
@@ -1237,11 +1241,11 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
 	});
 
-	test('a late answer to a cancelled prompt cannot grant trust', async () => {
-		// IDialogService.confirm has no cancellation support, so a modal opened
-		// for a connection that then dies stays on screen. Answering "Connect"
-		// afterwards must be inert: no trust stored, no response sent to a
-		// connect attempt that is already gone.
+	test('a prompt for a connection that dies is dismissed, and a late answer grants nothing', async () => {
+		// The dialog is opened with a cancellation token so it tears itself
+		// down when the connection drops, rather than stranding the user with
+		// a question about a connection that no longer exists. Answering it
+		// late must also be inert.
 		let releaseDialog = () => { };
 		const dialogShown = new Promise<void>(resolveShown => {
 			confirmGate = () => {
@@ -1253,17 +1257,25 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
 		mainService.fireHostKeyVerificationRequest(makeHostKeyRequest());
 		await dialogShown;
+		const dialogToken = lastConfirmOptions?.token;
+		const dismissedBeforeCancel = dialogToken?.isCancellationRequested;
 		// The connection drops while the user is still looking at the dialog.
 		mainService.fireHostKeyVerificationCancel('hostkey-1');
+		const dismissedAfterCancel = dialogToken?.isCancellationRequested;
 		releaseDialog();
 		await new Promise(resolve => setTimeout(resolve, 10));
 
 		assert.deepStrictEqual(
 			{
+				// The dialog is handed a live token that is cancelled when the
+				// connection dies, which is what dismisses it.
+				dismissedBeforeCancel,
+				dismissedAfterCancel,
+				// And a late "Connect" still grants nothing.
 				responses: mainService.hostKeyResponses,
 				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
 			},
-			{ responses: [], stored: 0 });
+			{ dismissedBeforeCancel: false, dismissedAfterCancel: true, responses: [], stored: 0 });
 	});
 
 	test('learns a rotated key announced over an authenticated connection', async () => {

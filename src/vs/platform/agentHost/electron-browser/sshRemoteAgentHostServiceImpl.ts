@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -603,12 +604,11 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * wording so it is recognizable to anyone who has used `ssh` directly.
 	 * Cancel is the default so the safe answer is the one you get by dismissing.
 	 *
-	 * `IDialogService.confirm` accepts no {@link CancellationToken} and offers
-	 * no programmatic dismissal, so unlike the keyboard-interactive quick input
-	 * this modal cannot be torn down if the connection dies while it is open.
-	 * The stale dialog is cosmetic: the caller re-checks cancellation before
-	 * acting on the answer, so a late "Connect" can neither persist trust nor
-	 * revive a dead connect attempt.
+	 * Uses a custom dialog so the prompt can be dismissed programmatically when
+	 * the connection dies underneath it — a native dialog cannot be, and would
+	 * strand the user with a question about a connection that no longer exists.
+	 * Answering a stale prompt was always safe (the caller re-checks
+	 * cancellation before acting), but leaving it on screen is confusing.
 	 */
 	private async _promptForHostKey(request: ISSHHostKeyVerificationRequest, reason: 'unknown' | 'ca-only', token: CancellationToken): Promise<boolean> {
 		if (token.isCancellationRequested) {
@@ -631,6 +631,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			detail,
 			primaryButton: localize('sshHostKeyConnect', "&&Connect"),
 			cancelButton: localize('sshHostKeyCancel', "Cancel"),
+			custom: { icon: Codicon.shield },
+			// Cancellation resolves the dialog as if Cancel was pressed, which
+			// is also the answer we want for a connection that is already gone.
+			token,
 		});
 		return confirmed;
 	}

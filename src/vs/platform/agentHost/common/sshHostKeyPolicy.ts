@@ -28,10 +28,11 @@ export type SSHHostKeyDecision =
  * Pure so the whole matrix can be tested directly; the caller owns the UI and
  * the storage writes. Ordering matters and is deliberate:
  *
- * 1. `StrictHostKeyChecking no`/`off` short-circuits everything, because the
+ * 1. Revocation beats every other signal, including a stored trust entry and
+ *    the `StrictHostKeyChecking` opt-out.
+ * 2. `StrictHostKeyChecking no`/`off` then short-circuits the rest, because the
  *    user has explicitly opted out of verification in their SSH config. We
  *    honor that but never persist, so turning it back on restores prompting.
- * 2. Revocation beats every other signal, including a stored trust entry.
  * 3. A key that disagrees with one we already trust is a mismatch even if
  *    `known_hosts` happens to agree with the server, since our store is the
  *    authority for hosts we have connected to before.

@@ -745,7 +745,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	/**
 	 * Pending host key verifications awaiting a verdict from the renderer,
 	 * keyed by `requestId`. Every entry must eventually be settled — leaving
-	 * one unanswered suspends the SSH handshake until `readyTimeout`.
+	 * one unanswered suspends the SSH handshake until the deadline elapses.
 	 */
 	private readonly _pendingHostKeyRequests = new Map<string, { verify: (trusted: boolean) => void }>();
 	private _hostKeyRequestCounter = 0;
@@ -1378,9 +1378,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			for (const requestId of liveKbiRequests) {
 				// Pull the pending finish callback (if any) and invoke it with
 				// empty responses so ssh2 stops waiting on this attempt — without
-				// this, ssh2 hangs until `readyTimeout` elapses when a connect
-				// attempt is aborted mid-prompt. The renderer also gets notified
-				// so it can dismiss any open quick-input UI.
+				// this, ssh2 hangs until the handshake deadline elapses when a
+				// connect attempt is aborted mid-prompt. The renderer also gets
+				// notified so it can dismiss any open quick-input UI.
 				const pending = this._pendingKbiRequests.get(requestId);
 				this._pendingKbiRequests.delete(requestId);
 				this._onDidCancelKeyboardInteractive.fire(requestId);
