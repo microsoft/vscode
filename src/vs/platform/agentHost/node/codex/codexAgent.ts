@@ -30,6 +30,7 @@ import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
@@ -120,6 +121,7 @@ import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/gener
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -2074,6 +2076,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
+			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
 			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
 			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
 			'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
@@ -3612,18 +3615,26 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const { input, cleanupPaths } = resolveCodexInput(prompt, attachments);
 		// Buffer the prompt text for `turn/started`'s userMessage fallback.
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
 		this._startTurnStopWatch(session);
+		let cleanupPaths: readonly string[] = [];
+		const isCompactCommand = parseLeadingSlashCommand(prompt)?.command === CODEX_COMPACT_SLASH_COMMAND;
 		try {
+			if (isCompactCommand) {
+				await conn.client.request<'thread/compact/start'>('thread/compact/start', { threadId }, this._traceContext(session));
+				session.firstTurnSent = true;
+				return;
+			}
+			const resolvedInput = resolveCodexInput(prompt, attachments);
+			cleanupPaths = resolvedInput.cleanupPaths;
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
-				input: input.slice(),
+				input: resolvedInput.input.slice(),
 				model: resolvedModel.modelId,
 				...turnOptions,
 			}, this._traceContext(session));
@@ -3638,13 +3649,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			this._logService.error(`[Codex:${sessionId}] turn/start error: ${message}`);
+			const operation = isCompactCommand ? 'thread/compact/start' : 'turn/start';
+			this._logService.error(`[Codex:${sessionId}] ${operation} error: ${message}`);
 			const duration = this._clearTurnStopWatch(session);
 			this._fire(sessionUri, {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				error: { errorType: 'CodexTurnError', ...extractForwardedErrorInfo(message) },
+				error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) },
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 		} finally {

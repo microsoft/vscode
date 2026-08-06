@@ -20,7 +20,6 @@ export class EditorHeaderControl extends Disposable {
 	private readonly actionsContainer: HTMLElement | undefined;
 	private readonly primaryActionsContainer: HTMLElement | undefined;
 	private readonly secondaryActionsContainer: HTMLElement | undefined;
-	private readonly layoutActionsSeparator: HTMLElement | undefined;
 	private readonly layoutActionsContainer: HTMLElement | undefined;
 	private primaryActionsToolbar: MenuWorkbenchToolBar | undefined;
 	private secondaryActionsToolbar: MenuWorkbenchToolBar | undefined;
@@ -55,8 +54,6 @@ export class EditorHeaderControl extends Disposable {
 			this.actionsContainer = $('.editor-group-header-actions');
 			this.primaryActionsContainer = append(this.actionsContainer, $('.editor-group-header-primary-actions'));
 			this.secondaryActionsContainer = append(this.actionsContainer, $('.editor-group-header-secondary-actions'));
-			this.layoutActionsSeparator = append(this.actionsContainer, $('.editor-group-header-actions-separator'));
-			this.layoutActionsSeparator.setAttribute('aria-hidden', 'true');
 			this.layoutActionsContainer = append(this.actionsContainer, $('.editor-group-header-layout-actions'));
 			this._register(toDisposable(() => this.headerContainer?.remove()));
 			this._register(this.groupView.onDidActiveEditorChange(() => this.renderActions(true)));
@@ -111,7 +108,7 @@ export class EditorHeaderControl extends Disposable {
 	}
 
 	private updateVisibility(relayout: boolean): void {
-		if (!this.headerContainer || !this.actionsContainer || !this.primaryActionsContainer || !this.secondaryActionsContainer || !this.layoutActionsContainer || !this.layoutActionsSeparator) {
+		if (!this.headerContainer || !this.actionsContainer || !this.primaryActionsContainer || !this.secondaryActionsContainer || !this.layoutActionsContainer) {
 			if (relayout) {
 				this.groupView.relayout();
 			}
@@ -125,10 +122,10 @@ export class EditorHeaderControl extends Disposable {
 		this.secondaryActionsContainer.style.display = hasSecondaryActions ? '' : 'none';
 		this.secondaryActionsContainer.style.marginLeft = hasPrimaryActions ? 'var(--vscode-spacing-size80, 8px)' : '';
 		this.layoutActionsContainer.style.display = hasLayoutActions ? '' : 'none';
-		this.layoutActionsSeparator.style.display = hasSecondaryActions && hasLayoutActions ? '' : 'none';
+		this.layoutActionsContainer.style.marginLeft = hasSecondaryActions && hasLayoutActions ? 'var(--vscode-spacing-size40, 4px)' : '';
 		this.actionsContainer.style.display = hasMenuActions ? '' : 'none';
 		this.actionsContainer.style.flex = this.breadcrumbsVisible ? '0 1 auto' : '1 1 auto';
-		this.actionsContainer.style.gridTemplateColumns = this.breadcrumbsVisible ? 'auto auto auto auto' : 'minmax(0, 1fr) auto auto auto';
+		this.actionsContainer.style.gridTemplateColumns = this.breadcrumbsVisible ? 'auto auto auto' : 'minmax(0, 1fr) auto auto';
 		this.visible = this.breadcrumbsVisible || hasMenuActions;
 		this.headerContainer.style.display = this.visible ? '' : 'none';
 		if (relayout) {
@@ -158,8 +155,9 @@ export class EditorHeaderControl extends Disposable {
 
 		const store = new DisposableStore();
 		const scopedInstantiationService = this.groupView.activeEditorPane?.scopedInstantiationService ?? this.instantiationService;
-		const createToolbarOptions = (ariaLabel: string) => ({
+		const createToolbarOptions = (ariaLabel: string, trailingSeparator = false) => ({
 			ariaLabel,
+			trailingSeparator,
 			menuOptions: {
 				arg: EditorResourceAccessor.getOriginalUri(this.groupView.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
 				shouldForwardArgs: true,
@@ -171,13 +169,14 @@ export class EditorHeaderControl extends Disposable {
 			this.primaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"))));
 			store.add(this.primaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
-		if (headerSecondaryMenuId) {
-			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"))));
-			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
-		}
 		if (headerLayoutMenuId) {
 			this.layoutActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"))));
-			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
+			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.renderActions(true)));
+		}
+		if (headerSecondaryMenuId) {
+			const hasLayoutActions = (this.layoutActionsToolbar?.getItemsLength() ?? 0) > 0;
+			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions)));
+			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;
 		this.updateVisibility(relayout);
