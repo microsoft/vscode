@@ -193,7 +193,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
 		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
 		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
-		// overwritten. See `.github/skills/add-policy/github-managed-settings.md` for the rationale.
+		// overwritten. See `.github/skills/policy-and-managed-settings/github-managed-settings.md` for the rationale.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
 		if (!accountPolicyData && pick.activeSources.length === 0) {
 			return undefined;
