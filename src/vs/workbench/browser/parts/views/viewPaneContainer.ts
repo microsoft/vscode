@@ -632,12 +632,8 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			// pane does not sit flush against the part edge, matching the 4px
 			// horizontal margins on the pane headers. Add 1px for the part's bottom
 			// border so the visible gap lines up with the horizontal margins.
-			// Exception: when the panel is at the TOP, the bottom of the panel
-			// faces the editor card. A 1px inner gap keeps the pane content off the
-			// border, while the CSS inter-card margins (panel 4px + editor 4px)
-			// provide the remaining separation. This totals 10px (1 inner + 1 border
-			// + 4 + 4), matching the bottom panel's bottom-to-status-bar gap
-			// (5 inner + 1 border + 4 CSS = 10px) for visual consistency.
+			// Exception: when the panel is at the TOP, its bottom faces the editor
+			// card, so the tighter inner card gap is sufficient.
 			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
 				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
 					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1

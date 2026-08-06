@@ -15,7 +15,7 @@ import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../.
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, isAncestor, $, clearNode, getWindow } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -57,10 +57,8 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Gutter reserved on the left and bottom edges under the floating panels
-	 * experiment so the activity bar aligns with the floating cards (it stays
-	 * flush with the title bar, so no top gutter). Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
+	 * Base gutter reserved around the activity bar under the floating panels
+	 * experiment. Must match the margins applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
@@ -70,8 +68,8 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	get minimumWidth(): number { return this.baseWidth + this.floatingGutter; }
-	get maximumWidth(): number { return this.baseWidth + this.floatingGutter; }
+	get minimumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
+	get maximumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -93,8 +91,18 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 	}
 
-	/** Extra space reserved around the part when the floating panels experiment is enabled. */
-	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
+	private get floatingHorizontalGutter(): number {
+		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN * 2 : 0;
+	}
+
+	private get floatingVerticalGutter(): number {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+
+		const bottomGutter = this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) ? ActivitybarPart.FLOATING_MARGIN : ActivitybarPart.FLOATING_MARGIN * 2;
+		return ActivitybarPart.FLOATING_MARGIN + bottomGutter;
+	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -267,14 +275,8 @@ export class ActivitybarPart extends Part {
 			return;
 		}
 
-		// When the floating panels experiment is enabled, reserve a gutter on the
-		// left and bottom so the activity bar lines up with the floating cards (it
-		// stays flush with the title bar, so no top gutter). The grid column is grown
-		// by the same amount (see minimum/maximumWidth) and the matching margins are
-		// applied in CSS (`.floating-panels .part.activitybar`).
-		const gutter = this.floatingGutter;
-		const contentWidth = Math.max(0, width - gutter);
-		const contentHeight = Math.max(0, height - gutter);
+		const contentWidth = Math.max(0, width - this.floatingHorizontalGutter);
+		const contentHeight = Math.max(0, height - this.floatingVerticalGutter);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;

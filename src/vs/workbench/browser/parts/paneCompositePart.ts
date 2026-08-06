@@ -665,28 +665,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
-	 * Returns the top margin (in pixels) this part should receive when floating panels
-	 * are enabled. Only the bottom-panel and sibling side bars (when the panel is at the
-	 * top) need a top margin; all other parts sit flush with the title bar.
-	 */
-	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
-		// Bottom panel: needs a top margin only when the editor is visible (inter-card gap).
-		// When maximized (editor hidden) the panel is flush with the title bar — no top margin.
-		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
-			return this.layoutService.isVisible(Parts.EDITOR_PART, getWindow(this.element)) ? margin : 0;
-		}
-		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
-		// is at the top: needs a top margin matching the editor's gap from the panel card.
-		if (panelVisible &&
-			this.layoutService.getPanelPosition() === Position.TOP &&
-			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
-			this.isSidebarSiblingToEditor()) {
-			return margin;
-		}
-		return 0;
-	}
-
-	/**
 	 * Returns whether this part's bottom edge faces the window edge rather than another
 	 * floating card. When the status bar is hidden and this returns `true`, a doubled
 	 * bottom margin is applied so the outer gap matches the doubled side gutters.
@@ -711,8 +689,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * `box-sizing: border-box` in `part.css`). On each window edge this part is the outermost
 	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
 	 * margin, so its width inset is larger on that side.
 	 */
@@ -724,16 +701,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
 		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
-		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
 		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
-		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
-			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
+		const statusBarVisible = this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element));
+		const bottomMargin = isAtWindowBottom
+			? (statusBarVisible ? margin : margin * 2)
+			: FLOATING_PANEL_INNER_MARGIN;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
 		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
-			height: topMargin + bottomMargin + borderTotal
+			height: margin + bottomMargin + borderTotal
 		};
 	}
 

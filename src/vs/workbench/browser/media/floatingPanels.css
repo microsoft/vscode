@@ -22,7 +22,7 @@
 
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar {
-	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
 	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-surface-background) !important;
@@ -31,11 +31,15 @@
 
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
-	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
 	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background) !important;
 	color: var(--vscode-surface-foreground);
+}
+
+.monaco-workbench.floating-panels .part.panel.top {
+	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .monaco-workbench.floating-panels .part.editor > .content {
@@ -61,41 +65,6 @@
 	background-color: var(--vscode-sideBar-background) !important;
 }
 
-/* Side bars sit directly under the title bar — keep them flush (no top margin). */
-.monaco-workbench.floating-panels .part.sidebar,
-.monaco-workbench.floating-panels .part.auxiliarybar {
-	margin-top: 0;
-}
-
-/*
- * When panel is at TOP and sidebars are in the same grid row as the editor (sibling),
- * give them a top margin matching the editor's gap from the panel. Alignment determines
- * which bars are sibling — mirrors adjustPartPositions() in layout.ts.
- * Uses `.panel-alignment-*` and `.left`/`.right` classes set in layout.ts.
- */
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.sidebar,
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.sidebar.left,
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.sidebar.right,
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.auxiliarybar.right {
-	margin-top: var(--vscode-spacing-size40);
-}
-
-/* Panels in top/left/right positions are flush with the title bar (no top margin).
- * The panel element itself carries the position class (e.g. `.top`). */
-.monaco-workbench.floating-panels .part.panel.top,
-.monaco-workbench.floating-panels .part.panel.left,
-.monaco-workbench.floating-panels .part.panel.right {
-	margin-top: 0;
-}
-
-/* When the bottom panel is maximized (editor hidden) it spans the full content height
- * and is flush with the title bar — remove the inter-card top margin. */
-.monaco-workbench.floating-panels.nomaineditorarea .part.panel.bottom {
-	margin-top: 0;
-}
-
 /*
  * When a floating pane composite (primary side bar, secondary side bar or a vertical
  * panel) is the outermost card on a window edge, it adopts a doubled outer gutter so
@@ -110,16 +79,9 @@
 	margin-right: calc(var(--vscode-spacing-size40) * 2);
 }
 
-/* Main editor: float like the other cards, but stay flush with the title bar. */
+/* Main editor: float like the other cards. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
-	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-}
-
-/* When the panel is at the top and visible the editor sits below it — give it a top margin
- * so the inter-card gap matches the gaps between the other floating cards.
- * Requires `.panel-position-top` on `.monaco-workbench` (set in layout.ts). */
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel) > .monaco-grid-view .part.editor {
-	margin-top: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
 }
 
 /*
@@ -135,20 +97,10 @@
 	margin-right: calc(var(--vscode-spacing-size40) * 2);
 }
 
-/* The shell backdrop behind the floating cards matches the editor background. */
+/* The title bar color forms the shell backdrop visible through the floating-card gutters. */
+.monaco-workbench.floating-panels,
 .monaco-workbench.floating-panels > .monaco-grid-view {
-	background-color: var(--vscode-editor-background);
-}
-
-/*
- * Activity bar, status bar and title bar blend into the shell: drop their own
- * background and borders so the editor-colored backdrop shows through.
- */
-.monaco-workbench.floating-panels .part.activitybar,
-.monaco-workbench.floating-panels .part.statusbar,
-.monaco-workbench.floating-panels .part.titlebar {
-	background-color: transparent !important;
-	border-color: transparent !important;
+	background-color: var(--vscode-titleBar-activeBackground);
 }
 
 /* Panel title composite receives an inline border-top color; suppress it in floating mode. */
@@ -156,16 +108,18 @@
 	border-top-color: transparent !important;
 }
 
-/* Activity bar (default position) gets a left and bottom gutter to match the cards. */
+/* The activity bar is an inset navigation rail between the full-width title and status bars. */
 .monaco-workbench.floating-panels .part.activitybar {
-	margin-left: var(--vscode-spacing-size40);
-	margin-bottom: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40);
+	height: calc(100% - (var(--vscode-spacing-size40) * 2));
+	border: var(--vscode-strokeThickness) solid var(--vscode-activityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
-/* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
-.monaco-workbench.floating-panels .part.activitybar.right {
-	margin-left: 0;
-	margin-right: var(--vscode-spacing-size40);
+.monaco-workbench.floating-panels .part.activitybar.bordered::before {
+	display: none;
 }
 
 .monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
@@ -178,27 +132,12 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
-/* The status bar draws its top border via a pseudo-element — hide it too. */
-.monaco-workbench.floating-panels .part.statusbar::after {
-	display: none !important;
-}
-
-/*
- * Modern UI paints the status bar transparent, which suppresses the whole-bar
- * recolor used to signal an active style override (e.g. an active debug session).
- * While an override is active, restore the whole-bar recolor so the cue reads as
- * clearly as it does in the classic UI.
- */
-.monaco-workbench.floating-panels .part.statusbar.has-style-override {
-	background-color: color-mix(in srgb, var(--vscode-statusBar-debuggingBackground) 30%, transparent) !important;
-}
-
-/* Inset and vertically center the status bar items within its floating gutter. */
+/* Inset and vertically center status bar items within the full-width bottom rail. */
 .monaco-workbench.floating-panels .part.statusbar {
 	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size60);
-	padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness)); /* offset for the border-top of the status bar */
-	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
 }
 
 /* With a compact activity bar the horizontal inset is tightened to match. The
@@ -227,9 +166,9 @@
  * bottom edge. Double the bottom margin (4px → 8px) to match the doubled outer gutter
  * applied to other window-edge sides, so all gaps look consistent.
  * Exceptions:
- *   - Panel at TOP: its bottom faces the editor (not the window edge) — keep 4px.
+ *   - Panel at TOP: its bottom faces the editor (not the window edge) — keep 2px.
  *     `.part.panel.top` is intentionally absent from the selector list below.
- *   - Editor when a bottom panel is visible: it abuts the panel card — keep 4px.
+ *   - Editor when a bottom panel is visible: it abuts the panel card — keep 2px.
  * The code-side insets in AbstractPaneCompositePart and EditorPart are kept in sync.
  */
 .monaco-workbench.floating-panels.nostatusbar .part.panel.bottom,
@@ -246,7 +185,7 @@
 
 /*
  * When a visible bottom panel directly abuts the sidebars and/or editor (they share
- * the same grid row), keep the normal trailing 2px margin instead of the doubled 8px.
+ * the same grid row), use the tighter 2px trailing margin instead of an outer gutter.
  * Which bars are in the same row as the editor depends on panel alignment:
  *   justify  → both sidebars are in the top row (above the full-width panel)
  *   left     → the bar on the LEFT is in the top row; the bar on the RIGHT is full-height
@@ -254,18 +193,19 @@
  *   center   → neither sidebar is in the top row (both span full height)
  * Uses `.panel-alignment-*` and `.left`/`.right` position classes set in layout.ts.
  */
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.sidebar,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-left .part.sidebar.left,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.sidebar.right,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.auxiliarybar.right,
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.sidebar,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-left .part.sidebar.left,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-right .part.sidebar.right,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-right .part.auxiliarybar.right,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
 	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
 	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
+	height: calc(100% - (var(--vscode-spacing-size40) * 3));
 }
 
 /*
@@ -300,26 +240,16 @@
  * region by the card margins. Left unadjusted, the hover highlight (`:before`)
  * overshoots into those gaps — the reported "sash extends past the panels". Anchor the
  * highlight with `top`/`bottom` (rather than `height`) so the two insets compose
- * independently across layouts. The base leaves the cards flush with the title bar
- * (`top: 0`) and insets the bottom by the 2px trailing card margin
- * (`--vscode-spacing-size20`). Only the highlight is inset; the sash hit region is
+ * independently across layouts. The base follows the 4px outer shell gutter on
+ * the top and bottom. Only the highlight is inset; the sash hit region is
  * unchanged. In non-justify alignments a full-height side bar (spanning both the panel
  * and editor rows) keeps its own margins, so its highlight may sit up to a card margin
  * short on the abutting edge — an accepted minor cosmetic gap.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash)::before {
-	top: 0;
-	bottom: var(--vscode-spacing-size20);
-	height: auto;
-}
-
-/*
- * Panel docked at the top: the editor and its sibling side/aux bars take a top margin
- * (`--vscode-spacing-size40`); inset the highlight's top to match so it does not
- * overshoot above the cards into that gap.
- */
-.monaco-workbench.floating-panels.panel-position-top:not(.nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	top: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size40);
+	height: auto;
 }
 
 /*

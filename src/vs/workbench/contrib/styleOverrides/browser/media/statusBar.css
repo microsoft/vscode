@@ -4,43 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Status Bar — keep the status bar foreground legible.
- *
- * Some color themes pick the status bar foreground to contrast a distinctly
- * colored status bar background. When that background is neutralized to match
- * the window, the theme's foreground can become invisible. Force the status bar
- * text/icon color (set inline on the part by the workbench) to the general
- * editor foreground so it stays readable across all themes. Items that set
- * their own color (e.g. prominent, error or warning entries) keep theirs.
- */
-.style-override .part.statusbar {
-	color: var(--vscode-foreground) !important;
-}
-
-/*
- * Keep the hover foreground identical to the item's resting foreground. By
- * default hovering a status bar item swaps the text color (to
- * `statusBarItem-hoverForeground`, or the warning/error hover foreground for
- * kind items), which now clashes with the neutralized foreground above.
- * Forcing the hovered anchor to `inherit` makes it pick up its item's resting
- * color — `--vscode-foreground` for standard items, or the kind color for
- * warning/error items — so only the background changes on hover.
- */
-.style-override .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
-	color: inherit !important;
-}
-
-/*
- * Align the standard status bar item hover background with the workbench toolbar
- * hover background so hovering an item matches action buttons elsewhere in the
- * modernized UI. Kind items (warning/error/prominent/remote/offline) keep their
- * own hover backgrounds.
- */
-.style-override .part.statusbar > .items-container > .statusbar-item:not(.warning-kind):not(.error-kind):not(.prominent-kind):not(.remote-kind):not(.offline-kind) > a:hover:not(.disabled) {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
-}
-
-/*
  * Round the status bar item backgrounds to a control-sized pill. The interactive
  * hover/active background lives on the label (`a.statusbar-item-label`); custom
  * and kind (warning/error) backgrounds live on the item container. Round both so
@@ -87,7 +50,7 @@
  */
 .style-override .part.statusbar > .items-container > .statusbar-item.compact-left > a.statusbar-item-label:hover:not(.disabled),
 .style-override .part.statusbar > .items-container > .statusbar-item.compact-right > a.statusbar-item-label:hover:not(.disabled) {
-	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
+	background-image: linear-gradient(var(--vscode-statusBarItem-compactHoverBackground), var(--vscode-statusBarItem-compactHoverBackground));
 }
 
 .style-override .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {

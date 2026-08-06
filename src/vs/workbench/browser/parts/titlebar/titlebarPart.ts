@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, useWindowControlsOverlay, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -827,15 +827,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('inactive');
 			}
 
-			const titleBackground = isNative && isWindows && useWindowControlsOverlay(this.configurationService) && this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true
-				? WORKBENCH_BACKGROUND(this.theme).toString()
-				: this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
-					// LCD Rendering Support: the title bar part is a defining its own GPU layer.
-					// To benefit from LCD font rendering, we must ensure that we always set an
-					// opaque background color. As such, we compute an opaque color given we know
-					// the background color is the workbench background.
-					return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-				}) || '';
+			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
+				// LCD Rendering Support: the title bar part is a defining its own GPU layer.
+				// To benefit from LCD font rendering, we must ensure that we always set an
+				// opaque background color. As such, we compute an opaque color given we know
+				// the background color is the workbench background.
+				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+			}) || '';
 			this.element.style.backgroundColor = titleBackground;
 
 			if (this.appIconBadge) {
@@ -851,7 +849,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
 			this.element.style.color = titleForeground || '';
 
-			const titleBorder = this.getColor(TITLE_BAR_BORDER);
+			const titleBorder = this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? undefined : this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
 	}

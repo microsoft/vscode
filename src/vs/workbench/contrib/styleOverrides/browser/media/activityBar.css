@@ -28,41 +28,13 @@
 	width: calc(var(--activity-bar-action-height, 36px) - 4px);
 	height: calc(var(--activity-bar-action-height, 36px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-toolbar-activeBackground));
 }
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	width: calc(var(--activity-bar-action-height, 28px) - 4px);
 	height: calc(var(--activity-bar-action-height, 28px) - 4px);
-}
-
-/*
- * Some color themes pick the activity bar foreground to contrast a distinctly
- * colored activity bar background. When that background is neutralized to match
- * the window, the theme's foreground can become invisible. Force the item
- * foreground (set inline by the part) to the general editor foreground so icons
- * stay legible across all themes, keeping inactive items dimmed for hierarchy.
- *
- * Codicon items are tinted via `color`. Image (iconUrl) items render as a
- * tinted SVG mask, so the part colors them via `background-color` instead — we
- * mirror the same tint there, scoped to `:not(.codicon)` so codicon items never
- * gain a filled background box.
- */
-.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.codicon {
-	color: var(--vscode-foreground) !important;
-}
-
-.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
-	color: var(--vscode-icon-foreground) !important;
-}
-
-.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label:not(.codicon) {
-	background-color: var(--vscode-foreground) !important;
-}
-
-.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label:not(.codicon) {
-	background-color: var(--vscode-icon-foreground) !important;
 }
 
 /*
@@ -89,7 +61,7 @@
 	width: calc(var(--activity-bar-action-height, 36px) - 4px);
 	height: calc(var(--activity-bar-action-height, 36px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background-color: var(--vscode-list-hoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
@@ -153,7 +125,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+	background-color: var(--vscode-activityBarTop-activeBackground, var(--vscode-toolbar-activeBackground));
 }
 
 /*
@@ -169,23 +141,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-/*
- * Normalize the icon tint to match the default position: the active item uses
- * the editor foreground and inactive items stay dimmed for hierarchy. Codicon
- * items are tinted via `color`; image (iconUrl) items render as a tinted SVG
- * mask, so they are tinted via `background-color` instead.
- */
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon {
-	color: var(--vscode-foreground) !important;
-}
-
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon {
-	color: var(--vscode-descriptionForeground) !important;
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon,
@@ -198,16 +154,6 @@
 .style-override .pane-composite-part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon {
 	top: 0px;
 	left: 0px;
-}
-
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon {
-	background-color: var(--vscode-foreground) !important;
-}
-
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.uri-icon,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.uri-icon {
-	background-color: var(--vscode-descriptionForeground) !important;
 }
 
 /* Render the composite icons at the standard 16px size. */
