@@ -106,6 +106,11 @@ class MockSSHMainService {
 		this._onDidRequestHostKeyVerification.fire(request);
 	}
 
+	/** Test helper: cancel a host key verification as the shared process would. */
+	fireHostKeyVerificationCancel(requestId: string): void {
+		this._onDidCancelHostKeyVerification.fire(requestId);
+	}
+
 	/** Test helper: fire a host key announcement as the shared process would. */
 	fireHostKeysAnnouncement(announcement: ISSHHostKeysAnnouncement): void {
 		this._onDidAnnounceHostKeys.fire(announcement);
@@ -1052,6 +1057,8 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 	let notificationService: CapturingNotificationService;
 	let confirmResult: boolean;
 	let confirmCalls: number;
+	/** When set, the confirm dialog blocks on this until the test releases it. */
+	let confirmGate: (() => Promise<void>) | undefined;
 
 	setup(() => {
 		mainService = disposables.add(new MockSSHMainService());
@@ -1075,9 +1082,13 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
 		confirmResult = false;
 		confirmCalls = 0;
+		confirmGate = undefined;
 		instantiationService.stub(IDialogService, {
 			confirm: (async () => {
 				confirmCalls++;
+				if (confirmGate) {
+					await confirmGate();
+				}
 				return { confirmed: confirmResult };
 			}) as unknown as IDialogService['confirm'],
 		} as Partial<IDialogService>);
@@ -1224,6 +1235,35 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
 			},
 			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
+	});
+
+	test('a late answer to a cancelled prompt cannot grant trust', async () => {
+		// IDialogService.confirm has no cancellation support, so a modal opened
+		// for a connection that then dies stays on screen. Answering "Connect"
+		// afterwards must be inert: no trust stored, no response sent to a
+		// connect attempt that is already gone.
+		let releaseDialog = () => { };
+		const dialogShown = new Promise<void>(resolveShown => {
+			confirmGate = () => {
+				resolveShown();
+				return new Promise<void>(resolve => { releaseDialog = resolve; });
+			};
+		});
+		confirmResult = true;
+
+		mainService.fireHostKeyVerificationRequest(makeHostKeyRequest());
+		await dialogShown;
+		// The connection drops while the user is still looking at the dialog.
+		mainService.fireHostKeyVerificationCancel('hostkey-1');
+		releaseDialog();
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{ responses: [], stored: 0 });
 	});
 
 	test('learns a rotated key announced over an authenticated connection', async () => {

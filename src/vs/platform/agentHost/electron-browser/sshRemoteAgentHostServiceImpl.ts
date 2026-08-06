@@ -602,6 +602,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * Ask the user whether to trust an unrecognized host key, echoing OpenSSH's
 	 * wording so it is recognizable to anyone who has used `ssh` directly.
 	 * Cancel is the default so the safe answer is the one you get by dismissing.
+	 *
+	 * `IDialogService.confirm` accepts no {@link CancellationToken} and offers
+	 * no programmatic dismissal, so unlike the keyboard-interactive quick input
+	 * this modal cannot be torn down if the connection dies while it is open.
+	 * The stale dialog is cosmetic: the caller re-checks cancellation before
+	 * acting on the answer, so a late "Connect" can neither persist trust nor
+	 * revive a dead connect attempt.
 	 */
 	private async _promptForHostKey(request: ISSHHostKeyVerificationRequest, reason: 'unknown' | 'ca-only', token: CancellationToken): Promise<boolean> {
 		if (token.isCancellationRequested) {
