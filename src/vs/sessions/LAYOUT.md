@@ -72,6 +72,10 @@ Editor-content overlays must use the editor pane container rather than the edito
 
 The workbench grid is built with `proportionalLayout: false` (see `createWorkbenchLayout()` in [browser/workbench.ts](src/vs/sessions/browser/workbench.ts)). In this mode the split views do **not** distribute resize deltas proportionally — instead each delta (window resize, or a part being shown/hidden) is absorbed by the highest-`LayoutPriority` view, while the others keep their established sizes. Each part therefore declares an explicit `priority`:
 
+The single-pane layout preserves the established Sessions/Editor ratio when the outer container dimensions change, after the non-proportional grid has laid out its fixed Sidebar and panel. This keeps the two primary horizontal surfaces balanced without allowing the Sidebar or docked Details width to drift; minimum-width constraints still take precedence when the available width is insufficient.
+
+Sidebar visibility is intentionally excluded from that proportional adjustment. The Sessions Part is the high-priority view, so collapsing the Sessions list gives all freed width to the Sessions Part while the Editor and docked Details retain their user-set widths; showing the list takes that width back from Sessions.
+
 | Part | `LayoutPriority` | Width behaviour |
 |------|------------------|-----------------|
 | Sidebar | `Low` | Fixed user-set width; never absorbs deltas. `minimumWidth` 170 (270 web), `maximumWidth` ∞, snaps closed below the minimum. |

@@ -12,31 +12,14 @@ import { DockedEditorInput } from '../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
-import { ISideBarResizeContext, Workbench } from './workbench.js';
-
-interface IDockedSideBarResizeContext extends ISideBarResizeContext {
-	readonly freedSideBarWidth: number;
-	readonly editorSizeBeforeSideBarHide: IViewSize | undefined;
-	readonly detailWidthBeforeSideBarHide: number | undefined;
-}
+import { Workbench } from './workbench.js';
 
 /**
- * Remembers editor/detail widths captured around visibility and sidebar-collapse
- * transitions so the docked side pane restores the user's chosen sizes.
+ * Remembers the editor width captured around visibility transitions.
  */
 export class DockedEditorSizeMemento {
 	/** Editor node size captured when "Hide Editor" is used with the detail still visible. */
 	dockedEditorSizeBeforeHide: IViewSize | undefined;
-	/** Editor node size grown while the sidebar is collapsed (editor content visible). */
-	editorSizeGrownForSidebarHide: IViewSize | undefined;
-	/** Detail-panel width grown while the sidebar is collapsed (editor content hidden). */
-	detailWidthGrownForSidebarHide: number | undefined;
-
-	/** Drop the sidebar-collapse snapshots, e.g. once the node returns to the detail width. */
-	clearSidebarGrowSnapshots(): void {
-		this.editorSizeGrownForSidebarHide = undefined;
-		this.detailWidthGrownForSidebarHide = undefined;
-	}
 }
 
 /**
@@ -166,7 +149,7 @@ export class SinglePaneWorkbench extends Workbench {
 		// The docked auxiliary bar is not a grid view (it lives inside the editor
 		// node), so its width comes from the docked layout state, not the grid.
 		if (view === this.auxiliaryBarPartView) {
-			return this._memento.detailWidthGrownForSidebarHide ?? this._dockedAuxiliaryBarWidth;
+			return this._dockedAuxiliaryBarWidth;
 		}
 		return super._persistedGridViewSize(view, dimension, visible);
 	}
@@ -202,6 +185,50 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _layoutSidePane(): void {
 		this._layoutDockedAuxBar();
+	}
+
+	protected override _layoutGrid(): void {
+		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
+		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		const preserveRatio = this.workbenchGrid.isViewVisible(this.sessionsPartView)
+			&& this.workbenchGrid.isViewVisible(this.editorPartView)
+			&& sessionsSize.width > 0
+			&& editorSize.width > 0;
+
+		super._layoutGrid();
+
+		if (preserveRatio) {
+			this._preserveSessionsEditorRatio(sessionsSize.width, editorSize.width);
+		}
+	}
+
+	private _preserveSessionsEditorRatio(previousSessionsWidth: number, previousEditorWidth: number): void {
+		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
+		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		const previousTotalWidth = previousSessionsWidth + previousEditorWidth;
+		const totalWidth = sessionsSize.width + editorSize.width;
+		if (totalWidth === previousTotalWidth) {
+			return;
+		}
+
+		const minimumEditorWidth = this._minimumPartWidthForActivation(this.editorPartView);
+		const maximumEditorWidth = totalWidth - this._minimumPartWidthForActivation(this.sessionsPartView);
+		if (maximumEditorWidth < minimumEditorWidth) {
+			return;
+		}
+
+		const proportionalEditorWidth = Math.round(totalWidth * previousEditorWidth / previousTotalWidth);
+		const targetEditorWidth = Math.min(maximumEditorWidth, Math.max(minimumEditorWidth, proportionalEditorWidth));
+		if (targetEditorWidth === editorSize.width) {
+			return;
+		}
+
+		this._runWithEditorResizeSyncSuspended(() => {
+			this.workbenchGrid.resizeView(this.editorPartView, {
+				width: targetEditorWidth,
+				height: editorSize.height
+			});
+		});
 	}
 
 	protected override _applyEditorAreaVisibility(): void {
@@ -265,7 +292,6 @@ export class SinglePaneWorkbench extends Workbench {
 				this.partVisibility.editor = false;
 				this._setMainEditorAreaHidden(true);
 				this._editorRevealedExplicitly = false;
-				this._memento.clearSidebarGrowSnapshots();
 				this._layoutDockedAuxBar();
 				this._fireDidChangePartVisibility(Parts.EDITOR_PART, false);
 				this._savePartVisibility();
@@ -324,10 +350,8 @@ export class SinglePaneWorkbench extends Workbench {
 					width: this._dockedAuxiliaryBarWidth,
 					height: this._memento.dockedEditorSizeBeforeHide.height
 				});
-				this._memento.clearSidebarGrowSnapshots();
 			} else {
 				this._memento.dockedEditorSizeBeforeHide = undefined;
-				this._memento.clearSidebarGrowSnapshots();
 			}
 		} else if (dockedEditorSizeBeforeHide) {
 			this.workbenchGrid.resizeView(this.editorPartView, dockedEditorSizeBeforeHide);
@@ -426,62 +450,4 @@ export class SinglePaneWorkbench extends Workbench {
 		}
 	}
 
-	protected override _prepareSideBarResize(hidden: boolean): ISideBarResizeContext {
-		const shouldResize = this.partVisibility.editor || this.partVisibility.auxiliaryBar;
-		// Grow the editor node when the editor is visible, else the detail (keeps node == detail width so reveal-sync can't misfire).
-		const growEditorNode = shouldResize && this.partVisibility.editor;
-		const growDetailPanel = shouldResize && !this.partVisibility.editor;
-		return {
-			freedSideBarWidth: hidden && shouldResize ? this.workbenchGrid.getViewSize(this.sideBarPartView).width : 0,
-			editorSizeBeforeSideBarHide: hidden && growEditorNode ? this.workbenchGrid.getViewSize(this.editorPartView) : undefined,
-			detailWidthBeforeSideBarHide: hidden && growDetailPanel ? this._dockedAuxiliaryBarWidth : undefined,
-		} satisfies IDockedSideBarResizeContext;
-	}
-
-	protected override _applySideBarResize(hidden: boolean, context: ISideBarResizeContext): void {
-		const { freedSideBarWidth, editorSizeBeforeSideBarHide, detailWidthBeforeSideBarHide } = context as IDockedSideBarResizeContext;
-
-		if (editorSizeBeforeSideBarHide) {
-			this._memento.editorSizeGrownForSidebarHide = editorSizeBeforeSideBarHide;
-			this._resizeEditorAfterSidebarChange({
-				width: editorSizeBeforeSideBarHide.width + freedSideBarWidth,
-				height: editorSizeBeforeSideBarHide.height
-			});
-		} else if (detailWidthBeforeSideBarHide !== undefined) {
-			this._memento.detailWidthGrownForSidebarHide = detailWidthBeforeSideBarHide;
-			this._growDetailAfterSidebarChange(detailWidthBeforeSideBarHide + freedSideBarWidth);
-		} else if (!hidden && this._memento.editorSizeGrownForSidebarHide) {
-			this._resizeEditorAfterSidebarChange(this._memento.editorSizeGrownForSidebarHide);
-			this._memento.editorSizeGrownForSidebarHide = undefined;
-		} else if (!hidden && this._memento.detailWidthGrownForSidebarHide !== undefined) {
-			this._growDetailAfterSidebarChange(this._memento.detailWidthGrownForSidebarHide);
-			this._memento.detailWidthGrownForSidebarHide = undefined;
-		} else if (!hidden) {
-			this._memento.clearSidebarGrowSnapshots();
-		}
-	}
-
-	private _resizeEditorAfterSidebarChange(size: IViewSize): void {
-		this._syncingEditorVisibility = true;
-		try {
-			this.workbenchGrid.resizeView(this.editorPartView, size);
-		} finally {
-			this._syncingEditorVisibility = false;
-		}
-		this._layoutDockedAuxBar();
-	}
-
-	private _growDetailAfterSidebarChange(width: number): void {
-		this._dockedAuxiliaryBarWidth = Math.max(DockedAuxiliaryBarController.MIN_WIDTH, width);
-		this._syncingEditorVisibility = true;
-		try {
-			this.workbenchGrid.resizeView(this.editorPartView, {
-				width: this._dockedAuxiliaryBarWidth,
-				height: this.workbenchGrid.getViewSize(this.editorPartView).height
-			});
-		} finally {
-			this._syncingEditorVisibility = false;
-		}
-		this._layoutDockedAuxBar();
-	}
 }
