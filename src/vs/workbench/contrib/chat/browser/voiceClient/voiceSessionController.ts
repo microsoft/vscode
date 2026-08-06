@@ -5318,6 +5318,59 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
+	/**
+	 * A confirmation or question supersedes completed-response audio for the
+	 * same session. Do not make the user hear an older reply before the prompt
+	 * they can act on now.
+	 */
+	private _discardResponsesSupersededByPending(sessionId: string): void {
+		const sessionKey = this._sessionKey(sessionId);
+		const discardedIds = new Set<string>();
+		for (const [narrationId, pending] of this._pendingSolicitedNarrations) {
+			if (pending.kind === 'response' && this._sessionKey(pending.sessionId) === sessionKey) {
+				discardedIds.add(narrationId);
+				this._clearPendingSolicitedNarration(narrationId, pending);
+				this._solicitedNarrationIds.delete(narrationId);
+			}
+		}
+		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
+			const queued = this._audioQueue[i];
+			if (queued.sessionId && this._sessionKey(queued.sessionId) === sessionKey && queued.narration?.kind !== 'confirmation' && queued.narration?.kind !== 'question') {
+				if (queued.responseId) {
+					discardedIds.add(queued.responseId);
+				}
+				this._audioQueue.splice(i, 1);
+			}
+		}
+		const deferred = this._deferredResponses.get(sessionKey);
+		if (deferred) {
+			for (const response of deferred) {
+				if (response.responseId) {
+					discardedIds.add(response.responseId);
+				}
+			}
+			this._deferredResponses.delete(sessionKey);
+		}
+		for (const id of discardedIds) {
+			this._rememberInterruptedAudioId(id);
+		}
+		this._clearPendingResponse(sessionKey);
+		this._clearDeferred(sessionKey);
+		this._lastResponseSummaryById.delete(sessionKey);
+		this._sessionAudioCache.delete(sessionKey);
+		this._maybeHideIndicator(sessionKey);
+
+		const activeIsSupersededResponse = this._currentPlaybackSessionId !== null
+			&& this._currentPlaybackSessionId !== undefined
+			&& this._sessionKey(this._currentPlaybackSessionId) === sessionKey
+			&& this._currentPlaybackNarration?.kind !== 'confirmation'
+			&& this._currentPlaybackNarration?.kind !== 'question';
+		if (activeIsSupersededResponse) {
+			this._rememberInterruptedAudioId(this._currentPlaybackResponseId);
+			this._stopCurrentPlaybackAsInterrupted();
+		}
+	}
+
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
 		const isCheckpointNarration = narration?.kind === 'checkpoint';
 		// An incoming response frame means the assistant is actively replying, so
@@ -5620,6 +5673,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._clearPendingResponse(sessionKey);
 			}
 		} else if (currentState === 'waiting_for_confirmation' && detail) {
+			this._discardResponsesSupersededByPending(sessionId);
 			// `detail` is the prose flattening, which for a question form is just
 			// the question titles; the options the user has to choose between are
 			// not in it, so hearing it leaves them with nothing to say back. Use

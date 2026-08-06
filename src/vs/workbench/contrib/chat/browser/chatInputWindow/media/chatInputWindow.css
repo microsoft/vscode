@@ -275,6 +275,26 @@
 	overflow: visible !important;
 }
 
+.chat-input-window .chat-input-window-pending-widget .monaco-list-rows {
+	height: auto !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row:not(:has(.chat-confirmation-widget-container)) {
+	display: none !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) {
+	position: relative !important;
+	top: auto !important;
+	transform: none !important;
+	height: auto !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) .interactive-item-container,
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) .interactive-item-container > .value {
+	height: auto !important;
+}
+
 .chat-input-window .chat-input-window-pending-widget .monaco-tl-row,
 .chat-input-window .chat-input-window-pending-widget .monaco-tl-contents {
 	height: auto !important;
@@ -286,6 +306,7 @@
 	display: flex;
 	flex-direction: column;
 	flex: none;
+	height: auto !important;
 	min-height: 96px;
 }
 
@@ -300,6 +321,11 @@
 	flex: none;
 	height: auto !important;
 	overflow: visible !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-buttons {
+	flex: none;
+	min-height: 30px;
 }
 
 .chat-input-window .chat-input-window-pending-widget .chat-response-header,

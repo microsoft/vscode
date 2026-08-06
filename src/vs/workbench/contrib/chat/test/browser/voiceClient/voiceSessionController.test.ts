@@ -4027,6 +4027,44 @@ suite('VoiceSessionController', () => {
 		}]);
 	});
 
+	test('an omni confirmation discards older response audio for its session', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined, confirmationType?: VoiceConfirmationType) => void;
+		controller.setTargetSession(resource, 'existing_session');
+		(Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).set(sessionId, 'The older response.');
+		(Reflect.get(controller, '_lastResponseSummaryById') as Map<string, string>).set(sessionId, 'The older response.');
+		(Reflect.get(controller, '_audioQueue') as unknown[]).push({
+			sessionId,
+			responseId: 'older-response',
+			finalized: true,
+			chunks: [{ audio: 'older audio', isFirstChunk: true, isFinal: true, transcript: 'The older response.' }],
+		});
+		(Reflect.get(controller, '_deferredResponses') as Map<string, unknown[]>).set(sessionId, [{
+			responseId: 'older-deferred-response',
+			finalized: true,
+			chunks: [{ audio: 'older deferred audio', isFirstChunk: true, isFinal: true, transcript: 'An older deferred response.' }],
+		}]);
+
+		handleStateChange.call(controller, sessionId, 'waiting_for_confirmation', 'Allow writing the file?', undefined, undefined, 'tool');
+
+		assert.deepStrictEqual({
+			queuedResponses: (Reflect.get(controller, '_audioQueue') as unknown[]).length,
+			deferredResponses: (Reflect.get(controller, '_deferredResponses') as Map<string, unknown[]>).size,
+			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
+			cachedSummaries: (Reflect.get(controller, '_lastResponseSummaryById') as Map<string, string>).size,
+			narrations: voiceClientService.requests.map(request => ({ kind: request.kind, text: request.text })),
+		}, {
+			queuedResponses: 0,
+			deferredResponses: 0,
+			pendingResponses: 0,
+			cachedSummaries: 0,
+			narrations: [{ kind: 'confirmation', text: 'Allow writing the file?' }],
+		});
+	});
+
 	test('does not mark an omni-routed confirmation as pending in the sessions list', () => {
 		const controller = createController(new TestVoiceClientService());
 		const resource = URI.parse('vscode-chat://omni-target');
