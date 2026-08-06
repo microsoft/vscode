@@ -19,7 +19,7 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from './voiceGlow.js';
-import { createVoiceGlowController } from './voiceGlowController.js';
+import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
 import './media/voiceInputDecorations.css';
@@ -88,11 +88,17 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	const win = dom.getWindow(inputContainerEl);
 	let animFrameId: number | undefined;
 	const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
-	const glowController = store.add(createVoiceGlowController(
-		inputContainerEl,
-		() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
-		() => resolveVoiceGlowColors(themeService.getColorTheme()),
-	));
+	let glowController: IVoiceGlowController;
+	try {
+		glowController = store.add(createVoiceGlowController(
+			inputContainerEl,
+			() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+			() => resolveVoiceGlowColors(themeService.getColorTheme()),
+		));
+	} catch (error) {
+		store.dispose();
+		throw error;
+	}
 	store.add(themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 	const startGlowAnimation = () => {
 		if (animFrameId !== undefined) {

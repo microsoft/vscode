@@ -402,19 +402,23 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		widget.setVisible(true);
 		const inputContainer = widget.input.inputContainerElement;
 		if (inputContainer) {
-			this._windowDisposables.add(setupVoiceInputDecorations({
-				voiceSessionController: this.voiceSessionController,
-				ttsPlaybackService: this.ttsPlaybackService,
-				micCaptureService: this.micCaptureService,
-				configurationService: this.configurationService,
-				keybindingService: this.keybindingService,
-				themeService: this.themeService,
-				accessibilityService: this.accessibilityService,
-			}, {
-				inputContainer,
-				isActive: this.voiceSessionController.omniInputActive,
-				isOwner: this.voiceSessionController.omniInputActive,
-			}));
+			try {
+				this._windowDisposables.add(setupVoiceInputDecorations({
+					voiceSessionController: this.voiceSessionController,
+					ttsPlaybackService: this.ttsPlaybackService,
+					micCaptureService: this.micCaptureService,
+					configurationService: this.configurationService,
+					keybindingService: this.keybindingService,
+					themeService: this.themeService,
+					accessibilityService: this.accessibilityService,
+				}, {
+					inputContainer,
+					isActive: this.voiceSessionController.omniInputActive,
+					isOwner: this.voiceSessionController.omniInputActive,
+				}));
+			} catch (error) {
+				this.logService.error('[chatInputWindow] Failed to initialize voice decorations', error);
+			}
 		}
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });

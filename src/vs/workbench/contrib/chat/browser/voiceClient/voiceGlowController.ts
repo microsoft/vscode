@@ -351,31 +351,36 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		private readonly _colorsProvider: () => IVoiceGlowColors = () => DEFAULT_VOICE_GLOW_COLORS,
 	) {
 		super();
-		this._colors = this._colorsProvider();
-		_target.style.position = _target.style.position || 'relative';
+		try {
+			this._colors = this._colorsProvider();
+			_target.style.position = _target.style.position || 'relative';
 
-		const doc = _target.ownerDocument;
-		const createSlot = (): HTMLElement => {
-			const el = doc.createElement('div');
-			el.className = 'voice-glow-slot';
-			// Above the transcript overlay, which is opaque and would otherwise
-			// paint over the top of the box and leave the glow visible only along
-			// the bottom toolbar strip.
-			el.style.zIndex = '11';
-			_target.appendChild(el);
-			this._register(toDisposable(() => el.remove()));
-			this._mounts.set(el, this._register(new MutableDisposable<IMountedLayer>()));
-			return el;
-		};
-		this._slots = [createSlot(), createSlot()];
+			const doc = _target.ownerDocument;
+			const createSlot = (): HTMLElement => {
+				const el = doc.createElement('div');
+				el.className = 'voice-glow-slot';
+				// Above the transcript overlay, which is opaque and would otherwise
+				// paint over the top of the box and leave the glow visible only along
+				// the bottom toolbar strip.
+				el.style.zIndex = '11';
+				_target.appendChild(el);
+				this._register(toDisposable(() => el.remove()));
+				this._mounts.set(el, this._register(new MutableDisposable<IMountedLayer>()));
+				return el;
+			};
+			this._slots = [createSlot(), createSlot()];
 
-		this._register(toDisposable(() => {
-			this._disposed = true;
-			if (this._clearTimer !== undefined) {
-				clearTimeout(this._clearTimer);
-				this._clearTimer = undefined;
-			}
-		}));
+			this._register(toDisposable(() => {
+				this._disposed = true;
+				if (this._clearTimer !== undefined) {
+					clearTimeout(this._clearTimer);
+					this._clearTimer = undefined;
+				}
+			}));
+		} catch (error) {
+			this.dispose();
+			throw error;
+		}
 	}
 
 	override dispose(): void {
