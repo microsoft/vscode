@@ -35,6 +35,7 @@ import { IVersion, tryParseVersion } from '../common/updateUtils.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
+export const CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -152,7 +153,10 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 			id: 'update.restart',
 			title: nls.localize('restartToUpdate', "Restart to Update (1)")
 		},
-		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+		when: ContextKeyExpr.and(
+			CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+			CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.negate()
+		)
 	});
 }
 

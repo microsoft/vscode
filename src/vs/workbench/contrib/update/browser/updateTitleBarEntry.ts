@@ -26,13 +26,13 @@ import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS } from './update.js';
 import { computeProgressPercent } from '../common/updateUtils.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
-const UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);
 
 const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -64,7 +64,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			menu: [{
 				id: MenuId.TitleBarUpdate,
 				order: 0,
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode'), UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate()),
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode'), CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.negate()),
 			}]
 		});
 	}
@@ -102,7 +102,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this.context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
 		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
-		const chatInProgressContext = UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.bindTo(contextKeyService);
+		const chatInProgressContext = CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			chatInProgressContext.set(chatService.requestInProgressObs.read(reader));
 		}));
@@ -127,13 +127,14 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 		if (additionalMenuPlacement) {
 			const { menuId, item } = additionalMenuPlacement;
+			// Chat-in-progress hide stays on the editor title bar; Agents keeps Update visible (#328473).
 			MenuRegistry.appendMenuItem(menuId, {
 				...item,
 				command: {
 					id: UPDATE_TITLE_BAR_ACTION_ID,
 					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate(), item.when),
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, item.when),
 			});
 			this._register(actionViewItemService.register(
 				menuId,
@@ -244,6 +245,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super(undefined, action, options);
 
@@ -311,6 +313,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				commandId = 'update.install';
 				break;
 			case StateType.Ready:
+				// Don't quit while a chat request is running; show the tooltip instead.
+				if (this.chatService.requestInProgressObs.get()) {
+					this.showTooltip(true);
+					return;
+				}
 				commandId = 'update.restart';
 				break;
 			default:
