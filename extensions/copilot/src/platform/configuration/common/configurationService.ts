@@ -632,6 +632,13 @@ export namespace ConfigKey {
 		 * Experiment-based so it can be remotely disabled; an explicit user setting still wins.
 		 */
 		export const AutoModeV2Enabled = defineSetting<boolean>('chat.autoMode.v2.enabled', ConfigType.ExperimentBased, true, undefined, undefined, { experimentName: 'copilotchat.autoModeV2Enabled' });
+
+		/**
+		 * Offer routing tiers on the Auto model. Requires {@link AutoModeV2Enabled},
+		 * since `tier` is only understood by `POST /auto`. Off by default: while
+		 * disabled no tier is sent and the server picks its own routing profile.
+		 */
+		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.autoModeTiersEnabled' });
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
@@ -754,8 +761,8 @@ export namespace ConfigKey {
 
 		/**
 		 * Internal: override the routing tier sent to `POST /auto`, ignoring both the
-		 * model picker and the tier inline surfaces would otherwise be pinned to.
-		 * Unlike the picker this accepts `fast`, so evals can exercise every profile.
+		 * model picker and the tier inline chat defaults to. Unlike the picker this
+		 * accepts `fast`, so evals can exercise every profile.
 		 */
 		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 

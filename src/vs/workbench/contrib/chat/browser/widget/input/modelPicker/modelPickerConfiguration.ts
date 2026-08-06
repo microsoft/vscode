@@ -21,7 +21,7 @@ type ChatThinkingEffortChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the thinking effort is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
-	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configuration property that was changed, e.g. reasoningEffort or tier for the Auto model' };
+	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The first-party configuration property that was changed (reasoningEffort, or tier for the Auto model); "unknown" for third-party providers, which choose their own keys' };
 	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
 	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
 };
@@ -251,7 +251,9 @@ export class ModelPickerConfiguration {
 			(value, enumLabel) => enumLabel ?? String(value),
 			(value, previousValue, key) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
 				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				property: key,
+				// Third-party providers choose their own property keys, so only
+				// first-party ones are reported as a controlled vocabulary.
+				property: model.metadata.vendor === 'copilot' ? key : 'unknown',
 				fromValue: previousValue,
 				toValue: String(value),
 			}),

@@ -51,6 +51,7 @@ import { TestLogService } from '../../../platform/testing/common/testLogService'
 import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IGithubAvailableEmbeddingTypesService, MockGithubAvailableEmbeddingTypesService } from '../../../platform/workspaceChunkSearch/common/githubAvailableEmbeddingTypes';
 import { IWorkspaceChunkSearchService, NullWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
+import { Event } from '../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
@@ -217,9 +218,11 @@ class NullAutomodeService implements IAutomodeService {
 		return undefined;
 	}
 
-	isAutoV2Enabled(): boolean {
+	areAutoModeTiersSupported(): boolean {
 		return false;
 	}
+
+	readonly onDidChangeAutoModeTierSupport = Event.None;
 
 	invalidateRouterCache(): void { }
 }

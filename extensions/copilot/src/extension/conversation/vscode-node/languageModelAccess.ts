@@ -303,6 +303,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
+		this._register(this._automodeService.onDidChangeAutoModeTierSupport(() => {
+			// Withdraws (or restores) the Auto model's tier picker, which is only
+			// honored while routing goes through `POST /auto`.
+			this._onDidChange.fire();
+		}));
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -333,7 +338,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const seenFamilies = new Set<string>();
 		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
-		const autoTiersEnabled = this._automodeService.isAutoV2Enabled();
+		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {

@@ -1406,21 +1406,23 @@ describe('AutomodeService', () => {
 		});
 	});
 	describe('single-call Auto endpoint (POST /auto)', () => {
-		function enableAutoV2(): void {
-			configurationService = new InMemoryConfigurationService(
-				new DefaultsOnlyConfigurationService(),
-				new Map([[ConfigKey.Advanced.AutoModeV2Enabled, true]]),
-			);
-		}
-
-		function enableAutoV2WithTierOverride(override: string): void {
+		function enableAutoV2(overrides: Map<BaseConfig<unknown>, unknown> = new Map()): void {
 			configurationService = new InMemoryConfigurationService(
 				new DefaultsOnlyConfigurationService(),
 				new Map<BaseConfig<unknown>, unknown>([
 					[ConfigKey.Advanced.AutoModeV2Enabled, true],
-					[ConfigKey.Advanced.AutoModeTierOverride, override],
+					...overrides,
 				]),
 			);
+		}
+
+		/** Tiers are experiment-gated and off by default, so tier tests opt in. */
+		function enableAutoV2WithTiers(): void {
+			enableAutoV2(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTiersEnabled, true]]));
+		}
+
+		function enableAutoV2WithTierOverride(override: string): void {
+			enableAutoV2(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTierOverride, override]]));
 		}
 
 		function makeAutoResponse(body: unknown, status = 200) {
@@ -1493,7 +1495,7 @@ describe('AutomodeService', () => {
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [visionEndpoint]);
 
 			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
-			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'describe this', has_image: true, tier: 'balanced' });
+			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'describe this', has_image: true });
 		});
 
 		it('reuses the resolved endpoint for later turns in the same conversation', async () => {
@@ -1710,7 +1712,7 @@ describe('AutomodeService', () => {
 		});
 
 		it('routes inline chat through /auto with the fast tier', async () => {
-			enableAutoV2();
+			enableAutoV2WithTiers();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -1734,8 +1736,8 @@ describe('AutomodeService', () => {
 			expect(tiers).toEqual(['fast', 'fast', 'fast']);
 		});
 
-		it('ignores a configured tier for inline chat', async () => {
-			enableAutoV2();
+		it('honors an explicit tier selection on inline surfaces', async () => {
+			enableAutoV2WithTiers();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -1752,11 +1754,11 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
-			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'test prompt', tier: 'fast' });
+			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'test prompt', tier: 'max' });
 		});
 
 		it('sends the tier picked in the model configuration', async () => {
-			enableAutoV2();
+			enableAutoV2WithTiers();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -1777,7 +1779,7 @@ describe('AutomodeService', () => {
 		});
 
 		it('falls back to the default tier when the configured tier is not user selectable', async () => {
-			enableAutoV2();
+			enableAutoV2WithTiers();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -1798,7 +1800,7 @@ describe('AutomodeService', () => {
 		});
 
 		it('re-routes the conversation when the tier changes', async () => {
-			enableAutoV2();
+			enableAutoV2WithTiers();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -1882,7 +1884,10 @@ describe('AutomodeService', () => {
 				selected_model: { id: 'gpt-4o' },
 			});
 
-			enableAutoV2WithTierOverride('turbo');
+			enableAutoV2(new Map<BaseConfig<unknown>, unknown>([
+				[ConfigKey.Advanced.AutoModeTiersEnabled, true],
+				[ConfigKey.Advanced.AutoModeTierOverride, 'turbo'],
+			]));
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Panel,
@@ -1890,6 +1895,142 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-bogus',
 				modelConfiguration: { tier: 'max' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
+			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'panel turn', tier: 'max' });
+		});
+
+		it('withdraws tier support and announces it when /auto is gated off', async () => {
+			enableAutoV2WithTiers();
+			mockAuto({ error: 'not_found' }, 404);
+
+			automodeService = createService();
+			expect(automodeService.areAutoModeTiersSupported()).toBe(true);
+
+			let announced = 0;
+			const listener = automodeService.onDidChangeAutoModeTierSupport(() => announced++);
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-auto-v2-404',
+			} as ChatRequest, [mockChatEndpoint]);
+			listener.dispose();
+
+			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 1, supported: false });
+		});
+
+		it('does not reuse a cached endpoint from a different tier when /auto fails', async () => {
+			enableAutoV2WithTiers();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			const chatRequest = {
+				location: ChatLocation.Panel,
+				prompt: 'first turn',
+				sessionId: 'session-auto-v2-tier-error',
+				modelConfiguration: { tier: 'eco' },
+			} as unknown as ChatRequest;
+			const first = await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+			expect(first.model).toBe('gpt-4o');
+
+			// The tier changes and the re-route fails: the eco endpoint must not be
+			// handed back as though it satisfied the new tier.
+			mockAuto({ error: 'server_error' }, 500);
+			const second = await automodeService.resolveAutoModeEndpoint({
+				...chatRequest,
+				prompt: 'second turn',
+				modelConfiguration: { tier: 'max' },
+			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(second.model).toBe(mockChatEndpoint.model);
+		});
+
+		it('keeps inline requests from overwriting the discount shown in the picker', async () => {
+			enableAutoV2WithTiers();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+				discounted_costs: { 'gpt-4o': 0.2 },
+			});
+
+			automodeService = createService();
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'panel turn',
+				sessionId: 'session-discount-panel',
+			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+				discounted_costs: { 'gpt-4o': 0.9 },
+			});
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Editor,
+				prompt: 'inline turn',
+				sessionId: 'session-discount-inline',
+			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(await automodeService.getAutoPickerMetadata()).toEqual({ discountRange: { low: 0.2, high: 0.2 } });
+		});
+
+		// Tiers are experiment-gated, so until the experiment reaches a user the
+		// request must look exactly as it did before tiers existed.
+		it('omits the tier and hides the picker while tiers are disabled', async () => {
+			enableAutoV2();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			for (const location of [ChatLocation.Panel, ChatLocation.Editor]) {
+				await automodeService.resolveAutoModeEndpoint({
+					location,
+					prompt: 'test prompt',
+					sessionId: `session-tiers-off-${location}`,
+					modelConfiguration: { tier: 'max' },
+				} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+			}
+
+			const bodies = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls
+				.filter(c => c[1]?.type === RequestType.Auto)
+				.map(c => JSON.parse(c[0].body));
+			expect({ bodies, supported: automodeService.areAutoModeTiersSupported() }).toEqual({
+				bodies: [
+					{ prompt: 'test prompt' },
+					{ prompt: 'test prompt' },
+				],
+				supported: false,
+			});
+		});
+
+		// Evals need to exercise tiers before the experiment reaches them.
+		it('honors the tier override while tiers are disabled', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			enableAutoV2WithTierOverride('max');
+			automodeService = createService();
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'panel turn',
+				sessionId: 'session-override-tiers-off',
+			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
 			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'panel turn', tier: 'max' });

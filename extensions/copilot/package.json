@@ -4467,22 +4467,8 @@
               "string",
               "null"
             ],
-            "enum": [
-              null,
-              "eco",
-              "balanced",
-              "max",
-              "fast"
-            ],
-            "enumDescriptions": [
-              "Do not override the tier.",
-              "Cheaper models for everyday tasks.",
-              "Balances capability and cost.",
-              "Most capable models, higher cost.",
-              "Lowest latency models. Normally reserved for inline chat."
-            ],
             "default": null,
-            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat is otherwise pinned to. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
+            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat defaults to. Accepts `eco`, `balanced`, `max`, or `fast`. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
             "tags": [
               "advanced"
             ]
@@ -5184,6 +5170,15 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.chat.autoMode.v2.enabled%",
+            "tags": [
+              "advanced",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.autoMode.tiers.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.chat.autoMode.tiers.enabled%",
             "tags": [
               "advanced",
               "onExp"
