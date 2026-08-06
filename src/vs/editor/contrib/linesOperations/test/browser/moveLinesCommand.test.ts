@@ -10,7 +10,7 @@ import { ILanguageService } from '../../../../common/languages/language.js';
 import { IndentationRule } from '../../../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { LanguageService } from '../../../../common/services/languageService.js';
-import { MoveLinesCommand } from '../../browser/moveLinesCommand.js';
+import { MoveLinesCommand, MoveLinesOverFoldCommand } from '../../browser/moveLinesCommand.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
 import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
 
@@ -459,5 +459,118 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 		mode.dispose();
 		languageService.dispose();
 		languageConfigurationService.dispose();
+	});
+});
+
+suite('Editor Contrib - Move Lines Over Fold Command', () => {
+
+	const disposables = new DisposableStore();
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	function testMoveLinesOverFoldDown(lines: string[], selection: Selection, foldStartLine: number, foldEndLine: number, expectedLines: string[], expectedSelection: Selection): void {
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		testCommand(lines, null, selection, (accessor, sel) => new MoveLinesOverFoldCommand(sel, true, foldStartLine, foldEndLine), expectedLines, expectedSelection);
+	}
+
+	function testMoveLinesOverFoldUp(lines: string[], selection: Selection, foldStartLine: number, foldEndLine: number, expectedLines: string[], expectedSelection: Selection): void {
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		testCommand(lines, null, selection, (accessor, sel) => new MoveLinesOverFoldCommand(sel, false, foldStartLine, foldEndLine), expectedLines, expectedSelection);
+	}
+
+	test('move single line down over fold', function () {
+		testMoveLinesOverFoldDown(
+			[
+				'line 1',
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line 5',
+			],
+			new Selection(1, 1, 1, 7),
+			2, 4, // fold covers lines 2-4
+			[
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line 1',
+				'line 5',
+			],
+			new Selection(4, 1, 4, 7)
+		);
+	});
+
+	test('move single line up over fold', function () {
+		testMoveLinesOverFoldUp(
+			[
+				'line 1',
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line 5',
+			],
+			new Selection(5, 1, 5, 7),
+			2, 4, // fold covers lines 2-4
+			[
+				'line 1',
+				'line 5',
+				'function foo() {',
+				'    return 1;',
+				'}',
+			],
+			new Selection(2, 1, 2, 7)
+		);
+	});
+
+	test('move multi-line selection down over fold', function () {
+		testMoveLinesOverFoldDown(
+			[
+				'line A',
+				'line B',
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line C',
+			],
+			new Selection(1, 1, 2, 7),
+			3, 5, // fold covers lines 3-5
+			[
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line A',
+				'line B',
+				'line C',
+			],
+			new Selection(4, 1, 5, 7)
+		);
+	});
+
+	test('move multi-line selection up over fold', function () {
+		testMoveLinesOverFoldUp(
+			[
+				'line A',
+				'function foo() {',
+				'    return 1;',
+				'}',
+				'line B',
+				'line C',
+			],
+			new Selection(5, 1, 6, 7),
+			2, 4, // fold covers lines 2-4
+			[
+				'line A',
+				'line B',
+				'line C',
+				'function foo() {',
+				'    return 1;',
+				'}',
+			],
+			new Selection(2, 1, 3, 7)
+		);
 	});
 });

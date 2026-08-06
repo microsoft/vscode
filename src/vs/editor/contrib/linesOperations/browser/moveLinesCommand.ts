@@ -421,3 +421,79 @@ export class MoveLinesCommand implements ICommand {
 		return result;
 	}
 }
+
+/**
+ * Moves a selection over a collapsed folding region, keeping the fold intact.
+ */
+export class MoveLinesOverFoldCommand implements ICommand {
+
+	private readonly _selection: Selection;
+	private readonly _isMovingDown: boolean;
+	private readonly _foldStartLine: number;
+	private readonly _foldEndLine: number;
+	private _selectionId: string | null;
+
+	constructor(selection: Selection, isMovingDown: boolean, foldStartLine: number, foldEndLine: number) {
+		this._selection = selection;
+		this._isMovingDown = isMovingDown;
+		this._foldStartLine = foldStartLine;
+		this._foldEndLine = foldEndLine;
+		this._selectionId = null;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		const s = this._selection;
+		const foldSize = this._foldEndLine - this._foldStartLine + 1;
+
+		if (this._isMovingDown) {
+			// Moving selection down past a fold:
+			// [selection lines] [fold lines] → [fold lines] [selection lines]
+			const selectionText = model.getValueInRange(
+				new Range(s.startLineNumber, 1, s.endLineNumber, model.getLineMaxColumn(s.endLineNumber))
+			);
+			const foldText = model.getValueInRange(
+				new Range(this._foldStartLine, 1, this._foldEndLine, model.getLineMaxColumn(this._foldEndLine))
+			);
+
+			builder.addEditOperation(
+				new Range(s.startLineNumber, 1, this._foldEndLine, model.getLineMaxColumn(this._foldEndLine)),
+				foldText + '\n' + selectionText
+			);
+
+			const newSelection = new Selection(
+				s.startLineNumber + foldSize,
+				s.startColumn,
+				s.endLineNumber + foldSize,
+				s.endColumn
+			);
+			this._selectionId = builder.trackSelection(newSelection);
+
+		} else {
+			// Moving selection up past a fold:
+			// [fold lines] [selection lines] → [selection lines] [fold lines]
+			const selectionText = model.getValueInRange(
+				new Range(s.startLineNumber, 1, s.endLineNumber, model.getLineMaxColumn(s.endLineNumber))
+			);
+			const foldText = model.getValueInRange(
+				new Range(this._foldStartLine, 1, this._foldEndLine, model.getLineMaxColumn(this._foldEndLine))
+			);
+
+			builder.addEditOperation(
+				new Range(this._foldStartLine, 1, s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)),
+				selectionText + '\n' + foldText
+			);
+
+			const newSelection = new Selection(
+				s.startLineNumber - foldSize,
+				s.startColumn,
+				s.endLineNumber - foldSize,
+				s.endColumn
+			);
+			this._selectionId = builder.trackSelection(newSelection);
+		}
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this._selectionId!);
+	}
+}
