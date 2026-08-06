@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -79,7 +80,7 @@ function voiceModelReference(model: ILanguageModelChatMetadataAndIdentifier): IV
 }
 
 function normalizeModelName(value: string): string {
-	return value.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /** Resolve only exact identifiers or unique normalized names; never guess among similar models. */
@@ -363,33 +364,47 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		{ ok: true; resources: readonly URI[] }
 		| { ok: false; reason: NonNullable<IVoiceAttachmentResult['reason']>; candidates?: readonly string[] }
 	> {
-		const rawValues = [args['uri'], args['path'], ...(Array.isArray(args['uris']) ? args['uris'] : []), ...(Array.isArray(args['paths']) ? args['paths'] : [])]
+		const uriValues = [args['uri'], ...(Array.isArray(args['uris']) ? args['uris'] : [])]
 			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-		if (rawValues.length === 0) {
+		const pathValues = [args['path'], ...(Array.isArray(args['paths']) ? args['paths'] : [])]
+			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		if (uriValues.length === 0 && pathValues.length === 0) {
 			const activeResource = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			return activeResource ? { ok: true, resources: [activeResource] } : { ok: false, reason: 'no_file' };
 		}
 
 		const resources: URI[] = [];
-		for (const rawValue of rawValues) {
+		for (const rawValue of uriValues) {
 			const value = rawValue.trim();
-			const parsed = URI.parse(value);
-			if (parsed.scheme) {
-				if (!await this.fileService.exists(parsed)) {
+			let resource: URI;
+			try {
+				resource = URI.parse(value, true);
+			} catch {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			if (!await this.fileService.exists(resource)) {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			resources.push(resource);
+		}
+
+		for (const rawValue of pathValues) {
+			const value = rawValue.trim();
+			const isWindowsPath = win32.isAbsolute(value);
+			if (isWindowsPath || posix.isAbsolute(value)) {
+				const resource = URI.file(isWindowsPath ? value.replaceAll('\\', '/') : value);
+				if (!await this.fileService.exists(resource)) {
 					return { ok: false, reason: 'file_not_found', candidates: [value] };
 				}
-				resources.push(parsed);
+				resources.push(resource);
 				continue;
 			}
 
-			const relativePath = value.replace(/^\.\//, '');
-			const matches: URI[] = [];
-			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				const candidate = URI.joinPath(folder.uri, relativePath);
-				if (await this.fileService.exists(candidate)) {
-					matches.push(candidate);
-				}
-			}
+			const relativePath = value.replace(/^\.[\\/]/, '').replaceAll('\\', '/');
+			const candidates = this.workspaceContextService.getWorkspace().folders
+				.map(folder => URI.joinPath(folder.uri, relativePath));
+			const exists = await Promise.all(candidates.map(candidate => this.fileService.exists(candidate)));
+			const matches = candidates.filter((_candidate, index) => exists[index]);
 			if (matches.length === 0) {
 				return { ok: false, reason: 'file_not_found', candidates: [value] };
 			}
@@ -673,21 +688,24 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		});
 
 		for (const model of this.chatService.chatModels.get()) {
-			if (agentResources.has(model.sessionResource.toString()) || model.getRequests().length === 0) {
+			const sessionId = model.sessionResource.toString();
+			const isActive = activeResource?.toString() === sessionId;
+			if (agentResources.has(sessionId) || (model.getRequests().length === 0 && !isActive)) {
 				continue;
 			}
 			const needsInput = model.requestNeedsInput?.get();
 			const inProgress = model.hasActiveRequest?.get();
+			const lastActivity = model.lastMessageDate || 0;
 			sessionData.push({
-				id: model.sessionResource.toString(),
+				id: sessionId,
 				label: model.title || undefined,
 				session_type: 'chat',
 				state: needsInput ? 'waiting_for_input' : inProgress ? 'working' : 'idle',
-				is_active: activeResource?.toString() === model.sessionResource.toString(),
+				is_active: isActive,
 				insertions: 0,
 				deletions: 0,
-				last_activity: model.lastMessageDate,
-				last_activity_minutes_ago: Math.max(0, Math.round((Date.now() - model.lastMessageDate) / 60000)),
+				last_activity: lastActivity,
+				last_activity_minutes_ago: lastActivity ? Math.max(0, Math.round((Date.now() - lastActivity) / 60000)) : undefined,
 				last_response_summary: lastResponseSummary(model),
 				...inputDetails(model),
 			});

@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
+import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -59,40 +59,246 @@ suite('VoiceToolDispatchService - model selection', () => {
 suite('VoiceToolDispatchService - session actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('focusing a session also retargets subsequent voice turns', async () => {
-		const resource = URI.parse('agent-session://test/target');
+	interface IActionHarnessOptions {
+		readonly currentResource?: URI;
+		readonly targetResource?: URI;
+		readonly agentSessionResources?: readonly URI[];
+		readonly chatModels?: readonly IChatModel[];
+		readonly activeEditorResource?: URI;
+		readonly workspaceFolders?: readonly URI[];
+		readonly existingResources?: ReadonlySet<string>;
+		readonly selectModelResult?: IVoiceModelSelectionResult;
+		readonly switchSucceeds?: boolean;
+	}
+
+	function createActionHarness(options: IActionHarnessOptions = {}) {
+		const calls = {
+			switchedTo: [] as URI[],
+			targeted: [] as URI[],
+			selectedModels: [] as string[],
+			attachedResources: [] as Array<readonly URI[]>,
+		};
+		let currentResource = options.currentResource;
+		let targetResource = options.targetResource;
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
-				return { sessions: [{ isArchived: () => false, resource }] } as IAgentSessionsModel;
+				return {
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource })),
+				} as IAgentSessionsModel;
 			}
 		};
 		const chatService = new class extends mock<IChatService>() {
-			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
+		};
+		const editorService = new class extends mock<IEditorService>() {
+			override get activeEditor(): IEditorService['activeEditor'] {
+				return options.activeEditorResource ? { resource: options.activeEditorResource } as IEditorService['activeEditor'] : undefined;
+			}
+		};
+		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace(): ReturnType<IWorkspaceContextService['getWorkspace']> {
+				return {
+					folders: (options.workspaceFolders ?? []).map((uri, index) => ({ uri, index, name: `folder-${index}` })),
+				} as ReturnType<IWorkspaceContextService['getWorkspace']>;
+			}
+		};
+		const fileService = new class extends mock<IFileService>() {
+			override async exists(resource: URI): Promise<boolean> {
+				return options.existingResources?.has(resource.toString()) ?? false;
+			}
 		};
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IEditorService>() { },
-			new class extends mock<IWorkspaceContextService>() { },
-			new class extends mock<IFileService>() { },
+			editorService,
+			workspaceContextService,
+			fileService,
 		);
-		let switchedTo: URI | undefined;
-		let target: URI | undefined;
 		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
-			override async getCurrentSessionResource(): Promise<undefined> { return undefined; }
-			override async switchToSession(value: URI): Promise<boolean> { switchedTo = value; return true; }
-			override setTargetSession(value: URI): void { target = value; }
+			override async getCurrentSessionResource(): Promise<URI | undefined> { return currentResource; }
+			override async switchToSession(resource: URI): Promise<boolean> {
+				calls.switchedTo.push(resource);
+				if (options.switchSucceeds === false) {
+					return false;
+				}
+				currentResource = resource;
+				return true;
+			}
+			override setTargetSession(resource: URI): void {
+				targetResource = resource;
+				calls.targeted.push(resource);
+			}
+			override getTargetSessionResource(): URI | undefined { return targetResource; }
+			override async selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult> {
+				calls.selectedModels.push(requestedModel);
+				return options.selectModelResult ?? {
+					ok: true,
+					selected_model: { identifier: requestedModel, name: requestedModel, vendor: 'test' },
+				};
+			}
+			override async attachFiles(resources: readonly URI[]) {
+				calls.attachedResources.push(resources);
+				return { ok: true, attached: resources.map(resource => resource.toString()) };
+			}
 		}());
+		return { service, calls };
+	}
 
-		const result = JSON.parse(await service.dispatchToolCall({
-			name: 'focus_session',
-			args: { coding_session_id: resource.toString() },
-		} as unknown as IVoiceToolCall));
+	async function dispatch(service: VoiceToolDispatchService, name: string, args: Record<string, unknown> = {}) {
+		return JSON.parse(await service.dispatchToolCall({ name, args } as IVoiceToolCall));
+	}
+
+	test('focusing a session also retargets subsequent voice turns', async () => {
+		const resource = URI.parse('agent-session://test/target');
+		const { service, calls } = createActionHarness({ agentSessionResources: [resource] });
+
+		const result = await dispatch(service, 'focus_session', { coding_session_id: resource.toString() });
 
 		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
-		assert.strictEqual(switchedTo?.toString(), resource.toString());
-		assert.strictEqual(target?.toString(), resource.toString());
+		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
+		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+	});
+
+	test('sets a model on the current session without changing the voice target', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const { service, calls } = createActionHarness({ currentResource });
+
+		const result = await dispatch(service, 'set_model', { model: 'GPT-5' });
+
+		assert.deepStrictEqual(result, {
+			ok: true,
+			selected_model: { identifier: 'GPT-5', name: 'GPT-5', vendor: 'test' },
+		});
+		assert.deepStrictEqual(calls.selectedModels, ['GPT-5']);
+		assert.deepStrictEqual(calls.switchedTo, []);
+		assert.deepStrictEqual(calls.targeted, []);
+	});
+
+	test('targets a requested session and preserves a model selection failure', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const targetResource = URI.parse('vscode-chat://test/target');
+		const targetModel = { sessionResource: targetResource } as IChatModel;
+		const { service, calls } = createActionHarness({
+			currentResource,
+			chatModels: [targetModel],
+			selectModelResult: { ok: false, reason: 'selection_failed' },
+		});
+
+		const result = await dispatch(service, 'set_model', { model_id: 'copilot/gpt-5', coding_session_id: targetResource.toString() });
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'selection_failed' });
+		assert.strictEqual(calls.switchedTo[0]?.toString(), targetResource.toString());
+		assert.strictEqual(calls.targeted[0]?.toString(), targetResource.toString());
+		assert.deepStrictEqual(calls.selectedModels, ['copilot/gpt-5']);
+	});
+
+	test('does not select a model when the requested session cannot be found or shown', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const targetResource = URI.parse('vscode-chat://test/target');
+		const targetModel = { sessionResource: targetResource } as IChatModel;
+		const missing = createActionHarness({ currentResource });
+		const unavailable = createActionHarness({ currentResource, chatModels: [targetModel], switchSucceeds: false });
+
+		assert.deepStrictEqual(
+			await dispatch(missing.service, 'set_model', { model: 'GPT-5', coding_session_id: targetResource.toString() }),
+			{ ok: false, reason: 'session_not_found' },
+		);
+		assert.deepStrictEqual(
+			await dispatch(unavailable.service, 'set_model', { model: 'GPT-5', coding_session_id: targetResource.toString() }),
+			{ ok: false, reason: 'switch_failed' },
+		);
+		assert.deepStrictEqual(missing.calls.selectedModels, []);
+		assert.deepStrictEqual(unavailable.calls.selectedModels, []);
+		assert.deepStrictEqual(unavailable.calls.targeted, []);
+	});
+
+	test('attaches the active editor when no file argument is supplied', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const activeEditorResource = URI.file('/workspace/active.ts');
+		const { service, calls } = createActionHarness({ currentResource, activeEditorResource });
+
+		const result = await dispatch(service, 'attach_file');
+
+		assert.deepStrictEqual(result, { ok: true, attached: [activeEditorResource.toString()] });
+		assert.strictEqual(calls.attachedResources[0]?.[0]?.toString(), activeEditorResource.toString());
+	});
+
+	test('reports no file when an argument and active editor are both absent', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const { service, calls } = createActionHarness({ currentResource });
+
+		const result = await dispatch(service, 'attach_file');
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'no_file' });
+		assert.deepStrictEqual(calls.attachedResources, []);
+	});
+
+	test('reports a workspace-relative attachment that does not exist', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const { service } = createActionHarness({ currentResource, workspaceFolders: [URI.file('/workspace')] });
+
+		const result = await dispatch(service, 'attach_file', { path: 'src/missing.ts' });
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'file_not_found', candidates: ['src/missing.ts'] });
+	});
+
+	test('reports all matching workspace roots for an ambiguous attachment', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
+		const matches = workspaceFolders.map(folder => URI.joinPath(folder, 'src/shared.ts'));
+		const { service } = createActionHarness({
+			currentResource,
+			workspaceFolders,
+			existingResources: new Set(matches.map(resource => resource.toString())),
+		});
+
+		const result = await dispatch(service, 'attach_file', { path: 'src/shared.ts' });
+
+		assert.deepStrictEqual(result, {
+			ok: false,
+			reason: 'ambiguous_file',
+			candidates: matches.map(resource => resource.toString()),
+		});
+	});
+
+	test('treats an absolute Windows path as a file instead of a URI scheme', async () => {
+		const currentResource = URI.parse('vscode-chat://test/current');
+		const file = URI.file('C:/repo/file.ts');
+		const { service, calls } = createActionHarness({
+			currentResource,
+			existingResources: new Set([file.toString()]),
+		});
+
+		const result = await dispatch(service, 'attach_file', { path: 'C:\\repo\\file.ts' });
+
+		assert.strictEqual(result.ok, true);
+		assert.strictEqual(calls.attachedResources[0]?.[0]?.toString(), file.toString());
+	});
+
+	test('includes an active regular chat before its first request', async () => {
+		const resource = URI.parse('vscode-chat://test/empty-active');
+		const model = {
+			sessionResource: resource,
+			title: 'New chat',
+			lastMessageDate: 0,
+			getRequests: () => [],
+		} as unknown as IChatModel;
+		const { service } = createActionHarness({ currentResource: resource, chatModels: [model] });
+
+		const result = await dispatch(service, 'get_session_info');
+
+		assert.strictEqual(result.total_sessions, 1);
+		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
+		assert.deepStrictEqual(result.sessions[0], {
+			id: resource.toString(),
+			label: 'New chat',
+			session_type: 'chat',
+			state: 'idle',
+			is_active: true,
+			insertions: 0,
+			deletions: 0,
+		});
 	});
 });
 
