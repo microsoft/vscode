@@ -209,6 +209,20 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		}
 	}
 
+	get canDeleteTunnels(): boolean {
+		return !!this._discoveryProvider?.deleteTunnel;
+	}
+
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
+		const provider = this._discoveryProvider;
+		if (!provider?.deleteTunnel) {
+			throw new Error('Deleting dev tunnels is not supported by the tunnel discovery provider.');
+		}
+
+		await provider.deleteTunnel(tunnel.tunnelId, tunnel.clusterId);
+		this.removeCachedTunnel(tunnel.tunnelId);
+	}
+
 	async disconnect(address: string): Promise<void> {
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
 		this._onDidChangeTunnels.fire();
