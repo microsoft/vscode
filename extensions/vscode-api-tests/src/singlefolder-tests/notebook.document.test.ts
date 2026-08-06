@@ -9,6 +9,27 @@ import * as utils from '../utils';
 
 suite('Notebook Document', function () {
 
+	function asTextDocumentEventPromise(event: vscode.Event<vscode.TextDocument>, uri: vscode.Uri, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Promise<vscode.TextDocument> {
+		const expectedUri = uri.toString();
+		const error = new Error(`asTextDocumentEventPromise TIMEOUT reached for ${expectedUri}`);
+		return new Promise((resolve, reject) => {
+			const handle = setTimeout(() => {
+				sub.dispose();
+				reject(error);
+			}, timeout);
+
+			const sub = event(document => {
+				if (document.uri.toString() !== expectedUri) {
+					return;
+				}
+
+				clearTimeout(handle);
+				sub.dispose();
+				resolve(document);
+			});
+		});
+	}
+
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
 			return new vscode.NotebookData(
@@ -302,15 +323,15 @@ suite('Notebook Document', function () {
 		assert.ok(document.metadata.extraNotebookMetadata, `Test metadata not found`);
 	});
 
-	test.skip('setTextDocumentLanguage for notebook cells', async function () {
+	test('setTextDocumentLanguage for notebook cells', async function () {
 
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		const first = notebook.cellAt(0);
 		assert.strictEqual(first.document.languageId, 'javascript');
 
-		const pclose = utils.asPromise(vscode.workspace.onDidCloseTextDocument);
-		const popen = utils.asPromise(vscode.workspace.onDidOpenTextDocument);
+		const pclose = asTextDocumentEventPromise(vscode.workspace.onDidCloseTextDocument, first.document.uri);
+		const popen = asTextDocumentEventPromise(vscode.workspace.onDidOpenTextDocument, first.document.uri);
 
 		await vscode.languages.setTextDocumentLanguage(first.document, 'css');
 		assert.strictEqual(first.document.languageId, 'css');
