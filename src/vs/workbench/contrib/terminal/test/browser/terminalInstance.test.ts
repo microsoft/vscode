@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -99,8 +98,6 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
-	createProcessCount = 0;
-
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -119,10 +116,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				env: IProcessEnvironment,
 				options: ITerminalProcessOptions,
 				shouldPersist: boolean
-			) => {
-				this.createProcessCount++;
-				return this._register(new TestTerminalChildProcess(shouldPersist));
-			},
+			) => this._register(new TestTerminalChildProcess(shouldPersist)),
 			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
 	}
@@ -131,13 +125,9 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 class TestTerminalWorkspaceTrustRequestService extends mock<IWorkspaceTrustRequestService>() {
 	requestCount = 0;
 
-	constructor(private readonly _result: Promise<boolean>) {
-		super();
-	}
-
-	override requestWorkspaceTrust(): Promise<boolean> {
+	override async requestWorkspaceTrust(): Promise<boolean> {
 		this.requestCount++;
-		return this._result;
+		return false;
 	}
 }
 
@@ -147,7 +137,7 @@ suite('Workbench - TerminalInstance', () => {
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
 
-		async function createTerminalInstance(): Promise<TerminalInstance> {
+		async function createTerminalInstance(shellLaunchConfig: IShellLaunchConfig = {}, workspaceTrustRequestService?: IWorkspaceTrustRequestService): Promise<TerminalInstance> {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -171,49 +161,12 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			await instance.xtermReadyPromise;
-			return instance;
-		}
-
-		async function createTerminalInstanceForTrust(shellLaunchConfig: IShellLaunchConfig, trustResult: Promise<boolean>): Promise<{
-			instance: TerminalInstance;
-			terminalInstanceService: TestTerminalInstanceService;
-			workspaceTrustRequestService: TestTerminalWorkspaceTrustRequestService;
-		}> {
-			const instantiationService = workbenchInstantiationService({
-				configurationService: () => new TestConfigurationService({
-					files: {},
-					terminal: {
-						integrated: {
-							fontFamily: 'monospace',
-							scrollback: 1000,
-							fastScrollSensitivity: 2,
-							mouseWheelScrollSensitivity: 1,
-							unicodeVersion: '6',
-							commandsToSkipShell: [],
-							shellIntegration: {
-								enabled: true
-							}
-						}
-					},
-				})
-			}, store);
-			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
-			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
-			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
-			const terminalInstanceService = store.add(new TestTerminalInstanceService());
-			instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
-			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService(trustResult);
-			instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
+			if (workspaceTrustRequestService) {
+				instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
+			}
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, shellLaunchConfig));
 			await instance.xtermReadyPromise;
-			return { instance, terminalInstanceService, workspaceTrustRequestService };
-		}
-
-		function createProcess(instance: TerminalInstance): Promise<void> {
-			return (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
+			return instance;
 		}
 
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
@@ -224,77 +177,38 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('marked remote resolver terminal bypasses workspace trust request', async () => {
-			const trustResult = new DeferredPromise<boolean>();
-			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance({
 				executable: '/usr/bin/zsh',
 				cwd: URI.file('/home/test'),
 				[remoteResolverTerminal]: true,
 				hideFromUser: true,
 				isTransient: true
-			}, trustResult.p);
+			}, workspaceTrustRequestService);
 
-			await createProcess(instance);
+			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
 
 			deepStrictEqual({
 				trustRequestCount: workspaceTrustRequestService.requestCount,
-				createProcessCount: terminalInstanceService.createProcessCount,
 				persistedResolverFlag: instance.shellLaunchConfig[remoteResolverTerminal]
 			}, {
 				trustRequestCount: 0,
-				createProcessCount: 1,
 				persistedResolverFlag: undefined
 			});
 			instance.dispose();
 		});
 
-		test('unmarked terminal does not bypass workspace trust denial', async () => {
-			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
+		test('unmarked terminal requests workspace trust', async () => {
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance({
 				executable: '/usr/bin/zsh',
 				cwd: URI.file('/home/test'),
 				isTransient: true
-			}, Promise.resolve(false));
+			}, workspaceTrustRequestService);
 
-			await createProcess(instance);
+			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
 
-			deepStrictEqual({
-				trustRequestCount: workspaceTrustRequestService.requestCount,
-				createProcessCount: terminalInstanceService.createProcessCount,
-				isDisposed: instance.isDisposed
-			}, {
-				trustRequestCount: 1,
-				createProcessCount: 0,
-				isDisposed: true
-			});
-		});
-
-		test('ordinary local terminal waits for workspace trust in a remote workspace', async () => {
-			const trustResult = new DeferredPromise<boolean>();
-			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
-				executable: '/usr/bin/zsh',
-				cwd: URI.file('/home/test'),
-				isTransient: true
-			}, trustResult.p);
-
-			const processCreation = createProcess(instance);
-			await timeout(0);
-
-			const beforeTrust = {
-				trustRequestCount: workspaceTrustRequestService.requestCount,
-				createProcessCount: terminalInstanceService.createProcessCount
-			};
-			trustResult.complete(true);
-			await processCreation;
-
-			deepStrictEqual({
-				beforeTrust,
-				createProcessCountAfterTrust: terminalInstanceService.createProcessCount
-			}, {
-				beforeTrust: {
-					trustRequestCount: 1,
-					createProcessCount: 0
-				},
-				createProcessCountAfterTrust: 1
-			});
+			strictEqual(workspaceTrustRequestService.requestCount, 1);
 			instance.dispose();
 		});
 

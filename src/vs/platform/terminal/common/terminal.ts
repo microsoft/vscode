@@ -492,7 +492,6 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
-
 export const remoteResolverTerminal = Symbol('remoteResolverTerminal');
 
 export interface IShellLaunchConfig {
@@ -629,10 +628,7 @@ export interface IShellLaunchConfig {
 	 */
 	isExtensionOwnedTerminal?: boolean;
 
-	/**
-	 * Marks a terminal as being used to bootstrap a remote authority resolver. This is consumed by
-	 * the terminal instance and must not be forwarded to or persisted by the pty host.
-	 */
+	/** Whether this terminal is used to bootstrap a remote authority resolver. */
 	[remoteResolverTerminal]?: true;
 
 	/**

@@ -103,7 +103,7 @@ import { IExtHostStorage } from './extHostStorage.js';
 import { IExtensionStoragePaths } from './extHostStoragePaths.js';
 import { IExtHostTask } from './extHostTask.js';
 import { ExtHostTelemetryLogger, IExtHostTelemetry, isNewAppInstall } from './extHostTelemetry.js';
-import { IExtHostTerminalService, ITerminalInternalOptions } from './extHostTerminalService.js';
+import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { IExtHostTerminalShellIntegration } from './extHostTerminalShellIntegration.js';
 import { IExtHostTesting } from './extHostTesting.js';
 import { ExtHostEditors } from './extHostTextEditors.js';
@@ -134,14 +134,6 @@ export interface IExtensionRegistries {
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof vscode;
-}
-
-export function getValidatedTerminalInternalOptions(extension: IExtensionDescription, options: vscode.TerminalOptions): ITerminalInternalOptions | undefined {
-	if (!options.isRemoteResolverTerminal) {
-		return undefined;
-	}
-	checkProposedApiEnabled(extension, 'terminalRemoteResolver');
-	return { isRemoteResolverTerminal: true };
 }
 
 /**
@@ -975,7 +967,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if ('pty' in options) {
 						return extHostTerminalService.createExtensionTerminal(options);
 					}
-					return extHostTerminalService.createTerminalFromOptions(options, getValidatedTerminalInternalOptions(extension, options));
+					if (options.isRemoteResolverTerminal) {
+						checkProposedApiEnabled(extension, 'terminalRemoteResolver');
+					}
+					return extHostTerminalService.createTerminalFromOptions(options, options.isRemoteResolverTerminal ? { isRemoteResolverTerminal: true } : undefined);
 				}
 				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},

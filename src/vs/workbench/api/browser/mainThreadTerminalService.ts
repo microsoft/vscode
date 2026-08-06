@@ -166,6 +166,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
+				cwd: launchConfig.isRemoteResolverTerminal ? shellLaunchConfig.cwd : undefined,
 				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
