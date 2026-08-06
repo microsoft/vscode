@@ -26,7 +26,7 @@ const NEW_SESSION_VIEW_V3_PROMPT = localize('sessions.onboarding.newSessionViewV
 
 export function createNewSessionViewV3Tour(
 	signal: IObservable<boolean>,
-	runPromptStep: (prompt: string, durationMs: number, taskPlaceholder: string, token: CancellationToken) => Promise<void> | void,
+	runPromptStep: (prompt: string, durationMs: number, taskPlaceholder: string, token: CancellationToken) => Promise<boolean> | boolean,
 ): IOnboardingScenario<IOnboardingSequencePayload> {
 	return {
 		id: NEW_SESSION_VIEW_V3_TOUR_ID,
@@ -48,7 +48,7 @@ export function createNewSessionViewV3Tour(
 						id: 'insertPrompt',
 						kind: RUN_ONBOARDING_STEP_KIND,
 						payload: {
-							run: token => runPromptStep(NEW_SESSION_VIEW_V3_PROMPT, PROMPT_TYPING_DURATION_MS, NEW_SESSION_VIEW_V3_TASK_PLACEHOLDER, token),
+							run: async token => ({ shown: await runPromptStep(NEW_SESSION_VIEW_V3_PROMPT, PROMPT_TYPING_DURATION_MS, NEW_SESSION_VIEW_V3_TASK_PLACEHOLDER, token) }),
 						} satisfies IRunOnboardingStepPayload,
 					},
 				],

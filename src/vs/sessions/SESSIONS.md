@@ -363,18 +363,23 @@ Starting a send clears the stored draft before request dispatch and any view
 replacement.
 
 The V3 new-session onboarding tour uses the same first-request, sign-in, view,
-and workspace-picker readiness gates as V2. Its workspace step is also shared
-with V2, so it appears only when no workspace is preselected. Once that step
-completes (or is skipped because a workspace was preselected), the sequence
-advances to a non-visual `run` step that fills the new-session chat input with a
-task-prompt template over 2.5 seconds. Run steps count in sequence telemetry but
-not in spotlight progress; V3 therefore has two sequence steps while displaying
-one spotlight step. Reduced-motion and screen-reader modes fill the template at
-once; an existing draft is never replaced, and editing during the animation
-cancels the remaining generated text. The task placeholder uses the same themed
-highlight as slash commands. Clicking it completes any remaining typing, removes
-the placeholder, focuses the input, and places the caret at the replacement
-position.
+and workspace-picker readiness gates as V2. The trigger also waits for the real
+`restoreVisibleSessions()` operation to settle, rather than guessing readiness
+with a delay. Its workspace step is shared with V2, so it appears only when no
+workspace is preselected. Once that step completes (or is skipped because a
+workspace was preselected), the sequence advances to a non-visual `run` step
+that finds the mounted editable new-session composer through
+`INewSessionComposerService` and fills its input with a task-prompt template over
+2.5 seconds. The run step awaits typing and forwards sequence cancellation;
+cancellation or composer disposal preserves only the text already typed, while
+explicit placeholder activation completes the template before replacement. Run
+steps count in sequence telemetry but not in spotlight progress; V3 therefore
+has two sequence steps while displaying one spotlight step. Reduced-motion and
+screen-reader modes fill the template at once; an existing draft is never
+replaced, and editing during the animation cancels the remaining generated text.
+The task placeholder uses the same themed highlight as slash commands. Clicking
+it, or placing the caret inside and pressing Enter, removes the placeholder,
+focuses the input, and places the caret at the replacement position.
 
 Non-visual onboarding behavior must not be attached to a spotlight payload as a
 completion callback. Model heterogeneous tours with the sequence presentation

@@ -94,11 +94,6 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
-	override animateInput(text: string, durationMs: number, placeholder?: string): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.animateInput(text, durationMs, placeholder);
-		}
-	}
 
 	override sendQuery(text: string): void {
 		if (this._widget instanceof NewChatWidget) {

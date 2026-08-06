@@ -60,22 +60,24 @@ class TestPromptTypingScheduler implements IPromptTypingScheduler {
 suite('PromptTypingAnimation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('types by elapsed time and completes when disposed', () => {
+	test('types by elapsed time and completes only when requested', async () => {
 		const target = disposables.add(new TestPromptTypingTarget());
 		const scheduler = new TestPromptTypingScheduler();
 		const animation = disposables.add(animatePromptTyping(target, 'abcdefghij', 1_000, scheduler));
 
 		scheduler.advanceTo(250);
 		scheduler.advanceTo(500);
-		animation.dispose();
+		animation.complete();
+		const result = await animation.result;
 
-		assert.deepStrictEqual({ values: target.values, value: target.getValue() }, {
+		assert.deepStrictEqual({ values: target.values, value: target.getValue(), result }, {
 			values: ['abc', 'abcde', 'abcdefghij'],
 			value: 'abcdefghij',
+			result: { outcome: 'completed', didWrite: true },
 		});
 	});
 
-	test('stops without replacing a user edit', () => {
+	test('stops without replacing a user edit', async () => {
 		const target = disposables.add(new TestPromptTypingTarget());
 		const scheduler = new TestPromptTypingScheduler();
 		const animation = disposables.add(animatePromptTyping(target, 'abcdefghij', 1_000, scheduler));
@@ -83,28 +85,51 @@ suite('PromptTypingAnimation', () => {
 		scheduler.advanceTo(250);
 		target.setValue('my task');
 		scheduler.advanceTo(500);
-		animation.dispose();
+		const result = await animation.result;
 
-		assert.deepStrictEqual({ values: target.values, value: target.getValue() }, {
+		assert.deepStrictEqual({ values: target.values, value: target.getValue(), result }, {
 			values: ['abc', 'my task'],
 			value: 'my task',
+			result: { outcome: 'interrupted', didWrite: true },
 		});
 	});
 
-	test('sets the whole prompt without animation and leaves existing input alone', () => {
+	test('cancellation and teardown do not complete the remaining text', async () => {
+		const target = disposables.add(new TestPromptTypingTarget());
+		const scheduler = new TestPromptTypingScheduler();
+		const animation = disposables.add(animatePromptTyping(target, 'abcdefghij', 1_000, scheduler));
+
+		scheduler.advanceTo(250);
+		animation.dispose();
+		scheduler.advanceTo(1_000);
+		const result = await animation.result;
+
+		assert.deepStrictEqual({ values: target.values, value: target.getValue(), result }, {
+			values: ['abc'],
+			value: 'abc',
+			result: { outcome: 'cancelled', didWrite: true },
+		});
+	});
+
+	test('sets the whole prompt without animation and leaves existing input alone', async () => {
 		const emptyTarget = disposables.add(new TestPromptTypingTarget());
 		const existingTarget = disposables.add(new TestPromptTypingTarget('existing draft'));
 		const scheduler = new TestPromptTypingScheduler();
 
-		disposables.add(animatePromptTyping(emptyTarget, 'prompt', 0, scheduler));
-		disposables.add(animatePromptTyping(existingTarget, 'prompt', 0, scheduler));
+		const emptyAnimation = disposables.add(animatePromptTyping(emptyTarget, 'prompt', 0, scheduler));
+		const existingAnimation = disposables.add(animatePromptTyping(existingTarget, 'prompt', 0, scheduler));
 
 		assert.deepStrictEqual({
 			empty: { values: emptyTarget.values, value: emptyTarget.getValue() },
 			existing: { values: existingTarget.values, value: existingTarget.getValue() },
+			results: [await emptyAnimation.result, await existingAnimation.result],
 		}, {
 			empty: { values: ['prompt'], value: 'prompt' },
 			existing: { values: [], value: 'existing draft' },
+			results: [
+				{ outcome: 'completed', didWrite: true },
+				{ outcome: 'skipped', didWrite: false },
+			],
 		});
 	});
 });

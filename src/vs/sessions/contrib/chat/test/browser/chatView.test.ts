@@ -34,16 +34,4 @@ suite('Sessions - Chat View', () => {
 		assert.doesNotThrow(() => view.setVisible(false));
 	});
 
-	test('forwards input animation to the new-session composer', () => {
-		const forwarded: { readonly text: string; readonly durationMs: number; readonly placeholder: string | undefined }[] = [];
-		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
-			_widget: Object.assign(Object.create(NewChatWidget.prototype), {
-				animateInput: (text: string, durationMs: number, placeholder: string | undefined) => forwarded.push({ text, durationMs, placeholder }),
-			}),
-		});
-
-		view.animateInput('prompt', 2_500, '[task]');
-
-		assert.deepStrictEqual(forwarded, [{ text: 'prompt', durationMs: 2_500, placeholder: '[task]' }]);
-	});
 });

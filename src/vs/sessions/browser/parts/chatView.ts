@@ -96,11 +96,6 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
-	/** Animate text into this view's input when it hosts an editable composer. */
-	animateInput(_text: string, _durationMs: number, _placeholder?: string): void {
-		// no-op by default
-	}
-
 	/**
 	 * Submit the given text as a chat query. The default implementation is
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)

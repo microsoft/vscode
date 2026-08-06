@@ -8,7 +8,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
-import { PromptTemplatePlaceholderController } from '../../browser/promptTemplatePlaceholder.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { PromptTemplatePlaceholderController, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from '../../browser/promptTemplatePlaceholder.js';
 
 suite('PromptTemplatePlaceholderController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,6 +54,28 @@ suite('PromptTemplatePlaceholderController', () => {
 					value: 'Help me complete  in this project. First, inspect the relevant files.',
 					position: new Position(1, placeholderOffset + 1),
 					decorationsAfter: 0,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		});
+	});
+
+	test('replaces the placeholder through the Enter command when the caret is inside', () => {
+		withTestCodeEditor('Help me complete [describe the coding task] in this project.', {}, editor => {
+			const disposables = new DisposableStore();
+			try {
+				const placeholder = '[describe the coding task]';
+				const controller = disposables.add(new PromptTemplatePlaceholderController(editor, () => undefined));
+				controller.setPlaceholder(placeholder);
+				const placeholderOffset = editor.getValue().indexOf(placeholder);
+				editor.setPosition(new Position(1, placeholderOffset + 2));
+
+				CommandsRegistry.getCommand(REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID)!.handler(undefined as never);
+
+				assert.deepStrictEqual({ value: editor.getValue(), position: editor.getPosition() }, {
+					value: 'Help me complete  in this project.',
+					position: new Position(1, placeholderOffset + 1),
 				});
 			} finally {
 				disposables.dispose();

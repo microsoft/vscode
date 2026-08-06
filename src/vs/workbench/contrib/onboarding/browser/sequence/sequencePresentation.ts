@@ -77,10 +77,10 @@ export class OnboardingSequencePresentation extends Disposable implements IOnboa
 
 				if (result.shown) {
 					shown = true;
-					shownVisualSteps.add(index);
-				}
-				if (result.shown) {
 					lastStepIndex = Math.max(lastStepIndex, index);
+					if (presentation.countsAsVisualStep) {
+						shownVisualSteps.add(index);
+					}
 				}
 
 				switch (result.action) {

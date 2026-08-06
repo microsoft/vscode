@@ -10,9 +10,13 @@ import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSeq
 
 export const RUN_ONBOARDING_STEP_KIND = 'run';
 
+export interface IRunOnboardingStepResult {
+	readonly shown?: boolean;
+}
+
 /** Callback payload for a cancellable non-visual sequence step. */
 export interface IRunOnboardingStepPayload {
-	readonly run: (token: CancellationToken) => Promise<void> | void;
+	readonly run: (token: CancellationToken) => Promise<IRunOnboardingStepResult | void> | IRunOnboardingStepResult | void;
 }
 
 /** Executes a run-step callback once and continues after reported errors. */
@@ -25,9 +29,10 @@ export class RunOnboardingStepPresentation implements IOnboardingSequenceStepPre
 		if (context.cancellationToken.isCancellationRequested) {
 			return { action: 'abort', shown: false };
 		}
+		let result: IRunOnboardingStepResult | void = undefined;
 		try {
 			const payload = step.payload as IRunOnboardingStepPayload;
-			await raceCancellation(Promise.resolve(payload.run(context.cancellationToken)), context.cancellationToken);
+			result = await raceCancellation(Promise.resolve(payload.run(context.cancellationToken)), context.cancellationToken);
 		} catch (error) {
 			if (!context.cancellationToken.isCancellationRequested) {
 				onUnexpectedError(error);
@@ -35,6 +40,6 @@ export class RunOnboardingStepPresentation implements IOnboardingSequenceStepPre
 		}
 		return context.cancellationToken.isCancellationRequested
 			? { action: 'abort', shown: false }
-			: { action: 'next', shown: false };
+			: { action: 'next', shown: result?.shown === true };
 	}
 }

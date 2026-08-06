@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 export interface IPromptTypingTarget {
 	readonly onDidChange: Event<void>;
@@ -17,42 +18,66 @@ export interface IPromptTypingScheduler {
 	schedule(callback: () => void): IDisposable;
 }
 
-/** Animates an empty text target while preserving any user edits made during the animation. */
-export function animatePromptTyping(target: IPromptTypingTarget, text: string, durationMs: number, scheduler: IPromptTypingScheduler): IDisposable {
+export type PromptTypingOutcome = 'completed' | 'interrupted' | 'cancelled' | 'skipped';
+
+export interface IPromptTypingResult {
+	readonly outcome: PromptTypingOutcome;
+	readonly didWrite: boolean;
+}
+
+export interface IPromptTypingAnimation extends IDisposable {
+	readonly result: Promise<IPromptTypingResult>;
+	complete(): void;
+}
+
+/** Animates an empty text target while preserving user edits and distinguishing completion from cancellation. */
+export function animatePromptTyping(target: IPromptTypingTarget, text: string, durationMs: number, scheduler: IPromptTypingScheduler): IPromptTypingAnimation {
 	if (!text || target.getValue()) {
-		return Disposable.None;
+		return {
+			result: Promise.resolve({ outcome: 'skipped', didWrite: false }),
+			complete: () => undefined,
+			dispose: () => undefined,
+		};
 	}
 
 	const store = new DisposableStore();
 	const pendingFrame = store.add(new MutableDisposable<IDisposable>());
+	const result = new DeferredPromise<IPromptTypingResult>();
 	let expectedValue = '';
 	let stopped = false;
+	let didWrite = false;
 
 	const write = (value: string) => {
 		expectedValue = value;
+		didWrite = true;
 		target.setValue(value);
 	};
-	const stop = (complete: boolean) => {
+	const stop = (outcome: PromptTypingOutcome, completeText: boolean) => {
 		if (stopped) {
 			return;
 		}
-		if (complete && target.getValue() === expectedValue && expectedValue !== text) {
+		if (completeText && target.getValue() === expectedValue && expectedValue !== text) {
 			write(text);
 		}
 		stopped = true;
 		store.dispose();
+		result.complete({ outcome, didWrite });
 	};
 	store.add(target.onDidChange(() => {
 		if (target.getValue() !== expectedValue) {
-			stop(false);
+			stop('interrupted', false);
 		}
 	}));
-	const result = toDisposable(() => stop(true));
+	const animation: IPromptTypingAnimation = {
+		result: result.p,
+		complete: () => stop('completed', true),
+		dispose: () => stop('cancelled', false),
+	};
 
 	if (durationMs <= 0) {
 		write(text);
-		stop(false);
-		return result;
+		stop('completed', false);
+		return animation;
 	}
 
 	const startTime = scheduler.now();
@@ -68,10 +93,10 @@ export function animatePromptTyping(target: IPromptTypingTarget, text: string, d
 		if (characterCount < text.length) {
 			pendingFrame.value = scheduler.schedule(step);
 		} else {
-			stop(false);
+			stop('completed', false);
 		}
 	};
 	pendingFrame.value = scheduler.schedule(step);
 
-	return result;
+	return animation;
 }

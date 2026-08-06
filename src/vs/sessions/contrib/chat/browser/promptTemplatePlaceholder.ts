@@ -4,16 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { localize } from '../../../../nls.js';
+import { IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+
+export const REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID = 'sessions.chat.replacePromptTemplatePlaceholder';
+const PromptTemplatePlaceholderFocused = new RawContextKey<boolean>('sessionsPromptTemplatePlaceholderFocused', false, localize('sessionsPromptTemplatePlaceholderFocused', "Whether the caret is inside an editable prompt template placeholder."));
+let activePromptTemplatePlaceholderController: PromptTemplatePlaceholderController | undefined;
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 2,
+	when: PromptTemplatePlaceholderFocused,
+	primary: KeyCode.Enter,
+	handler: () => activePromptTemplatePlaceholderController?.replaceAtCursor(),
+});
 
 /** Highlights and replaces the editable task placeholder in an onboarding prompt. */
 export class PromptTemplatePlaceholderController extends Disposable {
 	private static readonly _className = 'sessions-prompt-template-placeholder';
 
 	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _focusedContextKey: IContextKey<boolean>;
 	private _placeholder: string | undefined;
 	private _wasPresent = false;
 
@@ -22,8 +38,21 @@ export class PromptTemplatePlaceholderController extends Disposable {
 		private readonly _onWillReplace: () => void,
 	) {
 		super();
+		this._focusedContextKey = PromptTemplatePlaceholderFocused.bindTo(this._editor.contextKeyService);
 		this._register(toDisposable(() => this._decorations.clear()));
-		this._register(this._editor.onDidChangeModelContent(() => this._updateDecorations()));
+		this._register(toDisposable(() => {
+			this._focusedContextKey.reset();
+			if (activePromptTemplatePlaceholderController === this) {
+				activePromptTemplatePlaceholderController = undefined;
+			}
+		}));
+		this._register(this._editor.onDidChangeModelContent(() => {
+			this._updateDecorations();
+			this._updateActiveState();
+		}));
+		this._register(this._editor.onDidChangeCursorPosition(() => this._updateActiveState()));
+		this._register(this._editor.onDidFocusEditorWidget(() => this._updateActiveState()));
+		this._register(this._editor.onDidBlurEditorWidget(() => this._updateActiveState()));
 		this._register(this._editor.onMouseUp(event => {
 			if (!event.event.leftButton || event.target.type !== MouseTargetType.CONTENT_TEXT || !this._editor.getSelection()?.isEmpty()) {
 				return;
@@ -36,6 +65,12 @@ export class PromptTemplatePlaceholderController extends Disposable {
 		this._placeholder = placeholder;
 		this._wasPresent = false;
 		this._updateDecorations();
+		this._updateActiveState();
+	}
+
+	replaceAtCursor(): boolean {
+		const position = this._editor.getPosition();
+		return position ? this.replaceAt(position) : false;
 	}
 
 	replaceAt(position: Position): boolean {
@@ -57,7 +92,19 @@ export class PromptTemplatePlaceholderController extends Disposable {
 			this._editor.pushUndoStop();
 			this._editor.focus();
 		}
+		this._updateActiveState();
 		return edited;
+	}
+
+	private _updateActiveState(): void {
+		const position = this._editor.getPosition();
+		const active = this._editor.hasTextFocus() && !!position && this._contains(position);
+		this._focusedContextKey.set(active);
+		if (active) {
+			activePromptTemplatePlaceholderController = this;
+		} else if (activePromptTemplatePlaceholderController === this) {
+			activePromptTemplatePlaceholderController = undefined;
+		}
 	}
 
 	private _contains(position: Position): boolean {
@@ -90,7 +137,7 @@ export class PromptTemplatePlaceholderController extends Disposable {
 			options: {
 				description: 'sessions-prompt-template-placeholder',
 				inlineClassName: PromptTemplatePlaceholderController._className,
-				hoverMessage: { value: localize('sessions.promptTemplatePlaceholder.hover', "Click to describe the coding task") },
+				hoverMessage: { value: localize('sessions.promptTemplatePlaceholder.hover', "Click or place the caret here and press Enter to describe the coding task") },
 			},
 		}]);
 	}

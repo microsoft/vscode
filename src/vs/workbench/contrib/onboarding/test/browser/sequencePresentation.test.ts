@@ -162,6 +162,29 @@ suite('OnboardingSequencePresentation', () => {
 		});
 	});
 
+	test('reports a user-visible run step as shown when preceding visuals are skipped', async () => {
+		const visualKind = `test-visual-${kindSeed++}`;
+		const visual = new TestVisualStepPresentation(visualKind, new Map([
+			['skipped', [{ action: 'skipStep', shown: false }]],
+		]));
+		disposables.add(onboardingSequenceStepPresentationRegistry.register(visual));
+		disposables.add(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
+		const presentation = disposables.add(new OnboardingSequencePresentation());
+
+		const result = await presentation.run(createScenario([
+			{ id: 'skipped', kind: visualKind, payload: undefined },
+			{ id: 'script', kind: RUN_ONBOARDING_STEP_KIND, payload: { run: () => ({ shown: true }) } },
+		]), context());
+
+		assert.deepStrictEqual(result, {
+			outcome: OnboardingOutcome.Completed,
+			shown: true,
+			dismissReason: OnboardingDismissReason.Completed,
+			lastStepIndex: 1,
+			stepCount: 2,
+		});
+	});
+
 	test('Back skips run steps and forward traversal runs them at most once', async () => {
 		const visualKind = `test-visual-${kindSeed++}`;
 		const actions = new Map<string, IOnboardingSequenceStepResult[]>([
