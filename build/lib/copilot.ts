@@ -385,22 +385,22 @@ function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: 
 	try {
 		lock = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
 	} catch (err) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read ${lockfilePath} to verify ${packageName}@${extVersion}: ${err instanceof Error ? err.message : String(err)}`);
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read lockfile at resolved path '${lockfilePath}' while verifying package '${packageName}' (version: ${extVersion}): ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	const entry = lock.packages?.[path.posix.join('node_modules', packageName)];
+	const entryKey = path.posix.join('node_modules', packageName);
+	const entry = lock.packages?.[entryKey];
 	if (!entry) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is not recorded in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Package '${packageName}' with expected entry key '${entryKey}' is not recorded in lockfile at '${lockfilePath}'; refusing to fetch an unverifiable native.`);
 	}
 	if (entry.version !== extVersion) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${entry.version} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Package '${packageName}' version mismatch in '${lockfilePath}': locked version is '${entry.version}', but built-in extension version is '@github/copilot@${extVersion}'; refusing to fetch an unverifiable native.`);
 	}
 	if (!entry.integrity) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Package '${packageName}@${extVersion}' has no integrity field defined in '${lockfilePath}'; refusing to fetch an unverifiable native.`);
 	}
 	return entry.integrity;
 }
-
 function readCopilotPackageVersion(copilotBase: string): string {
 	const version = readOptionalPackageVersion(copilotBase);
 	if (!version) {
