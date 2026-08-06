@@ -3619,6 +3619,35 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
+		test('forwards attachments to the SDK', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const imageUri = URI.file('/session/attachments/pasted-image.png');
+
+			await session.sendSteering({
+				id: 'steer-1',
+				message: {
+					text: 'see the screenshot',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: imageUri.toString(),
+						label: 'Pasted Image',
+						displayKind: 'image',
+					}],
+				},
+			});
+
+			assert.deepStrictEqual(mockSession.sendRequests, [{
+				prompt: 'see the screenshot',
+				attachments: [{
+					type: 'file',
+					path: imageUri.fsPath,
+					displayName: 'Pasted Image',
+				}],
+				mode: 'immediate',
+			}]);
+		});
+
 		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');

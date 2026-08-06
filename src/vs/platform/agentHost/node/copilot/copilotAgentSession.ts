@@ -2152,12 +2152,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 
-		const sdkAttachments = attachments?.length
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
-			: undefined;
-		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
-		}
+		const sdkAttachments = await this._toSdkAttachments(attachments);
 
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
@@ -2166,6 +2161,16 @@ export class CopilotAgentSession extends Disposable {
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
 		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<CopilotSdkAttachment[] | undefined> {
+		const sdkAttachments = attachments?.length
+			? (await Promise.all(attachments.map(attachment => this._toSdkAttachment(attachment)))).filter(isDefined)
+			: undefined;
+		if (sdkAttachments?.length) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(attachment => ({ type: attachment.type })))}`);
+		}
+		return sdkAttachments;
 	}
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
@@ -2314,8 +2319,10 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._reconcileMcpServerEnablement();
 			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
+			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			await this._wrapper.session.send({
 				prompt: steeringMessage.message.text,
+				attachments: sdkAttachments?.length ? sdkAttachments : undefined,
 				mode: 'immediate',
 			});
 		} catch (err) {
