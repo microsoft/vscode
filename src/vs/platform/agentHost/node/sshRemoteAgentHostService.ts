@@ -1078,6 +1078,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		} catch (err) {
 			sshClient?.end();
+			if (!(err instanceof CancellationError)) {
+				this._logService.error(`${LOG_PREFIX} Failed to connect to ${displayHost}`, err);
+			}
 			throw err;
 		}
 	}
@@ -1698,9 +1701,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * `~/.vscode-cli{,-<quality>}/<archive>`), we fall back to the newest
 	 * one rather than refusing to connect.
 	 *
-	 * In dev/OSS builds with no commit, we keep the loose, non-pinned
-	 * behavior: install `~/<serverDataFolderName>/<archive>` from the
-	 * `latest` URL, with a `--version`-based reuse check.
+	 * In dev/OSS builds with no commit, we keep a loose, non-pinned install
+	 * at `~/<serverDataFolderName>/<archive>`. Existing CLIs self-update
+	 * against the latest release before reuse.
 	 *
 	 * Returns the resolved CLI binary path to run.
 	 */
@@ -1800,9 +1803,16 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
 		this._logService.warn(`${LOG_PREFIX} Desktop has no product commit; falling back to non-pinned CLI install at ${cliBin}.`);
 
-		const { code } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
+		const updateExitCodeMarker = '__vscode_cli_update_exit_code__:';
+		const { code, stdout, stderr } = await sshExec(client, `${cliBin} --version && (${cliBin} update; update_code=$?; echo ${updateExitCodeMarker}$update_code; true)`, { ignoreExitCode: true });
 		if (code === 0) {
-			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, --version check passed)`);
+			const updateExitCodeLine = stdout.split('\n').find(line => line.startsWith(updateExitCodeMarker));
+			const updateExitCode = updateExitCodeLine === undefined ? undefined : Number.parseInt(updateExitCodeLine.slice(updateExitCodeMarker.length), 10);
+			if (updateExitCode !== undefined && updateExitCode !== 0 && (updateExitCode !== 1 || stderr.trim())) {
+				const updateError = stderr.trim() || `update exited ${updateExitCode}`;
+				this._logService.warn(`${LOG_PREFIX} Could not refresh the dev-build remote CLI at ${cliBin}; reusing the existing executable: ${updateError}`);
+			}
+			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, latest-version refresh attempted)`);
 			return cliBin;
 		}
 

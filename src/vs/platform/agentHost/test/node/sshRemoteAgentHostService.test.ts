@@ -20,6 +20,14 @@ import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 const dataFolderName = '.vscode-insiders';
 const quality = 'insider';
 
+class RecordingLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].map(value => value instanceof Error ? value.message : String(value)).join(' '));
+	}
+}
+
 /** Fixture builder for a shared-registry endpoint entry (`code agent endpoints` result). */
 function makeEndpoint(overrides: Partial<IAgentHostEndpointMetadata> & Pick<IAgentHostEndpointMetadata, 'type' | 'pid' | 'instanceId'>): IAgentHostEndpointMetadata {
 	return {
@@ -38,8 +46,8 @@ function agentEndpointsStdout(endpoints: readonly IAgentHostEndpointMetadata[], 
 
 /**
  * Build the exec-response queue for the common "CLI already installed"
- * registry-discovery path: `uname -s`, `uname -m`, `<cliBin> --version`
- * (reuse), `agent endpoints`, then one `kill -0 <pid>` per distinct live
+ * registry-discovery path: `uname -s`, `uname -m`, `<cliBin> --version &&
+ * <cliBin> update` (reuse), `agent endpoints`, then one `kill -0 <pid>` per distinct live
  * pid (all reported alive). Tests that need a dead PID, a missing CLI, or
  * additional responses (e.g. for a subsequent spawn) build their queues
  * manually or append to this one.
@@ -1224,15 +1232,19 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	// --- CLI install flow ---
 
-	test('skips CLI download when CLI is already installed', async () => {
+	test('refreshes an installed CLI instead of downloading it directly', async () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
 		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 
-		// The exec calls should NOT include any curl/tar/install commands
 		const execCalls = service.mockClients[0].execCalls;
-		assert.ok(!execCalls.some(c => c.includes('curl') || c.includes('tar')),
-			'should not download CLI when already installed');
+		assert.deepStrictEqual({
+			refreshAttempted: execCalls.some(c => c.includes('code-insiders update')),
+			downloadAttempted: execCalls.some(c => c.includes('curl') || c.includes('tar')),
+		}, {
+			refreshAttempted: true,
+			downloadAttempted: false,
+		});
 	});
 
 	test('downloads CLI when version check fails', async () => {
@@ -1250,6 +1262,31 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('curl')),
 			'should download CLI when not installed');
+	});
+
+	test('logs connection failures in the shared service', async () => {
+		const logService = new RecordingLogService();
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+		};
+		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
+			logService,
+			productService as IProductService,
+		));
+		loggingService.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: 'not json', code: 0 },
+		];
+
+		await assert.rejects(loggingService.connect(makeConfig({ sshConfigHost: 'myhost' })));
+
+		assert.deepStrictEqual(logService.errors, [
+			`[SSHRemoteAgentHost] Failed to connect to myhost 'agent endpoints' produced unparsable output (8 characters)`,
+		]);
 	});
 
 	// --- Commit-pinned install flow (release builds with productService.commit) ---
