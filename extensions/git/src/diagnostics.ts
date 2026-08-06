@@ -48,7 +48,7 @@ export class GitCommitInputBoxDiagnosticsManager {
 
 			// User setting
 			if (typeof inputValidation.globalValue === 'string') {
-				await config.update('inputValidation', inputValidation.workspaceValue !== 'off', true);
+				await config.update('inputValidation', inputValidation.globalValue !== 'off', true);
 			}
 		} catch { }
 	}
