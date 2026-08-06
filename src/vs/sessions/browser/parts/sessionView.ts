@@ -302,6 +302,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.prefillInput(text);
 	}
 
+	animateInput(text: string, durationMs: number, placeholder?: string): void {
+		this._currentView.value?.animateInput(text, durationMs, placeholder);
+	}
+
 	sendQuery(text: string): void {
 		this._currentView.value?.sendQuery(text);
 	}

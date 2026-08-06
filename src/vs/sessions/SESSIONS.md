@@ -96,7 +96,7 @@ User selections in the Agents-window mode picker report the shared `chat.modeCha
 
 The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
 
-The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -359,6 +359,26 @@ disposed (for example, when navigating to an existing session), and the
 replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
+
+The V3 new-session onboarding tour uses the same first-request, sign-in, view,
+and workspace-picker readiness gates as V2. Its workspace step is also shared
+with V2, so it appears only when no workspace is preselected. Once that step
+completes (or is skipped because a workspace was preselected), the sequence
+advances to a non-visual `run` step that fills the new-session chat input with a
+task-prompt template over 2.5 seconds. Run steps count in sequence telemetry but
+not in spotlight progress; V3 therefore has two sequence steps while displaying
+one spotlight step. Reduced-motion and screen-reader modes fill the template at
+once; an existing draft is never replaced, and editing during the animation
+cancels the remaining generated text. The task placeholder uses the same themed
+highlight as slash commands. Clicking it completes any remaining typing, removes
+the placeholder, focuses the input, and places the caret at the replacement
+position.
+
+Non-visual onboarding behavior must not be attached to a spotlight payload as a
+completion callback. Model heterogeneous tours with the sequence presentation
+and explicit step kinds (`spotlight`, `run`, and future kinds such as `pulse`),
+so spotlight counters include only visual spotlight steps while sequence
+telemetry retains every step.
 
 The new-session view mounts the aquarium action outside
 `.new-chat-widget-content`. Its surrounding surface has checked **Aquarium** and

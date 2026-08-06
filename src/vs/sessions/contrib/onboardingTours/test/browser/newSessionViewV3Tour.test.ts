@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { createNewSessionViewV2Tour } from '../../browser/tours/newSessionViewV2Tour.js';
+import { createNewSessionViewV3Tour, NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
+import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
+
+suite('NewSessionViewV3Tour', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reuses V2 criteria and workspace step, then inserts the task template on completion', () => {
+		const trigger = observableValue<boolean>(disposables, false);
+		const inserted: { readonly prompt: string; readonly durationMs: number; readonly taskPlaceholder: string }[] = [];
+		const scenario = createNewSessionViewV3Tour(trigger, (prompt, durationMs, taskPlaceholder) => {
+			inserted.push({ prompt, durationMs, taskPlaceholder });
+		});
+		const v2Scenario = createNewSessionViewV2Tour(trigger);
+		const steps = scenario.presentation.payload.steps;
+		const v2WorkspaceStep = v2Scenario.presentation.payload.steps[0];
+		const workspaceStep = steps[0].payload as typeof v2WorkspaceStep;
+		const runPromptStep = steps[1].payload as { run(token: CancellationToken): Promise<void> | void };
+		runPromptStep.run(CancellationToken.None);
+
+		const summarizeWorkspaceStep = (step: typeof v2WorkspaceStep) => ({
+			id: step.id,
+			targetId: step.targetId,
+			title: step.title,
+			description: step.description,
+			placement: step.placement,
+			when: step.when?.serialize(),
+			missingTarget: step.missingTarget,
+			openTarget: step.openTarget,
+			allowTargetInteraction: step.allowTargetInteraction,
+			advanceWhen: step.advanceWhen?.serialize(),
+		});
+
+		assert.deepStrictEqual({
+			id: scenario.id,
+			seenKey: scenario.seenKey,
+			priority: scenario.priority,
+			experiment: scenario.experiment,
+			criteriaMatchV2: scenario.when?.serialize() === v2Scenario.when?.serialize(),
+			presentationKind: scenario.presentation.kind,
+			steps: steps.map(step => ({ id: step.id, kind: step.kind })),
+			workspaceStep: summarizeWorkspaceStep(workspaceStep),
+			v2WorkspaceStep: summarizeWorkspaceStep(v2WorkspaceStep),
+			inserted,
+		}, {
+			id: NEW_SESSION_VIEW_V3_TOUR_ID,
+			seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
+			priority: 120,
+			experiment: {
+				behaviorFlag: 'onb.newSessionViewV3.show',
+				assignmentContextIdFlag: 'onb.newSessionViewV3.id',
+			},
+			criteriaMatchV2: true,
+			presentationKind: 'sequence',
+			steps: [
+				{ id: 'workspacePicker', kind: 'spotlight' },
+				{ id: 'insertPrompt', kind: 'run' },
+			],
+			workspaceStep: {
+				id: 'workspacePicker',
+				targetId: 'sessions.newSession.workspacePicker',
+				title: 'Choose a workspace',
+				description: 'A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files.',
+				placement: 'above',
+				when: 'sessionWorkspacePickerVisible && !sessionHasWorkspace',
+				missingTarget: { kind: 'skip' },
+				openTarget: true,
+				allowTargetInteraction: true,
+				advanceWhen: 'sessionHasWorkspace',
+			},
+			v2WorkspaceStep: {
+				id: 'workspacePicker',
+				targetId: 'sessions.newSession.workspacePicker',
+				title: 'Choose a workspace',
+				description: 'A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files.',
+				placement: 'above',
+				when: 'sessionWorkspacePickerVisible && !sessionHasWorkspace',
+				missingTarget: { kind: 'skip' },
+				openTarget: true,
+				allowTargetInteraction: true,
+				advanceWhen: 'sessionHasWorkspace',
+			},
+			inserted: [{
+				prompt: 'Help me complete [describe the coding task] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.',
+				durationMs: 2_500,
+				taskPlaceholder: '[describe the coding task]',
+			}],
+		});
+	});
+});

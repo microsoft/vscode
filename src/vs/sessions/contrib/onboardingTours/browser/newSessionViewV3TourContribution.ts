@@ -11,35 +11,47 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewSessionViewTourTrigger } from './newSessionViewTourTrigger.js';
-import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from './tours/newSessionViewV2Tour.js';
+import { createNewSessionViewV3Tour, NEW_SESSION_VIEW_V3_TOUR_ID } from './tours/newSessionViewV3Tour.js';
 
-class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'sessions.contrib.onboardingTours.newSessionViewV2Tour';
+class NewSessionViewV3TourContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.onboardingTours.newSessionViewV3Tour';
 
 	constructor(
 		@IOnboardingScenarioService onboardingScenarioService: IOnboardingScenarioService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 	) {
 		super();
 
 		const trigger = this._register(new NewSessionViewTourTrigger(
-			NEW_SESSION_VIEW_V2_TOUR_ID,
+			NEW_SESSION_VIEW_V3_TOUR_ID,
 			onboardingScenarioService,
-			sessionsService,
+			this._sessionsService,
 			storageService,
 			configurationService,
 			contextKeyService,
 			chatEntitlementService,
 		));
-		this._register(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(trigger.signal)));
+		this._register(onboardingScenarioRegistry.register(createNewSessionViewV3Tour(
+			trigger.signal,
+			(prompt, durationMs, taskPlaceholder) => this._animatePrompt(prompt, durationMs, taskPlaceholder),
+		)));
+	}
+
+	private _animatePrompt(prompt: string, durationMs: number, taskPlaceholder: string): void {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession?.isCreated.get()) {
+			return;
+		}
+		this._sessionsPartService.getSessionView(activeSession?.sessionId)?.animateInput(prompt, durationMs, taskPlaceholder);
 	}
 }
 
-registerWorkbenchContribution2(NewSessionViewV2TourContribution.ID, NewSessionViewV2TourContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(NewSessionViewV3TourContribution.ID, NewSessionViewV3TourContribution, WorkbenchPhase.AfterRestored);

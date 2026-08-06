@@ -924,6 +924,10 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.focus();
 	}
 
+	animateInput(text: string, durationMs: number, placeholder?: string): void {
+		this._newChatInput.animateInput(text, durationMs, placeholder);
+	}
+
 	/**
 	 * Handles a workspace selection from the workspace picker and creates a
 	 * new session for it. Workspace trust (when required) is requested by
