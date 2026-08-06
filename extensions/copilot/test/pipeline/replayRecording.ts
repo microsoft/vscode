@@ -110,15 +110,15 @@ export function parseSuggestedEdit(suggestedEditStr: string): [start: number, en
  * Process a single input row: split recording at request time, replay
  * the pre-request portion and extract the oracle edit.
  */
-export function processRow(row: IInputRow): Result<IProcessedRow, Error> {
+export function processRow(row: IInputRow, maxOracleEdits?: number): Result<IProcessedRow, Error> {
 	try {
-		return _processRow(row);
+		return _processRow(row, maxOracleEdits);
 	} catch (e: unknown) {
 		return Result.error(ErrorUtils.fromUnknown(e));
 	}
 }
 
-function _processRow(row: IInputRow): Result<IProcessedRow, Error> {
+function _processRow(row: IInputRow, maxOracleEdits: number | undefined): Result<IProcessedRow, Error> {
 	const proposedEdits = coalesce([parseSuggestedEdit(row.postProcessingOutcome.suggestedEdit)]);
 	const isAccepted = row.suggestionStatus === 'accepted';
 
@@ -135,6 +135,7 @@ function _processRow(row: IInputRow): Result<IProcessedRow, Error> {
 		requestTime: recording.requestTime,
 		proposedEdits,
 		isAccepted,
+		maxOracleEdits,
 	});
 }
 
@@ -157,6 +158,7 @@ interface IProcessRecordingArgs {
 	readonly proposedEdits: IStringReplacement[];
 	readonly isAccepted: boolean;
 	readonly oracleEdits?: ISerializedEdit;
+	readonly maxOracleEdits?: number;
 	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
 }
 
@@ -204,11 +206,12 @@ function _processRecordingAtSplit(
 		readonly proposedEdits: IStringReplacement[];
 		readonly isAccepted: boolean;
 		readonly oracleEdits?: ISerializedEdit;
+		readonly maxOracleEdits?: number;
 		readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
 	},
 	split: Processor.ISplitRecording,
 ): Result<IProcessedRow, Error> {
-	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted, args.oracleEdits);
+	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted, args.oracleEdits, args.maxOracleEdits);
 
 	const recording = scoring.scoringContext.recording;
 
@@ -310,7 +313,7 @@ function _processRecordingAtSplit(
  * Process all input rows.
  * Each returned `IProcessedRow` holds a live replayer that must be disposed by the caller.
  */
-export function processAllRows(rows: readonly IInputRow[]): {
+export function processAllRows(rows: readonly IInputRow[], maxOracleEdits?: number): {
 	processed: IProcessedRow[];
 	errors: WithRowIndex<Error>[];
 } {
@@ -319,7 +322,7 @@ export function processAllRows(rows: readonly IInputRow[]): {
 
 	for (let i = 0; i < rows.length; i++) {
 		const row = rows[i];
-		const result = processRow(row);
+		const result = processRow(row, maxOracleEdits);
 		if (result.isError()) {
 			errors.push({ originalRowIndex: row.originalRowIndex, value: result.err });
 		} else {

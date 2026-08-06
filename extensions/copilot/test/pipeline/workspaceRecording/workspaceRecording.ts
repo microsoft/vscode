@@ -6,21 +6,17 @@
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
-import { DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT } from '../../base/simulationOptions';
-import { Edits } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
+import { DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT } from '../../base/simulationOptions';
 import { deserializeStringEdit, serializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
 import { RecordingData, ResolvedRecording } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/resolvedRecording';
 import { OperationKind, type Operation } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/operation';
 import type { HeaderLogEntry, ISerializedEdit, ISerializedOffsetRange, LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { ErrorUtils } from '../../../src/util/common/errors';
-import { StringEdit } from '../../../src/util/vs/editor/common/core/edits/stringEdit';
 import { StringText } from '../../../src/util/vs/editor/common/core/text/abstractText';
+import { composeAndLimitSerializedEdits, doesSerializedEditContinueOracle, ORACLE_CURSOR_CONTINUATION_LINE_GAP, ORACLE_CURSOR_SUPPRESSION_MS, ORACLE_EDIT_IDLE_MS } from '../oracleEdits';
 import type { IWorkspaceRecordingSampleProvenance } from '../replayRecording';
 
 const WORKSPACE_RECORDING_CONTEXT_WINDOW_MS = 5 * 60 * 1000;
-const WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS = 200;
-const WORKSPACE_RECORDING_ORACLE_IDLE_MS = 5 * 1000;
-const WORKSPACE_RECORDING_ORACLE_CURSOR_CONTINUATION_LINE_GAP = 3;
 const WORKSPACE_RECORDING_SYNTHETIC_TIME_BASE = 3_000_000;
 
 type EditClassification = 'user' | 'accepted' | 'partially-accepted' | 'generated' | 'ambiguous';
@@ -131,7 +127,7 @@ export async function loadWorkspaceRecording(inputPath: string): Promise<IWorksp
 export function selectWorkspaceRecordingSamples(
 	recording: IWorkspaceRecording,
 	maxSamples: number,
-	maxOracleEdits = DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
+	maxOracleEdits = DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 ): IWorkspaceRecordingSampleDescriptor[] {
 	if (!Number.isInteger(maxOracleEdits) || maxOracleEdits <= 0) {
 		throw new Error(`Workspace recording oracle edit limit must be a positive integer, but got: ${maxOracleEdits}`);
@@ -603,7 +599,7 @@ function findDeliberateCursorOperations(recording: IWorkspaceRecording): Readonl
 
 		const lastEditTime = lastEditTimeByDocument.get(operation.documentId);
 		const delta = lastEditTime === undefined ? undefined : operation.time - lastEditTime;
-		const followsSameDocumentEdit = delta !== undefined && delta >= 0 && delta <= WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS;
+		const followsSameDocumentEdit = delta !== undefined && delta >= 0 && delta <= ORACLE_CURSOR_SUPPRESSION_MS;
 		if (changedLocation && !followsSameDocumentEdit) {
 			result.add(operation.operationIdx);
 		}
@@ -640,12 +636,12 @@ function collectOracle(
 				const continuesNearbyUserIntent = (
 					nextClassification === 'accepted'
 					|| nextClassification === 'partially-accepted'
-					|| (nextClassification === 'user' && nextDelta > 0 && nextDelta < WORKSPACE_RECORDING_ORACLE_IDLE_MS)
+					|| (nextClassification === 'user' && nextDelta > 0 && nextDelta < ORACLE_EDIT_IDLE_MS)
 				) && areDocumentChangesWithinLineGap(
 					recording,
 					operationIndices[operationIndices.length - 1],
 					nextChangeOperationIndex,
-					WORKSPACE_RECORDING_ORACLE_CURSOR_CONTINUATION_LINE_GAP,
+					ORACLE_CURSOR_CONTINUATION_LINE_GAP,
 				);
 				if (continuesNearbyUserIntent) {
 					continue;
@@ -713,7 +709,7 @@ function collectOracle(
 
 		if (classification === 'user') {
 			const delta = operation.time - previousEditTime;
-			if (delta <= 0 || delta >= WORKSPACE_RECORDING_ORACLE_IDLE_MS) {
+			if (delta <= 0 || delta >= ORACLE_EDIT_IDLE_MS) {
 				if (operationIndices.length > 0 && doesOperationContinueOracle(recording, operationIndices, operation.operationIdx)) {
 					return {
 						operationIndices,
@@ -802,21 +798,20 @@ function composeOracleEdits(
 	operationIndices: readonly number[],
 	maxOracleEdits: number,
 ): ISerializedEdit {
-	return composeOperations(recording, operationIndices).slice(0, maxOracleEdits);
+	return composeAndLimitSerializedEdits(getSerializedOperationEdits(recording, operationIndices), maxOracleEdits);
 }
 
-function composeOperations(
+function getSerializedOperationEdits(
 	recording: IWorkspaceRecording,
 	operationIndices: readonly number[],
-): ISerializedEdit {
-	const edits = operationIndices.map(operationIndex => {
+): ISerializedEdit[] {
+	return operationIndices.map(operationIndex => {
 		const operation = recording.resolved.operations[operationIndex];
 		if (!operation || operation.kind !== OperationKind.Changed) {
 			throw new Error(`Workspace recording oracle operation ${operationIndex} is not a document change`);
 		}
-		return operation.edit;
+		return serializeStringEdit(operation.edit);
 	});
-	return serializeStringEdit(new Edits(StringEdit, edits).compose());
 }
 
 function doesOperationContinueOracle(
@@ -824,11 +819,14 @@ function doesOperationContinueOracle(
 	operationIndices: readonly number[],
 	nextOperationIndex: number,
 ): boolean {
-	const current = composeOperations(recording, operationIndices);
-	const combined = composeOperations(recording, [...operationIndices, nextOperationIndex]);
-	return current.some(edit => !combined.some(candidate =>
-		candidate[0] === edit[0] && candidate[1] === edit[1] && candidate[2] === edit[2]
-	));
+	const operation = recording.resolved.operations[nextOperationIndex];
+	if (!operation || operation.kind !== OperationKind.Changed) {
+		return false;
+	}
+	return doesSerializedEditContinueOracle(
+		getSerializedOperationEdits(recording, operationIndices),
+		serializeStringEdit(operation.edit),
+	);
 }
 
 function deduplicateCandidates(

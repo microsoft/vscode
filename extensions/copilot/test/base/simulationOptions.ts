@@ -29,7 +29,7 @@ export enum NesDatagenInputFormat {
 }
 
 export const DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP = 100;
-export const DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT = 10;
+export const DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT = 10;
 
 /**
  * How to choose the pivot in a continuous recording (only meaningful when
@@ -63,7 +63,7 @@ export type NesDatagen = {
 	readonly sameFileJumpMinBelow: number;
 	/** Maximum number of samples selected from one raw workspace recording. */
 	readonly maxSamplesPerRecording?: number;
-	/** Maximum number of composed, non-touching oracle edits in one workspace-recording sample. */
+	/** Maximum number of composed, non-touching oracle edits in one sample. */
 	readonly maxOracleEdits?: number;
 	/** Whether to emit scoredEdits viewer files for generated samples. */
 	readonly generateScoredEdits: boolean;
@@ -253,7 +253,7 @@ export class SimulationOptions {
 				maxOracleEdits: SimulationOptions.validatePositiveInteger(
 					argv['max-oracle-edits'],
 					'--max-oracle-edits',
-					DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
+					DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 				),
 				generateScoredEdits: boolean(argv['generate-scored-edits'], false),
 				scoredEditsOutputDirectory: argv['scored-edits-output-directory'],
@@ -347,7 +347,7 @@ export class SimulationOptions {
 			`                                       random             → pick a single eligible pivot uniformly at random`,
 			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
 			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
-			`  --max-oracle-edits                 Maximum composed, non-touching oracle edits per workspace sample (default: 10)`,
+			`  --max-oracle-edits                 Maximum composed, non-touching oracle edits per sample (default: 10)`,
 			`  --generate-scored-edits            Generate <sample-id>.scoredEdits.w.json files beside the output JSONL`,
 			`                                     Requires --sample-task=xtab`,
 			`  --sample-task                      Which target to generate (default: xtab)`,

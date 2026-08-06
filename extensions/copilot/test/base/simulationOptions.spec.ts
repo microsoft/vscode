@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT, SimulationOptions } from './simulationOptions';
+import { DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT, SimulationOptions } from './simulationOptions';
 
 describe('SimulationOptions nes-datagen', () => {
 	it('parses the workspace recording oracle edit limit', () => {
@@ -15,7 +15,7 @@ describe('SimulationOptions nes-datagen', () => {
 			defaultValue: defaults.nesDatagen?.maxOracleEdits,
 			configuredValue: configured.nesDatagen?.maxOracleEdits,
 		}).toEqual({
-			defaultValue: DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
+			defaultValue: DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 			configuredValue: 3,
 		});
 	});
