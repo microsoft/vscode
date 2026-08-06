@@ -386,6 +386,41 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasDockedDetails(), false, 'search target should clear the editor chevron context');
 	});
 
+	test('[single-pane] Hide Editor while a Browser tab is active shows the Changes/Files fallback instead of hiding it again', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
+		harness.activeEditorInput = browserEditor;
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'browser tab should hide the detail panel while the editor area is visible');
+
+		// Mirror HideMainEditorPartAction.run(): reveal the auxiliary bar, then hide the editor part.
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		await timeout(0);
+
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), true, 'the detail panel must stay revealed once the editor area is hidden, not be forced shut again');
+		assert.strictEqual(hasDockedDetails(), true, 'the Changes/Files fallback should enable the editor chevron context');
+		assert.ok(harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID), 'a created session should fall back to the Changes container');
+
+		// Show Editor while still on Browser must restore the "Browser hides the detail" invariant.
+		harness.setPartHiddenCalls = [];
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		await timeout(0);
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'the detail panel should hide again once Browser is active with the editor area visible');
+	});
+
 	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
