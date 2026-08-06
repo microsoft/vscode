@@ -2883,7 +2883,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._routedRequests.set(sessionKey, { requestId, phase: 'running' });
 			} else if (state.state === 'waiting_for_confirmation') {
 				this._routedRequests.set(sessionKey, { requestId, phase: 'waiting' });
-			} else if (state.last_response_summary) {
+			} else if (requestId && state.last_response_summary) {
 				this._routedRequests.delete(sessionKey);
 			}
 		}
@@ -2938,7 +2938,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return;
 			}
 			Promise.resolve().then(() => {
-				const currentState = this._voiceState.get();
+				const currentState = this._voiceState.read(undefined);
 				if (currentState === 'idle' || currentState === 'error') {
 					this.setOmniInputActive(false);
 				}

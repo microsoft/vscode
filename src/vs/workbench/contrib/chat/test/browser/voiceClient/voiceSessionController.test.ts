@@ -4189,6 +4189,29 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('an older idle response does not clear a newly queued routed request', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const previousResponse = completedResponseModel('The previous request is complete.');
+		const lastRequest = previousResponse.getRequests().at(-1)!;
+		const model = {
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel;
+		chatService.setModels([model]);
+
+		controller.markRoutedRequestPending(resource);
+
+		assert.deepStrictEqual(
+			Reflect.get(controller, '_routedRequests'),
+			new Map([[resource.toString(), { requestId: undefined, phase: 'queued' }]]),
+		);
+	});
+
 	test('an omni response is never requested again after it has been heard', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

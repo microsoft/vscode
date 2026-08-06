@@ -62,6 +62,14 @@ suite('SessionRouter helpers', () => {
 	test('parseRouterResponse returns undefined when nothing usable', () => {
 		assert.strictEqual(parseRouterResponse('no json here', new Set(['s1'])), undefined);
 		assert.strictEqual(parseRouterResponse('[{"sessionId":"unknown","confidence":0.5}]', new Set(['s1'])), undefined);
+		assert.strictEqual(parseRouterResponse('[{"sessionId":"s1","confidence":"high"}]', new Set(['s1'])), undefined);
+	});
+
+	test('parseRouterResponse skips malformed confidences in an otherwise valid response', () => {
+		assert.deepStrictEqual(
+			parseRouterResponse('[{"sessionId":"s1"},{"sessionId":"s2","confidence":0.7}]', new Set(['s1', 's2'])),
+			[{ sessionId: 's2', confidence: 0.7, reason: undefined }],
+		);
 	});
 
 	test('high-confidence routes must exceed 80 percent', () => {

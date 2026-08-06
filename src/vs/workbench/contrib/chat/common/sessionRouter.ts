@@ -172,9 +172,10 @@ export function parseRouterResponse(text: string, validSessionIds: ReadonlySet<s
 			continue;
 		}
 		const rawConfidence = record.confidence;
-		const confidence = typeof rawConfidence === 'number' && isFinite(rawConfidence)
-			? Math.max(0, Math.min(1, rawConfidence))
-			: 0;
+		if (typeof rawConfidence !== 'number' || !isFinite(rawConfidence)) {
+			continue;
+		}
+		const confidence = Math.max(0, Math.min(1, rawConfidence));
 		seen.add(sessionId);
 		results.push({
 			sessionId,

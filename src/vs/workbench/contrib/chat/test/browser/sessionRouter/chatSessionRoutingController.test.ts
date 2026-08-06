@@ -52,20 +52,26 @@ suite('ChatSessionRoutingController', () => {
 		assert.strictEqual(result?.toString(), docs.uri.toString());
 	});
 
-	test('uses router-tool order rather than lexical title matching for the enrichment shortlist', () => {
+	test('bounds the enrichment shortlist with local metadata before model scoring', () => {
 		const candidates = Array.from({ length: 13 }, (_, index) => ({
 			sessionId: `s${index}`,
-			label: index === 0 ? 'exact lexical title match' : `session ${index}`,
+			label: index === 0 ? 'Authentication migration' : `Unrelated session ${index}`,
+			status: index === 12 ? 'working' : 'idle',
+			lastActivity: index,
 		}));
-		const results = candidates.slice(1).reverse().map((candidate, index) => ({
-			sessionId: candidate.sessionId,
-			confidence: 1 - index / 100,
-		}));
+		const shortlist = selectRouterShortlist(candidates, 'continue the authentication migration');
 
-		assert.deepStrictEqual(
-			selectRouterShortlist(candidates, results).map(candidate => candidate.sessionId),
-			results.map(result => result.sessionId),
-		);
+		assert.deepStrictEqual({
+			length: shortlist.length,
+			first: shortlist[0].sessionId,
+			second: shortlist[1].sessionId,
+			excluded: candidates.filter(candidate => !shortlist.includes(candidate)).map(candidate => candidate.sessionId),
+		}, {
+			length: 12,
+			first: 's0',
+			second: 's12',
+			excluded: ['s1'],
+		});
 	});
 
 	test('keeps the sticky default for a weak related-session match', () => {

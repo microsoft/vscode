@@ -14,6 +14,7 @@ import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -59,6 +60,23 @@ const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
+
+function getDescendantElements(parent: HTMLElement, className?: string): HTMLElement[] {
+	const result: HTMLElement[] = [];
+	const visit = (element: HTMLElement) => {
+		for (const child of element.children) {
+			if (!dom.isHTMLElement(child)) {
+				continue;
+			}
+			if (!className || child.classList.contains(className)) {
+				result.push(child);
+			}
+			visit(child);
+		}
+	};
+	visit(parent);
+	return result;
+}
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -262,17 +280,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
 		this._renderChatWidget(auxiliaryWindow, row);
+		const pendingActiveWindowSync = this._windowDisposables.add(new MutableDisposable());
 		this._windowDisposables.add(autorun(reader => {
 			const ownsVoice = this.voiceSessionController.omniInputActive.read(reader);
 			if (ownsVoice || auxiliaryWindow.window.document.hasFocus()) {
 				return;
 			}
-			this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
+			pendingActiveWindowSync.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
 				const activeWindow = dom.getActiveWindow();
 				if (activeWindow !== auxiliaryWindow.window) {
 					this.voiceSessionController.setActiveWindow(activeWindow);
 				}
-			}));
+			});
 		}));
 
 		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
@@ -465,20 +484,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}
 				row.after(badge);
 				fitWindowToInput();
+				const observerDisposables = this._windowDisposables.add(new DisposableStore());
 				const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => fitWindowToInput());
+				observerDisposables.add(toDisposable(() => resizeObserver.disconnect()));
 				resizeObserver.observe(badge);
 				const observer = new auxiliaryWindow.window.MutationObserver(() => {
 					if (!badge.isConnected) {
-						observer.disconnect();
-						resizeObserver.disconnect();
+						observerDisposables.dispose();
 						fitWindowToInput();
 					}
 				});
+				observerDisposables.add(toDisposable(() => observer.disconnect()));
 				observer.observe(container, { childList: true });
-				this._windowDisposables.add(toDisposable(() => {
-					observer.disconnect();
-					resizeObserver.disconnect();
-				}));
 			},
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
@@ -630,7 +647,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// the response list. Keep it mounted; CSS hides only the editor chrome.
 		widget.setInputVisible(true);
 		widget.setVisible(true);
-		const list = widget.domNode.querySelector<HTMLElement>(':scope > .interactive-list');
+		const list = widget.transcriptDomNode;
 
 		let pendingModels: readonly IChatModel[] = [];
 		let layingOut = false;
@@ -652,27 +669,25 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					lastPendingWidth = width;
 					widget.layout(lastPendingHeight ?? CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
 				}
-				const listBounds = list?.getBoundingClientRect();
-				const renderedRows = list ? Array.from(list.querySelectorAll<HTMLElement>('.interactive-item-container')) : [];
-				const renderedContentHeight = listBounds
-					? renderedRows.reduce((height, row) => {
-						const rowBounds = row.getBoundingClientRect();
-						const confirmation = row.querySelector<HTMLElement>('.chat-confirmation-widget-container');
-						const confirmationBounds = confirmation?.getBoundingClientRect();
-						const paddingBottom = parseFloat(dom.getWindow(row).getComputedStyle(row).paddingBottom);
-						const renderedDescendantBottom = confirmation
-							? Array.from(confirmation.querySelectorAll<HTMLElement>('*')).reduce(
-								(bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom),
-								confirmationBounds?.bottom ?? 0,
-							)
-							: 0;
-						const confirmationBottom = confirmationBounds
-							? Math.max(confirmationBounds.top + (confirmation?.scrollHeight ?? 0), renderedDescendantBottom)
-							: 0;
-						const bottom = Math.max(rowBounds.bottom, confirmationBottom + paddingBottom);
-						return Math.max(height, bottom - listBounds.top);
-					}, 0)
-					: 0;
+				const listBounds = list.getBoundingClientRect();
+				const renderedRows = getDescendantElements(list, 'interactive-item-container');
+				const renderedContentHeight = renderedRows.reduce((height, row) => {
+					const rowBounds = row.getBoundingClientRect();
+					const confirmation = getDescendantElements(row, 'chat-confirmation-widget-container')[0];
+					const confirmationBounds = confirmation?.getBoundingClientRect();
+					const paddingBottom = parseFloat(dom.getWindow(row).getComputedStyle(row).paddingBottom);
+					const renderedDescendantBottom = confirmation
+						? getDescendantElements(confirmation).reduce(
+							(bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom),
+							confirmationBounds?.bottom ?? 0,
+						)
+						: 0;
+					const confirmationBottom = confirmationBounds
+						? Math.max(confirmationBounds.top + (confirmation?.scrollHeight ?? 0), renderedDescendantBottom)
+						: 0;
+					const bottom = Math.max(rowBounds.bottom, confirmationBottom + paddingBottom);
+					return Math.max(height, bottom - listBounds.top);
+				}, 0);
 				const contentHeight = panel.classList.contains('question') || renderedContentHeight === 0
 					? widget.contentHeight
 					: renderedContentHeight;
@@ -861,7 +876,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const terminalData = part.toolSpecificData;
 			let command: string | undefined;
 			if (terminalData?.kind === 'terminal') {
-				command = 'commandLine' in terminalData
+				command = hasKey(terminalData, { commandLine: true })
 					? terminalData.presentationOverrides?.commandLine
 						?? terminalData.confirmation?.commandLine
 						?? terminalData.commandLine.toolEdited

@@ -104,17 +104,25 @@ export function resolveNewSessionWorkspaceFolder(
 
 export function selectRouterShortlist(
 	candidates: readonly IRoutableSession[],
-	results: readonly ISessionRouteResult[],
+	utterance: string,
 	limit: number = ROUTE_ENRICH_MAX_CANDIDATES,
 ): IRoutableSession[] {
 	if (candidates.length <= limit) {
 		return [...candidates];
 	}
-	const byId = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
-	return results
-		.map(result => byId.get(result.sessionId))
-		.filter((candidate): candidate is IRoutableSession => !!candidate)
+	const lexicalScores = new Map(heuristicScore({ utterance, sessions: candidates }).map(result => [result.sessionId, result.confidence]));
+	return [...candidates]
+		.sort((a, b) =>
+			(lexicalScores.get(b.sessionId) ?? 0) - (lexicalScores.get(a.sessionId) ?? 0)
+			|| sessionStatusPriority(b.status) - sessionStatusPriority(a.status)
+			|| (b.lastActivity ?? 0) - (a.lastActivity ?? 0)
+			|| a.label.localeCompare(b.label)
+			|| a.sessionId.localeCompare(b.sessionId))
 		.slice(0, limit);
+}
+
+function sessionStatusPriority(status: string | undefined): number {
+	return status === 'working' ? 2 : status === 'idle' ? 1 : 0;
 }
 
 function folderMentionedInUtterance(utterance: string, folders: readonly IWorkspaceFolder[]): URI | undefined {
@@ -360,15 +368,10 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 
-		// For large candidate sets, ask the router tool to select the sessions
-		// worth enriching. Titles are context for the tool, never a lexical gate.
-		const preliminaryResults = candidates.length > ROUTE_ENRICH_MAX_CANDIDATES
-			? await this._route(candidates, utterance, token)
-			: [];
-		if (token.isCancellationRequested) {
-			return true;
-		}
-		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
+		// Bound content resolution and model input before any remote scoring. The
+		// local rank only chooses which candidates receive semantic scoring; it
+		// never decides the destination itself.
+		const shortlist = selectRouterShortlist(candidates, utterance);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
 			return true;
@@ -410,11 +413,17 @@ export class ChatSessionRoutingController extends Disposable {
 
 	/** Cancel any in-flight submission and remove the pending badge. */
 	cancelPending(): void {
+		this._cancelPending(true);
+	}
+
+	private _cancelPending(resetSubmissionPhase: boolean): void {
 		this._submitCts.value?.cancel();
 		this._submitCts.clear();
 		this._submitDraftListeners.clear();
 		this._pendingSend.clear();
-		this._setSubmissionPhase('idle');
+		if (resetSubmissionPhase) {
+			this._setSubmissionPhase('idle');
+		}
 	}
 
 	private _setSubmissionPhase(phase: SubmissionPhase): void {
@@ -750,7 +759,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const foot = dom.append(badge, dom.$('.chat-routing-badge-foot'));
 		const changeHint = dom.append(foot, dom.$('span'));
-		changeHint.textContent = localize('chatSessionRouting.changeHint', "Arrow keys move · Space selects several · Escape cancels");
+		changeHint.textContent = localize('chatSessionRouting.changeHint', "Tab to choose · Arrow keys move · Space selects several · Escape cancels");
 		const sendHint = dom.append(foot, dom.$('span.chat-routing-badge-foot-end'));
 
 		const renderSelection = () => {
@@ -854,6 +863,12 @@ export class ChatSessionRoutingController extends Disposable {
 				return;
 			}
 			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Escape)) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				cancel();
+				return;
+			}
 			const isRoutingInteraction = dom.isHTMLElement(event.target) && badge.contains(event.target);
 			const isListInteraction = isRoutingInteraction && !!event.target.closest('.chat-routing-badge-row');
 			if (isListInteraction && (keyboardEvent.equals(KeyCode.UpArrow) || keyboardEvent.equals(KeyCode.DownArrow) || keyboardEvent.equals(KeyCode.Home) || keyboardEvent.equals(KeyCode.End))) {
@@ -884,10 +899,6 @@ export class ChatSessionRoutingController extends Disposable {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				send();
-			} else if (isRoutingInteraction && keyboardEvent.equals(KeyCode.Escape)) {
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				cancel();
 			}
 		}, true));
 
@@ -1254,7 +1265,9 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	override dispose(): void {
-		this._pendingSend.clear();
+		// The host widget can be disposed before this controller by a shared
+		// disposable store, so teardown must cancel without touching its UI.
+		this._cancelPending(false);
 		super.dispose();
 	}
 }

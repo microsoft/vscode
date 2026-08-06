@@ -418,7 +418,10 @@ export class ModelPickerWidget extends Disposable {
 			this._showRequestId++;
 			this._activeShowDisposables.clear();
 			this._nameButton.setAttribute('aria-expanded', 'false');
-			this._delegate.onDidChangeVisibility?.(false);
+			const visibilityChange = this._delegate.onDidChangeVisibility?.(false);
+			if (visibilityChange) {
+				void visibilityChange.catch(() => { });
+			}
 			this._actionWidgetService.hide(true);
 			return;
 		}
@@ -555,7 +558,10 @@ export class ModelPickerWidget extends Disposable {
 					showDisposables.dispose();
 				}
 				this._nameButton?.setAttribute('aria-expanded', 'false');
-				this._delegate.onDidChangeVisibility?.(false);
+				const visibilityChange = this._delegate.onDidChangeVisibility?.(false);
+				if (visibilityChange) {
+					void visibilityChange.catch(() => { });
+				}
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -591,8 +597,20 @@ export class ModelPickerWidget extends Disposable {
 		const visibilityChange = this._delegate.onDidChangeVisibility?.(true);
 		if (visibilityChange) {
 			void visibilityChange.then(showActionWidget, () => {
+				if (showRequestId !== this._showRequestId) {
+					return;
+				}
+				this._showRequestId++;
 				if (this._activeShowDisposables.value === showDisposables) {
 					this._activeShowDisposables.clear();
+				}
+				this._nameButton?.setAttribute('aria-expanded', 'false');
+				const hideVisibilityChange = this._delegate.onDidChangeVisibility?.(false);
+				if (hideVisibilityChange) {
+					void hideVisibilityChange.catch(() => { });
+				}
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
 				}
 			});
 		} else {
