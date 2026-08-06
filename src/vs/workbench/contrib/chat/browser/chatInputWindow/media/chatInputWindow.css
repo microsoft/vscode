@@ -242,6 +242,35 @@
 	min-width: 0;
 }
 
+.chat-input-window .chat-input-window-pending-approval {
+	display: none;
+	padding: 10px 16px 14px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.tool-approval-summary .chat-input-window-pending-approval {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-input-window .chat-input-window-pending-approval-title {
+	font-weight: 600;
+}
+
+.chat-input-window .chat-input-window-pending-approval-command {
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-textPreformat-foreground);
+	background: var(--vscode-textPreformat-background);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.chat-input-window .chat-input-window-pending-panel.tool-approval-summary .chat-input-window-pending-widget {
+	display: none;
+}
+
 .chat-input-window .chat-input-window-pending-widget .interactive-list {
 	display: block;
 }
