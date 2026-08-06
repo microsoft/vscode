@@ -3341,7 +3341,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		const updateVoiceInputActionBorder = () => {
+			const voiceInputActions = this.executeToolbar.getElement().querySelectorAll('.action-label.codicon-mic, .action-label.codicon-mic-filled, .action-label.codicon-mic-download-compact, .action-label.codicon-voice-mode-compact, .action-label.codicon-loading-compact, .action-label.codicon-debug-disconnect-compact');
+			this.executeToolbar.getElement().classList.toggle('chat-voice-input-actions-multiple', voiceInputActions.length > 1);
+		};
+		updateVoiceInputActionBorder();
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
+			updateVoiceInputActionBorder();
 			if (this.cachedWidth && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
