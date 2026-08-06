@@ -67,10 +67,15 @@ const sessionToolNames = [
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
+	// Codex fails model authentication before a direct session lookup reaches the server tool.
 	const supportsDirectSessionLookup = config.provider !== 'codex';
+	// Claude omits the prior server-tool input from detailed session context.
 	const supportsFullSessionContext = config.provider !== 'claude';
+	// Codex fails model authentication while materializing the target session.
 	const supportsCrossSessionSend = config.provider !== 'codex';
+	// Claude leaves the target listed; Codex fails authentication while materializing it.
 	const supportsCrossSessionDelete = config.provider === 'copilotcli';
+	// Claude and Codex start another turn instead of rejecting a message to the current chat.
 	const supportsSelfSendRejection = config.provider === 'copilotcli';
 	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
 	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
