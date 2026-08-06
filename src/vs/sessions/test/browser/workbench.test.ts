@@ -15,6 +15,7 @@ import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPa
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
+import { Menus } from '../../browser/menus.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -59,6 +60,8 @@ suite('Sessions - Workbench', () => {
 	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
 	const isVisible = Workbench.prototype.isVisible as (this: ITestWorkbench, part: Parts) => boolean;
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
+	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
+	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -146,8 +149,8 @@ suite('Sessions - Workbench', () => {
 	}
 
 	function createHost(options: IHostOptions = {}): ITestWorkbench {
-		const editorPartView = {};
-		const sessionsPartView = {};
+		const editorPartView = { minimumWidth: 300 };
+		const sessionsPartView = { minimumWidth: 300 };
 		const sideBarPartView = {};
 		const auxiliaryBarPartView = {};
 		const panelPartView = {};
@@ -286,6 +289,39 @@ suite('Sessions - Workbench', () => {
 	}
 
 	// --- Editor split / reveal ---------------------------------------------
+
+	test('activating a minimized Sessions or Editor Part resizes its sibling to minimum width', () => {
+		const sessionsMinimized = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: true } });
+		const editorMinimized = createHost({ sessionsWidth: 700, editorWidth: 300, partVisibility: { editor: true } });
+		const singlePaneSessionsMinimized = createHost({ single: true, sessionsWidth: 300, editorWidth: 800, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
+		const singlePaneEditorMinimized = createHost({ single: true, sessionsWidth: 700, editorWidth: 550, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
+		const neitherMinimized = createHost({ sessionsWidth: 301, editorWidth: 301, partVisibility: { editor: true } });
+		const editorHidden = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: false } });
+
+		restoreSessionsPartOnActivation.call(sessionsMinimized);
+		restoreEditorPartOnActivation.call(editorMinimized);
+		restoreSessionsPartOnActivation.call(singlePaneSessionsMinimized);
+		restoreEditorPartOnActivation.call(singlePaneEditorMinimized);
+		restoreSessionsPartOnActivation.call(neitherMinimized);
+		restoreEditorPartOnActivation.call(neitherMinimized);
+		restoreSessionsPartOnActivation.call(editorHidden);
+
+		assert.deepStrictEqual([
+			sessionsMinimized.resizes,
+			editorMinimized.resizes,
+			singlePaneSessionsMinimized.resizes,
+			singlePaneEditorMinimized.resizes,
+			neitherMinimized.resizes,
+			editorHidden.resizes,
+		], [
+			[{ width: 300, height: 800 }],
+			[{ width: 300, height: 800 }],
+			[{ width: 550, height: 800 }],
+			[{ width: 300, height: 800 }],
+			[],
+			[],
+		]);
+	});
 
 	test('tracks editor pane visibility across editor and auxiliary bar changes', () => {
 		const host = createHost({ partVisibility: { editor: false, auxiliaryBar: true } });
@@ -1152,11 +1188,23 @@ suite('Sessions - Workbench', () => {
 		// Breadcrumbs render inside the full-width header row between the tab bar
 		// and the editor content only in the single-pane Agents Window. The classic
 		// editor part must keep its default (below-tabs) placement.
-		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => { showHeader?: boolean; menuIds?: unknown };
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => {
+			showHeader?: boolean;
+			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
+		};
 		const options = getOptions.call({});
 
-		assert.strictEqual(options.showHeader, true);
-		assert.ok(options.menuIds, 'single-pane group view still contributes menuIds');
+		assert.deepStrictEqual({
+			showHeader: options.showHeader,
+			headerPrimary: options.menuIds?.headerPrimary,
+			headerSecondary: options.menuIds?.headerSecondary,
+			headerLayout: options.menuIds?.headerLayout,
+		}, {
+			showHeader: true,
+			headerPrimary: Menus.SessionsEditorHeaderPrimary,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
+			headerLayout: Menus.SessionsEditorHeaderLayout,
+		});
 	});
 
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {

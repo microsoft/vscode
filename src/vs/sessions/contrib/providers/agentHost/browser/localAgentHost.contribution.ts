@@ -30,14 +30,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
+			description: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window."),
 		},
 	},
 });
 
 /**
- * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider
- * when `chat.agentHost.enabled` is true.
+ * Registers the {@link LocalAgentHostSessionsProvider} when the Agent Host is
+ * available in this runtime.
  *
  * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
  * session handler registration, language model providers, customization harness —

@@ -60,7 +60,7 @@ import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { IPullRequestCreationService } from './pullRequestCreationService';
 import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
-import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
+import { clearChangesCacheForAffectedSessions } from './chatSessionChangesCache';
 
 const REPOSITORY_OPTION_ID = 'repository';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';

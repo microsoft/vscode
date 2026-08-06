@@ -20,6 +20,38 @@ export function isAllowSignedOutWhenUsableEnabled(configurationService: IConfigu
 }
 
 /**
+ * How the conditional-auth UI should treat the current default-account snapshot.
+ * The crucial distinction is {@link Unresolved}: on startup
+ * {@link IDefaultAccountService.currentDefaultAccount} reads `null` for everyone
+ * until the first async resolution completes — and that resolution fires no
+ * change event. Treating that transient `null` as {@link SignedOut} flashes a
+ * sign-in modal / nudge at a signed-in user during the gap, one that nothing then
+ * retires. So consumers must ignore the account while {@link Unresolved}.
+ */
+export const enum ConditionalAuthState {
+	/** Not resolved yet — treat as unknown; act on neither the signed-in nor signed-out branch. */
+	Unresolved,
+	/** Resolved: a GitHub account is signed in. */
+	SignedIn,
+	/** Resolved: no GitHub account is signed in. */
+	SignedOut,
+}
+
+/**
+ * Collapse "has the account resolved yet?" and "is one signed in?" into the
+ * single state the conditional-auth consumers branch on, so neither re-derives it
+ * (and neither can independently regress the unresolved-vs-signed-out
+ * distinction). `signedIn` must be read from the account snapshot only; this
+ * helper decides whether that snapshot can be trusted yet.
+ */
+export function conditionalAuthState(accountResolved: boolean, signedIn: boolean): ConditionalAuthState {
+	if (!accountResolved) {
+		return ConditionalAuthState.Unresolved;
+	}
+	return signedIn ? ConditionalAuthState.SignedIn : ConditionalAuthState.SignedOut;
+}
+
+/**
  * Whether a signed-out user can work without GitHub right now: the opt-in is on
  * and some registered session type reports that it runs without a GitHub
  * account (e.g. an agent-host agent that discovered an existing native
