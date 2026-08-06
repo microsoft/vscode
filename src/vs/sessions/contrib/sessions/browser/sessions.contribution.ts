@@ -66,7 +66,7 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	command: {
 		id: CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID,
 		title: localize2('chat.toggleInputWindow', "Toggle Floating Chat Input Window"),
-		icon: Codicon.commentDiscussionSparkle,
+		icon: Codicon.arrowCircleUpSparkle,
 	},
 	group: 'navigation',
 	order: 1,

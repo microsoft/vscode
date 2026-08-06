@@ -8,7 +8,7 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 The sessions list (`SessionsView` + `SessionsList`) displays every session known to `ISessionsManagementService`. Sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
 
-When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.commentDiscussionSparkle` action after **New Session** that toggles the floating chat input window.
+When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the floating chat input window.
 
 ### Key Files
 

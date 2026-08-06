@@ -34,7 +34,7 @@ registerAction2(class extends Action2 {
 			id: CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID,
 			title: nls.localize2('chat.toggleInputWindow', "Toggle Floating Chat Input Window"),
 			category: Categories.View,
-			icon: Codicon.commentDiscussionSparkle,
+			icon: Codicon.arrowCircleUpSparkle,
 			f1: true,
 			precondition: inputWindowEnabled,
 			menu: [
