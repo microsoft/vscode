@@ -104,6 +104,14 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
+	margin-left: 4px;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container.overflowing {
+	display: none;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container.sessions-titlebar-container .monaco-toolbar .actions-container {
 	gap: 1px;
 }

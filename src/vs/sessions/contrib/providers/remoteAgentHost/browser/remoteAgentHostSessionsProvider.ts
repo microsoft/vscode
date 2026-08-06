@@ -116,6 +116,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
+	/**
+	 * Forces this host's sessions read-only. Distinct from `disconnected`: a disconnected host may
+	 * come back, so its sessions stay writable and queue on reconnect, whereas this marks a host
+	 * that is gone and whose sessions exist only as replayed history.
+	 */
+	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	/**
@@ -223,6 +229,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected _adapterOptions() {
 		const web = this.isWebPlatform;
 		return {
+			readOnly: this._readOnly,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;
@@ -301,6 +308,17 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
+	}
+
+	/**
+	 * Forces every session on this host to be read-only.
+	 *
+	 * Set when the host is permanently unreachable and its sessions are being served from
+	 * persisted history: the conversation is genuine, but there is no host left to send to, so the
+	 * composer must be hidden rather than accept input that can never be delivered.
+	 */
+	setReadOnly(readOnly: boolean): void {
+		this._readOnly.set(readOnly, undefined);
 	}
 
 	/**
