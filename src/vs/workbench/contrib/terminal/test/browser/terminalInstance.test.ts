@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -17,7 +17,9 @@ import { ResultKind } from '../../../../../platform/keybinding/common/keybinding
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
-import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
@@ -28,6 +30,7 @@ import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -96,6 +99,19 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	createProcessCount = 0;
+	private readonly _processCreatedPromise: Promise<void>;
+	private _resolveProcessCreated!: () => void;
+
+	constructor() {
+		super();
+		this._processCreatedPromise = new Promise(resolve => this._resolveProcessCreated = resolve);
+	}
+
+	get processCreatedPromise(): Promise<void> {
+		return this._processCreatedPromise;
+	}
+
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -113,7 +129,11 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				env: IProcessEnvironment,
 				options: ITerminalProcessOptions,
 				shouldPersist: boolean
-			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			) => {
+				this.createProcessCount++;
+				this._resolveProcessCreated();
+				return this._register(new TestTerminalChildProcess(shouldPersist));
+			},
 			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
 	}
@@ -125,7 +145,11 @@ suite('Workbench - TerminalInstance', () => {
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
 
-		async function createTerminalInstance(): Promise<TerminalInstance> {
+		function createTerminalInstantiationService(
+			terminalInstanceService?: TestTerminalInstanceService,
+			workspace?: Workspace,
+			requestWorkspaceTrust: () => Promise<boolean> = async () => true
+		) {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -145,10 +169,19 @@ suite('Workbench - TerminalInstance', () => {
 				})
 			}, store);
 			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			if (workspace) {
+				instantiationService.stub(IWorkspaceContextService, new TestContextService(workspace));
+			}
 			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
-			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+			instantiationService.stub(ITerminalInstanceService, terminalInstanceService ?? store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+			instantiationService.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust } as Partial<IWorkspaceTrustRequestService>);
+			return instantiationService;
+		}
+
+		async function createTerminalInstance(terminalInstanceService?: TestTerminalInstanceService, workspace?: Workspace): Promise<TerminalInstance> {
+			const instantiationService = createTerminalInstantiationService(terminalInstanceService, workspace);
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 			await instance.xtermReadyPromise;
 			return instance;
@@ -161,30 +194,38 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
-		test('should preserve title for task terminals', async () => {
-			const instantiationService = workbenchInstantiationService({
-				configurationService: () => new TestConfigurationService({
-					files: {},
-					terminal: {
-						integrated: {
-							fontFamily: 'monospace',
-							scrollback: 1000,
-							fastScrollSensitivity: 2,
-							mouseWheelScrollSensitivity: 1,
-							unicodeVersion: '6',
-							shellIntegration: {
-								enabled: true
-							}
-						}
-					},
-				})
-			}, store);
-			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
-			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
-			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
-			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
-			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+		test('should not create a process when workspace trust is denied', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			let resolveTrust!: (trusted: boolean) => void;
+			const trustRequest = new Promise<boolean>(resolve => resolveTrust = resolve);
+			const instantiationService = createTerminalInstantiationService(terminalInstanceService, undefined, () => trustRequest);
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			const exitPromise = Event.toPromise(instance.onExit);
+			resolveTrust(false);
+			await exitPromise;
 
+			strictEqual(terminalInstanceService.createProcessCount, 0);
+		});
+
+		test('should not create a process with an unexpected cwd in an empty workspace', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const instance = await createTerminalInstance(terminalInstanceService, new Workspace('empty'));
+			await terminalInstanceService.processCreatedPromise;
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const testInstance = instance as unknown as { _cwd: string; _userHome: string; _createProcess(): Promise<void> };
+			testInstance._cwd = '/unexpected';
+			testInstance._userHome = '/home';
+			const exitPromise = Event.toPromise(instance.onExit);
+
+			await testInstance._createProcess();
+			const exitResult = await exitPromise;
+
+			ok(exitResult && typeof exitResult === 'object' && 'message' in exitResult);
+			strictEqual(terminalInstanceService.createProcessCount, 1);
+		});
+
+		test('should preserve title for task terminals', async () => {
+			const instantiationService = createTerminalInstantiationService();
 			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
 				type: 'Task',
 				name: 'Test Task Name'
