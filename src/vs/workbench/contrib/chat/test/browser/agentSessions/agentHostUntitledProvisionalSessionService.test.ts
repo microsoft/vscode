@@ -248,14 +248,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			id: 'plugin:first',
 			uri: 'file:///plugins/first',
 			name: 'First',
-			enabled: true,
 		};
 		const second: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: 'plugin:second',
 			uri: 'file:///plugins/second',
 			name: 'Second',
-			enabled: true,
 		};
 		customizations.set([first], undefined);
 

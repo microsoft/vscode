@@ -630,6 +630,23 @@ export const enum CustomizationType {
 }
 
 /**
+ * Scope at which customization enablement is decided.
+ *
+ * @category Customization Types
+ */
+export const enum CustomizationEnablementKind {
+	Global = 'global',
+	Workspace = 'workspace',
+	Session = 'session',
+}
+
+/** A single explicit enablement decision. */
+export type CustomizationEnablement =
+	| { kind: CustomizationEnablementKind.Global; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Workspace; uri: URI; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Session; enabled: boolean };
+
+/**
  * Customization types that appear as children of a
  * {@link PluginCustomization} or {@link DirectoryCustomization}.
  *
@@ -756,8 +773,6 @@ export type CustomizationLoadState =
  * @category Customization Types
  */
 interface ContainerCustomizationBase extends CustomizationBase {
-	/** Whether this container is currently enabled. */
-	enabled: boolean;
 	/**
 	 * `clientId` of the client that contributed this container. Absent for
 	 * server-originated entries.
@@ -785,6 +800,8 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/** Explicit enablement decisions. See {@link McpServerCustomization.enablement}. */
+	enablement?: CustomizationEnablement[];
 	/**
 	 * Version of the plugin, sourced from the
 	 * [Open Plugins](https://open-plugins.com/) manifest's optional
@@ -829,6 +846,8 @@ export interface ClientPluginCustomization extends PluginCustomization {
  */
 export interface DirectoryCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Directory;
+	/** Whether this container is currently enabled. */
+	enabled: boolean;
 	/** Which child customization type this directory holds. */
 	contents: ChildCustomizationType;
 	/** Whether clients may write into this directory. */
@@ -842,8 +861,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  * {@link HookCustomization}.
  *
  * {@link McpServerCustomization} is also a child but does not extend this
- * base: it always carries an explicit {@link McpServerCustomization.enabled}
- * because it can appear as a top-level customization too.
+ * base because it can appear as a top-level customization too.
  *
  * @category Customization Types
  */
@@ -854,9 +872,10 @@ interface ChildCustomizationBase extends CustomizationBase {
 	 * turned off on its own.
 	 *
 	 * This flag is independent of the parent container's: the **effective**
-	 * enabled state of a child is
-	 * `container.enabled && (child.enabled ?? true)`, so a disabled container
-	 * disables every child regardless of each child's own flag.
+	 * enabled state of a plugin child is the plugin's derived enabled value and
+	 * `(child.enabled ?? true)`, so a disabled plugin disables every child
+	 * regardless of each child's own flag. A directory child instead uses the
+	 * directory's `enabled` value and its own flag.
 	 *
 	 * A child is turned on or off by id with
 	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -1008,9 +1027,23 @@ export interface HookCustomization extends ChildCustomizationBase {
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
 	/**
-	 * Whether this MCP server is currently enabled.
+	 * Explicit enablement decisions for this customization, one entry per scope
+	 * that has one. This is a wire contract: producers MUST publish entries
+	 * sorted by descending specificity (Session, Workspace, then Global).
+	 * The agent host emits at most one Workspace entry, for the session's primary
+	 * working directory. Consumers MAY treat
+	 * `enablement[0]` as the decisive decision and
+	 * `enablement?.[0]?.enabled ?? true` as the effective enabled value. An
+	 * absent or empty array means no explicit decision exists, so the
+	 * customization is enabled by default.
+	 *
+	 * Flows in both directions. A client publishes this alongside a customization
+	 * to assert its global decision, which is authoritative for the Global scope;
+	 * a client always includes its global entry, even when enabled. The host
+	 * publishes the fully resolved set across all scopes, and consumers derive
+	 * the effective enabled value from that set.
 	 */
-	enabled: boolean;
+	enablement?: CustomizationEnablement[];
 	/**
 	 * Current lifecycle state of the MCP server.
 	 */

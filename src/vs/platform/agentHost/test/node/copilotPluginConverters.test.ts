@@ -20,7 +20,7 @@ import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, typ
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, state: { kind: McpServerStatus.Starting } };
 }
 function stubHookCustomization(type: string): HookCustomization {
 	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };

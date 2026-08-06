@@ -335,7 +335,6 @@ export function makeMcpServerCustomization(definitionUri: URI, name: string): Mc
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
 		uri: definitionUri.toString(),
 		name,
-		enabled: true,
 		state: { kind: McpServerStatus.Stopped },
 		mcpApp: DEFAULT_MCP_APP,
 	};

@@ -25,7 +25,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { ActionType } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationType, isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { toSdkModelId } from './claudeModelId.js';
@@ -41,6 +41,7 @@ import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
@@ -1137,11 +1138,17 @@ export class ClaudeAgentSession extends Disposable {
 		// Final projection: the client-pushed tier first, then the discovered
 		// tier, with session MCP enablement applied to both.
 		const state = this._sessionCustomizations;
-		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
-		const result: Customization[] = synced.map(item => ({
-			...item.customization,
-			enabled: desiredById.get(item.customization.id) ?? item.customization.enabled,
-		}));
+		const result: Customization[] = synced.map(item => {
+			const desired = state.find(customization => customization.id === item.customization.id);
+			if (desired?.type !== CustomizationType.Plugin) {
+				return item.customization;
+			}
+			if (desired.enablement?.length) {
+				return { ...item.customization, enablement: [...desired.enablement] };
+			}
+			const { enablement: _enablement, ...withoutEnablement } = item.customization;
+			return withoutEnablement;
+		});
 		result.push(...discoveredCustomizations);
 		// Cache for the MCP-contributor signal enrichment (see
 		// {@link _enrichSignalWithMcpContributor}).
@@ -1153,7 +1160,7 @@ export class ClaudeAgentSession extends Disposable {
 	private async _reconcileMcpServerEnablement(): Promise<void> {
 		const pipeline = this._requirePipeline();
 		const state = this._sessionCustomizations;
-		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(server => [server.name, server.enabled]));
+		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(({ server, enabled }) => [server.name, enabled]));
 		if (desired.size === 0) {
 			return;
 		}
@@ -1165,10 +1172,10 @@ export class ClaudeAgentSession extends Disposable {
 
 	private _desiredClientPluginPaths(): readonly URI[] {
 		const state = this._sessionCustomizations;
-		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
+		const desiredById = new Map(state.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));
 		const paths: URI[] = [];
 		for (const synced of this.clientCustomizationsDiff.model.state.get().synced) {
-			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? synced.customization.enabled) !== false) {
+			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? isCustomizationEnabled(synced.customization)) !== false) {
 				paths.push(synced.pluginDir);
 			}
 		}

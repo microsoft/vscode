@@ -660,7 +660,6 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 						uri: URI.file(pluginRoot).toString(),
 						name: 'e2e-client-plugin',
 						type: CustomizationType.Plugin,
-						enabled: true,
 						nonce: 'nonce-1',
 					}],
 				},

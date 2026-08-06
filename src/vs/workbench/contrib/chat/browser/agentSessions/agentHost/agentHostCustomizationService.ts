@@ -15,9 +15,10 @@ import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../.
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -214,7 +215,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			.map((c): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, c.id),
 				name: c.name,
-				enabled: c.enabled,
+				enabled: isCustomizationEnabled(c),
 				status: c.state.kind,
 				state: c.state,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
@@ -235,7 +236,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		}
 		// Ensure the session is tracked and its channels exist, then reveal.
 		this._trackMcpDiagnostics(sessionResource, target);
-		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: server.enabled, state: server.state });
+		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
 		return this._mcpLogRegistry.show(channelId, beforeShow);
 	}
 
@@ -247,7 +248,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private _trackMcpDiagnostics(sessionResource: URI, target: IAgentHostCustomizationTarget): void {
 		this._mcpDiagnosticSessions.add(sessionResource);
 		for (const server of this._flattenMcpServers(target.customizations)) {
-			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: server.enabled, state: server.state });
+			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
 		}
 	}
 
@@ -259,7 +260,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				continue;
 			}
 			for (const server of this._flattenMcpServers(target.customizations)) {
-				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: server.enabled, state: server.state });
+				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
 			}
 		}
 	}
@@ -538,7 +539,8 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,
 					id: rawId,
-					enabled,
+					// TODO: Select the enablement scope based on the requested action.
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
 				});
 			},
 			startMcpServer: rawId => {

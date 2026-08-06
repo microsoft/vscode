@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
@@ -1415,7 +1416,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('accepts customization updates while creating a provisional session', async () => {
-			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin' } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {
 				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 					return { ...await super.createSession(config), provisional: true };
@@ -2604,7 +2605,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -3248,7 +3249,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.getSessionCustomizations = async () => {
 				getSessionCustomizationsCalls++;
 				return [
-					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill', enabled: true },
+					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill' },
 				];
 			};
 
@@ -3260,7 +3261,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(customizations?.[0]?.type, CustomizationType.Plugin);
 			assert.strictEqual(customizations?.[0]?.name, 'Restore Skill');
 			assert.strictEqual(customizations?.[0]?.id, customizationId('file:///restore-skill'));
-			assert.strictEqual(customizations?.[0]?.enabled, true);
+			assert.strictEqual(isCustomizationEnabled(customizations?.[0] ?? {}), true);
 		});
 
 		test('clears failed restore attempts so sessions can be retried', async () => {

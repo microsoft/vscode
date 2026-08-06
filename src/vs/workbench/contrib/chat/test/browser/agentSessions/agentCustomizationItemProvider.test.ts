@@ -113,7 +113,6 @@ suite('AgentCustomizationItemProvider', () => {
 			id: bundleUri.toString(),
 			uri: bundleUri.toString(),
 			name: 'VS Code Synced Data',
-			enabled: true,
 			nonce: '1',
 		}]));
 

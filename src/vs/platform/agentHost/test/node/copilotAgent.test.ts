@@ -7,6 +7,7 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -39,7 +40,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -3367,7 +3368,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true }];
+				const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', }];
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'test-session'),
 					workingDirectories: [URI.file('/workspace')],
@@ -3507,7 +3508,6 @@ suite('CopilotAgent', () => {
 					id: 'file:///plugin-a',
 					uri: 'file:///plugin-a',
 					name: 'Plugin A',
-					enabled: true,
 				};
 				agent.getOrCreateActiveClient(firstSession, { clientId: 'client-1' }).customizations = [plugin];
 				agent.getOrCreateActiveClient(secondSession, { clientId: 'client-2' }).customizations = [plugin];
@@ -3518,15 +3518,21 @@ suite('CopilotAgent', () => {
 				]);
 				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...firstInitial] });
 				stateManager.dispatchServerAction(secondSession.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...secondInitial] });
-				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: false });
+				stateManager.dispatchServerAction(firstSession.toString(), { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] });
 
 				const [first, second] = await Promise.all([
 					agent.getSessionCustomizations(firstSession),
 					agent.getSessionCustomizations(secondSession),
 				]);
 				assert.deepStrictEqual({
-					first: first.find(customization => customization.id === plugin.id)?.enabled,
-					second: second.find(customization => customization.id === plugin.id)?.enabled,
+					first: (() => {
+						const customization = first.find(customization => customization.id === plugin.id);
+						return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+					})(),
+					second: (() => {
+						const customization = second.find(customization => customization.id === plugin.id);
+						return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+					})(),
 				}, {
 					first: false,
 					second: true,
@@ -3572,7 +3578,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
-				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }];
+				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', }];
 
 				// Wait for the deferred resolution chain in PluginController.sync.
 				await new Promise(r => setTimeout(r, 50));

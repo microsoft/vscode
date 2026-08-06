@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { Customization, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
 
 /**
@@ -455,7 +455,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				id: `file:///plugins/${name}`,
 				uri: `file:///plugins/${name}`,
 				name,
-				enabled,
+				...(enabled ? {} : {
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				}),
 				load: { kind: CustomizationLoadStatus.Loaded },
 				...(children ? { children: [...children] } : {}),
 			};
@@ -541,7 +544,6 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				id: 'file:///mcp/my-skill',
 				uri: 'file:///mcp/my-skill',
 				name: 'my-skill',
-				enabled: true,
 				state: { kind: McpServerStatus.Ready },
 			};
 			const provider = createProvider(

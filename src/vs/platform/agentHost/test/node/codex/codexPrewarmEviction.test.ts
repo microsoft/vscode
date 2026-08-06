@@ -414,14 +414,14 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'local',
 				uri: URI.file('/plugin/.mcp.json'),
 				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
-				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
 			}],
 		};
 		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
 		const { session } = await agent.createSession({ session: unsafeSession, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL }, agent: { uri: agentUri.toString() } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.clientCustomizations.setClient('test', [{
-			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', }, pluginDir },
 			parsed,
 		}]);
 

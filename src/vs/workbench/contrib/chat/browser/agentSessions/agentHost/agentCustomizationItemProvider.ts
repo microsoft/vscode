@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -113,7 +114,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source,
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
-			enabled: customization.enabled,
+			enabled: isCustomizationEnabled(customization),
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
@@ -287,7 +288,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					nonce: (sessionCustomization as ClientPluginCustomization).nonce,
 					status: toStatusString(sessionCustomization.load),
 					statusMessage: toStatusMessage(sessionCustomization.load),
-					enabled: sessionCustomization.enabled,
+					enabled: isCustomizationEnabled(sessionCustomization),
 					childGroupKey,
 					isBundleItem,
 					pluginLabel: isBundleItem ? undefined : item.name,

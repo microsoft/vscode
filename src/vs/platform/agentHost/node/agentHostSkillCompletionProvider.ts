@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
 import type { IAgent } from '../common/agentService.js';
+import { isCustomizationEnabled } from '../common/customizationEnablement.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
@@ -83,7 +84,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		const customizations = await agent.getSessionCustomizations(session);
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
 			}
 			for (const child of c.children) {

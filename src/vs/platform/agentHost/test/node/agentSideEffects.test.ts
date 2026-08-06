@@ -310,7 +310,7 @@ suite('AgentSideEffects', () => {
 				activeClient: {
 					clientId: 'test-client',
 					tools: [{ name: 'testTool', inputSchema: { type: 'object' } }],
-					customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///customizations/SKILL.md'), uri: 'file:///customizations/SKILL.md', name: 'Test Skill', enabled: true }]
+					customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///customizations/SKILL.md'), uri: 'file:///customizations/SKILL.md', name: 'Test Skill', }]
 				},
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), activeClientAction, { clientId: 'test', clientSeq: 1 });
@@ -1945,7 +1945,7 @@ suite('AgentSideEffects', () => {
 			// the dedup is proven to rely on structural equality, not reference
 			// identity.
 			const makeCustomizations = (): Customization[] => [
-				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } },
+				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } },
 			];
 			let fetchCalls = 0;
 			agent.getSessionCustomizations = async () => { fetchCalls++; return makeCustomizations(); };
@@ -1980,7 +1980,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 
 			const makeCustomizations = (): Customization[] => [
-				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } },
+				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } },
 			];
 			agent.getSessionCustomizations = async () => makeCustomizations();
 
@@ -2631,10 +2631,10 @@ suite('AgentSideEffects', () => {
 
 		test('calls setClientCustomizations and dispatches customizationsChanged once', async () => {
 			setupSession();
-			const pluginA: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
-			const pluginB: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
-			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginA.id, uri: pluginA.uri, name: pluginA.name, enabled: true };
-			const pluginBClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginB.id, uri: pluginB.uri, name: pluginB.name, enabled: true };
+			const pluginA: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginB: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginA.id, uri: pluginA.uri, name: pluginA.name, };
+			const pluginBClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginB.id, uri: pluginB.uri, name: pluginB.name, };
 			agent.getSessionCustomizations = async () => [pluginA, pluginB];
 
 			const envelopes: ActionEnvelope[] = [];
@@ -2670,7 +2670,7 @@ suite('AgentSideEffects', () => {
 
 		test('dispatches customizationUpdated for sync progress after initial replacement', async () => {
 			setupSession();
-			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true };
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', };
 			let currentCustomizations: readonly Customization[] = [];
 			agent.getSessionCustomizations = async () => currentCustomizations;
 			agent.syncClientCustomizations = (session, clientId, customizations) => {
@@ -2779,7 +2779,7 @@ suite('AgentSideEffects', () => {
 
 		test('republishes agent and session customizations for existing sessions', async () => {
 			setupSession('file:///workspace');
-			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
 			agent.getSessionCustomizations = async () => [customization];
 
@@ -2831,7 +2831,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 			setupSession('file:///workspace');
 
-			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
 			agent.getSessionCustomizations = async () => [customization];
 
@@ -2854,7 +2854,7 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 			setupSession('file:///workspace');
 
-			agent.customizations = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-c'), uri: 'file:///plugin-c', name: 'Plugin C', enabled: true }];
+			agent.customizations = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-c'), uri: 'file:///plugin-c', name: 'Plugin C', }];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));

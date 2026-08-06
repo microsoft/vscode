@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type AgentCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 
 function sc(uri: string, children?: AgentCustomization[], enabled = true): Customization {
@@ -14,7 +14,10 @@ function sc(uri: string, children?: AgentCustomization[], enabled = true): Custo
 		id: uri,
 		uri,
 		name: uri,
-		enabled,
+		...(enabled ? {} : {
+			// TODO: Step 2 selects the persisted enablement scope.
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		}),
 		load: { kind: CustomizationLoadStatus.Loaded },
 		...(children ? { children } : {}),
 	};

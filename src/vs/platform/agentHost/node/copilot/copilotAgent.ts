@@ -51,11 +51,12 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { getByokLmSelectionModelId } from '../../common/agentHostByokLm.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -5001,16 +5002,40 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _isEnabled(customization: Customization): boolean {
-		return this._desiredEnabled(customization) ?? customization.enabled !== false;
+		return this._desiredEnabled(customization) ?? (customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization));
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
-		const enabled = this._isEnabled(customization);
 		if (customization.type === CustomizationType.McpServer) {
-			return customization.enabled === enabled ? customization : { ...customization, enabled };
+			return this._applyExplicitEnablement(customization, this._getDesiredCustomization(customization.id));
 		}
+		if (customization.type === CustomizationType.Plugin) {
+			const plugin = customization as PluginCustomization;
+			const next = this._applyExplicitEnablement(plugin, this._getDesiredCustomization(plugin.id));
+			let changed = next !== customization;
+			const children = next.children?.map(child => {
+				if (child.type === CustomizationType.McpServer) {
+					const updated = this._applyExplicitEnablement(child, this._getDesiredCustomization(child.id));
+					changed ||= updated !== child;
+					return updated;
+				}
+				const desiredEnabled = this._desiredEnabled(child);
+				if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
+					return child;
+				}
+				changed = true;
+				return { ...child, enabled: desiredEnabled };
+			});
+			return (changed ? { ...next, children } : next) as T;
+		}
+		const enabled = this._isEnabled(customization);
 		let changed = customization.enabled !== enabled;
 		const children = customization.children?.map(child => {
+			if (child.type === CustomizationType.McpServer) {
+				const next = this._applyExplicitEnablement(child, this._getDesiredCustomization(child.id));
+				changed ||= next !== child;
+				return next;
+			}
 			const desiredEnabled = this._desiredEnabled(child);
 			if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
 				return child;
@@ -5024,7 +5049,9 @@ class SessionPluginController extends Disposable {
 	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
 		const exact = this._getDesiredCustomization(customization.id);
 		if (exact) {
-			return exact.enabled;
+			return exact.type === CustomizationType.Plugin || exact.type === CustomizationType.McpServer
+				? isCustomizationEnabled(exact)
+				: exact.enabled;
 		}
 		if (!this._directory) {
 			return undefined;
@@ -5037,10 +5064,25 @@ class SessionPluginController extends Disposable {
 			const previousId = customizationId(previousUri.toString(), customization.range);
 			const previous = this._getDesiredCustomization(previousId);
 			if (previous) {
-				return previous.enabled;
+				return previous.type === CustomizationType.Plugin || previous.type === CustomizationType.McpServer
+					? isCustomizationEnabled(previous)
+					: previous.enabled;
 			}
 		}
 		return undefined;
+	}
+
+	private _applyExplicitEnablement<T extends Customization | ChildCustomization>(customization: T, desired: (Customization | ChildCustomization) | undefined): T {
+		if (!desired || (desired.type !== CustomizationType.Plugin && desired.type !== CustomizationType.McpServer)) {
+			return customization;
+		}
+		if (desired.enablement?.length) {
+			const next: T & { enablement?: readonly CustomizationEnablement[] } = { ...customization, enablement: [...desired.enablement] };
+			return next;
+		}
+		const next: T & { enablement?: readonly CustomizationEnablement[] } = { ...customization };
+		delete next.enablement;
+		return next;
 	}
 
 	private _getDesiredCustomization(id: string): Customization | ChildCustomization | undefined {

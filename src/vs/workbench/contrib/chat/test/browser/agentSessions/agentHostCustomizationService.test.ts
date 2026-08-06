@@ -10,7 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService, ILoggerService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -24,7 +25,7 @@ interface IDispatchedToggle {
 /**
  * A minimal, mutable stand-in for {@link IAgentHostCustomizationTarget}. Mirrors how the real
  * agent-host targets behave: `setCustomizationEnabled` both records the call (so tests can assert
- * on it) and mutates the backing customization's `enabled` flag (so a subsequent `getMcpServers`
+ * on it) and mutates the backing customization's enablement decision (so a subsequent `getMcpServers`
  * reflects the new live state), just like dispatching the protocol action does for the real
  * session state subscription.
  */
@@ -47,7 +48,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		this.dispatched.push({ rawId, enabled });
 		const server = this.customizations.find(c => c.id === rawId);
 		if (server) {
-			server.enabled = enabled;
+			server.enablement = enabled ? undefined : [{ kind: CustomizationEnablementKind.Global, enabled: false }];
 		}
 	}
 	startMcpServer(): Promise<void> { return Promise.resolve(); }
@@ -61,7 +62,7 @@ function mcpServer(id: string, name: string, enabled: boolean): McpServerCustomi
 		id,
 		uri: `file:///${id}`,
 		name,
-		enabled,
+		...(enabled ? {} : { enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }),
 		state: { kind: McpServerStatus.Stopped },
 	};
 }
@@ -270,7 +271,7 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		assert.deepStrictEqual(target.dispatched[1], { rawId: 'gh-1', enabled: true });
 
 		sut.prepareMcpServersForTurn(sessionA1);
-		assert.strictEqual(target.customizations[0].enabled, true);
+		assert.strictEqual(isCustomizationEnabled(target.customizations[0]), true);
 		assert.strictEqual(target.dispatched.length, 2);
 	});
 
@@ -358,7 +359,7 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 
 		sut.forgetSession(sessionA1);
 		sut.setTarget(sessionA1, target);
-		target.customizations[0].enabled = true;
+		target.customizations[0].enablement = undefined;
 		sut.prepareMcpServersForTurn(sessionA1);
 
 		assert.deepStrictEqual(target.dispatched, [

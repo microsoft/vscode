@@ -179,7 +179,6 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			uri: pluginUri as ProtocolURI,
 			name: 'Codex Customizations Test Plugin',
 			nonce: '1',
-			enabled: true,
 		};
 
 		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();

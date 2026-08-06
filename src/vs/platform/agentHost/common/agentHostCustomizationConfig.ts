@@ -151,6 +151,5 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
-		enabled: true,
 	};
 }

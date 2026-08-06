@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import {
@@ -53,7 +54,7 @@ import { ActionType, type AuthRequiredParams } from '../../common/state/sessionA
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -6778,7 +6779,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				id: customizationId(uri),
 				uri,
 				name: uri,
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 			},
 			pluginDir: URI.file(dir),
@@ -6791,7 +6791,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			id: customizationId(uri),
 			uri,
 			name,
-			enabled: true,
 		};
 	}
 
@@ -6910,7 +6909,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		const staged = await agent.getSessionCustomizations(created.session);
 		const sessionId = AgentSession.id(created.session);
@@ -6922,7 +6921,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
 		});
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2');
@@ -6931,9 +6930,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const toggleCalls = queries.flatMap(query => query.mcpToggleCalls);
 		const toggleTransitions = toggleCalls.filter((call, index) => index === 0 || toggleCalls[index - 1].enabled !== call.enabled);
 
-		const enabledForSlack = (customizations: readonly Customization[]) => customizations
-			.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack')
-			?.enabled;
+		const enabledForSlack = (customizations: readonly Customization[]) => {
+			const customization = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+			return customization?.type === CustomizationType.McpServer ? isCustomizationEnabled(customization) : undefined;
+		};
 		assert.deepStrictEqual({
 			staged: enabledForSlack(staged),
 			afterMaterialize: enabledForSlack(afterMaterialize),
@@ -7044,7 +7044,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(s1.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://shared'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const [projected1, projected2] = await Promise.all([
@@ -7052,8 +7052,14 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			agent.getSessionCustomizations(s2.session),
 		]);
 		assert.deepStrictEqual({
-			first: projected1.find(customization => customization.id === customizationId('https://shared'))?.enabled,
-			second: projected2.find(customization => customization.id === customizationId('https://shared'))?.enabled,
+			first: (() => {
+				const customization = projected1.find(customization => customization.id === customizationId('https://shared'));
+				return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+			})(),
+			second: (() => {
+				const customization = projected2.find(customization => customization.id === customizationId('https://shared'));
+				return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+			})(),
 		}, {
 			first: false,
 			second: true,
@@ -7111,11 +7117,12 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://a'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
-		assert.strictEqual(customizations.find(c => c.uri === 'https://a')?.enabled, false);
+		const customization = customizations.find(c => c.uri === 'https://a');
+		assert.strictEqual(customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined, false);
 	});
 
 	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {
@@ -7195,7 +7202,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://x'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, false);
 		assert.strictEqual(sdk.startupCallCount, startupsBefore, 'no rebind during the in-flight turn');

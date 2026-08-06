@@ -388,7 +388,6 @@ export async function resolveCustomizationRefs(
 					uri: key as ProtocolURI,
 					name: plugin.label,
 					nonce: nonce?.toString(16),
-					enabled: true,
 				};
 			})();
 			pluginRefs.set(key, promise);

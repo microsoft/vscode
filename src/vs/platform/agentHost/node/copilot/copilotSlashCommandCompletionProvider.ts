@@ -12,6 +12,7 @@ import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isC
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
@@ -88,7 +89,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const knownCommands = new Set<string>();
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
 			}
 			for (const child of c.children) {

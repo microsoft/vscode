@@ -139,7 +139,6 @@ export class SessionPluginBundler extends Disposable {
 				id: customizationId(rootUriString),
 				uri: rootUriString,
 				name: DISPLAY_NAME,
-				enabled: true,
 				nonce,
 			},
 		} satisfies IBundleResult;

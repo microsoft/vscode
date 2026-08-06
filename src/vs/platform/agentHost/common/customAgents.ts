@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI } from '../../../base/common/uri.js';
+import { isCustomizationEnabled } from './customizationEnablement.js';
 import { CustomizationType, type AgentCustomization, type Customization } from './state/protocol/state.js';
 
 /**
@@ -29,7 +30,7 @@ export function getEffectiveAgents(
 			if (container.type === CustomizationType.McpServer) {
 				continue;
 			}
-			if (container.enabled === false || !container.children) {
+			if ((container.type === CustomizationType.Plugin && !isCustomizationEnabled(container)) || (container.type === CustomizationType.Directory && !container.enabled) || !container.children) {
 				continue;
 			}
 			for (const child of container.children) {

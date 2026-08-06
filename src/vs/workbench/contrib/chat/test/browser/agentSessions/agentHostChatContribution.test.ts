@@ -10253,7 +10253,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
@@ -10306,7 +10306,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Update customizations
 			customizations.set([
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B', },
 			], undefined);
 
 			const activeClientAction = agentHostService.dispatchedActions.find(
@@ -10413,7 +10413,7 @@ suite('AgentHostChatContribution', () => {
 		test('refreshes stale customizations on open when the current client is already active', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
@@ -10431,7 +10431,7 @@ suite('AgentHostChatContribution', () => {
 				activeClients: [{
 					clientId: agentHostService.clientId,
 					tools: [],
-					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', enabled: true }],
+					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', }],
 				}],
 			});
 
@@ -10455,14 +10455,14 @@ suite('AgentHostChatContribution', () => {
 			const activeClientAction = activeClientActions[0].action as { type: string; activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(activeClientAction.type, 'session/activeClientSet');
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 		});
 
 		test('refreshes customizations when the current active client hydrates after open', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
@@ -10512,7 +10512,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 		});
 	});
@@ -10960,7 +10960,6 @@ suite('AgentHostChatContribution', () => {
 			type: CustomizationType.McpServer,
 			id: 'mcp-1',
 			name: 'GitHub MCP',
-			enabled: true,
 			uri: URI.parse('https://example.com/mcp'),
 			state: {
 				kind: McpServerStatus.AuthRequired,
@@ -11082,7 +11081,6 @@ suite('AgentHostChatContribution', () => {
 					type: CustomizationType.McpServer,
 					id: 'notion',
 					name: 'notion',
-					enabled: true,
 					uri: 'https://mcp.notion.com/mcp',
 					state: {
 						kind: McpServerStatus.AuthRequired,
@@ -11157,7 +11155,6 @@ suite('AgentHostChatContribution', () => {
 						type: CustomizationType.McpServer,
 						id: `notion-${id}`,
 						name: 'notion',
-						enabled: true,
 						uri: 'https://mcp.notion.com/mcp',
 						state: {
 							kind: McpServerStatus.AuthRequired,

@@ -321,7 +321,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			uri: customization.uri as ProtocolURI,
 			name: customization.displayName,
 			nonce: '1',
-			enabled: true,
 		}));
 		client.dispatch({
 			channel: sessionUri,

@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -1817,7 +1817,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://worktree',
 				uri: 'plugin://worktree',
 				name: 'worktree plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [{ type: CustomizationType.Agent, id: worktreeAgent, uri: worktreeAgent, name: 'sessions' }],
 			}],
@@ -1851,7 +1850,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://other',
 				uri: 'plugin://other',
 				name: 'other plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [{ type: CustomizationType.Agent, id: 'file:///Users/me/vscode.worktrees/rebase-none/.github/agents/other.md', uri: 'file:///Users/me/vscode.worktrees/rebase-none/.github/agents/other.md', name: 'other' }],
 			}],
@@ -1910,7 +1908,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://session-1',
 				uri: 'plugin://session-1',
 				name: 'session plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [
 					{ type: CustomizationType.Agent, id: 'agent://shared', uri: 'agent://shared', name: 'shared', description: 'from session' },
@@ -1921,7 +1918,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://session-2',
 				uri: 'plugin://session-2',
 				name: 'second session plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [
 					{ type: CustomizationType.Agent, id: 'agent://another', uri: 'agent://another', name: 'another' },
@@ -1934,7 +1930,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://disabled',
 				uri: 'plugin://disabled',
 				name: 'disabled plugin',
-				enabled: false,
+				// TODO: Step 2 selects the persisted enablement scope.
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [{ type: CustomizationType.Agent, id: 'agent://disabled', uri: 'agent://disabled', name: 'disabled' }],
 			}, {
@@ -1944,7 +1941,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://unparsed',
 				uri: 'plugin://unparsed',
 				name: 'unparsed plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loading },
 			}],
 		};
@@ -1981,7 +1977,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'mcp://docs',
 				uri: 'mcp://docs',
 				name: 'Docs',
-				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 			}],
 		};
@@ -2066,7 +2061,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 					id: 'plugin://root',
 					uri: 'plugin://root',
 					name: 'root plugin',
-					enabled: true,
 				}],
 			} as AgentInfo,
 		]);
@@ -2145,7 +2139,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://s',
 				uri: 'plugin://s',
 				name: 'session plugin',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [{ type: CustomizationType.Agent, id: 'agent://s', uri: 'agent://s', name: 's' }],
 			}],
@@ -2187,7 +2180,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			id: 'plugin://new-session',
 			uri: 'plugin://new-session',
 			name: 'p',
-			enabled: true,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children: [
 				{ type: CustomizationType.Agent, id: 'agent://reviewer', uri: 'agent://reviewer', name: 'reviewer' },
@@ -2281,7 +2273,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'plugin://x',
 				uri: 'plugin://x',
 				name: 'p',
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [{ type: CustomizationType.Agent, id: 'agent://x', uri: 'agent://x', name: 'x' }],
 			}],
@@ -3166,7 +3157,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'file:///customizations/test',
 				uri: 'file:///customizations/test',
 				name: 'Test Customization',
-				enabled: true,
 			}],
 		} satisfies Omit<SessionActiveClient, 'clientId'>;
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession, activeClient });

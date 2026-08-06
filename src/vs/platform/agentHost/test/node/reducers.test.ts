@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -630,7 +631,6 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 			id: 'file:///plugin-a',
 			uri: 'file:///plugin-a',
 			name: 'Plugin A',
-			enabled: true,
 			...extra,
 		};
 	}
@@ -658,5 +658,109 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 		});
 
 		assert.deepStrictEqual(next.customizations, [updated]);
+	});
+});
+
+suite('customization enablement', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts stably and replaces decisions for one scope', () => {
+		const workspaceFirst = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///one', enabled: false } as const;
+		const workspaceSecond = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///two', enabled: true } as const;
+		const global = { kind: CustomizationEnablementKind.Global, enabled: false } as const;
+		const session = { kind: CustomizationEnablementKind.Session, enabled: true } as const;
+
+		assert.deepStrictEqual(
+			withCustomizationEnablement([workspaceFirst, global, workspaceSecond, session], CustomizationEnablementKind.Workspace, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }),
+			[session, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }, global],
+		);
+		assert.deepStrictEqual(
+			sortCustomizationEnablement([workspaceFirst, global, workspaceSecond, session]),
+			[session, workspaceFirst, workspaceSecond, global],
+		);
+	});
+
+	test('replaces enablement for plugins and MCP servers while retaining child enablement transitions', () => {
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			children: [{
+				type: CustomizationType.Agent,
+				id: 'agent',
+				uri: 'file:///plugin/agent.md',
+				name: 'Agent',
+			}],
+		};
+		const mcp = {
+			type: CustomizationType.McpServer,
+			id: 'mcp',
+			uri: 'file:///mcp.json',
+			name: 'MCP',
+			state: { kind: McpServerStatus.Stopped },
+		} as const;
+		const seeded = { ...makeSession(), customizations: [plugin, mcp] };
+		const withSet = sessionReducer(seeded, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withMcpSet = sessionReducer(withSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChange = sessionReducer(withMcpSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withMcpChange = sessionReducer(withChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withClear = sessionReducer(withMcpChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [],
+		});
+		const withMcpClear = sessionReducer(withClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [],
+		});
+		const withChildSet = sessionReducer(withMcpClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChildClear = sessionReducer(withChildSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [],
+		});
+
+		assert.deepStrictEqual([
+			withSet.customizations,
+			withMcpSet.customizations,
+			withChange.customizations,
+			withMcpChange.customizations,
+			withClear.customizations,
+			withMcpClear.customizations,
+			withChildSet.customizations,
+			withChildClear.customizations,
+		], [
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, mcp],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: false }] }, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: true }] }, mcp],
+		]);
 	});
 });

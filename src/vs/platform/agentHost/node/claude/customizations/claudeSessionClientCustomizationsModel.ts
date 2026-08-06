@@ -190,7 +190,7 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 		if (ai.name !== bi.name) {
 			return false;
 		}
-		if (ai.enabled !== bi.enabled) {
+		if (!arraysEqual(ai.enablement ?? [], bi.enablement ?? [])) {
 			return false;
 		}
 		if (ai.load?.kind !== bi.load?.kind) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -33,12 +34,12 @@ suite('codexClientCustomizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function pluginCustomization(id: string): PluginCustomization {
-		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, enabled: true };
+		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, };
 	}
 
 	function mcpDef(name: string, config: IMcpServerConfiguration): IMcpServerDefinition {
 		const uri = URI.file(`/plugins/${name}/.mcp.json`);
-		return { name, configuration: config, uri, customization: { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: uri.toString(), name, enabled: true, state: { kind: McpServerStatus.Starting } } };
+		return { name, configuration: config, uri, customization: { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: uri.toString(), name, state: { kind: McpServerStatus.Starting } } };
 	}
 
 	function skillDef(pluginDir: string, name: string): IParsedSkill {
@@ -72,7 +73,7 @@ suite('codexClientCustomizations', () => {
 		store.setEnabled('p1', false);
 		assert.deepStrictEqual(store.toCustomizations().map(c => ({
 			id: c.id,
-			enabled: c.enabled,
+			enabled: isCustomizationEnabled(c),
 			children: c.children?.map(ch => ({ type: ch.type, id: ch.id })),
 		})), [{
 			id: 'p1',
@@ -188,7 +189,6 @@ suite('codexClientCustomizations', () => {
 				id: 'synced-plugin',
 				uri: sourcePluginUri.toString(),
 				name: 'Synced Plugin',
-				enabled: true,
 			},
 			pluginDir: syncedPluginUri,
 		};
@@ -213,7 +213,6 @@ suite('codexClientCustomizations', () => {
 				id: 'synthetic-plugin',
 				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`,
 				name: 'VS Code Synced Data',
-				enabled: true,
 			},
 			pluginDir: syncedPluginUri,
 		};
@@ -239,14 +238,14 @@ suite('codexClientCustomizations', () => {
 		const plugins: ICodexClientPlugin[] = [
 			{
 				synced: {
-					customization: { type: CustomizationType.Plugin, id: 'selected-plugin', uri: selectedPluginUri.toString(), name: 'Selected Plugin', enabled: true },
+					customization: { type: CustomizationType.Plugin, id: 'selected-plugin', uri: selectedPluginUri.toString(), name: 'Selected Plugin', },
 					pluginDir: selectedSyncedPluginUri,
 				},
 				parsed: parsed({ agents: [agentDef(selectedSyncedAgentUri, 'selected-reviewer')] }),
 			},
 			{
 				synced: {
-					customization: { type: CustomizationType.Plugin, id: 'synthetic-plugin', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`, name: 'VS Code Synced Data', enabled: true },
+					customization: { type: CustomizationType.Plugin, id: 'synthetic-plugin', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`, name: 'VS Code Synced Data', },
 					pluginDir: syntheticPluginUri,
 				},
 				parsed: parsed({ agents: [agentDef(syntheticAgentUri, 'synthetic-reviewer')] }),

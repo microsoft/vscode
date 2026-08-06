@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
@@ -43,7 +44,10 @@ suite('AgentHostSkillCompletionProvider', () => {
 			id: `file:///plugins/${name}`,
 			uri: `file:///plugins/${name}`,
 			name,
-			enabled,
+			...(enabled ? {} : {
+				// TODO: Step 2 selects the persisted enablement scope.
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}),
 			load: { kind: CustomizationLoadStatus.Loaded },
 			...(children ? { children: [...children] } : {}),
 		};

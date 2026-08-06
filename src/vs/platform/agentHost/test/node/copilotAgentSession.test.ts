@@ -7,6 +7,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -35,7 +36,7 @@ import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputR
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -8289,7 +8290,10 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: desiredEnabled,
+					...(!desiredEnabled ? {
+						// TODO: Step 2 selects the persisted enablement scope.
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					} : {}),
 					state: { kind: McpServerStatus.Starting },
 				}],
 				configureMockSession: mock => {
@@ -8322,7 +8326,8 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: false,
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
@@ -8332,7 +8337,8 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: false,
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 					state: { kind: McpServerStatus.Starting },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
@@ -8342,7 +8348,8 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: false,
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
@@ -8353,7 +8360,6 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: true,
 					state: { kind: McpServerStatus.Starting },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
@@ -8370,7 +8376,6 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
 				// The server is settled (failed) before the turn. Sending does not
@@ -8398,7 +8403,6 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
 				// Settled (failed) before the explicit start, and startServer
@@ -8437,7 +8441,6 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: true,
 					state: { kind: McpServerStatus.Ready },
 				}],
 				configureMockSession: mock => {
@@ -8469,7 +8472,8 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: false,
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 					state: { kind: McpServerStatus.Starting },
 				}],
 				configureMockSession: mock => {
@@ -8481,14 +8485,14 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual({
 				disableCalls: mockSession.mcpDisableCalls,
-				effectiveEnabled: session.topLevelMcpCustomizations()[0]?.enabled,
+				effectiveEnabled: isCustomizationEnabled(session.topLevelMcpCustomizations()[0] ?? {}),
 			}, {
 				disableCalls: [{ serverName }],
 				effectiveEnabled: false,
 			});
 		});
 
-		test('nested MCP desired enablement includes parent container enablement', async () => {
+		test('nested MCP desired enablement uses its own decision', async () => {
 			const serverName = 'slack';
 			const serverId = 'plugin-1/mcp/slack';
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -8497,13 +8501,13 @@ suite('CopilotAgentSession', () => {
 					id: 'plugin-1',
 					uri: 'file:///plugin',
 					name: 'Slack Plugin',
-					enabled: false,
 					children: [{
 						type: CustomizationType.McpServer,
 						id: serverId,
 						uri: 'file:///plugin/package.json',
 						name: serverName,
-						enabled: true,
+						// TODO: Step 2 selects the persisted enablement scope.
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 						state: { kind: McpServerStatus.Starting },
 					}],
 				}],
@@ -8513,7 +8517,7 @@ suite('CopilotAgentSession', () => {
 				resolveMcpChildId: name => name === serverName ? serverId : undefined,
 			});
 
-			await session.send('keep plugin disabled');
+			await session.send('keep MCP server disabled');
 
 			assert.deepStrictEqual(mockSession.mcpDisableCalls, [{ serverName }]);
 		});
@@ -8528,7 +8532,10 @@ suite('CopilotAgentSession', () => {
 					id,
 					uri: id,
 					name: serverName,
-					enabled: desiredEnabled,
+					...(!desiredEnabled ? {
+						// TODO: Step 2 selects the persisted enablement scope.
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					} : {}),
 					state: { kind: McpServerStatus.Starting },
 				}],
 				configureMockSession: mock => {
@@ -8785,7 +8792,6 @@ suite('CopilotAgentSession', () => {
 				id: 'mcp-top-level:copilot:test-session-1:github',
 				uri: 'mcp-top-level:copilot:test-session-1:github',
 				name: 'github',
-				enabled: true,
 				state: {
 					kind: McpServerStatus.AuthRequired,
 					reason: McpAuthRequiredReason.InsufficientScope,

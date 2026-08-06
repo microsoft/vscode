@@ -7,7 +7,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, transaction, type IObservable, type ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type ChildCustomization, type Customization, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import type { SessionAction } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -393,13 +394,18 @@ export class McpCustomizationController extends Disposable {
 		const mcpApp = this._options.capabilities
 			? { capabilities: this._options.capabilities }
 			: DEFAULT_MCP_APP;
+		const existing = getMcpServerCustomizations(this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [])
+			.find(customization => customization.id === id);
+		const enablement = existing?.enablement ?? (enabled ? undefined : [
+			// TODO: Step 2 persists SDK-derived enablement at the appropriate scope.
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+		]);
 		return {
 			type: CustomizationType.McpServer,
 			id,
 			uri: this._mintTopLevelId(serverName),
 			name: serverName,
-			enabled: getEffectiveMcpServerCustomizations(this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [])
-				.find(customization => customization.id === id)?.enabled ?? enabled,
+			...(enablement ? { enablement } : {}),
 			state,
 			channel,
 			mcpApp,
@@ -434,16 +440,27 @@ export function getMcpServerCustomizations(customizations: readonly Customizatio
 	return result;
 }
 
-export function getEffectiveMcpServerCustomizations(customizations: readonly Customization[]): readonly McpServerCustomization[] {
-	const result: McpServerCustomization[] = [];
-	for (const top of customizations) {
-		if (top.type === CustomizationType.McpServer) {
-			result.push(top);
-		} else {
-			for (const child of top.children ?? []) {
-				if (child.type === CustomizationType.McpServer) {
-					result.push(top.enabled ? child : { ...child, enabled: false });
-				}
+/**
+ * Every MCP server with its effective enabled value, after applying the
+ * container gate. The gate is applied here, at the point of use — a child's
+ * own stored decisions are never overwritten, so re-enabling a container
+ * restores each child to the user's chosen value.
+ */
+export function getEffectiveMcpServerCustomizations(
+	customizations: readonly Customization[],
+): readonly { readonly server: McpServerCustomization; readonly enabled: boolean }[] {
+	const result: { server: McpServerCustomization; enabled: boolean }[] = [];
+	for (const customization of customizations) {
+		if (customization.type === CustomizationType.McpServer) {
+			result.push({ server: customization, enabled: isCustomizationEnabled(customization) });
+			continue;
+		}
+		const containerEnabled = customization.type === CustomizationType.Plugin
+			? isCustomizationEnabled(customization)
+			: customization.enabled;
+		for (const child of customization.children ?? []) {
+			if (child.type === CustomizationType.McpServer) {
+				result.push({ server: child, enabled: containerEnabled && isCustomizationEnabled(child) });
 			}
 		}
 	}
@@ -451,7 +468,7 @@ export function getEffectiveMcpServerCustomizations(customizations: readonly Cus
 }
 
 export function applyMcpServerEnablement(customizations: readonly Customization[], desired: readonly Customization[]): readonly Customization[] {
-	const desiredById = new Map(getEffectiveMcpServerCustomizations(desired).map(server => [server.id, server.enabled]));
+	const desiredById = new Map(getEffectiveMcpServerCustomizations(desired).map(({ server }) => [server.id, server.enablement]));
 	return customizations.map(customization => {
 		if (customization.type === CustomizationType.McpServer) {
 			return applyMcpEnablement(customization, desiredById);
@@ -466,9 +483,16 @@ export function applyMcpServerEnablement(customizations: readonly Customization[
 	});
 }
 
-function applyMcpEnablement<T extends McpServerCustomization | Extract<ChildCustomization, { type: CustomizationType.McpServer }>>(customization: T, desiredById: ReadonlyMap<string, boolean>): T {
-	const enabled = desiredById.get(customization.id);
-	return enabled === undefined || enabled === customization.enabled ? customization : { ...customization, enabled };
+function applyMcpEnablement(customization: McpServerCustomization, desiredById: ReadonlyMap<string, readonly CustomizationEnablement[] | undefined>): McpServerCustomization {
+	if (!desiredById.has(customization.id)) {
+		return customization;
+	}
+	const enablement = desiredById.get(customization.id);
+	if (enablement?.length) {
+		return { ...customization, enablement: [...enablement] };
+	}
+	const { enablement: _enablement, ...withoutEnablement } = customization;
+	return withoutEnablement;
 }
 
 export function findMcpServerName(customizations: readonly Customization[], id: string): string | undefined {

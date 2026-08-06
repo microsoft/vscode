@@ -2549,7 +2549,7 @@ export class CopilotAgentSession extends Disposable {
 		await this._refreshMcpServersFromRpc();
 		let changed = false;
 		for (const server of this._mcpCustomizations.serverEnablement()) {
-			const desired = desiredServers.find(customization => customization.id === server.customizationId)?.enabled;
+			const desired = desiredServers.find(({ server: customization }) => customization.id === server.customizationId)?.enabled;
 			if (desired === undefined || desired === server.enabled) {
 				continue;
 			}

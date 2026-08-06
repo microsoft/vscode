@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
+import { CustomizationEnablementKind } from '../../../common/state/protocol/state.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
 
 function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string } = {}): ISyncedCustomization {
@@ -17,7 +18,10 @@ function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: st
 			id: customizationId(uri),
 			uri,
 			name: opts.name ?? uri,
-			enabled: opts.enabled ?? true,
+			...(opts.enabled === false ? {
+				// TODO: Step 2 selects the persisted enablement scope.
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			} : {}),
 			load: { kind: CustomizationLoadStatus.Loaded },
 			...(opts.nonce !== undefined ? { nonce: opts.nonce } : {}),
 		},

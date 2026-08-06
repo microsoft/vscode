@@ -260,7 +260,6 @@ export class SyncedCustomizationBundler extends Disposable {
 				id: customizationId(rootUriString),
 				uri: rootUriString,
 				name: DISPLAY_NAME,
-				enabled: true,
 				nonce,
 			},
 		};
