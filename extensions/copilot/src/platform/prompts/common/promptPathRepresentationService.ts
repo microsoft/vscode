@@ -104,7 +104,7 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 			const fileUri = URI.file(filepath);
 			return predominantScheme === Schemas.file ? fileUri : URI.from({ scheme: predominantScheme, path: fileUri.path });
 		}
-		if (/\w[\w\d+.-]*:\S/.test(filepath)) { // starts with a scheme
+		if (/^\w[\w\d+.-]*:\//.test(filepath)) { // starts with a scheme
 			try {
 				return URI.parse(filepath);
 			} catch (e) {
