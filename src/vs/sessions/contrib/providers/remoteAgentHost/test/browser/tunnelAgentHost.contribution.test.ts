@@ -418,10 +418,18 @@ suite('TunnelAgentHostContribution', () => {
 		remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnected);
 		const afterDisconnect = provider.clearConnectionCalls.length;
 		remoteService.fireConnectionChange();
+		const afterRepeatDisconnect = provider.clearConnectionCalls.length;
+
+		// A transport that drops via an intermediate `connecting` state must
+		// still clear: the wired-provider bookkeeping has to survive statuses
+		// that are neither connected nor disconnected.
+		remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connected);
+		remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connecting);
+		remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnected);
 
 		assert.deepStrictEqual(
-			{ whileConnected, whileConnecting, afterDisconnect, afterRepeatDisconnect: provider.clearConnectionCalls.length },
-			{ whileConnected: 0, whileConnecting: 0, afterDisconnect: 1, afterRepeatDisconnect: 1 },
+			{ whileConnected, whileConnecting, afterDisconnect, afterRepeatDisconnect, afterConnectingDisconnect: provider.clearConnectionCalls.length },
+			{ whileConnected: 0, whileConnecting: 0, afterDisconnect: 1, afterRepeatDisconnect: 1, afterConnectingDisconnect: 2 },
 		);
 	});
 });

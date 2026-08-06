@@ -64,6 +64,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _reconnectAttempts = new Map<string, number>();
 	/** Addresses whose auto-reconnect loop has paused after too many failures. */
 	private readonly _reconnectPaused = new Set<string>();
+	/**
+	 * Addresses whose provider currently holds a live connection. Tracked
+	 * separately from {@link _previousStatuses} so a drop is still detected when
+	 * the connection passes through an intermediate `connecting` state on its
+	 * way down.
+	 */
+	private readonly _wiredAddresses = new Set<string>();
 	/** Timestamp of the last wake-triggered resume, to rate-limit rapid tab toggles. */
 	private _lastResumeAt = 0;
 
@@ -99,12 +106,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Update connection statuses when connections change
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
-			// `_wireConnections` reads `_previousStatuses` to clear a stale provider
-			// after a disconnect, so it must run before `_handleConnectionChanges`
-			// updates that bookkeeping.
-			this._wireConnections();
 			this._handleConnectionChanges();
 			this._updateConnectionStatuses();
+			this._wireConnections();
 		}));
 
 		// Reconcile providers when the tunnel cache changes
@@ -137,8 +141,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			}
 		}));
 
-		// `online` is a browser network signal; Electron does not provide an
-		// equivalent, so focus is the cross-platform recovery signal above.
+		// `online` is a browser-only network signal; focus above covers desktop.
 		if (isWeb) {
 			const onWake = () => this._resumeReconnects('wake');
 			mainWindow.addEventListener('online', onWake);
@@ -210,7 +213,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		this._providerInstances.set(address, provider);
-		store.add(toDisposable(() => this._providerInstances.delete(address)));
+		store.add(toDisposable(() => {
+			this._providerInstances.delete(address);
+			this._wiredAddresses.delete(address);
+		}));
 		this._providerStores.set(address, store);
 	}
 
@@ -258,7 +264,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
-	 * Wire live connections to their providers so session operations work.
+	 * Wire live connections to their providers so session operations work, and
+	 * drop a provider's connection once its transport is gone.
 	 */
 	private _wireConnections(): void {
 		for (const [address, provider] of this._providerInstances) {
@@ -267,12 +274,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				const connection = this._remoteAgentHostService.getConnection(address);
 				if (connection) {
 					provider.setConnection(connection, connectionInfo.defaultDirectory);
+					this._wiredAddresses.add(address);
 				}
-			} else if (
-				RemoteAgentHostConnectionStatus.isConnected(this._previousStatuses.get(address))
-				&& !RemoteAgentHostConnectionStatus.isConnecting(connectionInfo?.status)
-			) {
+			} else if (this._wiredAddresses.has(address) && !RemoteAgentHostConnectionStatus.isConnecting(connectionInfo?.status)) {
 				// Keep the provider live while a replacement transport is connecting.
+				this._wiredAddresses.delete(address);
 				provider.clearConnection();
 			}
 		}
