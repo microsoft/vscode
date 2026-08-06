@@ -87,7 +87,7 @@ width) captures a width to restore later.
 | **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
 | **Changes pill** | Session header meta row | Opens the managed Changes multi-diff editor and explicitly reveals the editor area when the side pane was closed or in detail-only mode. The managed Changes tab still remains excluded from automatic reveal-on-open, so merely activating its tab does not reveal the editor. |
 
-**Editor action visibility.** All single-pane editor actions (Maximize/Restore, Toggle Details, Hide Editor, Open in Modal) are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor and Toggle Details share the same visibility condition: the active editor **has a docked detail panel** (`HasDockedDetailsContext`) — a managed Changes/Files tab or a text file editor. Hide Editor uses `AuxiliaryBarVisibleContext` as its precondition, so hiding details disables it without shifting the toolbar.
+**Editor action visibility.** All single-pane editor actions (Maximize/Restore, Toggle Details, Hide Editor, Open in Modal) are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`); **Show Editor** is the mirror case, shown *only* while the editor area is closed, rendering in Hide Editor's place so the two are mutually exclusive. Hide Editor, Show Editor, and Toggle Details share the same visibility condition: the active editor **has a docked detail panel** (`HasDockedDetailsContext`) — a managed Changes/Files tab or a text file editor. Hide Editor uses `AuxiliaryBarVisibleContext` as its precondition, so hiding details disables it without shifting the toolbar; Show Editor needs no such precondition, since the header (and its toolbar) is only rendered while the auxiliary bar is already visible whenever the editor area is closed. Show Editor reveals the editor via the same explicit-reveal API (`revealEditorPartExplicitly()`) used by the session-header Changes pill, then focuses the editor group.
 
 **Managed Files tab.** The empty Files placeholder tab (and the Changes tab) is opened only when the editor group is **empty** on a view-open trigger (a session switch or a side-pane reveal). Opening a real workspace file **tidies away** the empty placeholder (a `[Changes][file]` strip) as a **one-shot reaction to that open** — not a standing rule — so the user can still add the Files tab via **`+` Files** while a real file is open (that opens an `EmptyFileEditorInput`, not a real file, so it is not tidied away). The placeholder is **not** re-added when the real file closes; the defaults return only when the group empties and the side pane is reopened.
 
@@ -109,8 +109,8 @@ width) captures a width to restore later.
 
 **Opening a file.** The **Files** add-tab entry opens its tab **pinned** (not a preview tab).
 
-Actions **not** present in single-pane mode: **Close Editor Area**, **Show Editor** (the standard
-layout keeps *Close Editor Area*).
+Actions **not** present in single-pane mode: **Close Editor Area** (the standard
+layout keeps it; single-pane's own **Show Editor** action is its counterpart to Hide Editor).
 
 ---
 

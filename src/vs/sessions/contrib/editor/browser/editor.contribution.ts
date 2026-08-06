@@ -253,7 +253,11 @@ class ShowMainEditorPartAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		// A deliberate user action, so reveal the editor area explicitly (like the
+		// session-header Changes pill) rather than a plain part-visibility toggle:
+		// this records the reveal as intentional so the automatic single-pane hide
+		// rules do not undo it.
+		layoutService.revealEditorPartExplicitly();
 		editorGroupsService.activeGroup.focus();
 	}
 }
