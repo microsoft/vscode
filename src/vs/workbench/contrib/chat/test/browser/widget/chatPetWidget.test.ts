@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -230,6 +230,7 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('yappingMouthOpen'),
 			getChatPetFrameDurations('falling'),
 			getChatPetFrameDurations('splat'),
+			getChatPetRespawnFrameDurations(),
 			getChatPetSpeechFrameDurations(),
 		], [
 			Array.from({ length: 50 }, () => 40),
@@ -246,6 +247,7 @@ suite('ChatPetWidget', () => {
 			[],
 			Array.from({ length: 4 }, () => 120),
 			[120, 100, 100, 200],
+			[120, 100, 120, 240, 100, 120],
 			[220, 220, 220, 100, 160, 180],
 		]);
 	});
@@ -412,6 +414,20 @@ suite('ChatPetWidget', () => {
 			8,
 			10,
 			10,
+		]);
+	});
+
+	test('ignores passive pills when choosing the active platform', () => {
+		assert.deepStrictEqual([
+			getChatPetPlatformTop(100, 160),
+			getChatPetPlatformTop(100, 160, 120),
+			getChatPetPlatformTop(100, 160, 158),
+			getChatPetPlatformTop(100, 160, 170),
+		], [
+			110,
+			120,
+			158,
+			110,
 		]);
 	});
 

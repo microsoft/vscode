@@ -40,7 +40,8 @@
 
 .chat-pet-button.dragging,
 .chat-pet-button.falling,
-.chat-pet-revive-button {
+.chat-pet-revive-sign,
+.chat-pet-respawn-effect {
 	z-index: 1;
 }
 
@@ -147,19 +148,14 @@
 	display: none;
 }
 
-.chat-pet-revive-button {
+.chat-pet-revive-sign {
 	position: absolute;
 	width: 48px;
 	height: 48px;
-	padding: 0;
-	border: 0;
-	outline: none;
-	background: transparent;
-	cursor: pointer;
-	pointer-events: auto;
+	pointer-events: none;
 }
 
-.chat-pet-revive-button.hidden {
+.chat-pet-revive-sign.hidden {
 	display: none;
 }
 
@@ -169,6 +165,18 @@
 	height: 48px;
 	image-rendering: pixelated;
 	pointer-events: none;
+}
+
+.chat-pet-respawn-effect {
+	position: absolute;
+	width: 48px;
+	height: 48px;
+	image-rendering: pixelated;
+	pointer-events: none;
+}
+
+.chat-pet-respawn-effect.hidden {
+	display: none;
 }
 
 .chat-pet-speech-bubble {

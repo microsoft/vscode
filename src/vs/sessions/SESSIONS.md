@@ -380,9 +380,12 @@ while the document is hidden. In both the shared chat input and new-session
 composer, the pet host spans the complete input stack while its optical bottom
 edge aligns to the topmost visible surface in that stack. Placement follows the
 measured input-to-host inset up to the confirmation alignment, so persistent
-content above the input becomes the active platform. The new-session composer
-uses its root as the pet's movement bounds rather than the nested input area so
-pickup and falling remain valid across the view. When the pet approaches the input's
+content above the input becomes the active platform. Passive status pills in the
+persistent-content slot are excluded from that calculation; confirmations,
+questions, banners, and other substantive surfaces still become the platform.
+The new-session composer uses its root as the pet's movement bounds rather than
+the nested input area so pickup and falling remain valid across the view. When
+the pet approaches the input's
 right edge while rendering, its speech bubble moves to the pet's left
 so the ellipsis remains visible without changing the pet's direction. Other pet
 states keep their standard presentation. Dragging uses a subtle wiggle while the
