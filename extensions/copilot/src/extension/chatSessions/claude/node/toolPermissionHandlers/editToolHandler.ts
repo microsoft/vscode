@@ -15,7 +15,9 @@ type EditToolName = ClaudeToolNames.Edit | ClaudeToolNames.Write | ClaudeToolNam
 
 /**
  * Handler for edit tools (Edit, Write, MultiEdit).
- * Auto-approves edits to files within the workspace, or when permission mode is 'acceptEdits'.
+ * Auto-approves edits to files within the workspace. In 'acceptEdits' mode the
+ * workspace boundary is still enforced: edits to files outside the workspace
+ * require explicit confirmation. Only 'bypassPermissions' skips the boundary check.
  */
 export class EditToolHandler implements IClaudeToolPermissionHandler<EditToolName> {
 	public readonly toolNames = [ClaudeToolNames.Edit, ClaudeToolNames.Write, ClaudeToolNames.MultiEdit] as const;
@@ -29,15 +31,18 @@ export class EditToolHandler implements IClaudeToolPermissionHandler<EditToolNam
 		input: FileEditInput | FileWriteInput,
 		context: ClaudeToolPermissionContext
 	): Promise<boolean> {
-		// Auto-approve all edits in 'acceptEdits' mode
-		if (context.permissionMode === 'acceptEdits') {
+		// 'bypassPermissions' explicitly opts out of all permission checks by design.
+		if (context.permissionMode === 'bypassPermissions') {
 			return true;
-		} else if (context.permissionMode === 'bypassPermissions') {
-			return true;
-		} else if (context.permissionMode === 'default') {
+		}
+		// 'default' mode always requires explicit confirmation.
+		if (context.permissionMode === 'default') {
 			return false;
 		}
-		// Otherwise, only auto-approve files within the workspace
+		// For 'acceptEdits' (and all other modes), only auto-approve edits to files
+		// within the workspace. Edits to files outside the workspace still require
+		// explicit confirmation, even in 'acceptEdits' mode, to prevent unauthorized
+		// modification of sensitive files (e.g. ~/.bashrc, ~/.ssh/authorized_keys).
 		return this.instantiationService.invokeFunction(isFileOkForTool, URI.file(input.file_path));
 	}
 }
