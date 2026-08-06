@@ -24,7 +24,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { heuristicScore, IRoutableSession, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { combineSessionRouteConfidence, heuristicScore, IRoutableSession, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -395,10 +395,12 @@ export class ChatSessionRoutingController extends Disposable {
 		try {
 			const results = await this.sessionRouter.route({ utterance, sessions: candidates }, token);
 			const corroboration = new Map(heuristicScore({ utterance, sessions: candidates }).map(result => [result.sessionId, result]));
-			return results.filter(result => {
+			return results.flatMap(result => {
 				const evidence = corroboration.get(result.sessionId);
-				return evidence && isCorroboratedSessionRoute(evidence);
-			});
+				return evidence && isCorroboratedSessionRoute(evidence)
+					? [{ ...result, confidence: combineSessionRouteConfidence(result.confidence, evidence.confidence) }]
+					: [];
+			}).sort((a, b) => b.confidence - a.confidence);
 		} catch (err) {
 			if (!token.isCancellationRequested) {
 				this.logService.warn('[chatSessionRouting] session routing failed:', err);

@@ -25,6 +25,16 @@ export function isCorroboratedSessionRoute(result: ISessionRouteResult): boolean
 }
 
 /**
+ * Combine independent model and lexical evidence. Either weak signal remains
+ * weak, while two agreeing signals can establish a high-confidence route.
+ */
+export function combineSessionRouteConfidence(model: number, corroboration: number): number {
+	const boundedModel = Math.max(0, Math.min(1, model));
+	const boundedCorroboration = Math.max(0, Math.min(1, corroboration));
+	return 1 - ((1 - boundedModel) * (1 - boundedCorroboration));
+}
+
+/**
  * A session that a user request can be routed to. Populated by the caller from
  * the session list (e.g. `IChatSessionsService` / `ISessionsService`).
  */

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRouterMessages, heuristicScore, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { buildRouterMessages, combineSessionRouteConfidence, heuristicScore, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -75,6 +75,14 @@ suite('SessionRouter helpers', () => {
 			isCorroboratedSessionRoute({ sessionId: 'below', confidence: 0.24 }),
 			isCorroboratedSessionRoute({ sessionId: 'boundary', confidence: 0.25 }),
 		], [false, true]);
+	});
+
+	test('agreeing model and lexical evidence can establish a high-confidence route', () => {
+		assert.deepStrictEqual([
+			isHighConfidenceSessionRoute({ sessionId: 'related', confidence: combineSessionRouteConfidence(0.75, 0.4) }),
+			isHighConfidenceSessionRoute({ sessionId: 'generic', confidence: combineSessionRouteConfidence(0.75, 0.1) }),
+			isHighConfidenceSessionRoute({ sessionId: 'weak-model', confidence: combineSessionRouteConfidence(0.2, 0.4) }),
+		], [true, false, false]);
 	});
 
 	test('heuristicScore ranks the token-overlapping session first', () => {
