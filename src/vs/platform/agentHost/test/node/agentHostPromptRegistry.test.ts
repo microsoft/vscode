@@ -268,7 +268,7 @@ suite('AgentHostPromptRegistry', () => {
 		// when `toolSearchActive` AND the client tool-search tool are both
 		// present; the composition/gating itself is covered in
 		// toolInstructions.test.ts.
-		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again. Search results are ranked and can omit available tools; if a listed tool is missing, retry once with its exact name and do not treat the miss as evidence that the tool or its server is unavailable.`;
 
 		test('layers the tool-search line onto the default config when active and the tool-search tool is present', () => {
 			const registry = new AgentHostPromptRegistry();
