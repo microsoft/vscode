@@ -120,7 +120,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 			return;
 		}
 
-		const existingPullRequests = getExistingPullRequests(sessionsManagementService.getSessions(), repository.owner, repository.repo);
+		const existingPullRequests = getExistingPullRequests(sessionsManagementService.getSessions(), repository.owner, repository.repo, context.sessions);
 		picker.placeholder = localize('createSessionFromPullRequest.placeholder', "Choose a pull request");
 		picker.enabled = true;
 

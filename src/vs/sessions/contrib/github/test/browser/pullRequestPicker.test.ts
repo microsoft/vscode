@@ -176,19 +176,29 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
-	test('collects existing pull request numbers and tracked head branches only from the selected repository', () => {
+	test('collects existing pull requests from matching metadata and repository-scoped branches', () => {
+		const repositoryRoot = URI.file('/repos/microsoft/vscode');
+		const repositorySessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/feature-three');
 		const sessions = [
 			sessionWithPullRequest('microsoft', 'vscode', 1),
 			sessionWithPullRequest('microsoft', 'vscode', 2, 'origin/feature-two'),
+			sessionWithPullRequest('Microsoft', 'VSCode', 4),
+			repositorySessionAwaitingMetadata,
 			sessionWithPullRequest('other', 'vscode', 3),
 		];
-		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode');
+		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata]);
+		const availableItems = createPullRequestQuickPickItems([
+			pullRequest(5, { headRef: 'feature-three' }),
+			pullRequest(6),
+		], existing);
 		assert.deepStrictEqual({
 			numbers: [...existing.numbers],
 			headRefs: [...existing.headRefs],
+			availableNumbers: availableItems.flatMap(item => item.type === 'separator' ? [] : [item.pullRequest.number]),
 		}, {
-			numbers: [1, 2],
-			headRefs: ['feature-two'],
+			numbers: [1, 2, 4],
+			headRefs: ['feature-two', 'feature-three'],
+			availableNumbers: [6],
 		});
 	});
 
@@ -292,7 +302,7 @@ function sessionWithPullRequest(owner: string, repo: string, number: number, ups
 	return sessionWithWorkspace(workspace);
 }
 
-function sessionWithRepository(root: URI, owner: string, repo: string, includeGitHubInfo = true): ISession {
+function sessionWithRepository(root: URI, owner: string, repo: string, includeGitHubInfo = true, upstreamBranchName?: string): ISession {
 	return sessionWithWorkspace({
 		uri: root,
 		label: repo,
@@ -306,7 +316,7 @@ function sessionWithRepository(root: URI, owner: string, repo: string, includeGi
 				uri: root,
 				workTreeUri: root,
 				baseBranchName: 'main',
-				upstreamBranchName: undefined,
+				upstreamBranchName,
 				gitHubInfo: constObservable(includeGitHubInfo ? { owner, repo } : undefined),
 			},
 		}],

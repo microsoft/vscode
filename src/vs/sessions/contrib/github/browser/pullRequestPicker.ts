@@ -73,17 +73,23 @@ export function getGitHubRepositoryFromRemotes(remotes: readonly IRepositoryRemo
 	return undefined;
 }
 
-export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string): IExistingPullRequests {
+export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string, repositorySessions: readonly ISession[] = []): IExistingPullRequests {
 	const numbers = new Set<number>();
 	const headRefs = new Set<string>();
+	const repositorySessionSet = new Set(repositorySessions);
+	const normalizedOwner = owner.toLowerCase();
+	const normalizedRepo = repo.toLowerCase();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-			if (gitHubInfo?.owner !== owner || gitHubInfo.repo !== repo) {
+			const matchesRepository = gitHubInfo
+				? gitHubInfo.owner.toLowerCase() === normalizedOwner && gitHubInfo.repo.toLowerCase() === normalizedRepo
+				: repositorySessionSet.has(session);
+			if (!matchesRepository) {
 				continue;
 			}
-			if (gitHubInfo.pullRequest) {
+			if (gitHubInfo?.pullRequest) {
 				numbers.add(gitHubInfo.pullRequest.number);
 			}
 			const upstreamBranch = folder.gitRepository?.upstreamBranchName;
