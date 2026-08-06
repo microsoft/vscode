@@ -13,6 +13,7 @@ import { CommandsRegistry } from '../../../platform/commands/common/commands.js'
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
 import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
@@ -22,6 +23,12 @@ import '../../browser/layoutActions.js';
 suite('Sessions - Layout Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
+	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
+	suiteSetup(async () => {
+		await import('../../contrib/editor/browser/editor.contribution.js');
+	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
 		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
@@ -75,9 +82,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', async () => {
-		await import('../../contrib/editor/browser/editor.contribution.js');
-
+	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
@@ -87,6 +92,7 @@ suite('Sessions - Layout Actions', () => {
 				group: item.group,
 				order: item.order,
 				precondition: item.command.precondition?.serialize(),
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			}));
 
 		assert.deepStrictEqual({
@@ -95,10 +101,10 @@ suite('Sessions - Layout Actions', () => {
 			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
 			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
 		}, {
-			maximize: [{ group: 'navigation', order: 10, precondition: undefined }],
-			restore: [{ group: 'navigation', order: 10, precondition: undefined }],
-			hide: [{ group: 'navigation', order: 20, precondition: AuxiliaryBarVisibleContext.key }],
-			show: [{ group: 'navigation', order: 20, precondition: undefined }],
+			maximize: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenFull.id }],
+			restore: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenNormal.id }],
+			hide: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelHide.id }],
+			show: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelShow.id }],
 		});
 
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
@@ -120,5 +126,25 @@ suite('Sessions - Layout Actions', () => {
 		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
 		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
+	});
+
+	test('Hide Editor unconditionally reveals the auxiliary bar so the pane always lands in Detail only', async () => {
+		const command = CommandsRegistry.getCommand('workbench.action.agentSessions.hideMainEditorPart');
+		assert.ok(command);
+
+		const calls: Array<{ hidden: boolean; part: Parts }> = [];
+		const layoutService = {
+			setPartHidden: (hidden: boolean, part: Parts) => calls.push({ hidden, part }),
+		};
+		const accessor = { get: () => layoutService } as ServicesAccessor;
+
+		await command.handler(accessor);
+
+		// SinglePaneDetailPanelStrategy, not this action, decides what the panel shows.
+		assert.deepStrictEqual(calls, [
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+			{ hidden: true, part: Parts.EDITOR_PART },
+			{ hidden: false, part: Parts.SIDEBAR_PART },
+		]);
 	});
 });
