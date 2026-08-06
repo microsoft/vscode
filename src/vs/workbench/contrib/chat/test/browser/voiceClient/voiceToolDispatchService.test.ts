@@ -192,6 +192,33 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		});
 	});
 
+	test('refuses an approval id after the same tool is re-armed', async () => {
+		const confirmations: ToolConfirmKind[] = [];
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: {},
+			confirm: reason => confirmations.push(reason.type),
+		});
+		const tool = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = 'testTool';
+			override readonly state = state;
+		}();
+		const staleCall = approvalCall(tool, 'approve');
+
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: {},
+			confirm: reason => confirmations.push(reason.type),
+		}, undefined);
+		const result = await serviceFor(tool).respondToSession(staleCall);
+
+		assert.deepStrictEqual({ result, confirmations }, {
+			result: { ok: false, reason: 'stale_pending' },
+			confirmations: [],
+		});
+	});
+
 	test('a skip is refused when the form forbids it', async () => {
 		const part = carousel();
 
