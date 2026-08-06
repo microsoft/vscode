@@ -7,7 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { PolicyCategory, PolicyName } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -18,7 +18,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
-import { PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
+import { AbstractPolicyService, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
@@ -68,6 +68,15 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	}
 
 	async signOut(): Promise<void> { }
+}
+
+class TestPolicyService extends AbstractPolicyService {
+	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | undefined): void {
+		this.policyDefinitions[name] = { type: typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : 'string' };
+		this.updatePolicyValue(name, value, source);
+	}
+
+	protected async _updatePolicyDefinitions(): Promise<void> { }
 }
 
 suite('MultiplexPolicyService', () => {
@@ -197,6 +206,22 @@ suite('MultiplexPolicyService', () => {
 			)
 		);
 	}
+
+	test('preserves an unknown source from the winning policy service', () => {
+		const devicePolicyService = disposables.add(new TestPolicyService());
+		devicePolicyService.setPolicy('Policy', false, PolicyValueSource.Device);
+		const unknownPolicyService = disposables.add(new TestPolicyService());
+		unknownPolicyService.setPolicy('Policy', true, undefined);
+		const multiplexPolicyService = disposables.add(new MultiplexPolicyService([devicePolicyService, unknownPolicyService], logService));
+
+		assert.deepStrictEqual({
+			value: multiplexPolicyService.getPolicyValue('Policy'),
+			source: multiplexPolicyService.getPolicyValueSource('Policy'),
+		}, {
+			value: true,
+			source: undefined,
+		});
+	});
 
 	test('no policy', async () => {
 		await clear();
