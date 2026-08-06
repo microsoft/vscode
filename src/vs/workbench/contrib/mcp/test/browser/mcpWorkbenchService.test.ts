@@ -749,7 +749,7 @@ suite('McpWorkbenchService - user-scoped server exclusion', () => {
 			affectsConfiguration: (key: string) => key === mcpUserServersEnabledConfig,
 			affectedKeys: new Set([mcpUserServersEnabledConfig]),
 			change: { keys: [mcpUserServersEnabledConfig], overrides: [] },
-			source: ConfigurationTarget.WORKSPACE,
+			source: ConfigurationTarget.USER,
 		});
 		await changePromise;
 
