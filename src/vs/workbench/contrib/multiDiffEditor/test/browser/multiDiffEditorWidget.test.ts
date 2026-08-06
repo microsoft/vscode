@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Dimension, mainWindow } from '../../../../../base/browser/dom.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ValueWithChangeEvent } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
@@ -22,7 +23,8 @@ suite('MultiDiffEditorWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('delegates handled entry header middle-clicks', async () => {
-		const instantiationService = createEditorServices(disposables, {
+		const editorDisposables = disposables.add(new DisposableStore());
+		const instantiationService = createEditorServices(editorDisposables, {
 			additionalServices: registration => {
 				registerWorkbenchServices(registration);
 				registration.defineInstance(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
