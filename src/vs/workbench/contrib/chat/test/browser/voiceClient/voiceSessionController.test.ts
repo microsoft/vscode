@@ -72,6 +72,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private readonly connectionStateEmitter = new Emitter<boolean>();
 	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
+	override readonly onConnectionIssue = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
 	private connected = false;
 	private resuming = false;
@@ -4462,11 +4463,13 @@ suite('VoiceSessionController', () => {
 		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
 		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
 
-		handleFatalDisconnect.call(controller, { code: 4003, reason: 'Voice Mode needs a verified @microsoft.com email', kind: 'fatal' });
+		handleFatalDisconnect.call(controller, { code: 4003, reason: 'not allowed', kind: 'fatal' });
 
-		assert.strictEqual(controller.statusText.get(), 'Voice Mode needs a verified @microsoft.com email');
+		assert.ok(controller.statusText.get().includes('access'), controller.statusText.get());
 		assert.strictEqual(controller.voiceState.get(), 'error');
 		assert.strictEqual(notificationService.prompts.length, 1);
+		// Forbidden has no in-product remedy, so the prompt carries no choice.
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
 	});
 
 	test('treats an idle timeout as expected rather than an error', () => {

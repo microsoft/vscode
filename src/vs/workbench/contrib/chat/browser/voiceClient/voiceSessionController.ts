@@ -320,8 +320,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  settles to a clean, restartable state instead of a stuck "Reconnecting...".
 	 *  Cleared on the next {@link connect}. */
 	private _fatalDisconnect = false;
-	/** Last `error` frame detail, kept so a close with no reason can use it. */
-	private _lastErrorDetail: string | undefined;
 
 	private readonly _pendingToolConfirmations = observableValue<readonly IPendingToolConfirmation[]>(this, []);
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]> = this._pendingToolConfirmations;
@@ -1978,9 +1976,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Errors (only surface if not in connecting/reconnect phase)
 		this._voiceEventDisposables.add(this.voiceClientService.onError(detail => {
-			// Retained even while connecting: a fatal close arriving moments later
-			// uses this as its reason when the close frame carries none.
-			this._lastErrorDetail = detail;
 			if (!this._isConnecting.get()) {
 				this._voiceState.set('error', undefined);
 				this._statusText.set(`Error: ${detail}`, undefined);
@@ -1995,7 +1990,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// "Reconnecting..." spinner.
 		this._voiceEventDisposables.add(this.voiceClientService.onConnectionIssue(e => {
 			if (this._isReconnecting.get()) {
-				this._statusText.set(this._reconnectingMessage(e.reason), undefined);
+				this._statusText.set(this._reconnectingMessage(e.code, e.reason), undefined);
 			}
 		}));
 
@@ -2029,8 +2024,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (notifyUser) {
 			this.notificationService.notify({
 				severity: Severity.Warning,
-				// "Please try again" implies retrying will help; for an unreachable
-				// host it will not, so name what the user can actually check.
 				message: localize('voice.unreachableToast', "Couldn't reach the voice service. Check your connection and try again."),
 			});
 		}
@@ -2055,15 +2048,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const shouldPlayRecordingStoppedSignal = source === 'explicit' && this._pttHeld;
 
 		// Telemetry: session ended
-		if (this._telemetrySessionStart) {
-			const durationSec = Math.round((Date.now() - this._telemetrySessionStart) / 1000);
-			this.telemetryService.publicLog2<VoiceSessionEndedEvent, VoiceSessionEndedClassification>('voiceSessionEnded', {
-				turnCount: this._telemetryTurnCount,
-				durationSec,
-				reconnectCount: this._telemetryReconnectCount,
-			});
-			this._telemetrySessionStart = undefined;
-		}
+		this._endTelemetrySession();
 
 		this._isConnecting.set(false, undefined);
 		this._isReconnecting.set(false, undefined);
@@ -2254,30 +2239,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set(kind === 'expected' ? 'idle' : 'error', undefined);
 		this._statusText.set(message, undefined);
 
-		// Close out the telemetry session this connection opened. The backend
-		// accepts a socket before refusing it (so the refusal can carry a close
-		// code), which means the connected-handler has already logged a session
-		// start; without this every refusal would be a session that never ends.
+		// Balance the session-start event this connection already emitted.
 		this._endTelemetrySession();
 
 		if (kind === 'fatal') {
-			// prompt() announces to screen readers itself, so ariaAlert here would
-			// double-speak. Only the toast-less path needs the manual announcement.
+			// prompt() announces to screen readers itself; ariaAlert would double-speak.
 			this._promptFatalDisconnect(event, message);
 		} else {
-			// The status text only renders into a plain div, so screen-reader users
-			// otherwise get no notification that recording stopped or that another
-			// window took over. Announce it assertively via ARIA.
+			// The status text is a plain div, so announce it for screen-reader users.
 			ariaAlert(message);
 		}
 	}
 
-	/**
-	 * Resolve the message shown for a terminal close. Localized strings win so
-	 * the UI is translated; the server `reason` is the fallback for a code this
-	 * client build does not know, which is what keeps a newer backend useful
-	 * against an older client.
-	 */
+	/** Prefer localized messages for known codes; fall back to the server reason. */
 	private _fatalDisconnectMessage(event: IVoiceFatalDisconnect): string {
 		if (event.clientSide) {
 			return localize('voice.notConfigured', "Voice Mode has no backend URL configured.");
@@ -2286,9 +2260,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			case VoiceCloseCode.Unauthenticated:
 				return localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
 			case VoiceCloseCode.Forbidden:
-				// The server reason names the accepted domains, which is more useful
-				// than the generic string; fall back when it is absent.
-				return event.reason || localize('voice.noAccess', "Your GitHub account doesn't have access to Voice Mode.");
+				return localize('voice.noAccess', "Your GitHub account doesn't have access to Voice Mode.");
 			case VoiceCloseCode.SessionReplaced:
 				return localize('voice.movedToAnotherWindow', "Voice moved to another window. Tap to start.");
 			case VoiceCloseCode.ServerBusy:
@@ -2301,37 +2273,38 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return localize('voice.authUnavailable', "Can't reach GitHub to check your account. Try again in a moment.");
 			case 1000:
 			case 1001:
-				// The backend still uses 1001 for an idle timeout, deliberately.
 				return localize('voice.sessionEnded', "Voice session ended. Tap to start.");
 			case 1006:
 				return localize('voice.unreachable', "Couldn't reach the voice service. Check your connection and try again.");
 			default:
-				return event.reason || this._lastErrorDetail || localize('voice.fatalDisconnect', "Voice disconnected. Tap to start.");
+				return event.reason || localize('voice.fatalDisconnect', "Voice disconnected. Tap to start.");
 		}
 	}
 
-	/** Status text while retrying, naming the cause when the server gave one. */
-	private _reconnectingMessage(reason: string): string {
-		return reason
-			? localize('voice.reconnectingBecause', "Reconnecting - {0}", reason)
-			: localize('voice.reconnecting', "Reconnecting...");
+	/** Status text while retrying, naming the cause when one is known. */
+	private _reconnectingMessage(code: number, reason: string): string {
+		if (reason) {
+			return localize('voice.reconnectingBecause', "Reconnecting - {0}", reason);
+		}
+		// A browser reports 1006 with no reason for anything it cannot inspect.
+		if (code === 1006) {
+			return localize('voice.reconnectingUnreachable', "Reconnecting - can't reach the voice service");
+		}
+		return localize('voice.reconnecting', "Reconnecting...");
 	}
 
-	/**
-	 * Surface a fatal disconnect as a notification with the one action that can
-	 * actually resolve it. `prompt` is the platform's documented path for a
-	 * message plus choices (see INotification.actions).
-	 */
+	/** Show a terminal-disconnect notification with its recovery action. */
 	private _promptFatalDisconnect(event: IVoiceFatalDisconnect, message: string): void {
-		// An unknown or unreachable failure is still worth a Retry button.
-		const action = event.clientSide ? 'openSettings' : (voiceCloseCodeInfo(event.code)?.action ?? 'retry');
+		const info = voiceCloseCodeInfo(event.code);
+		// A known code without an action deliberately has none; only an unknown
+		// failure gets the generic Retry.
+		const action = event.clientSide ? 'openSettings' : (info ? info.action : 'retry');
 		const choices: IPromptChoice[] = [];
 		if (action === 'signIn') {
 			choices.push({
 				label: localize('voice.signInAction', "Sign in"),
-				// Force the sign-in dialog: the user may already be signed in with a
-				// token that is expired or missing the user:email scope, in which
-				// case plain setup can no-op and leave them stuck.
+				// Force reauthorization: an expired or under-scoped token still counts
+				// as signed in, so plain setup can no-op and leave the user stuck.
 				run: () => { void this.commandService.executeCommand('workbench.action.chat.triggerSetupForceSignIn'); },
 			});
 		} else if (action === 'retry') {

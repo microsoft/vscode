@@ -4,16 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * WebSocket close codes the voice backend uses to explain a refusal or a
- * termination. Mirrors `voice_code/core/close_codes.py`; the two lists must
- * stay in step.
+ * Close codes mirrored from `voice_code/core/close_codes.py`.
  *
- * `kind` drives both retry policy and presentation:
- * - `fatal`     — will not succeed on retry; show an error plus an action.
- * - `expected`  — a normal end of session; show a neutral prompt to restart.
- * - `transient` — may succeed on retry; keep the reconnect loop running.
- *
- * Note 4000 is reserved: the client itself closes with it on pong timeout.
+ * `kind` drives retry policy and presentation: `fatal` will not succeed on
+ * retry, `expected` is a normal end of session, `transient` keeps reconnecting.
+ * Code 4000 is reserved for the client's own pong-timeout close.
  */
 export const enum VoiceCloseCode {
 	Unauthenticated = 4001,
@@ -26,7 +21,7 @@ export const enum VoiceCloseCode {
 
 export type VoiceCloseKind = 'fatal' | 'expected' | 'transient';
 
-export type VoiceCloseAction = 'signIn' | 'retry' | 'openSettings' | 'requestAccess';
+export type VoiceCloseAction = 'signIn' | 'openSettings';
 
 export interface IVoiceCloseCodeInfo {
 	readonly kind: VoiceCloseKind;
@@ -35,21 +30,20 @@ export interface IVoiceCloseCodeInfo {
 
 const INFO = new Map<number, IVoiceCloseCodeInfo>([
 	[VoiceCloseCode.Unauthenticated, { kind: 'fatal', action: 'signIn' }],
-	[VoiceCloseCode.Forbidden, { kind: 'fatal', action: 'requestAccess' }],
+	// No action: there is nothing the user can do in-product about this one.
+	[VoiceCloseCode.Forbidden, { kind: 'fatal' }],
 	[VoiceCloseCode.SessionReplaced, { kind: 'expected' }],
-	[VoiceCloseCode.ServerBusy, { kind: 'fatal', action: 'retry' }],
+	// Capacity clears on its own, so keep reconnecting and explain meanwhile.
+	[VoiceCloseCode.ServerBusy, { kind: 'transient' }],
 	[VoiceCloseCode.InternalError, { kind: 'transient' }],
 	[VoiceCloseCode.AuthUnavailable, { kind: 'transient' }],
 
-	// Plain RFC codes. 1001 is the backend's idle timeout, which deliberately
-	// keeps that code: renumbering it into the 4xxx range would make clients
-	// predating this registry treat it as transient and reconnect forever.
+	// 1001 is the backend's idle timeout, which keeps that code on purpose.
 	[1000, { kind: 'expected' }],
 	[1001, { kind: 'expected' }],
-	// Legacy equivalents from a backend that predates the registry, so a new
-	// client still explains itself when the two repos are out of step.
+	// Emitted by backends that predate this registry.
 	[1011, { kind: 'transient' }],
-	[1013, { kind: 'fatal', action: 'retry' }],
+	[1013, { kind: 'transient' }],
 ]);
 
 /** Return the registry entry for `code`, or `undefined` if it is unknown. */
@@ -57,11 +51,7 @@ export function voiceCloseCodeInfo(code: number): IVoiceCloseCodeInfo | undefine
 	return INFO.get(code);
 }
 
-/**
- * Whether `code` ends the session for good. Unknown codes — notably the bare
- * 1006 a browser reports for any failure it cannot inspect — are NOT terminal,
- * so they keep the existing reconnect behaviour.
- */
+/** Whether `code` ends the session. Unknown codes, including 1006, stay retryable. */
 export function isTerminalCloseCode(code: number): boolean {
 	const info = INFO.get(code);
 	return info !== undefined && info.kind !== 'transient';

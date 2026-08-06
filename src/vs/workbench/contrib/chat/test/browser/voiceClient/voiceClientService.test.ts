@@ -824,20 +824,38 @@ suite('VoiceClientService', () => {
 	});
 
 	test('a rejected connection does not refill the reconnect budget', async () => {
-		// The backend accepts the socket before closing it so a refusal can carry
-		// a close code, so `onopen` fires even for a connection about to be
-		// refused. If onopen reset the budget, the fast 2s cadence would never
-		// escalate and the give-up would never be reached.
+		// The backend accepts a socket before refusing it, so onopen fires even for
+		// a connection about to be closed. Resetting there would pin the fast retry
+		// cadence forever and make the give-up unreachable.
 		const { service } = createService();
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
 		await service.connect(createTestWindow());
 
-		const webSocket = socket();
-		for (let i = 0; i < 3; i++) {
-			webSocket.onopen?.();
-			webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
-		}
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
 
-		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 3, 'attempts must accumulate across open/close cycles');
+		reconnect.call(service);
+		socket().onopen?.();
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1, 'onopen must not reset the budget');
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 2);
+	});
+
+	test('a recoverable close reports its reason after the disconnect is visible', async () => {
+		// The controller only renders the reason once it is in the reconnecting
+		// state, which the connection-state change drives, so ordering matters.
+		const { service } = createService();
+		const order: string[] = [];
+		store.add(service.onDidChangeConnectionState(connected => order.push(`connected:${connected}`)));
+		store.add(service.onConnectionIssue(e => order.push(`issue:${e.reason}`)));
+
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'Cannot reach GitHub' }));
+
+		assert.deepStrictEqual(order, ['connected:true', 'connected:false', 'issue:Cannot reach GitHub']);
 	});
 
 	test('a confirmed session resets the reconnect budget', async () => {
@@ -848,7 +866,9 @@ suite('VoiceClientService', () => {
 		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
 		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
 
-		webSocket.onmessage?.(new mainWindow.MessageEvent('message', {
+		(Reflect.get(service, '_connectWebSocket') as () => void).call(service);
+		socket().onopen?.();
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
 			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
 		}));
 
