@@ -51,6 +51,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
@@ -80,6 +81,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
 	private readonly _voiceConfirmationPending = observableValue(this, false);
+	private readonly _onDidChangeSessionTarget = this._register(new Emitter<AgentSessionTarget>());
+	private _sessionTarget: AgentSessionTarget = AgentSessionProviders.Local;
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
@@ -385,6 +388,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				enableImplicitContext: false,
 				defaultMode: ChatMode.Ask,
 				menus: { telemetrySource: 'chatInputWindow' },
+				sessionTypePickerDelegate: {
+					getActiveSessionProvider: () => this._sessionTarget,
+					setActiveSessionProvider: provider => {
+						this._sessionTarget = provider;
+						this._onDidChangeSessionTarget.fire(provider);
+					},
+					onDidChangeActiveSessionProvider: this._onDidChangeSessionTarget.event,
+				},
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
@@ -440,6 +451,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
+			getNewSessionTarget: () => this._sessionTarget,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
 			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
@@ -615,7 +627,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		));
 		widget.render(parent);
-		widget.setInputVisible(false);
+		// Tool approvals and questions are rendered in ChatInputPart rather than
+		// the response list. Keep it mounted; CSS hides only the editor chrome.
+		widget.setInputVisible(true);
 		widget.setVisible(true);
 		const list = widget.domNode.querySelector<HTMLElement>(':scope > .interactive-list');
 

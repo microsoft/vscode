@@ -14,10 +14,11 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -25,7 +26,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatSer
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { combineSessionRouteConfidence, heuristicScore, IRoutableSession, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -219,6 +220,8 @@ export interface IChatSessionRoutingHost {
 	getOwnSessionResource(): URI | undefined;
 	/** Session whose currently displayed question or approval the voice input answers directly. */
 	getPendingReplySessionResource?(): URI | undefined;
+	/** Session provider selected for a newly created destination. */
+	getNewSessionTarget?(): AgentSessionTarget | undefined;
 	/**
 	 * Insert the advisory badge into the host DOM near the input.
 	 * If the host has no surface to place it, leave the badge disconnected and
@@ -1144,7 +1147,19 @@ export class ChatSessionRoutingController extends Disposable {
 	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IDispatchResult> {
 		let routeResource: URI | undefined;
 		try {
-			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
+			const sessionTarget = this.host.getNewSessionTarget?.() ?? AgentSessionProviders.Local;
+			const ref = sessionTarget === AgentSessionProviders.Local
+				? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` })
+				: await this.chatService.acquireOrLoadSession(
+					URI.from({ scheme: sessionTarget, path: `/untitled-${generateUuid()}` }),
+					ChatAgentLocation.Chat,
+					token,
+					`${this.debugOwner}-new`,
+				);
+			if (!ref) {
+				this.logService.warn(`[chatSessionRouting] unable to create a new ${sessionTarget} session`);
+				return { status: 'rejected' };
+			}
 			routeResource = ref.object.sessionResource;
 			if (token.isCancellationRequested) {
 				ref.dispose();
