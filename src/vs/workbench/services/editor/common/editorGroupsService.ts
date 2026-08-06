@@ -142,6 +142,7 @@ export type ICloseEditorsFilter = {
 export interface ICloseAllEditorsOptions {
 	readonly excludeSticky?: boolean;
 	readonly excludeConfirming?: boolean;
+	readonly force?: boolean;
 }
 
 export interface IEditorReplacement {
@@ -1012,7 +1013,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise if confirmation is needed when all editors are closed.
 	 */
-	closeAllEditors(options: { excludeConfirming: true }): boolean;
+	closeAllEditors(options: { excludeConfirming: true; force?: boolean }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**

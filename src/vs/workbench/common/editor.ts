@@ -872,7 +872,17 @@ export const enum EditorInputCapabilities {
 	 * limit (`workbench.editor.limit`): it never counts towards the
 	 * limit and is never auto-closed to satisfy it.
 	 */
-	ExcludeFromEditorLimit = 1 << 12
+	ExcludeFromEditorLimit = 1 << 12,
+
+	/**
+	 * Signals that the editor cannot be closed through standard user
+	 * initiated close actions, such as the tab close button, middle
+	 * click, or close commands (Close Editor, Close All, Close Group,
+	 * etc). Internal or programmatic close operations (for example
+	 * during shutdown, window reload, workspace changes or when an
+	 * editor fails to restore) are not affected by this capability.
+	 */
+	CannotClose = 1 << 13
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

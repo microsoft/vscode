@@ -585,6 +585,10 @@ abstract class AbstractCloseAllAction extends Action2 {
 		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
+			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
+				continue;
+			}
+
 			let confirmClose = false;
 			let handlerDidError = false;
 			if (editor.closeHandler) {
@@ -801,7 +805,9 @@ export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 		await super.doCloseAll(editorGroupService);
 
 		for (const groupToClose of this.groupsToClose(editorGroupService)) {
-			editorGroupService.removeGroup(groupToClose);
+			if (groupToClose.count === 0) {
+				editorGroupService.removeGroup(groupToClose);
+			}
 		}
 	}
 }
