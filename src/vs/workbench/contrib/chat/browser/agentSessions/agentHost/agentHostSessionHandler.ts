@@ -3729,16 +3729,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			if (state.type === IChatToolInvocation.StateKind.Executing) {
 				confirmationDispatched = true;
-				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: opts.turnId,
-					toolCallId,
-					approved: true,
-					confirmed: confirmedReasonToProtocol(state.confirmed),
-					...(state.confirmed.type === ToolConfirmKind.UserAction && state.confirmed.selectedButton
-						? { selectedOptionId: state.confirmed.selectedButton }
-						: {}),
-				});
+				const selectedOptionId = state.confirmed.type === ToolConfirmKind.UserAction ? state.confirmed.selectedButton : undefined;
+				const approved = state.confirmed.type !== ToolConfirmKind.UserAction
+					|| state.confirmed.selectedButtonKind !== ConfirmationOptionKind.Deny;
+				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, approved
+					? {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: true,
+						confirmed: confirmedReasonToProtocol(state.confirmed),
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					}
+					: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: false,
+						reason: ToolCallCancellationReason.Denied,
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
 				// Pre-execution cancellation (a denied confirmation). If the
 				// protocol call already reached a terminal state the server
