@@ -14,6 +14,7 @@ const { basename, dirname, extname, join, resolve } = path;
 
 const repoRoot = resolve(__dirname, '..');
 const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
+const windowsTestWrapper = join(repoRoot, 'scripts', 'test-agent-host-e2e-child.ps1');
 const incompatibleFlags = [
 	'AGENT_HOST_REPLAY_RECORD',
 	'AGENT_HOST_UPDATE_AHP_SNAPSHOTS',
@@ -173,10 +174,24 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 	delete environment.ELECTRON_RUN_AS_NODE;
 
 	return new Promise(resolveResult => {
-		const child = spawn(testScript, ['--run', suite.file, ...suiteArguments(forwardedArgs, suite)], {
+		const testArguments = ['--run', suite.file, ...suiteArguments(forwardedArgs, suite)];
+		const child = process.platform === 'win32'
+			? spawn(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
+				'-NoLogo',
+				'-NoProfile',
+				'-NonInteractive',
+				'-ExecutionPolicy', 'Bypass',
+				'-File', windowsTestWrapper,
+				testScript,
+				...testArguments,
+			], {
+				cwd: repoRoot,
+				env: environment,
+				stdio: ['ignore', 'pipe', 'pipe'],
+			})
+			: spawn(testScript, testArguments, {
 			cwd: repoRoot,
 			env: environment,
-			shell: process.platform === 'win32',
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 		let output = '';
@@ -251,6 +266,9 @@ function mergeSurfaceOutputs(outputs: ReadonlyMap<string, string>): void {
 
 	for (const output of outputs.values()) {
 		if (!existsSync(output)) {
+			if (process.env['AGENT_HOST_E2E_COVERAGE'] === '1') {
+				throw new Error(`Missing protocol surface observations from ${output}`);
+			}
 			continue;
 		}
 		const observed = readObservedSurface(output);
