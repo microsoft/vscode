@@ -12,12 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProfile, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { remoteResolverTerminal, TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProfile, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../../services/remote/common/remoteAgentService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestTerminalProfileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
 suite('Workbench - TerminalService', () => {
@@ -27,6 +27,7 @@ suite('Workbench - TerminalService', () => {
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+	let terminalProfileService: TestTerminalProfileService;
 
 	setup(async () => {
 		dialogService = new TestDialogService();
@@ -47,15 +48,16 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(ITerminalInstanceService, 'getBackend', undefined);
 		instantiationService.stub(ITerminalInstanceService, 'getRegisteredBackends', []);
 		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
+		terminalProfileService = instantiationService.get(ITerminalProfileService) as TestTerminalProfileService;
 
 		terminalService = store.add(instantiationService.createInstance(TerminalService));
 		instantiationService.stub(ITerminalService, terminalService);
 	});
 
 	suite('background terminals', () => {
-		test('should not wait for profiles when config has a local cwd in a remote workspace', async () => {
+		test('should not wait for profiles when a remote resolver terminal has a local cwd', async () => {
 			const profilesReady = new DeferredPromise<void>();
-			instantiationService.stub(ITerminalProfileService, 'profilesReady', profilesReady.p);
+			terminalProfileService.profilesReady = profilesReady.p;
 			instantiationService.stub(IRemoteAgentService, 'getConnection', {
 				remoteAuthority: 'ssh-remote+test'
 			} as IRemoteAgentConnection);
@@ -67,16 +69,27 @@ suite('Workbench - TerminalService', () => {
 			instantiationService.stub(ITerminalInstanceService, 'createInstance', instance);
 			terminalService.registerProcessSupport(true);
 
-			const terminalCreation = terminalService.createTerminal({
+			const unflaggedTerminalCreation = terminalService.createTerminal({
 				config: {
 					cwd: URI.file('/home/test'),
 					hideFromUser: true
 				},
 				skipContributedProfileCheck: true,
 			});
+			strictEqual(await raceTimeout(unflaggedTerminalCreation, 10), undefined);
+
+			const terminalCreation = terminalService.createTerminal({
+				config: {
+					cwd: URI.file('/home/test'),
+					hideFromUser: true,
+					[remoteResolverTerminal]: true
+				},
+				skipContributedProfileCheck: true,
+			});
 
 			strictEqual(await raceTimeout(terminalCreation, 50), instance);
 			profilesReady.complete();
+			await unflaggedTerminalCreation;
 		});
 
 		test('should remove disposed hidden terminals and their listeners', async () => {

@@ -416,7 +416,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._isRemoteResolverTerminal = this._shellLaunchConfig[remoteResolverTerminal] === true;
 		delete this._shellLaunchConfig[remoteResolverTerminal];
-		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => this._workspaceTrustInitialized = true);
+		if (this._isRemoteResolverTerminal) {
+			this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => this._workspaceTrustInitialized = true);
+		}
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 

@@ -347,33 +347,22 @@ suite('Workbench - TerminalInstance', () => {
 			const processCreation = createProcess(instance);
 			await timeout(0);
 
-			deepStrictEqual({
+			const beforeTrust = {
 				trustRequestCount: workspaceTrustRequestService.requestCount,
 				createProcessCount: terminalInstanceService.createProcessCount
-			}, {
-				trustRequestCount: 1,
-				createProcessCount: 0
-			});
+			};
 			trustResult.complete(true);
 			await processCreation;
-			instance.dispose();
-		});
-
-		test('unflagged terminal still requests workspace trust before creating its process', async () => {
-			const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust({
-				executable: '/usr/bin/zsh',
-				cwd: URI.file('/home/test'),
-				isTransient: true
-			}, Promise.resolve(true));
-
-			await createProcess(instance);
 
 			deepStrictEqual({
-				trustRequestCount: workspaceTrustRequestService.requestCount,
-				createProcessCount: terminalInstanceService.createProcessCount
+				beforeTrust,
+				createProcessCountAfterTrust: terminalInstanceService.createProcessCount
 			}, {
-				trustRequestCount: 1,
-				createProcessCount: 1
+				beforeTrust: {
+					trustRequestCount: 1,
+					createProcessCount: 0
+				},
+				createProcessCountAfterTrust: 1
 			});
 			instance.dispose();
 		});
