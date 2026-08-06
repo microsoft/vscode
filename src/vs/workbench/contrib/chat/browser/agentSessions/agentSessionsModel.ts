@@ -735,7 +735,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				const changes = session.changes;
+				// A lazy provider refresh omits changes. Keep only the previous aggregate
+				// summary so cached counts survive without retaining hydrated file arrays.
+				const changes = session.changes ?? getAgentChangesSummary(this._sessions.get(session.resource)?.changes);
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
