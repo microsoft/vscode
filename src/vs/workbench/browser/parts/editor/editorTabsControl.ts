@@ -88,6 +88,7 @@ export interface IEditorTabsControl extends IDisposable {
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
 	updateEditorLabel(editor: EditorInput): void;
+	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
 	getHeight(): number;
@@ -655,6 +656,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	abstract updateEditorSelections(): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
+
+	abstract updateEditorCapabilities(editor: EditorInput): void;
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 

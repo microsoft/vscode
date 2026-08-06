@@ -369,6 +369,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
 					break;
+				case GroupModelChangeKind.EDITOR_CAPABILITIES:
+					if (e.editor && e.editor === this.model.activeEditor) {
+						observeActiveEditor();
+					}
+					break;
 				case GroupModelChangeKind.EDITORS_SELECTION:
 					multipleEditorsSelectedContext.set(this.model.selectedEditors.length > 1);
 					twoEditorsSelectedContext.set(this.model.selectedEditors.length === 2);
@@ -656,6 +661,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
+			case GroupModelChangeKind.EDITOR_CAPABILITIES:
+				this.onDidChangeEditorCapabilities(e.editor);
+				break;
 		}
 	}
 
@@ -874,6 +882,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control
 		this.titleControl.updateEditorLabel(editor);
+	}
+
+	private onDidChangeEditorCapabilities(editor: EditorInput): void {
+		this.titleControl.updateEditorCapabilities(editor);
 	}
 
 	private onDidChangeEditorSelection(): void {

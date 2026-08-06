@@ -119,17 +119,39 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor declares managed Files capabilities', () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		const layoutService = stubEditorVisibility(instantiationService, true);
+	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
+		let editorVisible = false;
+		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && editorVisible;
+			}
+		};
 		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		let capabilitiesChanges = 0;
+		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
-		assert.strictEqual(input.capabilities,
-			EditorInputCapabilities.ExcludeFromEditorLimit |
-			EditorInputCapabilities.Readonly |
-			EditorInputCapabilities.Singleton |
-			EditorInputCapabilities.ForceReveal |
-			EditorInputCapabilities.CannotClose);
+		const hiddenCapabilities = input.capabilities;
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			hiddenCapabilities,
+			visibleCapabilities: input.capabilities,
+			capabilitiesChanges
+		}, {
+			hiddenCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal |
+				EditorInputCapabilities.CannotClose,
+			visibleCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal,
+			capabilitiesChanges: 1
+		});
 	});
 
 	test('empty file editor exposes its breadcrumb resource only while the editor area is visible', () => {
