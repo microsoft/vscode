@@ -146,6 +146,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 Whenever the user flags a wrong pattern, rejects an approach, or gives design/rules feedback, **automatically add it** as a concise pitfall/learning to this `Common Pitfalls` section (or the most relevant spec doc) in the same change — without being asked again. Keep each entry 1–3 sentences: the anti-pattern, why it is wrong, and the preferred pattern.
 
+- **Menu-order changes must update every registration assertion**: action ordering can be covered by tests outside the action's owning contribution. Search for the previous order and command id, then update all affected expectations so focused tests do not leave the broader suite stale.
+
 - **Shared commands must delegate behavior to the layout service, not inspect a layout implementation**: `workbench.action.toggleAuxiliaryBar` must call the semantic `IWorkbenchLayoutService.toggleSecondarySideBar()` operation. Do not branch on optional layout properties or concrete workbench shape in the shared action; each workbench owns how its secondary-sidebar affordance maps to visible parts.
 
 - **Definitive session deletion and temporary list eviction are different operations**: deletion clears durable provenance and pending state; filtering a still-existing session only removes its visible list entry. Keep the list-removal helper side-effect-free, and let each caller explicitly update its mutation generation instead of passing an "already incremented" boolean.
