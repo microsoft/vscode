@@ -937,11 +937,14 @@ export class ChatSessionRoutingController extends Disposable {
 					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 					ariaAlert(labelEl.textContent);
 					trackActivity();
+				} else if (completion.reason === 'Request was removed from queue') {
+					mark.replaceChildren(renderIcon(Codicon.pass));
+					labelEl.textContent = localize('chatSessionRouting.queuedCompleted', "Completed request for {0}", label);
+					ariaAlert(labelEl.textContent);
+					trackActivity();
 				} else {
 					mark.replaceChildren(renderIcon(Codicon.error));
-					labelEl.textContent = completion.reason === 'Request was removed from queue'
-						? localize('chatSessionRouting.queuedRemoved', "Queued request to {0} was removed", label)
-						: localize('chatSessionRouting.queuedNotSent', "Queued request to {0} was not sent", label);
+					labelEl.textContent = localize('chatSessionRouting.queuedNotSent', "Queued request to {0} was not sent", label);
 					ariaAlert(labelEl.textContent);
 				}
 			});
@@ -1005,9 +1008,12 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			if (result.completion) {
 				void result.completion.then(completion => {
-					icon.replaceChildren(renderIcon(completion.status === 'sent' ? Codicon.pass : Codicon.error));
+					const completed = completion.status === 'sent' || completion.reason === 'Request was removed from queue';
+					icon.replaceChildren(renderIcon(completed ? Codicon.pass : Codicon.error));
 					text.textContent = completion.status === 'sent'
 						? localize('chatSessionRouting.targetSent', "{0}: sent", target.label)
+						: completion.reason === 'Request was removed from queue'
+							? localize('chatSessionRouting.targetCompleted', "{0}: completed", target.label)
 						: localize('chatSessionRouting.targetFailed', "{0}: failed", target.label);
 				});
 			}
