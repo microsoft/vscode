@@ -15,6 +15,7 @@ import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixS
 import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
@@ -28,6 +29,7 @@ import { INotebookEditorService } from '../../../../notebook/browser/services/no
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
 import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
@@ -120,6 +122,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -639,8 +642,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				await focused.acceptNearestChange();
 			}
 
-			this._currentIndex.set(this._currentIndex.get() - 1, undefined);
-			this.next(true);
+			if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+				this._currentIndex.set(this._currentIndex.get() - 1, undefined);
+				this.next(true);
+			}
 		}
 	}
 
@@ -657,8 +662,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				await focused.rejectNearestChange();
 			}
 
-			this._currentIndex.set(this._currentIndex.get() - 1, undefined);
-			this.next(true);
+			if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+				this._currentIndex.set(this._currentIndex.get() - 1, undefined);
+				this.next(true);
+			}
 		}
 
 	}
@@ -679,7 +686,8 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 
 	constructor(
 		private readonly notebookDiffEditor: INotebookTextDiffEditor,
-		private readonly cellChanges: IObservable<ICellDiffInfo[]>
+		private readonly cellChanges: IObservable<ICellDiffInfo[]>,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -733,11 +741,15 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	}
 	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
 		await change.accept();
-		this.next(true);
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+			this.next(true);
+		}
 	}
 	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
 		await change.reject();
-		this.next(true);
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+			this.next(true);
+		}
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
 		//
