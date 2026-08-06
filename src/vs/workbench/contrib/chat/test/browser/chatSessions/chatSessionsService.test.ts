@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -538,6 +538,66 @@ suite('ChatSessionsService - untitled↔real session aliases', () => {
 		// option to the untitled entry.
 		service.clearMaterializedSessionResource(untitled);
 		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
+	});
+});
+
+suite('ChatSessionsService - lightweight history reads', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	function registerHistoryProvider(type: string, history: readonly IChatSessionHistoryItem[], counters: { provided: number; disposed: number }): void {
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async resource => {
+				counters.provided++;
+				return {
+					sessionResource: resource,
+					history,
+					onWillDispose: Event.None,
+					dispose: () => counters.disposed++,
+				};
+			},
+		}));
+	}
+
+	test('loads and disposes uncached sessions without retaining them', async () => {
+		const type = 'history-preview';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Summarize the changes', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		const first = await service.getChatSessionHistory(resource, CancellationToken.None);
+		const second = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, second, counters }, {
+			first: history,
+			second: history,
+			counters: { provided: 2, disposed: 2 },
+		});
+	});
+
+	test('reads an already retained session without resolving it again', async () => {
+		const type = 'history-cached';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Continue the review', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		const result = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 0 },
+		});
 	});
 });
 
