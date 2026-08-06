@@ -5164,6 +5164,21 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.autoMode.v2.tier": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "",
+              "eco",
+              "balanced",
+              "max",
+              "fast"
+            ],
+            "markdownDescription": "%github.copilot.config.chat.autoMode.v2.tier%",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.agent.modelDetails.enabled": {
             "type": "boolean",
             "default": true,
