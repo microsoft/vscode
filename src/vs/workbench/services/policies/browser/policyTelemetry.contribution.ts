@@ -49,7 +49,7 @@ type PolicyAppliedEvent = {
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
 	comment: 'Reports effective policy values by privacy-safe delivery source and selected value buckets, to distinguish device policy, managed-settings channels, and account-driven restrictions. No raw policy values are collected.';
-	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from OS or device policy.' };
+	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from OS or device policy, including values without more specific tracked provenance.' };
 	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through native MDM.' };
 	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered from GitHub services.' };
 	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through a policy file.' };
@@ -109,7 +109,7 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		let accountGatePolicyCount = 0;
 		for (const name in this.policyService.policyDefinitions) {
 			if (value(name) !== undefined) {
-				switch (this.policyService.getPolicyValueSource(name)) {
+				switch (this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device) {
 					case PolicyValueSource.Device:
 						devicePolicyCount++;
 						break;

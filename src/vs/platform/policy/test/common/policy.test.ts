@@ -65,12 +65,14 @@ suite('AbstractPolicyService', () => {
 			});
 		};
 
+		update(false, undefined);
 		update(false, PolicyValueSource.Account);
 		update(false, PolicyValueSource.AccountGate);
 		update(false, PolicyValueSource.AccountGate);
 		update(undefined, undefined);
 
 		assert.deepStrictEqual(states, [
+			{ changed: true, value: false, source: PolicyValueSource.Device },
 			{ changed: true, value: false, source: PolicyValueSource.Account },
 			{ changed: true, value: false, source: PolicyValueSource.AccountGate },
 			{ changed: false, value: false, source: PolicyValueSource.AccountGate },

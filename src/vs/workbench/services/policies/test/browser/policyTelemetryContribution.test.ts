@@ -12,10 +12,10 @@ import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contr
 
 class TestPolicyService extends AbstractPolicyService {
 
-	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | null = PolicyValueSource.Device): void {
+	setPolicy(name: PolicyName, value: PolicyValue, source?: PolicyValueSource): void {
 		const type = typeof value === 'string' ? 'string' : typeof value === 'number' ? 'number' : 'boolean';
 		this.policyDefinitions[name] = { type };
-		this.updatePolicyValue(name, value, source ?? undefined);
+		this.updatePolicyValue(name, value, source);
 	}
 
 	fireChange(): void {
@@ -140,7 +140,7 @@ suite('PolicyTelemetryContribution', () => {
 		});
 	});
 
-	test('partitions effective policies by source', () => {
+	test('partitions every effective policy by source', () => {
 		const policyService = new TestPolicyService();
 		policyService.setPolicy('DevicePolicy', true, PolicyValueSource.Device);
 		policyService.setPolicy('NativeMdmPolicy', true, PolicyValueSource.NativeMdm);
@@ -149,14 +149,14 @@ suite('PolicyTelemetryContribution', () => {
 		policyService.setPolicy('MixedManagedSettingsPolicy', true, PolicyValueSource.MixedManagedSettings);
 		policyService.setPolicy('AccountPolicy', true, PolicyValueSource.Account);
 		policyService.setPolicy('AccountGatePolicy', false, PolicyValueSource.AccountGate);
-		policyService.setPolicy('UnknownSourcePolicy', true, null);
+		policyService.setPolicy('UnknownSourcePolicy', true, undefined);
 
 		const { events, clock } = createContribution(policyService);
 		clock.tick(500);
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			devicePolicyCount: 1,
+			devicePolicyCount: 2,
 			nativeMdmPolicyCount: 1,
 			serverManagedSettingsPolicyCount: 1,
 			fileManagedSettingsPolicyCount: 1,

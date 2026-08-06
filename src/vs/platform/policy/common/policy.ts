@@ -24,6 +24,7 @@ export const enum PolicyValueSource {
 }
 export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
+	/** Must be pure and deterministic because source attribution can evaluate it more than once. */
 	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
 	managedSettings?: IManagedSettingsPolicyDefinitions;
 	restrictedValue?: PolicyValue;
@@ -58,6 +59,7 @@ export interface IPolicyService {
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
+	/** Returns the source of the effective value, or `undefined` when no value is set. */
 	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined;
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
 	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
@@ -68,7 +70,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 
 	public policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	protected policies = new Map<PolicyName, PolicyValue>();
-	private readonly policyValueSources = new Map<PolicyName, PolicyValueSource | undefined>();
+	private readonly policyValueSources = new Map<PolicyName, PolicyValueSource>();
 
 	protected readonly _onDidChange = this._register(new Emitter<readonly PolicyName[]>());
 	readonly onDidChange = this._onDidChange.event;
@@ -102,7 +104,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		if (!this.policies.has(name)) {
 			return undefined;
 		}
-		return this.policyValueSources.has(name) ? this.policyValueSources.get(name) : PolicyValueSource.Device;
+		return this.policyValueSources.get(name) ?? PolicyValueSource.Device;
 	}
 
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {
@@ -113,7 +115,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}
 
-	protected updatePolicyValue(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource | undefined): boolean {
+	protected updatePolicyValue(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource = PolicyValueSource.Device): boolean {
 		if (value === undefined) {
 			const valueDeleted = this.policies.delete(name);
 			const sourceDeleted = this.policyValueSources.delete(name);
