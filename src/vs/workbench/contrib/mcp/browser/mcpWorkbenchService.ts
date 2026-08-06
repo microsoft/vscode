@@ -471,13 +471,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private sort(local: McpWorkbenchServer[]): McpWorkbenchServer[] {
 		return local.sort((a, b) => {
 			if (a.name === b.name) {
-				if (!a.runtimeStatus || a.runtimeStatus.state === McpServerEnablementState.Enabled) {
-					return -1;
+				const aEnabled = !a.runtimeStatus || a.runtimeStatus.state === McpServerEnablementState.Enabled;
+				const bEnabled = !b.runtimeStatus || b.runtimeStatus.state === McpServerEnablementState.Enabled;
+				if (aEnabled !== bEnabled) {
+					return aEnabled ? -1 : 1;
 				}
-				if (!b.runtimeStatus || b.runtimeStatus.state === McpServerEnablementState.Enabled) {
-					return 1;
-				}
-				return 0;
+				return a.id.localeCompare(b.id);
 			}
 			return a.name.localeCompare(b.name);
 		});
