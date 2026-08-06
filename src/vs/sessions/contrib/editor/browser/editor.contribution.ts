@@ -23,7 +23,7 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -55,10 +55,11 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Maximize/restore stays in the editor-title layout cluster. Hide Editor and
-// Toggle Details render together in the trailing editor-header layout group.
+// Hide/Show Editor render in the editor-title layout cluster, immediately
+// before Maximize/Restore. Toggle Details remains alone in the trailing
+// editor-header layout group.
+const singlePaneLayoutHideEditorOrder = 10;
 const singlePaneLayoutMaximizeOrder = 20;
-const singlePaneHeaderHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -204,13 +205,12 @@ class HideMainEditorPartAction extends Action2 {
 			f1: false,
 			precondition: AuxiliaryBarVisibleContext,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneHeaderHideEditorOrder,
+				order: singlePaneLayoutHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext)
 			}
 		});
@@ -238,13 +238,12 @@ class ShowMainEditorPartAction extends Action2 {
 			icon: Codicon.chevronLeft,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneHeaderHideEditorOrder,
+				order: singlePaneLayoutHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext.toNegated())
 			}
 		});

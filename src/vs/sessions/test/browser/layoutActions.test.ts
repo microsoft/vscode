@@ -75,63 +75,50 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane editor layout actions render in their respective title and header clusters', async () => {
+	test('single-pane Hide/Show Editor render in the editor-title layout cluster before Maximize/Restore', async () => {
 		await import('../../contrib/editor/browser/editor.contribution.js');
 
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
-		const headerItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
-			.filter(isIMenuItem);
 		const groupOrder = (id: string) => layoutItems
 			.filter(item => item.command.id === id)
-			.map(item => ({ group: item.group, order: item.order }));
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				precondition: item.command.precondition?.serialize(),
+			}));
 
 		assert.deepStrictEqual({
+			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
+			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
 			maximize: groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'),
 			restore: groupOrder('workbench.action.agentSessions.restoreMainEditorPart'),
-			hide: headerItems
-				.filter(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')
-				.map(item => ({
-					group: item.group,
-					order: item.order,
-					precondition: item.command.precondition?.serialize(),
-				})),
-			show: headerItems
-				.filter(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')
-				.map(item => ({
-					group: item.group,
-					order: item.order,
-					precondition: item.command.precondition?.serialize(),
-				})),
 		}, {
-			maximize: [{ group: 'navigation', order: 20 }],
-			restore: [{ group: 'navigation', order: 20 }],
-			hide: [{
-				group: 'navigation',
-				order: 20,
-				precondition: AuxiliaryBarVisibleContext.key,
-			}],
-			show: [{
-				group: 'navigation',
-				order: 20,
-				precondition: undefined,
-			}],
+			hide: [{ group: 'navigation', order: 10, precondition: AuxiliaryBarVisibleContext.key }],
+			show: [{ group: 'navigation', order: 10, precondition: undefined }],
+			maximize: [{ group: 'navigation', order: 20, precondition: undefined }],
+			restore: [{ group: 'navigation', order: 20, precondition: undefined }],
 		});
 
-		const hideWhen = headerItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(hideWhen.includes(HasDockedDetailsContext.key));
+		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
+		assert.ok(!hideWhen.includes(HasDockedDetailsContext.key), 'Hide Editor should always show, regardless of whether the active tab has a docked detail');
 		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
 		assert.ok(hideWhen.includes(MainEditorAreaVisibleContext.key));
 		assert.ok(!hideWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
 
-		const showWhen = headerItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(showWhen.includes(HasDockedDetailsContext.key));
+		const showWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
+		assert.ok(!showWhen.includes(HasDockedDetailsContext.key), 'Show Editor should always show, regardless of whether the active tab has a docked detail');
 		assert.ok(showWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
 
+		// Hide/Show no longer render in the trailing editor-header layout group; Toggle Details stays there alone.
+		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
+		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
+
 		// Add File as Context stays a right-header action, not a layout action.
-		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(headerIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 });
