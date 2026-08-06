@@ -28,10 +28,14 @@ import { TestConfigurationService } from '../../../../../../../../platform/confi
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 
 class TestChatSessionsService extends MockChatSessionsService {
+	constructor(private readonly insertText = '#roadmap.md') {
+		super();
+	}
+
 	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
 		return {
 			items: [{
-				insertText: '#roadmap.md',
+				insertText: this.insertText,
 				start: { lineNumber: 1, column: 1 },
 				end: { lineNumber: 1, column: 2 },
 				attachment: {
@@ -69,12 +73,13 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 		languageFeaturesService: LanguageFeaturesService,
 		chatSessionsService: IChatSessionsService,
 		private readonly _completionKind = CompletionItemKind.File,
+		private readonly _triggerCharacters: readonly string[] = ['#'],
 	) {
 		super(languageFeaturesService, chatSessionsService);
 	}
 
 	register(): IDisposable {
-		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', ['#'], undefined);
+		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', this._triggerCharacters, undefined);
 	}
 
 	protected override _resolveContext(_model: ITextModel): { sessionResource: URI; context: void } {
@@ -85,6 +90,7 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 		return {
 			label: item.insertText,
 			insertText: item.insertText,
+			filterText: this._completionKind === CompletionItemKind.Text ? item.insertText : undefined,
 			range: Range.fromPositions(position),
 			kind: this._completionKind,
 		};
@@ -120,22 +126,22 @@ suite('AgentHostInputCompletionsBase', () => {
 		});
 	});
 
-	test('marks non-file results incomplete so the host can fuzzy match them', async () => {
+	test('preserves slash command filter text so Monaco can fuzzy rank it', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
-		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService(), CompletionItemKind.Text));
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService('/vscode-pet'), CompletionItemKind.Text, ['/']));
 		store.add(completions.register());
-		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const model = store.add(createTextModel('/pet', null, undefined, URI.parse('test:input')));
 		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
 
-		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+		const result = await provider.provideCompletionItems(model, new Position(1, 5), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
 
 		assert.deepStrictEqual(result, {
 			suggestions: [{
-				label: '#roadmap.md',
-				insertText: '#roadmap.md',
-				filterText: '#',
+				label: '/vscode-pet',
+				insertText: '/vscode-pet',
+				filterText: '/vscode-pet',
 				sortText: '000000',
-				range: new Range(1, 2, 1, 2),
+				range: new Range(1, 5, 1, 5),
 				kind: CompletionItemKind.Text,
 			}],
 			incomplete: true,
