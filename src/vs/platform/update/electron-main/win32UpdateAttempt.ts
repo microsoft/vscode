@@ -24,7 +24,7 @@ export class Win32UpdateAttempt {
 	readonly cancelFilePath: string;
 	readonly progressFilePath: string;
 	private completed = false;
-	private _process: Win32UpdateProcess | undefined;
+	private process: Win32UpdateProcess | undefined;
 
 	constructor(
 		cachePath: string,
@@ -43,8 +43,8 @@ export class Win32UpdateAttempt {
 		return !this.completed && !this.cancellationTokenSource.token.isCancellationRequested;
 	}
 
-	get process(): Win32UpdateProcess | undefined {
-		return this._process;
+	get isProcessRunning(): boolean {
+		return this.process?.isRunning === true;
 	}
 
 	async prepare(): Promise<void> {
@@ -52,7 +52,7 @@ export class Win32UpdateAttempt {
 	}
 
 	startProcess(sessionEndFlagPath: string, additionalArguments: readonly string[], spawnProcess: SpawnUpdateProcess = spawn): Win32UpdateProcess {
-		if (this._process) {
+		if (this.process) {
 			throw new Error('Update process already started');
 		}
 
@@ -75,10 +75,10 @@ export class Win32UpdateAttempt {
 			env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 		});
 
-		const updateProcess = this._process = new Win32UpdateProcess(childProcess, () => writeFile(this.cancelFilePath, 'cancel'));
+		const updateProcess = this.process = new Win32UpdateProcess(childProcess, () => writeFile(this.cancelFilePath, 'cancel'));
 		updateProcess.whenTerminated.then(() => {
-			if (this._process === updateProcess) {
-				this._process = undefined;
+			if (this.process === updateProcess) {
+				this.process = undefined;
 			}
 		});
 		return updateProcess;
@@ -97,7 +97,7 @@ export class Win32UpdateAttempt {
 	}
 
 	async stopProcess(): Promise<void> {
-		const result = await this._process?.stop();
+		const result = await this.process?.stop();
 		if (result?.cancelError) {
 			this.logService.warn('update#stopUpdateProcess: failed to write cancel file', result.cancelError);
 		}

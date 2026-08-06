@@ -12,9 +12,11 @@ import { Win32UpdateProcess } from '../../electron-main/win32UpdateProcess.js';
 class TestUpdateChildProcess extends EventEmitter {
 	readonly pid = 123;
 	exitCode: number | null = null;
+	signalCode: NodeJS.Signals | null = null;
 
 	exit(code: number | null, signal: NodeJS.Signals | null = null): void {
 		this.exitCode = code;
+		this.signalCode = signal;
 		this.emit('exit', code, signal);
 	}
 
@@ -47,12 +49,18 @@ suite('Win32UpdateProcess', () => {
 		const childProcess = new TestUpdateChildProcess();
 		const updateProcess = new Win32UpdateProcess(childProcess, () => Promise.resolve());
 		const error = new Error('spawn failed');
+		const isRunningBeforeError = updateProcess.isRunning;
 
 		childProcess.fail(error);
 
-		assert.deepStrictEqual(await updateProcess.whenTerminated, {
-			type: 'error',
-			error
+		assert.deepStrictEqual({
+			result: await updateProcess.whenTerminated,
+			isRunningBeforeError,
+			isRunningAfterError: updateProcess.isRunning
+		}, {
+			result: { type: 'error', error },
+			isRunningBeforeError: true,
+			isRunningAfterError: false
 		});
 	});
 

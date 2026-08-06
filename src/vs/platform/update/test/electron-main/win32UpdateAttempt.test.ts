@@ -16,6 +16,7 @@ import { Win32UpdateAttempt } from '../../electron-main/win32UpdateAttempt.js';
 class TestUpdateChildProcess extends EventEmitter {
 	readonly pid = 123;
 	exitCode: number | null = null;
+	readonly signalCode: NodeJS.Signals | null = null;
 
 	exit(code: number | null): void {
 		this.exitCode = code;
@@ -152,16 +153,20 @@ suite('Win32UpdateAttempt', () => {
 		childProcess.exit(0);
 	});
 
-	test('releases the process after termination', async () => {
+	test('reports whether the process is running', async () => {
 		const cachePath = await createTestDirectory();
 		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
 		const childProcess = new TestUpdateChildProcess();
 		const updateProcess = attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], () => childProcess);
+		const isRunningBeforeExit = attempt.isProcessRunning;
 
 		childProcess.exit(0);
 		await updateProcess.whenTerminated;
 
-		assert.strictEqual(attempt.process, undefined);
+		assert.deepStrictEqual({ isRunningBeforeExit, isRunningAfterExit: attempt.isProcessRunning }, {
+			isRunningBeforeExit: true,
+			isRunningAfterExit: false
+		});
 		attempt.complete();
 	});
 

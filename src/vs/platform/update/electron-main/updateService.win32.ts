@@ -600,13 +600,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// Another instance owns the installer: abort if it's still running so we don't start a new
 		// update cycle on top of it; keep `availableUpdate` so quit-and-install can still complete.
-		if (!updateAttempt?.process && this.isInstallerActive(await this.mutex)) {
+		if (!updateAttempt?.isProcessRunning && this.isInstallerActive(await this.mutex)) {
 			throw new Error('Cannot cancel pending update: another instance is still running setup');
 		}
 
 		updateAttempt?.complete();
 
-		if (updateAttempt?.process?.isRunning) {
+		if (updateAttempt?.isProcessRunning) {
 			this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 			await updateAttempt.stopProcess();
 		}

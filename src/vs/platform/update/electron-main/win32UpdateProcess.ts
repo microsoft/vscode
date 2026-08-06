@@ -9,6 +9,7 @@ import { killTree } from '../../../base/node/processes.js';
 export interface IUpdateChildProcess {
 	readonly pid?: number;
 	readonly exitCode: number | null;
+	readonly signalCode: NodeJS.Signals | null;
 	once(event: 'error', listener: (error: Error) => void): this;
 	once(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
 }
@@ -27,20 +28,28 @@ const gracefulTerminationTimeout = 30 * 1000;
 export class Win32UpdateProcess {
 	readonly whenTerminated: Promise<UpdateProcessResult>;
 	private stopPromise: Promise<IUpdateProcessStopResult> | undefined;
+	private terminated: boolean;
 
 	constructor(
 		private readonly process: IUpdateChildProcess,
 		private readonly signalCancellation: () => Promise<void>,
 		private readonly killProcess = (pid: number) => killTree(pid, true),
 	) {
+		this.terminated = process.exitCode !== null || process.signalCode !== null;
 		this.whenTerminated = new Promise(resolve => {
-			process.once('error', error => resolve({ type: 'error', error }));
-			process.once('exit', (code, signal) => resolve({ type: 'exit', code, signal }));
+			process.once('error', error => {
+				this.terminated = true;
+				resolve({ type: 'error', error });
+			});
+			process.once('exit', (code, signal) => {
+				this.terminated = true;
+				resolve({ type: 'exit', code, signal });
+			});
 		});
 	}
 
 	get isRunning(): boolean {
-		return this.process.exitCode === null;
+		return !this.terminated;
 	}
 
 	stop(): Promise<IUpdateProcessStopResult> {
