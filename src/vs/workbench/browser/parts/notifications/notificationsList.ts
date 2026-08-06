@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IListAccessibilityProvider, IListOptions } from '../../../../base/browser/ui/list/listWidget.js';
 import { NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
-import { NotificationsListDelegate, NotificationRenderer, onDidChangeNotificationRowHeight } from './notificationsViewer.js';
+import { NotificationsListDelegate, NotificationRenderer } from './notificationsViewer.js';
 import { CopyNotificationMessageAction } from './notificationsActions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { assertReturnsAllDefined } from '../../../../base/common/types.js';
@@ -42,18 +42,16 @@ export class NotificationsList extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
-		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 	}
 
-	private updateNotificationHeights(): void {
-		if (!this.list || !this.listDelegate) {
+	updateNotificationHeights(): void {
+		if (!this.list) {
 			return;
 		}
 
-		for (let index = 0; index < this.viewModel.length; index++) {
-			this.list.updateElementHeight(index, this.listDelegate.getHeight(this.viewModel[index]));
-		}
-		this.list.layout();
+		const focus = this.list.getFocus();
+		this.list.splice(0, this.viewModel.length, this.viewModel);
+		this.list.setFocus(focus);
 	}
 
 	show(): void {

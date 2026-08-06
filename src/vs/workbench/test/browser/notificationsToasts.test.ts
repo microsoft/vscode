@@ -12,6 +12,7 @@ import { Severity } from '../../../platform/notification/common/notification.js'
 import { NotificationsToasts } from '../../browser/parts/notifications/notificationsToasts.js';
 import { NotificationsModel } from '../../common/notifications.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
 
 suite('NotificationsToasts', () => {
 
@@ -28,6 +29,7 @@ suite('NotificationsToasts', () => {
 	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT));
 
 	async function createToasts(testDisposables: Pick<DisposableStore, 'add'> = disposables): Promise<{
 		readonly container: HTMLElement;
@@ -129,6 +131,34 @@ suite('NotificationsToasts', () => {
 			notifications: 0,
 			toasts: 0,
 			visible: false
+		});
+	});
+
+	test('recalculates visible toasts when row height changes', async () => {
+		setNotificationRowHeight(34);
+		const { container, model, toasts, flushAnimationFrame } = await createToasts();
+
+		model.addNotification({ severity: Severity.Error, message: 'First', sticky: true });
+		model.addNotification({ severity: Severity.Error, message: 'Second', sticky: true });
+		await flushAnimationFrame();
+
+		let compactFitHeight: number | undefined;
+		for (let height = 1; height <= 500; height++) {
+			toasts.layout(new Dimension(1024, height));
+			if (container.querySelectorAll('.notification-toast-container').length === 2) {
+				compactFitHeight = height;
+				break;
+			}
+		}
+
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		const standardVisibleToasts = container.querySelectorAll('.notification-toast-container').length;
+		setNotificationRowHeight(34);
+
+		assert.deepStrictEqual({ foundCompactFitHeight: typeof compactFitHeight === 'number', standardVisibleToasts, compactVisibleToasts: container.querySelectorAll('.notification-toast-container').length }, {
+			foundCompactFitHeight: true,
+			standardVisibleToasts: 1,
+			compactVisibleToasts: 2
 		});
 	});
 });

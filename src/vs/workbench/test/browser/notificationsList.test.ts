@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NotificationAccessibilityProvider } from '../../browser/parts/notifications/notificationsList.js';
-import { NotificationViewItem, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
+import { NotificationAccessibilityProvider, NotificationsList } from '../../browser/parts/notifications/notificationsList.js';
+import { NotificationViewItem, INotificationsFilter, INotificationViewItem, NotificationsModel } from '../../common/notifications.js';
 import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -13,14 +13,34 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
 
 suite('NotificationsList row height', () => {
+	suiteSetup(() => {
+		const warmupDisposables = new DisposableStore();
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, warmupDisposables);
+			const list = warmupDisposables.add(instantiationService.createInstance(NotificationsList, container, {}));
+			const notification = NotificationViewItem.create({ severity: Severity.Info, message: 'Warmup' }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+			warmupDisposables.add(toDisposable(() => notification.close()));
+			list.show();
+			list.layout(300);
+			list.updateNotificationsList(0, 0, [notification]);
+		} finally {
+			warmupDisposables.dispose();
+			container.remove();
+		}
+	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT));
 
-	test('notifies existing lists when the row height changes', () => {
+	test('deduplicates row height changes', () => {
 		const changes: number[] = [];
 		store.add(onDidChangeNotificationRowHeight(height => changes.push(height)));
 
@@ -29,6 +49,41 @@ suite('NotificationsList row height', () => {
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
 
 		assert.deepStrictEqual(changes, [34, DEFAULT_NOTIFICATION_ROW_HEIGHT]);
+	});
+
+	test('notification center updates rendered row heights and preserves focus', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const model = store.add(new NotificationsModel());
+		store.add(toDisposable(() => {
+			for (const notification of [...model.notifications]) {
+				notification.close();
+			}
+		}));
+		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
+
+		model.addNotification({ severity: Severity.Info, message: 'Hello' });
+		center.show();
+
+		const getRowState = () => {
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			return { height: row?.style.height, focused: row?.classList.contains('focused') };
+		};
+
+		const before = getRowState();
+		setNotificationRowHeight(34);
+		const after = getRowState();
+		center.dispose();
+		setNotificationRowHeight(36);
+
+		assert.deepStrictEqual({ before, after, rowAfterDispose: container.querySelector('.monaco-list-row') }, {
+			before: { height: `${DEFAULT_NOTIFICATION_ROW_HEIGHT}px`, focused: true },
+			after: { height: '34px', focused: true },
+			rowAfterDispose: null
+		});
 	});
 });
 
