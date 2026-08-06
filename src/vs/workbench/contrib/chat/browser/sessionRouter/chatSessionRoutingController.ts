@@ -319,6 +319,7 @@ export class ChatSessionRoutingController extends Disposable {
 			attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
 		};
 		if (explicitNewSessionTask) {
+			this.host.onWillRoute?.();
 			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
 			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
