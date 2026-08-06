@@ -20,7 +20,7 @@ import { TerminalCapability, type ICwdDetectionCapability } from '../../../../..
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
@@ -142,12 +142,6 @@ class TestTerminalWorkspaceTrustRequestService extends mock<IWorkspaceTrustReque
 	}
 }
 
-class TestTerminalWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagementService>() {
-	constructor(override readonly workspaceTrustInitialized: Promise<void>) {
-		super();
-	}
-}
-
 suite('Workbench - TerminalInstance', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -185,7 +179,6 @@ suite('Workbench - TerminalInstance', () => {
 
 		async function createTerminalInstanceForTrust(shellLaunchConfig: IShellLaunchConfig, trustResult: Promise<boolean>, options?: {
 			remoteAuthority?: string;
-			workspaceTrustInitialized?: Promise<void>;
 		}): Promise<{
 			instance: TerminalInstance;
 			terminalInstanceService: TestTerminalInstanceService;
@@ -218,7 +211,6 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly remoteAuthority = options?.remoteAuthority === undefined ? 'ssh-remote+test' : options.remoteAuthority;
 			});
-			instantiationService.stub(IWorkspaceTrustManagementService, new TestTerminalWorkspaceTrustManagementService(options?.workspaceTrustInitialized ?? new DeferredPromise<void>().p));
 			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService(trustResult);
 			instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
 			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, shellLaunchConfig));
@@ -269,7 +261,7 @@ suite('Workbench - TerminalInstance', () => {
 				isTransient: true,
 				isRemoteResolverTerminal: true
 			};
-			const cases: { label: string; shellLaunchConfig: IShellLaunchConfig; options?: { remoteAuthority?: string; workspaceTrustInitialized?: Promise<void> } }[] = [
+			const cases: { label: string; shellLaunchConfig: IShellLaunchConfig; options?: { remoteAuthority?: string } }[] = [
 				{
 					label: 'serialized marker',
 					shellLaunchConfig: serializedMarker
@@ -290,11 +282,6 @@ suite('Workbench - TerminalInstance', () => {
 					label: 'local window',
 					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true },
 					options: { remoteAuthority: '' }
-				},
-				{
-					label: 'trust already initialized',
-					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true },
-					options: { workspaceTrustInitialized: Promise.resolve() }
 				}
 			];
 			const results = [];

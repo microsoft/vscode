@@ -14,8 +14,7 @@ declare module 'vscode' {
 		 * Resolver bootstrap terminals may start before workspace trust is resolved. This does not
 		 * change the workspace trust state or affect any other Restricted Mode behavior. Only set
 		 * this on the hidden, transient local terminal that starts the resolver process. The
-		 * terminal must use a local file URI as its current working directory. This option is
-		 * ignored after remote workspace trust initialization completes.
+		 * terminal must use a local file URI as its current working directory.
 		 */
 		isRemoteResolverTerminal?: boolean;
 	}

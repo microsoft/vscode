@@ -52,7 +52,7 @@ import { editorBackground } from '../../../../platform/theme/common/colorRegistr
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -377,7 +377,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly sessionId = generateUuid();
 	private readonly _isRemoteResolverTerminal: boolean;
-	private _workspaceTrustInitialized = false;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -403,7 +402,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -416,9 +414,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._isRemoteResolverTerminal = this._shellLaunchConfig[remoteResolverTerminal] === true;
 		delete this._shellLaunchConfig[remoteResolverTerminal];
-		if (this._isRemoteResolverTerminal) {
-			this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => this._workspaceTrustInitialized = true);
-		}
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 
@@ -1616,10 +1611,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			&& this._shellLaunchConfig.cwd.scheme === Schemas.file
 			&& !this.remoteAuthority
 			&& this._shellLaunchConfig.hideFromUser === true
-			&& this._shellLaunchConfig.isTransient === true
-			&& !this._workspaceTrustInitialized;
+			&& this._shellLaunchConfig.isTransient === true;
 		if (this._isRemoteResolverTerminal && !bypassWorkspaceTrust) {
-			this._logService.warn('Ignoring remote resolver terminal workspace trust bypass because the launch configuration is not a local, hidden, transient terminal created during remote workspace trust initialization');
+			this._logService.warn('Ignoring remote resolver terminal workspace trust bypass because the launch configuration is not a local, hidden, transient terminal in a remote window');
 		}
 		const trusted = bypassWorkspaceTrust || await this._trust();
 		// Allow remote terminals in a remote workspace to be created when trust is denied, but
