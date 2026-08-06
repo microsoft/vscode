@@ -4023,6 +4023,39 @@ suite('VoiceSessionController', () => {
 		}]);
 	});
 
+	test('does not mark an omni-routed confirmation as pending in the sessions list', () => {
+		const controller = createController(new TestVoiceClientService());
+		const resource = URI.parse('vscode-chat://omni-target');
+		const reconcileIndicators = Reflect.get(controller, '_reconcileConfirmationIndicators') as (sessionIds: Set<string>) => void;
+		controller.setTargetSession(resource, 'existing_session');
+
+		reconcileIndicators.call(controller, new Set([resource.toString()]));
+
+		assert.strictEqual((Reflect.get(controller, '_confirmationPendingSessions') as Set<string>).size, 0);
+	});
+
+	test('supersedes stale confirmation narration for an omni-routed session', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string) => boolean;
+		controller.setTargetSession(resource, 'existing_session');
+
+		assert.strictEqual(narrate.call(controller, resource.toString(), 'confirmation', 'Allow the old action?'), true);
+		const oldNarrationId = voiceClientService.requests[0].narrationId;
+		assert.strictEqual(narrate.call(controller, resource.toString(), 'confirmation', 'Allow the updated action?'), true);
+
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => request.text),
+			cancelledOldNarration: (Reflect.get(controller, '_cancelledPendingNarrationIds') as Set<string>).has(oldNarrationId),
+			pendingNarrations: [...(Reflect.get(controller, '_pendingSolicitedNarrations') as Map<string, { text: string }>).values()].map(pending => pending.text),
+		}, {
+			requests: ['Allow the old action?', 'Allow the updated action?'],
+			cancelledOldNarration: true,
+			pendingNarrations: ['Allow the updated action?'],
+		});
+	});
+
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
 		// Queue semantics applied uniformly: approve the command you were asked
 		// about, then answer the questions.

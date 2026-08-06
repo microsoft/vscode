@@ -205,6 +205,10 @@
 	gap: 2px;
 }
 
+.chat-input-window .chat-input-window-pending-navigation.hidden {
+	display: none;
+}
+
 .chat-input-window .chat-input-window-pending-navigation-button {
 	display: flex;
 	align-items: center;
@@ -258,7 +262,27 @@
 }
 
 .chat-input-window .chat-input-window-pending-widget .interactive-item-container {
-	padding: 0 16px 16px;
+	padding: 8px 16px 16px;
+}
+
+.chat-input-window .chat-input-window-pending-widget .interactive-list,
+.chat-input-window .chat-input-window-pending-widget .monaco-list,
+.chat-input-window .chat-input-window-pending-widget .monaco-scrollable-element,
+.chat-input-window .chat-input-window-pending-widget .monaco-list-rows,
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row {
+	overflow: visible !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget2 {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-message-scrollable,
+.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-message {
+	flex: none;
+	height: auto !important;
+	overflow: visible !important;
 }
 
 .chat-input-window .chat-input-window-pending-widget .chat-response-header,

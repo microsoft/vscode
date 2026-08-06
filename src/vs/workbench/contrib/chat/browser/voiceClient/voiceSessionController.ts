@@ -1428,11 +1428,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (prev?.state === 'waiting_for_confirmation') {
 									this._stopPendingNarration(sessionId);
 								}
-							} else if (prev !== undefined && pendingId !== prev.pendingId) {
-								// One pending item replaced another without the session ever
-								// leaving waiting_for_confirmation. That is a new occurrence:
-								// release the heard marker so it narrates, and stop speaking
-								// the one it replaced.
+							} else if (isDetailTransition) {
+								// Pending content changed without leaving
+								// waiting_for_confirmation. Stop the superseded narration
+								// before speaking the updated actionable state.
 								this._narratedPending.delete(this._sessionKey(sessionId));
 								this._stopPendingNarration(sessionId);
 							}
@@ -4024,6 +4023,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return false;
 			}
 		}
+		if (kind === 'confirmation') {
+			// The pending UI can update in place while an older narration is still
+			// queued or speaking. Retire that stale occurrence before requesting
+			// the replacement so omni only reads the current actionable content.
+			this._stopPendingNarration(sessionId);
+		}
 		// A response only supersedes checkpoint playback once non-empty response audio arrives.
 		if (kind !== 'response') {
 			this._preemptCheckpointPlayback();
@@ -5002,9 +5007,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// the focused session. Deliberately avoid the _getActiveSessionId()
 		// fallback chain (_targetSession / _lastShownSessionId), which can point
 		// at a not-currently-visible session and wrongly hide its indicator.
-		const activeId = this._externalActiveSessionMode
+		const omniTarget = this._targetOmniRoute ? this._targetSession.get()?.toString() : undefined;
+		const activeId = omniTarget ?? (this._externalActiveSessionMode
 			? this._activeSessionShown
-			: this._getFocusedSessionId();
+			: this._getFocusedSessionId());
 		const activeKey = activeId ? this._sessionKey(activeId) : undefined;
 		const waitingKeys = new Set<string>();
 		for (const sessionId of waitingSessionIds) {

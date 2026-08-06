@@ -43,7 +43,7 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Explicit ownership for surfaces such as omni that do not yet have a resource. */
 	readonly isOwner?: IObservable<boolean>;
-	/** Voice-originated confirmation waiting on this surface. */
+	/** Confirmation or question waiting on this surface. */
 	readonly confirmationPending?: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource?: () => URI | undefined;

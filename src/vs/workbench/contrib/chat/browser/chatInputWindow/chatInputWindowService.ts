@@ -76,7 +76,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _modelRef: IChatModelReference | undefined;
 	private _widget: ChatWidget | undefined;
 	private _pendingPromptIndex = 0;
-	private readonly _voiceRoutedRequestIds = new Map<string, string>();
 	private readonly _voiceConfirmationPending = observableValue(this, false);
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
@@ -437,20 +436,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
-			onDidResolveRoute: (resource, kind, isVoiceModeInput, requestId) => {
+			onDidResolveRoute: (resource, kind) => {
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
-				if (resource) {
-					const key = resource.toString();
-					if (isVoiceModeInput && requestId) {
-						this._voiceRoutedRequestIds.set(key, requestId);
-						const model = this.chatService.getSession(resource);
-						if (model?.lastRequest?.id === requestId && model.requestNeedsInput.get()) {
-							this._voiceConfirmationPending.set(true, undefined);
-						}
-					} else {
-						this._voiceRoutedRequestIds.delete(key);
-					}
-				}
 			},
 			placeBadge: (badge) => {
 				const container = this._window?.container;
@@ -665,18 +652,21 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			this._pendingPromptIndex = (index + pendingModels.length) % pendingModels.length;
 			const model = pendingModels[this._pendingPromptIndex];
-			const voiceRequestId = this._voiceRoutedRequestIds.get(model.sessionResource.toString());
-			this._voiceConfirmationPending.set(model.lastRequest?.id === voiceRequestId, undefined);
+			this._voiceConfirmationPending.set(true, undefined);
 			panel.classList.add('shown');
 			panel.classList.toggle('question', this._hasPendingQuestion(model));
-			label.textContent = localize(
-				'chatInputWindow.pending.sourceAndCount',
-				"{0} — {1} of {2} waiting on you",
-				model.title || localize('chatInputWindow.pending.untitledSource', "Chat"),
-				this._pendingPromptIndex + 1,
-				pendingModels.length,
-			);
 			const hasMultiple = pendingModels.length > 1;
+			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
+			label.textContent = hasMultiple
+				? localize(
+					'chatInputWindow.pending.sourceAndCount',
+					"{0} — {1} of {2} waiting on you",
+					title,
+					this._pendingPromptIndex + 1,
+					pendingModels.length,
+				)
+				: localize('chatInputWindow.pending.source', "{0} waiting on you", title);
+			navigation.classList.toggle('hidden', !hasMultiple);
 			for (const button of [previous, next]) {
 				button.classList.toggle('disabled', !hasMultiple);
 				button.setAttribute('aria-disabled', String(!hasMultiple));
@@ -809,7 +799,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._row = undefined;
 		this._lead = undefined;
 		this._trail = undefined;
-		this._voiceRoutedRequestIds.clear();
 		this._voiceConfirmationPending.set(false, undefined);
 		this._actionWidgetRestoreHeight = undefined;
 		this._modelRef?.dispose();
