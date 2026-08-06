@@ -142,6 +142,10 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts linux $(NPM_ARCH)
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Verify native optional dependency binaries
+
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules

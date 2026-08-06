@@ -9,7 +9,7 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableListener, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -1089,6 +1089,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		editorPartContainer.classList.add('part', 'editor');
 		editorPartContainer.id = Parts.EDITOR_PART;
 		editorPartContainer.setAttribute('role', 'main');
+		this._register(addDisposableListener(editorPartContainer, EventType.FOCUS_IN, () => this._restoreEditorPartOnActivation()));
+		this._register(addDisposableGenericMouseDownListener(editorPartContainer, () => this._restoreEditorPartOnActivation()));
 		this._editorPartContainer = editorPartContainer;
 
 		mark('code/willCreatePart/workbench.parts.editor');
@@ -1103,12 +1105,47 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
 		sessionsPartContainer.id = Parts.SESSIONS_PART;
 		sessionsPartContainer.setAttribute('role', 'main');
+		this._register(addDisposableListener(sessionsPartContainer, EventType.FOCUS_IN, () => this._restoreSessionsPartOnActivation()));
+		this._register(addDisposableGenericMouseDownListener(sessionsPartContainer, () => this._restoreSessionsPartOnActivation()));
 
 		mark(`code/willCreatePart/${Parts.SESSIONS_PART}`);
 		this.getPart(Parts.SESSIONS_PART).create(sessionsPartContainer);
 		mark(`code/didCreatePart/${Parts.SESSIONS_PART}`);
 
 		this.mainContainer.appendChild(sessionsPartContainer);
+	}
+
+	private _restoreSessionsPartOnActivation(): void {
+		if (!this.workbenchGrid || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+
+		this._restoreMinimizedPartOnActivation(this.sessionsPartView, this.editorPartView);
+	}
+
+	private _restoreEditorPartOnActivation(): void {
+		if (!this.workbenchGrid || !this.isVisible(Parts.EDITOR_PART, mainWindow) || !this.isVisible(Parts.SESSIONS_PART)) {
+			return;
+		}
+
+		this._restoreMinimizedPartOnActivation(this.editorPartView, this.sessionsPartView);
+	}
+
+	private _restoreMinimizedPartOnActivation(target: ISerializableView, sibling: ISerializableView): void {
+		const targetSize = this.workbenchGrid.getViewSize(target);
+		if (targetSize.width !== this._minimumPartWidthForActivation(target)) {
+			return;
+		}
+
+		const siblingSize = this.workbenchGrid.getViewSize(sibling);
+		const siblingMinimumWidth = this._minimumPartWidthForActivation(sibling);
+		if (siblingSize.width > siblingMinimumWidth) {
+			this.workbenchGrid.resizeView(sibling, { width: siblingMinimumWidth, height: siblingSize.height });
+		}
+	}
+
+	protected _minimumPartWidthForActivation(view: ISerializableView): number {
+		return view.minimumWidth;
 	}
 
 	private createCustomViewGridPart(): void {

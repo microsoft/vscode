@@ -111,7 +111,9 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
 
-Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, and an ordinary unit test when no server process is required. `../protocol/` is frozen; do not add to it.
+Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a bundled provider with a synthetic local LLM, and an ordinary unit test when no server process is required. `../protocol/` is frozen; do not add to it.
+
+Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
 ---
 
@@ -150,8 +152,11 @@ exchanges:
   | `${capi}` | the upstream CAPI origin (rewritten back to the proxy URL on replay) |
   | `${redacted}` | minted session tokens (`token` / `session_token` fields) |
   | `${system}` | the echoed system prompt (Responses API echoes `instructions`) |
+  | `${uuid_N}` | the Nth runtime UUID captured across requests and responses |
 
   Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
+
+  UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
 ---
 

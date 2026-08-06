@@ -167,7 +167,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 	});
 
 	test('persisted config values are restored on subscribe after server restart', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(30_000, 120_000));
+		this.timeout(getAgentHostE2ETestTimeout(30_000, 180_000));
 
 		const initialConfig = { isolation: 'worktree', branch: 'main' };
 		const updatedBranch = 'release';

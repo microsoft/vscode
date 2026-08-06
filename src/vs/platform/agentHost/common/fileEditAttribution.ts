@@ -30,6 +30,7 @@ export interface ITrackedFileEditAttributionMarker extends IFileEditAttributionM
 export interface ISkippedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
 	readonly status: 'skipped';
 	readonly reason: 'fileTooLarge';
+	readonly untrackedEditCount?: number;
 	readonly insertedCount: number;
 }
 
@@ -92,6 +93,15 @@ export interface IPreparedEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
 	readonly lastSequence?: number;
+	readonly coverageGapThroughSequence?: number;
+	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
+}
+
+export interface IEditAttributionCoverageGapAcknowledgement {
+	readonly id: string;
+	readonly sequences: readonly number[];
+	readonly editCount: number;
+	readonly insertedCount: number;
 }
 
 export interface ICommitEditAttributionFlushParams {
@@ -108,6 +118,9 @@ export type EditAttributionFlushOutcome = 'committed' | 'cancelled' | 'missing';
 export interface IEditAttributionFlushResult {
 	readonly outcome: EditAttributionFlushOutcome;
 	readonly agentModifiedCount: number;
+	readonly lastSequence?: number;
+	readonly coverageGapThroughSequence?: number;
+	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 }
 
 export function getFileEditAttributionMarker(content: ToolResultFileEditContent): IFileEditAttributionMarker | undefined {
@@ -121,7 +134,12 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 		return undefined;
 	}
 	if (marker.status === 'skipped') {
-		return marker.reason === 'fileTooLarge' && Number.isSafeInteger(marker.insertedCount) && marker.insertedCount >= 0 ? marker : undefined;
+		return marker.reason === 'fileTooLarge' &&
+			(marker.untrackedEditCount === undefined || (Number.isSafeInteger(marker.untrackedEditCount) && marker.untrackedEditCount > 0)) &&
+			Number.isSafeInteger(marker.insertedCount) &&
+			marker.insertedCount >= 0
+			? marker
+			: undefined;
 	}
 	if (marker.status !== undefined && marker.status !== 'tracked') {
 		return undefined;
