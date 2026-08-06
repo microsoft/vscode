@@ -14,11 +14,12 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../common/views.js';
+import { ViewContainerLocation, IViewPaneContainer, IView } from '../../common/views.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 
 abstract class BaseNavigationAction extends Action2 {
 
@@ -33,6 +34,7 @@ abstract class BaseNavigationAction extends Action2 {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewsService = accessor.get(IViewsService);
 
 		const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
@@ -49,19 +51,22 @@ abstract class BaseNavigationAction extends Action2 {
 			neighborPart = layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
 		}
 
-		if (isPanelFocus) {
-			neighborPart = layoutService.getVisibleNeighborPart(Parts.PANEL_PART, this.direction);
+	if (isPanelFocus) {
+		if (this.tryNavigateWithinViews(ViewContainerLocation.Panel, Parts.PANEL_PART, layoutService, paneCompositeService, viewsService)) {
+			return;
 		}
-
-		if (isSidebarFocus) {
-			neighborPart = layoutService.getVisibleNeighborPart(Parts.SIDEBAR_PART, this.direction);
+		neighborPart = layoutService.getVisibleNeighborPart(Parts.PANEL_PART, this.direction);
+	}	if (isSidebarFocus) {
+		if (this.tryNavigateWithinViews(ViewContainerLocation.Sidebar, Parts.SIDEBAR_PART, layoutService, paneCompositeService, viewsService)) {
+			return;
 		}
-
-		if (isAuxiliaryBarFocus) {
-			neighborPart = neighborPart = layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
+		neighborPart = layoutService.getVisibleNeighborPart(Parts.SIDEBAR_PART, this.direction);
+	}	if (isAuxiliaryBarFocus) {
+		if (this.tryNavigateWithinViews(ViewContainerLocation.AuxiliaryBar, Parts.AUXILIARYBAR_PART, layoutService, paneCompositeService, viewsService)) {
+			return;
 		}
-
-		if (neighborPart === Parts.EDITOR_PART) {
+		neighborPart = layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
+	}		if (neighborPart === Parts.EDITOR_PART) {
 			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction), editorGroupService)) {
 				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST, editorGroupService);
 			}
@@ -72,6 +77,60 @@ abstract class BaseNavigationAction extends Action2 {
 		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
 			this.navigateToAuxiliaryBar(layoutService, paneCompositeService);
 		}
+	}
+
+	private tryNavigateWithinViews(location: ViewContainerLocation, part: Parts, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, viewsService: IViewsService): boolean {
+		// Only try within-view navigation for up/down directions
+		if (this.direction !== Direction.Up && this.direction !== Direction.Down) {
+			return false;
+		}
+		return this.navigateWithinViews(location, this.direction === Direction.Down, paneCompositeService, viewsService);
+	}
+
+	private navigateWithinViews(location: ViewContainerLocation, moveDown: boolean, paneCompositeService: IPaneCompositePartService, viewsService: IViewsService): boolean {
+		const activePaneComposite = paneCompositeService.getActivePaneComposite(location);
+		if (!activePaneComposite) {
+			return false;
+		}
+
+		const paneContainer = activePaneComposite.getViewPaneContainer?.() as IViewPaneContainer | undefined;
+		if (!paneContainer) {
+			return false;
+		}
+
+		const views = paneContainer.views;
+		if (views.length <= 1) {
+			return false; // Need at least 2 views to navigate between
+		}
+
+		// Get visible and expanded views
+		const visibleViews = views.filter(view => view.isVisible());
+		if (visibleViews.length <= 1) {
+			return false; // Need at least 2 visible views to navigate between
+		}
+
+		// Find the currently focused view
+		const focusedViewDescriptor = viewsService.getFocusedView();
+		let currentIndex = -1;
+
+		if (focusedViewDescriptor) {
+			currentIndex = visibleViews.findIndex(view => view.id === focusedViewDescriptor.id);
+		}
+
+		// If no focused view found, focus the first view
+		if (currentIndex === -1) {
+			visibleViews[0].focus();
+			return true;
+		}
+
+		// Calculate next index
+		const nextIndex = moveDown 
+			? (currentIndex + 1) % visibleViews.length 
+			: (currentIndex - 1 + visibleViews.length) % visibleViews.length;
+
+		// Focus the next view
+		visibleViews[nextIndex].focus();
+		return true;
 	}
 
 	private async navigateToPanel(layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService): Promise<IComposite | boolean> {
@@ -221,7 +280,11 @@ registerAction2(class extends BaseNavigationAction {
 			id: 'workbench.action.navigateUp',
 			title: localize2('navigateUp', 'Navigate to the View Above'),
 			category: Categories.View,
-			f1: true
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
 		}, Direction.Up);
 	}
 });
@@ -233,7 +296,11 @@ registerAction2(class extends BaseNavigationAction {
 			id: 'workbench.action.navigateDown',
 			title: localize2('navigateDown', 'Navigate to the View Below'),
 			category: Categories.View,
-			f1: true
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
 		}, Direction.Down);
 	}
 });
