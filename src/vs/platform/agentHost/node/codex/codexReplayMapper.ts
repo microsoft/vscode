@@ -163,6 +163,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): IReplayedTurn | undefined {
 		} else if (item.type === 'contextCompaction') {
 			if (!userText) {
 				userText = '/compact';
+				hasUserMessage = true;
 			}
 			parts.push(compactionToolCallPart());
 		}
