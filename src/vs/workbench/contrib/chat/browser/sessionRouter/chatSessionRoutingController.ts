@@ -235,7 +235,6 @@ export class ChatSessionRoutingController extends Disposable {
 	/** Cancellation for the in-flight submission; canceled when the host tears down. */
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _submitDraftListeners = this._register(new MutableDisposable<IDisposable>());
-	private _submissionPhase: SubmissionPhase = 'idle';
 
 	constructor(
 		private readonly host: IChatSessionRoutingHost,
@@ -339,7 +338,6 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	private _setSubmissionPhase(phase: SubmissionPhase): void {
-		this._submissionPhase = phase;
 		this.host.widget.input.setSubmitPending(phase !== 'idle', phase === 'routing' || phase === 'dispatching');
 	}
 

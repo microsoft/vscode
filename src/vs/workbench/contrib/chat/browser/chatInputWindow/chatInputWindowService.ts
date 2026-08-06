@@ -388,7 +388,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				onDidChangeModelPickerVisibility: visible => this._layoutForModelPicker(auxiliaryWindow, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
 				inputPickerContainer: auxiliaryWindow.container,
-				inputEditorEditContext: false,
 			},
 			{
 				inputEditorBackground: inputBackground,
