@@ -349,6 +349,40 @@ suite('CodexAgent prewarm eviction', () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
 	});
 
+	test('/compact invokes thread/compact/start instead of starting a prompt turn', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		const { session } = await agent.createSession({ workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), '/compact', [repo], undefined, 'turn-compact');
+		const threadStart = await readNextRequest(peer.outbound);
+		peer.push({ id: threadStart.id, result: { thread: { id: 'thread-compact' } } });
+		const compactStart = await readNextRequest(peer.outbound);
+		peer.push({ id: compactStart.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			threadStart: { method: threadStart.method, cwd: threadStart.params.cwd },
+			compactStart: { method: compactStart.method, threadId: compactStart.params.threadId },
+			firstTurnSent: agent['_sessions'].get(AgentSession.id(session))?.firstTurnSent,
+		}, {
+			threadStart: { method: 'thread/start', cwd: repo.fsPath },
+			compactStart: { method: 'thread/compact/start', threadId: 'thread-compact' },
+			firstTurnSent: true,
+		});
+		peer.exit();
+	});
+
 	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
