@@ -190,7 +190,8 @@ export class SinglePaneWorkbench extends Workbench {
 	protected override _layoutGrid(): void {
 		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
 		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);
-		const preserveRatio = this.workbenchGrid.isViewVisible(this.sessionsPartView)
+		const preserveRatio = this.partVisibility.editor
+			&& this.workbenchGrid.isViewVisible(this.sessionsPartView)
 			&& this.workbenchGrid.isViewVisible(this.editorPartView)
 			&& sessionsSize.width > 0
 			&& editorSize.width > 0;

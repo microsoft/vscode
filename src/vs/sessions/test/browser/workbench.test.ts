@@ -61,6 +61,7 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
+	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
 
 	// --- Harness ------------------------------------------------------------
@@ -122,6 +123,17 @@ suite('Sessions - Workbench', () => {
 			resizeView(view: object, size: IViewSize): void;
 		};
 		_runWithEditorResizeSyncSuspended(fn: () => void): void;
+	}
+
+	interface IContainerResizeTestHarness extends IProportionalResizeTestHarness {
+		partVisibility: { sidebar: boolean; editor: boolean; auxiliaryBar: boolean };
+		mobileTopBarElement: undefined;
+		layoutPolicy: { viewportClass: { get(): string } };
+		_mainContainerDimension: IViewSize;
+		workbenchGrid: IProportionalResizeTestHarness['workbenchGrid'] & {
+			isViewVisible(view: object): boolean;
+			layout(width: number, height: number): void;
+		};
 	}
 
 	interface ISavePartSizesTestHarness {
@@ -595,6 +607,44 @@ suite('Sessions - Workbench', () => {
 			sessions: { width: 750, height: 700 },
 			editor: { width: 750, height: 700 },
 			resizes: [{ width: 750, height: 700 }],
+		});
+	});
+
+	test('single-pane detail-only container resize preserves the detail width', () => {
+		const sessionsPartView = { minimumWidth: 300 };
+		const editorPartView = { minimumWidth: 300 };
+		const sizes = new Map<object, IViewSize>([
+			[sessionsPartView, { width: 900, height: 700 }],
+			[editorPartView, { width: 300, height: 700 }],
+		]);
+		const resizes: IViewSize[] = [];
+		const host: IContainerResizeTestHarness = {
+			partVisibility: { sidebar: true, editor: false, auxiliaryBar: true },
+			mobileTopBarElement: undefined,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			_mainContainerDimension: { width: 1800, height: 800 },
+			sessionsPartView,
+			editorPartView,
+			workbenchGrid: {
+				getViewSize: view => sizes.get(view)!,
+				isViewVisible: () => true,
+				layout: () => sizes.set(sessionsPartView, { width: 1200, height: 700 }),
+				resizeView: (_view, size) => resizes.push(size),
+			},
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+		};
+		Object.setPrototypeOf(host, SinglePaneWorkbench.prototype);
+
+		layoutSinglePaneGrid.call(host);
+
+		assert.deepStrictEqual({
+			sessions: sizes.get(sessionsPartView),
+			detail: sizes.get(editorPartView),
+			resizes,
+		}, {
+			sessions: { width: 1200, height: 700 },
+			detail: { width: 300, height: 700 },
+			resizes: [],
 		});
 	});
 
