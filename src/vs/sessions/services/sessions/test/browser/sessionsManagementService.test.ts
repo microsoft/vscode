@@ -1801,6 +1801,52 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('automation draft lifecycle is isolated from the new-session draft', () => {
+		const drafts = [
+			stubSession({ sessionId: 'automation-workspace', providerId: 'test' }),
+			stubSession({ sessionId: 'new-session', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-quick-chat', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
+		];
+		const deleted: string[] = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return {
+					uri: folderUri,
+					label: 'Workspace',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override createQuickChat(): ISession { return drafts[createIndex++]; }
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const folderUri = URI.parse('test:///folder');
+
+		const firstAutomationSession = service.createAutomationSession(folderUri);
+		service.createNewSession(folderUri);
+		service.createAutomationQuickChat();
+		service.discardAutomationSession(firstAutomationSession);
+		service.createAutomationSession(folderUri);
+		service.discardAutomationSession();
+
+		assert.deepStrictEqual({
+			newSession: service.newSession.get()?.sessionId,
+			automationSession: service.automationSession.get()?.sessionId,
+			deleted,
+		}, {
+			newSession: 'new-session',
+			automationSession: undefined,
+			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
+		});
+	});
+
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

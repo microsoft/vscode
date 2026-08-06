@@ -20,7 +20,7 @@ import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './ag
  * contract: the workbench reads the VS Code setting directly, while the node-side
  * Layer 1 gate reads the root-config bag (keyed only by short keys), so the flag
  * must be mirrored here or the node side would never see it. Gated on
- * `chat.agentHost.enabled`. The schema-gate / hydration-retry / loop-guard
+ * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
  * machinery lives in the shared {@link AgentHostRootConfigForwarder}; this
  * contribution only declares the key.
  */
