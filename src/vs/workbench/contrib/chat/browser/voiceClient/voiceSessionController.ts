@@ -4046,6 +4046,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._pendingSolicitedNarrations.delete(narrationId);
 		this._solicitedNarrationIds.delete(narrationId);
+		// A timed-out attempt is abandoned, not merely untracked: for an
+		// actionable narration (confirmation/question/checkpoint) the form it
+		// speaks may already be gone by the time audio finally arrives, so plant
+		// the same tombstone _stopPendingNarration uses to make late audio for
+		// this id be discarded by the audio_response handler. A plain `response`
+		// is a completed reply that is still worth hearing late, so it is left
+		// playable (mirrors the `kind !== 'response'` carve-out there).
+		if (pending.kind !== 'response') {
+			this._rememberCancelledPendingNarration(narrationId);
+			this._discardCancelledPendingNarrationResponses(new Set([narrationId]));
+		}
 		// Only restore state when this was the last thing we were waiting on. If a
 		// direct chat reply is still expected (`_awaitingReplyAudio`) or another
 		// solicited narration is still waiting for its audio to start, restoring
@@ -5143,25 +5154,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (cancelledIds.size === 0) {
 			return;
 		}
+		// Remember the ids so trailing chunks (or a narration whose audio has
+		// not started arriving yet) are swallowed in the audio_response handler.
+		// Bound the set so ids that never yield audio can't leak across a long
+		// session.
+		for (const id of cancelledIds) {
+			this._rememberCancelledPendingNarration(id);
+		}
+		this._discardCancelledPendingNarrationResponses(cancelledIds);
+		// If one of the cancelled narrations is what's currently playing, cut it
+		// off. Mark it interrupted first so onPlaybackStopped doesn't treat it as
+		// "heard"; that handler then resets the slot, drains the queue and
+		// restores idle / hands-free listening.
+		if (this._currentPlaybackResponseId !== undefined && cancelledIds.has(this._currentPlaybackResponseId)) {
+			this._stopCurrentPlaybackAsInterrupted();
+		}
+	}
+
+	private _discardCancelledPendingNarrationResponses(cancelledIds: ReadonlySet<string>): void {
 		// Drop any not-yet-played chunks of those narrations from the queue.
 		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
 			const responseId = this._audioQueue[i].responseId;
 			if (responseId !== undefined && cancelledIds.has(responseId)) {
 				this._audioQueue.splice(i, 1);
 			}
-		}
-		// Remember the ids so trailing chunks (or a narration whose audio has
-		// not started arriving yet) are swallowed in the audio_response handler.
-		// Bound the set so ids that never yield audio can't leak across a long
-		// session.
-		for (const id of cancelledIds) {
-			if (this._cancelledPendingNarrationIds.size >= 64) {
-				const oldest = this._cancelledPendingNarrationIds.values().next().value;
-				if (oldest !== undefined) {
-					this._cancelledPendingNarrationIds.delete(oldest);
-				}
-			}
-			this._cancelledPendingNarrationIds.add(id);
 		}
 		// A confirmation narration may already have been buffered for an
 		// unfocused session (in _deferredResponses); the queue splice above and
@@ -5186,13 +5202,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		for (const id of cancelledIds) {
 			this._responseRoutes.delete(id);
 		}
-		// If one of the cancelled narrations is what's currently playing, cut it
-		// off. Mark it interrupted first so onPlaybackStopped doesn't treat it as
-		// "heard"; that handler then resets the slot, drains the queue and
-		// restores idle / hands-free listening.
-		if (this._currentPlaybackResponseId !== undefined && cancelledIds.has(this._currentPlaybackResponseId)) {
-			this._stopCurrentPlaybackAsInterrupted();
+	}
+
+	/**
+	 * Tombstone a narration id so any audio that arrives for it afterwards is
+	 * swallowed by the audio_response handler instead of played. The set is
+	 * bounded to 64 entries with FIFO eviction so ids that never yield audio
+	 * (interrupted streams, legacy backends) can't leak across a long session.
+	 */
+	private _rememberCancelledPendingNarration(narrationId: string): void {
+		if (this._cancelledPendingNarrationIds.size >= 64) {
+			const oldest = this._cancelledPendingNarrationIds.values().next().value;
+			if (oldest !== undefined) {
+				this._cancelledPendingNarrationIds.delete(oldest);
+			}
 		}
+		this._cancelledPendingNarrationIds.add(narrationId);
 	}
 
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
