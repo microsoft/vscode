@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRouterMessages, heuristicScore, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { buildRouterMessages, heuristicScore, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -70,6 +70,13 @@ suite('SessionRouter helpers', () => {
 		], [false, false, true]);
 	});
 
+	test('session routes require independent corroboration', () => {
+		assert.deepStrictEqual([
+			isCorroboratedSessionRoute({ sessionId: 'below', confidence: 0.24 }),
+			isCorroboratedSessionRoute({ sessionId: 'boundary', confidence: 0.25 }),
+		], [false, true]);
+	});
+
 	test('heuristicScore ranks the token-overlapping session first', () => {
 		const ranked = heuristicScore(request);
 		assert.strictEqual(ranked[0].sessionId, 's1');
@@ -86,6 +93,14 @@ suite('SessionRouter helpers', () => {
 		});
 		assert.strictEqual(ranked[0].sessionId, 's1');
 		assert.ok(ranked[0].confidence > ranked[1].confidence);
+	});
+
+	test('heuristicScore ignores generic shared words', () => {
+		const ranked = heuristicScore({
+			utterance: 'work on this with the agent',
+			sessions: [{ sessionId: 's1', label: 'the agent for this work' }]
+		});
+		assert.strictEqual(ranked[0].confidence, 0);
 	});
 
 	test('buildRouterMessages clips overlong content fields', () => {

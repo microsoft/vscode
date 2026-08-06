@@ -14,9 +14,14 @@ export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
 /** Existing sessions must exceed this confidence to be shown or selected. */
 export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
+export const SESSION_ROUTE_CORROBORATION_THRESHOLD = 0.25;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
+}
+
+export function isCorroboratedSessionRoute(result: ISessionRouteResult): boolean {
+	return result.confidence >= SESSION_ROUTE_CORROBORATION_THRESHOLD;
 }
 
 /**
@@ -238,9 +243,14 @@ export function heuristicScore(request: ISessionRouteRequest): ISessionRouteResu
 }
 
 function tokenize(text: string): string[] {
-	return text.toLowerCase().split(/[^a-z0-9]+/).filter(term => term.length > 1);
+	return text.toLowerCase().split(/[^a-z0-9]+/).filter(term => term.length > 1 && !ROUTER_STOP_WORDS.has(term));
 }
 
 function isNonEmpty(value: string | undefined): value is string {
 	return !!value;
 }
+
+const ROUTER_STOP_WORDS = new Set([
+	'about', 'agent', 'and', 'are', 'can', 'change', 'chat', 'code', 'fix', 'for', 'from', 'have', 'into', 'its', 'make',
+	'on', 'please', 'project', 'repo', 'repository', 'session', 'task', 'that', 'the', 'this', 'to', 'update', 'was', 'with', 'work',
+]);

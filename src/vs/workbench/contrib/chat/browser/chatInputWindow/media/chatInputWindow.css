@@ -266,33 +266,6 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget,
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget2 {
-	overflow: hidden;
-	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editorWidget-background);
-}
-
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-title {
-	min-height: 32px;
-	padding: 0 12px;
-}
-
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-message,
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-message-scrollable {
-	margin: 0;
-	padding: 8px 12px;
-	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
-	background: var(--vscode-textCodeBlock-background);
-}
-
-.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-buttons {
-	margin: 0;
-	padding: 8px 12px;
-	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
-}
-
 .chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-widget-container {
 	padding: 0;
 }
