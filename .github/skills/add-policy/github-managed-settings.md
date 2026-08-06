@@ -68,10 +68,14 @@ Client-side merging still happens *within* a channel's value (e.g. `enabledPlugi
 When the developer has `copilot-agent-runtime` checked out side-by-side, reference
 `copilot-agent-runtime/schema/managed-settings-schema.json` as the authoritative
 shape. It is aligned with the `managed_settings` API output and is the schema for all
-delivery channels (MDM plist/registry, file-based, server-managed). Its top-level
-properties today are `permissions`, `enabledPlugins`, `extraKnownMarketplaces`, and
-`strictKnownMarketplaces` (nested objects/arrays). Note the schema is **nested**, whereas
-the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
+delivery channels (MDM plist/registry, file-based, server-managed). The runtime schema
+also contains keys that VS Code never projects because their behavior is runtime-owned.
+The table below contains selected VS Code-projected examples with non-obvious composition
+or encoding. It is not an inventory; derive the current key set from policy declarations
+and the runtime schema.
+
+The schema is **nested**, whereas the VS Code bag is **flattened** to dot-paths — e.g.
+the schema's nested
 `permissions.disableBypassPermissionsMode` becomes the flat bag key of the same name
 (the `COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY` constant):
 
@@ -148,8 +152,9 @@ Key rules for the `value` callback:
   fields were **removed**; everything is the canonical bag now).
 - Return the **locking value** when the managed setting demands it, `undefined` otherwise
   (so the user's setting falls through).
-- It's fine to combine with `chat_preview_features_enabled === false` (see SKILL.md's
-  "GitHub Preview Features" section).
+- Existing policies may also contain the historical
+  `chat_preview_features_enabled === false` token-entitlement check. Preserve it when
+  maintaining those policies, but do not add it to a new control.
 
 For the **common pass-through case** — lock to the managed value, otherwise fall through to
 the user's setting — use the `managedSettingValue(KEY)` helper instead of hand-writing the
@@ -161,8 +166,8 @@ import { managedSettingValue } from '../../../../platform/policy/common/copilotM
 value: managedSettingValue(COPILOT_ENABLED_PLUGINS_KEY),
 ```
 
-Policies that combine the managed value with other conditions (like `ChatToolsAutoApprove`
-above, which also checks `chat_preview_features_enabled`) keep a custom callback. The helper
+Existing policies that combine the managed value with historical conditions (like
+`ChatToolsAutoApprove` above) keep a custom callback. The helper
 returns a callback memoized per key (the same function reference for a given key on every call),
 preserving the policy-definition reference identity that lets `isSamePolicyDefinition` avoid
 needless re-registration.
@@ -294,7 +299,11 @@ API, which returns the same payload as `session.managed_settings_resolved` witho
 active session. This runtime snapshot is not treated as another VS Code delivery channel because
 the runtime owns its schema and authority resolution independently.
 
-## Adding a brand-new managed-settings key (checklist)
+## Projecting a managed-settings key into VS Code (checklist)
+
+Follow this checklist only after the root [SKILL.md](./SKILL.md) routes the control to a
+VS Code or split runtime/editor policy. Runtime-only managed settings need no VS Code
+constant, configuration policy, or policy-data export.
 
 1. **Pick the canonical dot-path** and add it as a constant in
    `copilotManagedSettings.ts`. It must match the server `managed_settings` API field /
@@ -315,9 +324,10 @@ the runtime owns its schema and authority resolution independently.
    `managed-settings-schema.json` must agree on the key name and value type. The
    declaration-driven projection (`projectManagedSettings`) silently drops anything that
    doesn't match the declared type, so a type drift = a silently ignored setting.
-5. **Export & test** as in SKILL.md Step 3–4 (`npm run typecheck-client`,
-   `npm run export-policy-data`). Verify the policy appears in `policyData.jsonc`. A transport-only
-   control has no policy catalog entry, so it does not require a policy-data export.
+5. **Export & test** as described in [vscode-policy.md](./vscode-policy.md)
+   (`npm run typecheck-client` when needed, then `npm run export-policy-data`). Verify
+   the policy appears in `policyData.jsonc`. A transport-only control has no policy
+   catalog entry, so it does not require a policy-data export.
 
 ### Transport-only control: `forceRemoteSettingsRefresh`
 
