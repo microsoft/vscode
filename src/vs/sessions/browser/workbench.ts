@@ -1133,14 +1133,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private _restoreMinimizedPartOnActivation(target: ISerializableView, sibling: ISerializableView): void {
 		const targetSize = this.workbenchGrid.getViewSize(target);
-		if (targetSize.width !== target.minimumWidth) {
+		if (targetSize.width !== this._minimumPartWidthForActivation(target)) {
 			return;
 		}
 
 		const siblingSize = this.workbenchGrid.getViewSize(sibling);
-		if (siblingSize.width > sibling.minimumWidth) {
-			this.workbenchGrid.resizeView(sibling, { width: sibling.minimumWidth, height: siblingSize.height });
+		const siblingMinimumWidth = this._minimumPartWidthForActivation(sibling);
+		if (siblingSize.width > siblingMinimumWidth) {
+			this.workbenchGrid.resizeView(sibling, { width: siblingMinimumWidth, height: siblingSize.height });
 		}
+	}
+
+	protected _minimumPartWidthForActivation(view: ISerializableView): number {
+		return view.minimumWidth;
 	}
 
 	private createCustomViewGridPart(): void {

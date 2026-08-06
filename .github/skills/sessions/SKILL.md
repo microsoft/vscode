@@ -26,7 +26,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
-- **Minimum-size activation across the Sessions/Editor split must be symmetric**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. Implement and test both directions together; a one-sided Sessions-only handler does not match editor-grid behavior.
+- **Minimum-size activation across the Sessions/Editor split must be symmetric and layout-aware**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. In single-pane layout, the Editor grid node's effective minimum includes the visible docked Auxiliary Bar width; using `editorPartView.minimumWidth` alone collapses Details.
 
 - **Animation performance must preserve perceptual smoothness**: reducing a continuous title shimmer to 10 stepped updates per second makes the sweep visibly choppy even if paint counts improve. Use a smooth baseline such as 30 updates per second, then measure the remaining performance win; do not optimize decorative motion by callback counts alone.
 

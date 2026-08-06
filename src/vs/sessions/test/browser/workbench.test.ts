@@ -293,11 +293,15 @@ suite('Sessions - Workbench', () => {
 	test('activating a minimized Sessions or Editor Part resizes its sibling to minimum width', () => {
 		const sessionsMinimized = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: true } });
 		const editorMinimized = createHost({ sessionsWidth: 700, editorWidth: 300, partVisibility: { editor: true } });
+		const singlePaneSessionsMinimized = createHost({ single: true, sessionsWidth: 300, editorWidth: 800, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
+		const singlePaneEditorMinimized = createHost({ single: true, sessionsWidth: 700, editorWidth: 550, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
 		const neitherMinimized = createHost({ sessionsWidth: 301, editorWidth: 301, partVisibility: { editor: true } });
 		const editorHidden = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: false } });
 
 		restoreSessionsPartOnActivation.call(sessionsMinimized);
 		restoreEditorPartOnActivation.call(editorMinimized);
+		restoreSessionsPartOnActivation.call(singlePaneSessionsMinimized);
+		restoreEditorPartOnActivation.call(singlePaneEditorMinimized);
 		restoreSessionsPartOnActivation.call(neitherMinimized);
 		restoreEditorPartOnActivation.call(neitherMinimized);
 		restoreSessionsPartOnActivation.call(editorHidden);
@@ -305,10 +309,14 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual([
 			sessionsMinimized.resizes,
 			editorMinimized.resizes,
+			singlePaneSessionsMinimized.resizes,
+			singlePaneEditorMinimized.resizes,
 			neitherMinimized.resizes,
 			editorHidden.resizes,
 		], [
 			[{ width: 300, height: 800 }],
+			[{ width: 300, height: 800 }],
+			[{ width: 550, height: 800 }],
 			[{ width: 300, height: 800 }],
 			[],
 			[],
