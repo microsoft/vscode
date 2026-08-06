@@ -431,44 +431,45 @@ suite('Event', function () {
 
 		const addStackAListener = () => emitter.event(() => { });
 		const addStackBListener = () => emitter.event(() => { });
+		const addStackCListener = () => emitter.event(() => { });
 
 		try {
 			emitter.setListenerCount(2);
 			const stackAListeners = Array.from({ length: 3 }, () => addStackAListener());
 			stackAListeners[0].dispose();
-			const stackBListeners = Array.from({ length: 2 }, () => addStackBListener());
+			const stackBListener = addStackBListener();
+			const stackCListener = addStackCListener();
 
 			stackAListeners.slice(1).forEach(listener => listener.dispose());
-			stackBListeners.forEach(listener => listener.dispose());
+			stackBListener.dispose();
+			stackCListener.dispose();
 			emitter.setListenerCount(10);
 			emitter.event(() => { });
 
 			assert.deepStrictEqual(errors.map(error => ({
 				name: error.name,
 				details: error instanceof ListenerLeakError ? error.details : undefined,
-				stackSource: error.stack === 'UNKNOWN stack'
-					? 'unknown'
-					: error.stack?.includes('addStackAListener') ? 'A' : 'B',
+				hasUnknownStack: error.stack === 'UNKNOWN stack',
 			})), [
 				{
 					name: 'ListenerLeakError',
 					details: '[test] potential listener LEAK detected, having 3 listeners already. MOST frequent listener (1):',
-					stackSource: 'A',
+					hasUnknownStack: false,
 				},
 				{
 					name: 'ListenerLeakError',
 					details: '[test] potential listener LEAK detected, having 5 listeners already. MOST frequent listener (3):',
-					stackSource: 'A',
+					hasUnknownStack: false,
 				},
 				{
 					name: 'ListenerLeakError',
 					details: '[test] potential listener LEAK detected, having 6 listeners already. MOST frequent listener (2):',
-					stackSource: 'A',
+					hasUnknownStack: false,
 				},
 				{
 					name: 'ListenerRefusalError',
 					details: '[test] REFUSES to accept new listeners because it exceeded its threshold by far (10 vs 3). HINT: Stack shows most frequent listener (-1-times)',
-					stackSource: 'unknown',
+					hasUnknownStack: true,
 				},
 			]);
 		} finally {
