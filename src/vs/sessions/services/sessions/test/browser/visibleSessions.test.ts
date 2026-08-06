@@ -201,12 +201,17 @@ suite('VisibleSessions', () => {
 			model.setActive(A);
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(B);            // [A, B] active:B
+			const visibleSessionsBeforeActivation = model.visibleSessions.get();
 			model.setActive(A);            // [A, B] active:A — A keeps its slot
 
-			assert.deepStrictEqual(snapshot(model), {
+			assert.deepStrictEqual({
+				...snapshot(model),
+				visibleSessionsReferencePreserved: model.visibleSessions.get() === visibleSessionsBeforeActivation,
+			}, {
 				visible: ['A', 'B'],
 				active: 'A',
 				sticky: ['A'],
+				visibleSessionsReferencePreserved: true,
 			});
 		});
 

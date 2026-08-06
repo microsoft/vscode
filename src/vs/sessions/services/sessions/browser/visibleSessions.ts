@@ -400,8 +400,10 @@ export class VisibleSessions extends Disposable {
 	 */
 	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
+		let visibleSessionsChanged = false;
 
 		if (!this._visibleList.includes(targetId)) {
+			visibleSessionsChanged = true;
 			const activeSlot = this._currentActiveSlot();
 			const activeIsNonSticky = activeSlot !== NO_RECENT && !this._isStickySlot(activeSlot);
 
@@ -431,7 +433,9 @@ export class VisibleSessions extends Disposable {
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
 			this._setActiveSession(visibleSession, preserveFocus, tsx);
-			this._refresh(tsx);
+			if (visibleSessionsChanged) {
+				this._refresh(tsx);
+			}
 		});
 		return visibleSession;
 	}
