@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isPatternInWord } from '../../../../../../../base/common/filters.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
@@ -10,8 +11,11 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 
 export const attachedContextCompletionSortText = '\u0000';
 
-export function getAttachedContextCompletionFilterText(leader: string, name: string, kind: string): string {
-	return `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
+export function getAttachedContextCompletionFilterText(typedWord: string, leader: string, name: string, kind: string): string | undefined {
+	const searchableText = `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
+	const pattern = typedWord.toLowerCase();
+	const word = searchableText.toLowerCase();
+	return isPatternInWord(pattern, 0, pattern.length, word, 0, word.length) ? typedWord : undefined;
 }
 
 export function escapeForCharClass(text: string): string {

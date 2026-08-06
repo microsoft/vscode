@@ -901,9 +901,14 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
-			const suggestions = widget.attachmentModel.attachments
+			const typedWord = range.varWord?.word ?? typedLeader;
+			const suggestions = coalesce(widget.attachmentModel.attachments
 				.filter(attachment => !attachment.range)
-				.map((attachment): CompletionItem => {
+				.map((attachment): CompletionItem | undefined => {
+					const filterText = getAttachedContextCompletionFilterText(typedWord, typedLeader, attachment.name, attachment.kind);
+					if (!filterText) {
+						return undefined;
+					}
 					const text = `${typedLeader}attachment:${attachment.name}`;
 					const referenceRange = {
 						startLineNumber: range.replace.startLineNumber,
@@ -913,7 +918,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					};
 					return {
 						label: { label: attachment.name, description: localize('attachedContext', 'Attached context') },
-						filterText: getAttachedContextCompletionFilterText(typedLeader, attachment.name, attachment.kind),
+						filterText,
 						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
 						range,
 						kind: attachment.kind === 'directory'
@@ -928,9 +933,9 @@ class BuiltinDynamicCompletions extends Disposable {
 							arguments: [new ReferenceArgument(widget, toAttachedContextDynamicVariable(attachment, referenceRange))]
 						}
 					};
-				});
+				}));
 
-			return { suggestions };
+			return { suggestions, incomplete: true };
 		}, BuiltinDynamicCompletions.VariableNameDef, true);
 
 		// File/Folder completions in one go and m

@@ -262,13 +262,19 @@ suite('attached context completion ranking', () => {
 		assert.ok(attachedContextCompletionSortText < ' ');
 	});
 
-	test('matches bare and partial leaders from the start of filter text', () => {
+	test('filters attachments before matching the current token exactly', () => {
 		assert.deepStrictEqual({
-			at: getAttachedContextCompletionFilterText('@', 'Screen Recording.mov', 'file'),
-			hash: getAttachedContextCompletionFilterText('#', 'Screen Recording.mov', 'file'),
+			at: getAttachedContextCompletionFilterText('@', '@', 'Screen Recording.mov', 'file'),
+			atAttachment: getAttachedContextCompletionFilterText('@att', '@', 'Screen Recording.mov', 'file'),
+			hashName: getAttachedContextCompletionFilterText('#screen', '#', 'Screen Recording.mov', 'file'),
+			hashAttachment: getAttachedContextCompletionFilterText('#att', '#', 'Screen Recording.mov', 'file'),
+			unmatched: getAttachedContextCompletionFilterText('#xyz', '#', 'Screen Recording.mov', 'file'),
 		}, {
-			at: '@Screen Recording.mov @attachment:Screen Recording.mov Screen Recording.mov file',
-			hash: '#Screen Recording.mov #attachment:Screen Recording.mov Screen Recording.mov file',
+			at: '@',
+			atAttachment: '@att',
+			hashName: '#screen',
+			hashAttachment: '#att',
+			unmatched: undefined,
 		});
 	});
 });
