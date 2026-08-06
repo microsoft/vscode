@@ -346,6 +346,27 @@ describe('workspace recording pivot policy', () => {
 		});
 	});
 
+	it('omits an oracle that composes to no edit', async () => {
+		const entries: LogEntry[] = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'p', 2),
+			userEdit(0, 1100, content.length + 1, 'x', 3),
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1200,
+				edit: [[content.length + 1, content.length + 2, '']],
+				v: 4,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			generatedEdit(0, 1300, 0, 'generated', 5),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100).some(sample => sample.pivotOperationIndex === 2)).toBe(false);
+		});
+	});
+
 	it('evenly caps selected pivots deterministically', async () => {
 		const entries = [...documentPrefix()];
 		let currentLength = content.length;

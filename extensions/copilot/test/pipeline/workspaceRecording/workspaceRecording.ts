@@ -156,12 +156,16 @@ export function selectWorkspaceRecordingSamples(
 		if (oracle.operationIndices.length === 0 || oracle.stopReason === 'end-of-recording' || oracle.stopReason === 'touching-boundary') {
 			continue;
 		}
+		const oracleEdits = composeOracleEdits(recording, oracle.operationIndices, maxOracleEdits);
+		if (oracleEdits.length === 0) {
+			continue;
+		}
 
 		candidates.push({
 			pivotOperationIndex: operation.operationIdx,
 			pivotKind,
 			oracleOperationIndices: oracle.operationIndices,
-			oracleEdits: composeOracleEdits(recording, oracle.operationIndices, maxOracleEdits),
+			oracleEdits,
 			cursorBoundaryOperationIndex: oracle.cursorBoundaryOperationIndex,
 			oracleStopReason: oracle.stopReason,
 		});
