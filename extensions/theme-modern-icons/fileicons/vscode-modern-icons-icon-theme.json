@@ -26,34 +26,31 @@
 		},
 		"_folder_open_high_contrast": {
 			"iconPath": "./images/folder-open-high-contrast.svg"
+		},
+		"_typescript": {
+			"iconPath": "./images/typescript.svg"
 		}
 	},
-	"file": "_file_dark",
-	"folder": "_folder_dark",
-	"folderExpanded": "_folder_open_dark",
-	"rootFolder": "_folder_dark",
-	"rootFolderExpanded": "_folder_open_dark",
-	"fileExtensions": {},
-	"fileNames": {},
-	"languageIds": {},
+	"fileExtensions": {
+		"ts": "_typescript",
+		"tsx": "_typescript",
+		"cts": "_typescript",
+		"mts": "_typescript",
+		"d.ts": "_typescript"
+	},
+	"fileNames": {
+		"tsconfig.json": "_typescript"
+	},
+	"languageIds": {
+		"typescript": "_typescript",
+		"typescriptreact": "_typescript"
+	},
 	"folderNames": {},
 	"folderNamesExpanded": {},
 	"rootFolderNames": {},
 	"rootFolderNamesExpanded": {},
-	"light": {
-		"file": "_file_light",
-		"folder": "_folder_light",
-		"folderExpanded": "_folder_open_light",
-		"rootFolder": "_folder_light",
-		"rootFolderExpanded": "_folder_open_light"
-	},
-	"highContrast": {
-		"file": "_file_high_contrast",
-		"folder": "_folder_high_contrast",
-		"folderExpanded": "_folder_open_high_contrast",
-		"rootFolder": "_folder_high_contrast",
-		"rootFolderExpanded": "_folder_open_high_contrast"
-	},
+	"light": {},
+	"highContrast": {},
 	"hidesExplorerArrows": false,
 	"showLanguageModeIcons": false
 }

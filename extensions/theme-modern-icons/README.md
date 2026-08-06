@@ -1,6 +1,6 @@
 # VS Code Modern Icons
 
-This built-in file icon theme is ready for a full icon set. The checked-in generic file and folder icons keep the theme selectable while the final assets and mappings are added.
+This built-in file icon theme is ready for a full icon set. It starts with a TypeScript icon and deliberately leaves generic file and folder associations unset.
 
 ## Asset format
 
