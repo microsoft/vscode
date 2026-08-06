@@ -36,6 +36,7 @@ const WAKE_STATE_DURATION = 880;
 const SEARCH_INTERVAL = 10_000;
 const DRAG_THRESHOLD = 2;
 const KEYBOARD_MOVE_DISTANCE = 8;
+const POSITION_EPSILON = 0.5;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
 const CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH = 160;
@@ -803,10 +804,10 @@ export class ChatPetWidget extends Disposable {
 		const platformBounds = this._getPlatformBounds();
 		const movementBounds = this.movementBounds.getBoundingClientRect();
 		return getChatPetFallTarget(
-			this._button.element.offsetLeft,
-			this._button.element.offsetTop,
-			this._button.element.offsetWidth,
-			this._button.element.offsetHeight,
+			Number.parseFloat(this._button.element.style.left),
+			Number.parseFloat(this._button.element.style.top),
+			this._getDisplaySize(),
+			this._getDisplaySize(),
 			platformBounds.left - overlayBounds.left,
 			platformBounds.right - overlayBounds.left,
 			platformBounds.top - overlayBounds.top,
@@ -821,7 +822,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _beginFall(): void {
-		const top = this._button.element.offsetTop;
+		const top = Number.parseFloat(this._button.element.style.top);
 		const target = this._getFallTarget();
 		this._button.element.classList.remove('resisting', 'soft-resisting');
 		this._fallLandsOnPlatform = target.landsOnPlatform;
@@ -832,12 +833,12 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.getBoundingClientRect();
 		this._button.element.classList.add('falling');
 		this._button.element.style.top = `${target.top}px`;
-		if (this._motionReduced || target.top === top) {
+		if (this._motionReduced || Math.abs(target.top - top) <= POSITION_EPSILON) {
 			this._finishFall();
 		}
 	}
 
-	private _finishFall(): void {
+	private _finishFall(announce = true): void {
 		if (!this._button.element.classList.contains('falling')) {
 			return;
 		}
@@ -846,14 +847,18 @@ export class ChatPetWidget extends Disposable {
 		if (this._fallLandsOnPlatform) {
 			const left = this._getCurrentLeft();
 			this._setPlatformPosition(left);
-			this._showTransientState('splat');
-			status(localize('chatPet.landed', "The VS Code pet landed on the chat input"));
+			if (announce) {
+				this._showTransientState('splat');
+				status(localize('chatPet.landed', "The VS Code pet landed on the chat input"));
+			}
 			return;
 		}
 
 		this._deathPosition = [this._button.element.offsetLeft, this._button.element.offsetTop];
 		this._isDead.set(true, undefined);
-		status(localize('chatPet.fellOff', "The VS Code pet fell off. Activate the sign to revive it"));
+		if (announce) {
+			status(localize('chatPet.fellOff', "The VS Code pet fell off. Activate the sign to revive it"));
+		}
 	}
 
 	private _showContextMenu(event: MouseEvent): void {
@@ -1168,7 +1173,7 @@ export class ChatPetWidget extends Disposable {
 
 	private _finishDisable(): void {
 		if (this._button.element.classList.contains('falling')) {
-			this._finishFall();
+			this._finishFall(false);
 		}
 		this._keyboardDragging = false;
 		if (this._isDragging.get()) {
