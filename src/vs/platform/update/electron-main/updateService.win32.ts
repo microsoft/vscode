@@ -419,6 +419,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		// Skip the spawn if another Inno Setup is already running for this product (background update or a manual installer);
 		// otherwise Inno's "Setup is already running" modal pops up. The `-ready` mutex poll below still advances our state when it finishes.
 		if (skippedSpawn) {
+			try {
+				await updateAttempt.resolveForeignUpdateFiles();
+			} catch (error) {
+				this.failUpdateAttempt(availableUpdate, updateAttempt, error instanceof Error ? error : new Error(String(error)));
+				return;
+			}
+
+			if (!this.isCurrentUpdateAttempt(availableUpdate, updateAttempt)) {
+				updateAttempt.complete();
+				await updateAttempt.cleanup();
+				return;
+			}
+
 			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
 		} else {
 			try {
@@ -540,18 +553,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(error))) });
 		this.logService.error('update#doApplyUpdate: update installation failed', error);
 
-		if (stopProcess) {
-			await availableUpdate.updateAttempt?.stopProcess();
-		}
+		try {
+			if (stopProcess) {
+				await availableUpdate.updateAttempt?.stopProcess();
+			}
+		} finally {
+			if (this.availableUpdate === availableUpdate) {
+				this.availableUpdate = undefined;
+			}
 
-		if (this.availableUpdate === availableUpdate) {
-			this.availableUpdate = undefined;
-		}
+			await availableUpdate.updateAttempt?.cleanup(true);
 
-		await availableUpdate.updateAttempt?.cleanup(true);
-
-		if (!this.availableUpdate && this.state.type === StateType.Updating) {
-			this.setState(State.Idle(this.updateType, localize('updateInstallFailed', "Update installation failed. Please try again.")));
+			if (!this.availableUpdate && this.state.type === StateType.Updating) {
+				this.setState(State.Idle(this.updateType, localize('updateInstallFailed', "Update installation failed. Please try again.")));
+			}
 		}
 	}
 

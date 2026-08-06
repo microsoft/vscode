@@ -72,6 +72,32 @@ suite('Win32UpdateAttempt', () => {
 		nextProcessAttempt.complete();
 	});
 
+	test('resolves foreign update files for install acceptance', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+		const foreignUpdateFilePath = path.join(cachePath, 'CodeSetup-insider-previous-foreign-id.flag');
+		const otherProductUpdateFilePath = path.join(cachePath, 'CodeSetup-stable-previous-foreign-id.flag');
+		await Promise.all([
+			writeFile(foreignUpdateFilePath, 'flag'),
+			writeFile(otherProductUpdateFilePath, 'flag')
+		]);
+
+		await attempt.resolveForeignUpdateFiles();
+		await attempt.cleanup();
+		const filesAfterCleanup = await readdir(cachePath);
+		attempt.acceptForInstall();
+		const filesAfterAcceptance = await readdir(cachePath);
+
+		assert.deepStrictEqual({ filesAfterCleanup, filesAfterAcceptance }, {
+			filesAfterCleanup: [
+				'CodeSetup-insider-previous-foreign-id.flag',
+				'CodeSetup-stable-previous-foreign-id.flag'
+			],
+			filesAfterAcceptance: ['CodeSetup-stable-previous-foreign-id.flag']
+		});
+		attempt.complete();
+	});
+
 	test('completion is idempotent and cancels the attempt', () => {
 		const attempt = new Win32UpdateAttempt('C:\\update-cache', 'C:\\update-cache\\setup.exe', 'insider', 'next', 'attempt-id', logService);
 		let cancellationCount = 0;

@@ -35,17 +35,22 @@ export class Win32UpdateProcess {
 		private readonly signalCancellation: () => Promise<void>,
 		private readonly killProcess = (pid: number) => killTree(pid, true),
 	) {
-		this.terminated = process.exitCode !== null || process.signalCode !== null;
-		this.whenTerminated = new Promise(resolve => {
-			process.once('error', error => {
-				this.terminated = true;
-				resolve({ type: 'error', error });
+		const terminationResult: UpdateProcessResult | undefined = process.exitCode !== null || process.signalCode !== null
+			? { type: 'exit', code: process.exitCode, signal: process.signalCode }
+			: undefined;
+		this.terminated = terminationResult !== undefined;
+		this.whenTerminated = terminationResult
+			? Promise.resolve(terminationResult)
+			: new Promise(resolve => {
+				process.once('error', error => {
+					this.terminated = true;
+					resolve({ type: 'error', error });
+				});
+				process.once('exit', (code, signal) => {
+					this.terminated = true;
+					resolve({ type: 'exit', code, signal });
+				});
 			});
-			process.once('exit', (code, signal) => {
-				this.terminated = true;
-				resolve({ type: 'exit', code, signal });
-			});
-		});
 	}
 
 	get isRunning(): boolean {

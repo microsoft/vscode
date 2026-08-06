@@ -5,7 +5,7 @@
 
 import { spawn, SpawnOptions } from 'child_process';
 import { unlinkSync } from 'fs';
-import { readFile, unlink, writeFile } from 'fs/promises';
+import { readFile, readdir, unlink, writeFile } from 'fs/promises';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import * as path from '../../../base/common/path.js';
 import { ILogService } from '../../log/common/log.js';
@@ -26,6 +26,8 @@ export class Win32UpdateAttempt {
 	readonly cancelFilePath: string;
 	private completed = false;
 	private process: Win32UpdateProcess | undefined;
+	private readonly updateFilePrefix: string;
+	private updateFilePathsToAccept: readonly string[];
 
 	constructor(
 		cachePath: string,
@@ -35,7 +37,9 @@ export class Win32UpdateAttempt {
 		readonly id: string,
 		private readonly logService: ILogService,
 	) {
-		this.updateFilePath = path.join(cachePath, `CodeSetup-${quality}-${version}-${id}.flag`);
+		this.updateFilePrefix = `CodeSetup-${quality}-`;
+		this.updateFilePath = path.join(cachePath, `${this.updateFilePrefix}${version}-${id}.flag`);
+		this.updateFilePathsToAccept = [this.updateFilePath];
 		this.cancelFilePath = path.join(cachePath, `cancel-${id}.flag`);
 		this.progressFilePath = path.join(cachePath, `update-progress-${id}`);
 		this.sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
@@ -51,6 +55,14 @@ export class Win32UpdateAttempt {
 
 	async prepare(): Promise<void> {
 		await writeFile(this.updateFilePath, 'flag');
+	}
+
+	async resolveForeignUpdateFiles(): Promise<void> {
+		const cachePath = path.dirname(this.updateFilePath);
+		const fileNames = await readdir(cachePath);
+		this.updateFilePathsToAccept = fileNames
+			.filter(fileName => fileName.startsWith(this.updateFilePrefix) && fileName.endsWith('.flag'))
+			.map(fileName => path.join(cachePath, fileName));
 	}
 
 	startProcess(additionalArguments: readonly string[], spawnProcess: SpawnUpdateProcess = spawn): Win32UpdateProcess {
@@ -123,10 +135,12 @@ export class Win32UpdateAttempt {
 	}
 
 	acceptForInstall(): void {
-		try {
-			unlinkSync(this.updateFilePath);
-		} catch {
-			// The installer may already have removed the flag.
+		for (const updateFilePath of this.updateFilePathsToAccept) {
+			try {
+				unlinkSync(updateFilePath);
+			} catch {
+				// The installer may already have removed the flag.
+			}
 		}
 	}
 

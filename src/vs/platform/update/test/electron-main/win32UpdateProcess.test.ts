@@ -191,9 +191,11 @@ suite('Win32UpdateProcess', () => {
 			async () => { killCount++; }
 		);
 
+		const terminationResult = await updateProcess.whenTerminated;
 		const result = await updateProcess.stop();
 
-		assert.deepStrictEqual({ result, cancellationCount, killCount }, {
+		assert.deepStrictEqual({ terminationResult, result, cancellationCount, killCount }, {
+			terminationResult: { type: 'exit', code: 0, signal: null },
 			result: { killed: false },
 			cancellationCount: 0,
 			killCount: 0
