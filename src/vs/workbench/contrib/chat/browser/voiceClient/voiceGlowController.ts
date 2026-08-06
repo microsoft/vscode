@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/voiceGlow.css';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
@@ -170,14 +171,13 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly size?: number;
 }): IMountedLayer {
 	const store = new DisposableStore();
-	const doc = host.ownerDocument;
 
 	const moodClass = `voice-glow-rim-${options.mood}`;
 	host.classList.add('voice-glow-rim', moodClass);
 	store.add(toDisposable(() => host.classList.remove('voice-glow-rim', moodClass)));
 
 	for (const cls of ['voice-glow-rim-corners', 'voice-glow-rim-bloom']) {
-		const el = doc.createElement('div');
+		const el = $('div');
 		el.className = cls;
 		host.appendChild(el);
 		store.add(toDisposable(() => el.remove()));
@@ -355,9 +355,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			this._colors = this._colorsProvider();
 			_target.style.position = _target.style.position || 'relative';
 
-			const doc = _target.ownerDocument;
 			const createSlot = (): HTMLElement => {
-				const el = doc.createElement('div');
+				const el = $('div');
 				el.className = 'voice-glow-slot';
 				// Above the transcript overlay, which is opaque and would otherwise
 				// paint over the top of the box and leave the glow visible only along

@@ -30,8 +30,15 @@ suite('VoiceGlow', () => {
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
 
-		const target = iframe.contentDocument!.createElement('div');
-		iframe.contentDocument!.body.appendChild(target);
+		const auxiliaryDocument = iframe.contentDocument!;
+		const target = auxiliaryDocument.createElement('div');
+		auxiliaryDocument.body.appendChild(target);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
 		const controller = disposables.add(createVoiceGlowController(target));
 		controller.render('listening', 0.5, false);
 
@@ -39,10 +46,12 @@ suite('VoiceGlow', () => {
 			active: target.classList.contains('voice-active'),
 			listening: target.classList.contains('voice-listening'),
 			slots: target.querySelectorAll('.voice-glow-slot').length,
+			layers: target.querySelectorAll('.voice-glow-rim-corners, .voice-glow-rim-bloom').length,
 		}, {
 			active: true,
 			listening: true,
 			slots: 2,
+			layers: 2,
 		});
 	});
 
