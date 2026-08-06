@@ -633,7 +633,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		skipButton.label = skipLabel;
 		const renderedApprovalTitle = this._windowDisposables.add(new MutableDisposable<IRenderedMarkdown>());
 		let displayedApproval: IChatToolInvocation | undefined;
-		let lastActivatedApproval: IChatToolInvocation | undefined;
+		let lastActivatedApproval: object | undefined;
 		const confirmDisplayedApproval = (reason: ToolConfirmKind.UserAction | ToolConfirmKind.Skipped) => {
 			IChatToolInvocation.confirmWith(displayedApproval, { type: reason });
 		};
@@ -822,13 +822,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				button.tabIndex = hasMultiple ? 0 : -1;
 			}
 			widget.setModel(model);
-			if (pendingApproval && omniVoiceActive && pendingApproval.invocation !== lastActivatedApproval) {
+			if (pendingApproval && omniVoiceActive && pendingApproval.occurrence !== lastActivatedApproval) {
 				// The pending card is the most direct observation that this exact
 				// approval is visible in omni. Activate it once so a coalesced/missed
 				// session-state transition cannot leave hands-free mode listening over
 				// an unannounced confirmation. Voice narration dedup is occurrence-based,
 				// so the normal state-change path and this UI path remain exactly-once.
-				lastActivatedApproval = pendingApproval.invocation;
+				lastActivatedApproval = pendingApproval.occurrence;
 				this.voiceSessionController.activateSession(model.sessionResource);
 			}
 			scheduleLayout();
@@ -923,7 +923,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
 	}
 
-	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation } | undefined {
+	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: object } | undefined {
 		for (const part of model.lastRequest?.response?.response.value ?? []) {
 			if (part.kind !== 'toolInvocation') {
 				continue;
@@ -957,6 +957,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				title: renderAsPlaintext(title).trim() ? title : localize('chatInputWindow.pending.approval', "Approval Required"),
 				command,
 				invocation: part,
+				// The agent host can re-arm this same invocation object. The current
+				// confirm callback survives presentation-only state clones but is new
+				// for each actionable occurrence.
+				occurrence: state.confirm,
 			};
 		}
 		return undefined;
