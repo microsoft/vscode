@@ -76,6 +76,7 @@ import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type M
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
+import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
@@ -4053,6 +4054,12 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId && e.agentId) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Dropping tool.execution_complete for unknown subagent agentId=${e.agentId}`);
 				return;
+			}
+			if (e.data.success && tracked.contributor === undefined) {
+				const telemetrySession = parentToolCallId
+					? URI.parse(buildSubagentSessionUri(this._storageUri.toString(), parentToolCallId))
+					: this.sessionUri;
+				reportCopilotTodoStoreOperation(this._telemetryService, telemetrySession, e.data.toolCallId, tracked.toolName, tracked.parameters);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
 			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
