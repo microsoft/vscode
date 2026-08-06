@@ -22,23 +22,26 @@ export interface ICustomEditorOutlineItemDto {
 	readonly children?: ICustomEditorOutlineItemDto[];
 }
 
+export interface ICustomEditorOutlineProvider {
+	provideOutline(resource: URI, webviewHandle: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
+	revealItem(resource: URI, webviewHandle: string, itemId: string): void;
+}
+
 export interface ICustomEditorOutlineProviderService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChange: Event<void>;
 
 	hasProvider(viewType: string): boolean;
-	getProviderViewTypes(): string[];
-	provideOutline(viewType: string, resource: URI, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
-	revealItem(viewType: string, resource: URI, itemId: string): void;
-	getActiveItemId(viewType: string, resource: URI): string | undefined;
+	provideOutline(viewType: string, resource: URI, webviewHandle: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
+	revealItem(viewType: string, resource: URI, webviewHandle: string, itemId: string): void;
+	getActiveItemId(viewType: string, webviewHandle: string): string | undefined;
 
-	onDidChangeOutline(viewType: string, resource: URI): Event<void>;
-	onDidChangeActiveItem(viewType: string, resource: URI): Event<string | undefined>;
+	onDidChangeOutline(viewType: string, webviewHandle: string): Event<void>;
+	onDidChangeActiveItem(viewType: string, webviewHandle: string): Event<string | undefined>;
 
-	registerProvider(viewType: string): IDisposable;
-	unregisterProvider(viewType: string): void;
-	releaseResource(viewType: string, resource: URI): void;
-	fireDidChangeOutline(viewType: string, resource: URI): void;
-	fireDidChangeActiveItem(viewType: string, resource: URI, itemId: string | undefined): void;
+	registerProvider(viewType: string, provider: ICustomEditorOutlineProvider): IDisposable;
+	retainEditor(viewType: string, webviewHandle: string): IDisposable;
+	fireDidChangeOutline(viewType: string, webviewHandle: string): void;
+	fireDidChangeActiveItem(viewType: string, webviewHandle: string, itemId: string | undefined): void;
 }

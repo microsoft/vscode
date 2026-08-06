@@ -5,6 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import * as errors from '../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -12,6 +13,7 @@ import { ExtHostCustomEditorOutlineShape, ICustomEditorOutlineItemDto, MainConte
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { IRPCProtocol } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 
 export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineShape {
 
@@ -20,6 +22,7 @@ export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineSha
 
 	constructor(
 		mainContext: IRPCProtocol,
+		private readonly _webviewPanels: ExtHostWebviewPanels,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCustomEditorOutline);
 	}
@@ -40,12 +43,18 @@ export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineSha
 		this._providers.set(viewType, { provider, disposables });
 		this._proxy.$registerCustomEditorOutlineProvider(viewType);
 
-		disposables.add(provider.onDidChangeOutline(resource => {
-			this._proxy.$onDidChangeOutline(viewType, resource);
+		disposables.add(provider.onDidChangeOutline(context => {
+			const webviewHandle = this._webviewPanels.getHandleForWebviewPanel(context.webviewPanel);
+			if (webviewHandle) {
+				this._proxy.$onDidChangeOutline(viewType, webviewHandle);
+			}
 		}));
 
-		disposables.add(provider.onDidChangeActiveItem(({ uri, itemId }) => {
-			this._proxy.$onDidChangeActiveItem(viewType, uri, itemId);
+		disposables.add(provider.onDidChangeActiveItem(({ context, itemId }) => {
+			const webviewHandle = this._webviewPanels.getHandleForWebviewPanel(context.webviewPanel);
+			if (webviewHandle) {
+				this._proxy.$onDidChangeActiveItem(viewType, webviewHandle, itemId);
+			}
 		}));
 
 		return toDisposable(() => {
@@ -55,22 +64,33 @@ export class ExtHostCustomEditorOutline implements ExtHostCustomEditorOutlineSha
 		});
 	}
 
-	async $provideOutline(viewType: string, resource: UriComponents, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
+	async $provideOutline(viewType: string, resource: UriComponents, webviewHandle: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
 		const entry = this._providers.get(viewType);
-		if (!entry) {
+		const webviewPanel = this._webviewPanels.getWebviewPanel(webviewHandle);
+		if (!entry || !webviewPanel) {
 			return undefined;
 		}
-		const items = await entry.provider.provideOutline(URI.revive(resource), token);
-		if (!items) {
+		try {
+			const items = await entry.provider.provideOutline({ uri: URI.revive(resource), webviewPanel }, token);
+			if (!items) {
+				return undefined;
+			}
+			return items.map(item => this._convertItem(item));
+		} catch (error) {
+			errors.onUnexpectedExternalError(error);
 			return undefined;
 		}
-		return items.map(item => this._convertItem(item));
 	}
 
-	$revealItem(viewType: string, resource: UriComponents, itemId: string): void {
+	$revealItem(viewType: string, resource: UriComponents, webviewHandle: string, itemId: string): void {
 		const entry = this._providers.get(viewType);
-		if (entry) {
-			entry.provider.revealItem(URI.revive(resource), itemId);
+		const webviewPanel = this._webviewPanels.getWebviewPanel(webviewHandle);
+		if (entry && webviewPanel) {
+			try {
+				entry.provider.revealItem({ uri: URI.revive(resource), webviewPanel }, itemId);
+			} catch (error) {
+				errors.onUnexpectedExternalError(error);
+			}
 		}
 	}
 

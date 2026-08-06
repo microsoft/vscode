@@ -14,6 +14,7 @@ import { basename } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -74,6 +75,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public static override readonly typeId = 'workbench.editors.webviewEditor';
+	private _webviewHandle = generateUuid();
+
+	get webviewHandle(): string {
+		return this._webviewHandle;
+	}
 
 	private readonly _editorResource: URI;
 	public readonly oldResource?: URI;
@@ -379,6 +385,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		other._moveHandler = this._moveHandler;
 		this._moveHandler = undefined;
+		other._webviewHandle = this._webviewHandle;
 		return other;
 	}
 

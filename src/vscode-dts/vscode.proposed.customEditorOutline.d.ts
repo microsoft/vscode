@@ -67,16 +67,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Identifies the custom editor instance whose outline is being provided.
+	 */
+	export interface CustomEditorOutlineContext {
+
+		/**
+		 * The resource displayed by the custom editor.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The webview panel displaying the resource.
+		 */
+		readonly webviewPanel: WebviewPanel;
+	}
+
+	/**
 	 * A provider that supplies outline data for custom editors. Register via
 	 * {@link window.registerCustomEditorOutlineProvider}.
 	 */
 	export interface CustomEditorOutlineProvider {
 
 		/**
-		 * Fired when the outline data for a specific resource has changed and
+		 * Fired when the outline data for a specific custom editor has changed and
 		 * needs to be refreshed.
 		 */
-		readonly onDidChangeOutline: Event<Uri>;
+		readonly onDidChangeOutline: Event<CustomEditorOutlineContext>;
 
 		/**
 		 * Fired when the active (focused/selected) item in the custom editor
@@ -85,27 +101,27 @@ declare module 'vscode' {
 		 *
 		 * Pass `undefined` for `itemId` if no item is currently active.
 		 */
-		readonly onDidChangeActiveItem: Event<{ uri: Uri; itemId: string | undefined }>;
+		readonly onDidChangeActiveItem: Event<{ context: CustomEditorOutlineContext; itemId: string | undefined }>;
 
 		/**
 		 * Provide the outline items for the custom editor displaying the given document.
 		 *
-		 * @param uri The URI of the document being displayed.
+		 * @param context The custom editor instance being displayed.
 		 * @param token A cancellation token.
 		 * @returns The root-level outline items, or `undefined` if no outline
 		 *   can be provided.
 		 */
-		provideOutline(uri: Uri, token: CancellationToken): ProviderResult<CustomEditorOutlineItem[]>;
+		provideOutline(context: CustomEditorOutlineContext, token: CancellationToken): ProviderResult<CustomEditorOutlineItem[]>;
 
 		/**
 		 * Called when the user clicks an outline item. The extension should
 		 * reveal/scroll to the corresponding element in the custom editor.
 		 *
-		 * @param uri The URI of the document being displayed.
+		 * @param context The custom editor instance being displayed.
 		 * @param itemId The {@link CustomEditorOutlineItem.id id} of the item to reveal.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		revealItem(uri: Uri, itemId: string): void;
+		revealItem(context: CustomEditorOutlineContext, itemId: string): void;
 	}
 
 	export namespace window {

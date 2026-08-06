@@ -6,13 +6,13 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostCustomEditorOutlineShape, MainContext, MainThreadCustomEditorOutlineShape } from '../common/extHost.protocol.js';
-import { ICustomEditorOutlineItemDto, ICustomEditorOutlineProviderService } from '../../contrib/customEditor/common/customEditorOutlineService.js';
+import { ICustomEditorOutlineItemDto, ICustomEditorOutlineProvider, ICustomEditorOutlineProviderService } from '../../contrib/customEditor/common/customEditorOutlineService.js';
 
-class ResourceEntry {
+class EditorEntry {
 	private readonly _onDidChangeOutline = new Emitter<void>();
 	readonly onDidChangeOutline = this._onDidChangeOutline.event;
 
@@ -20,8 +20,18 @@ class ResourceEntry {
 	readonly onDidChangeActiveItem = this._onDidChangeActiveItem.event;
 
 	private _activeItemId: string | undefined;
+	private _refCount = 0;
 
 	get activeItemId(): string | undefined { return this._activeItemId; }
+	get refCount(): number { return this._refCount; }
+
+	retain(): void {
+		this._refCount++;
+	}
+
+	release(): void {
+		this._refCount--;
+	}
 
 	fireDidChangeOutline(): void {
 		this._onDidChangeOutline.fire();
@@ -40,48 +50,53 @@ class ResourceEntry {
 
 class CustomEditorOutlineProviderEntry {
 
-	private readonly _resourceEntries = new Map<string, ResourceEntry>();
+	private readonly _editorEntries = new Map<string, EditorEntry>();
 
-	getOrCreateResourceEntry(resource: URI): ResourceEntry {
-		const key = resource.toString();
-		let entry = this._resourceEntries.get(key);
+	constructor(readonly provider: ICustomEditorOutlineProvider) { }
+
+	getOrCreateEditorEntry(webviewHandle: string): EditorEntry {
+		const key = webviewHandle;
+		let entry = this._editorEntries.get(key);
 		if (!entry) {
-			entry = new ResourceEntry();
-			this._resourceEntries.set(key, entry);
+			entry = new EditorEntry();
+			this._editorEntries.set(key, entry);
 		}
 		return entry;
 	}
 
-	getResourceEntry(resource: URI): ResourceEntry | undefined {
-		return this._resourceEntries.get(resource.toString());
+	getEditorEntry(webviewHandle: string): EditorEntry | undefined {
+		return this._editorEntries.get(webviewHandle);
 	}
 
-	fireDidChangeOutline(resource: URI): void {
-		this._resourceEntries.get(resource.toString())?.fireDidChangeOutline();
+	fireDidChangeOutline(webviewHandle: string): void {
+		this._editorEntries.get(webviewHandle)?.fireDidChangeOutline();
 	}
 
-	fireDidChangeActiveItem(resource: URI, itemId: string | undefined): void {
-		this.getOrCreateResourceEntry(resource).fireDidChangeActiveItem(itemId);
+	fireDidChangeActiveItem(webviewHandle: string, itemId: string | undefined): void {
+		this.getOrCreateEditorEntry(webviewHandle).fireDidChangeActiveItem(itemId);
 	}
 
-	removeResourceEntry(resource: URI): void {
-		const key = resource.toString();
-		const entry = this._resourceEntries.get(key);
-		if (entry) {
-			entry.dispose();
-			this._resourceEntries.delete(key);
-		}
+	retainEditorEntry(webviewHandle: string): IDisposable {
+		const entry = this.getOrCreateEditorEntry(webviewHandle);
+		entry.retain();
+		return toDisposable(() => {
+			entry.release();
+			if (entry.refCount === 0 && this._editorEntries.get(webviewHandle) === entry) {
+				entry.dispose();
+				this._editorEntries.delete(webviewHandle);
+			}
+		});
 	}
 
 	dispose(): void {
-		for (const entry of this._resourceEntries.values()) {
+		for (const entry of this._editorEntries.values()) {
 			entry.dispose();
 		}
-		this._resourceEntries.clear();
+		this._editorEntries.clear();
 	}
 }
 
-class CustomEditorOutlineProviderService extends Disposable implements ICustomEditorOutlineProviderService {
+export class CustomEditorOutlineProviderService extends Disposable implements ICustomEditorOutlineProviderService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = this._register(new DisposableMap<string, CustomEditorOutlineProviderEntry>());
@@ -89,77 +104,57 @@ class CustomEditorOutlineProviderService extends Disposable implements ICustomEd
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private _provideOutline?: (viewType: string, resource: URI, token: CancellationToken) => Promise<ICustomEditorOutlineItemDto[] | undefined>;
-	private _revealItem?: (viewType: string, resource: URI, itemId: string) => void;
-
-	setDelegate(delegate: {
-		provideOutline: (viewType: string, resource: URI, token: CancellationToken) => Promise<ICustomEditorOutlineItemDto[] | undefined>;
-		revealItem: (viewType: string, resource: URI, itemId: string) => void;
-	}): void {
-		this._provideOutline = delegate.provideOutline;
-		this._revealItem = delegate.revealItem;
-	}
-
 	hasProvider(viewType: string): boolean {
 		return this._entries.has(viewType);
 	}
 
-	getProviderViewTypes(): string[] {
-		return [...this._entries.keys()];
+	async provideOutline(viewType: string, resource: URI, webviewHandle: string, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
+		return this._entries.get(viewType)?.provider.provideOutline(resource, webviewHandle, token);
 	}
 
-	async provideOutline(viewType: string, resource: URI, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined> {
-		if (this._provideOutline) {
-			return this._provideOutline(viewType, resource, token);
-		}
-		return undefined;
+	revealItem(viewType: string, resource: URI, webviewHandle: string, itemId: string): void {
+		this._entries.get(viewType)?.provider.revealItem(resource, webviewHandle, itemId);
 	}
 
-	revealItem(viewType: string, resource: URI, itemId: string): void {
-		if (this._revealItem) {
-			this._revealItem(viewType, resource, itemId);
-		}
+	getActiveItemId(viewType: string, webviewHandle: string): string | undefined {
+		return this._entries.get(viewType)?.getEditorEntry(webviewHandle)?.activeItemId;
 	}
 
-	getActiveItemId(viewType: string, resource: URI): string | undefined {
-		return this._entries.get(viewType)?.getResourceEntry(resource)?.activeItemId;
-	}
-
-	onDidChangeOutline(viewType: string, resource: URI): Event<void> {
+	onDidChangeOutline(viewType: string, webviewHandle: string): Event<void> {
 		const entry = this._entries.get(viewType);
-		return entry ? entry.getOrCreateResourceEntry(resource).onDidChangeOutline : Event.None;
+		return entry ? entry.getOrCreateEditorEntry(webviewHandle).onDidChangeOutline : Event.None;
 	}
 
-	onDidChangeActiveItem(viewType: string, resource: URI): Event<string | undefined> {
+	onDidChangeActiveItem(viewType: string, webviewHandle: string): Event<string | undefined> {
 		const entry = this._entries.get(viewType);
-		return entry ? entry.getOrCreateResourceEntry(resource).onDidChangeActiveItem : Event.None;
+		return entry ? entry.getOrCreateEditorEntry(webviewHandle).onDidChangeActiveItem : Event.None;
 	}
 
-	registerProvider(viewType: string): IDisposable {
-		const entry = new CustomEditorOutlineProviderEntry();
+	registerProvider(viewType: string, provider: ICustomEditorOutlineProvider): IDisposable {
+		if (this._entries.has(viewType)) {
+			throw new Error(`An outline provider for custom editor view type '${viewType}' is already registered`);
+		}
+		const entry = new CustomEditorOutlineProviderEntry(provider);
 		this._entries.set(viewType, entry);
 		this._onDidChange.fire();
 		return toDisposable(() => {
-			this._entries.deleteAndDispose(viewType);
-			this._onDidChange.fire();
+			if (this._entries.get(viewType) === entry) {
+				this._entries.deleteAndDispose(viewType);
+				this._onDidChange.fire();
+			}
 		});
 	}
 
-	unregisterProvider(viewType: string): void {
-		this._entries.deleteAndDispose(viewType);
-		this._onDidChange.fire();
+	retainEditor(viewType: string, webviewHandle: string): IDisposable {
+		return this._entries.get(viewType)?.retainEditorEntry(webviewHandle) ?? Disposable.None;
 	}
 
-	releaseResource(viewType: string, resource: URI): void {
-		this._entries.get(viewType)?.removeResourceEntry(resource);
+	fireDidChangeOutline(viewType: string, webviewHandle: string): void {
+		this._entries.get(viewType)?.fireDidChangeOutline(webviewHandle);
 	}
 
-	fireDidChangeOutline(viewType: string, resource: URI): void {
-		this._entries.get(viewType)?.fireDidChangeOutline(resource);
-	}
-
-	fireDidChangeActiveItem(viewType: string, resource: URI, itemId: string | undefined): void {
-		this._entries.get(viewType)?.fireDidChangeActiveItem(resource, itemId);
+	fireDidChangeActiveItem(viewType: string, webviewHandle: string, itemId: string | undefined): void {
+		this._entries.get(viewType)?.fireDidChangeActiveItem(webviewHandle, itemId);
 	}
 }
 
@@ -177,18 +172,13 @@ export class MainThreadCustomEditorOutline extends Disposable implements MainThr
 	) {
 		super();
 		this._proxy = context.getProxy(ExtHostContext.ExtHostCustomEditorOutline);
-
-		// Wire the service delegate to call through to the ext host
-		if (this._service instanceof CustomEditorOutlineProviderService) {
-			this._service.setDelegate({
-				provideOutline: (viewType, resource, token) => this._proxy.$provideOutline(viewType, resource, token),
-				revealItem: (viewType, resource, itemId) => this._proxy.$revealItem(viewType, resource, itemId),
-			});
-		}
 	}
 
 	$registerCustomEditorOutlineProvider(viewType: string): void {
-		const registration = this._service.registerProvider(viewType);
+		const registration = this._service.registerProvider(viewType, {
+			provideOutline: (resource, webviewHandle, token) => this._proxy.$provideOutline(viewType, resource, webviewHandle, token),
+			revealItem: (resource, webviewHandle, itemId) => this._proxy.$revealItem(viewType, resource, webviewHandle, itemId),
+		});
 		this._registrations.set(viewType, registration);
 	}
 
@@ -198,11 +188,11 @@ export class MainThreadCustomEditorOutline extends Disposable implements MainThr
 		this._registrations.deleteAndDispose(viewType);
 	}
 
-	$onDidChangeOutline(viewType: string, resource: UriComponents): void {
-		this._service.fireDidChangeOutline(viewType, URI.revive(resource));
+	$onDidChangeOutline(viewType: string, webviewHandle: string): void {
+		this._service.fireDidChangeOutline(viewType, webviewHandle);
 	}
 
-	$onDidChangeActiveItem(viewType: string, resource: UriComponents, itemId: string | undefined): void {
-		this._service.fireDidChangeActiveItem(viewType, URI.revive(resource), itemId);
+	$onDidChangeActiveItem(viewType: string, webviewHandle: string, itemId: string | undefined): void {
+		this._service.fireDidChangeActiveItem(viewType, webviewHandle, itemId);
 	}
 }

@@ -34,6 +34,7 @@ export interface IOutlineService {
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {
+	readonly onDidChange?: Event<void>;
 	matches(candidate: IEditorPane): candidate is P;
 	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
 }

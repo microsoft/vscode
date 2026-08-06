@@ -12,10 +12,11 @@ import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -219,6 +220,8 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	private _loadCts: CancellationTokenSource | undefined;
 	private readonly _resource: URI;
 	private readonly _viewType: string;
+	private readonly _webviewHandle: string;
+	private readonly _editorRegistration: IDisposable;
 
 	readonly config: IOutlineListConfig<CustomEditorOutlineEntry>;
 
@@ -243,6 +246,8 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	) {
 		this._resource = editorInput.resource;
 		this._viewType = editorInput.viewType;
+		this._webviewHandle = editorInput.webviewHandle;
+		this._editorRegistration = this._providerService.retainEditor(this._viewType, this._webviewHandle);
 
 		const delegate = new CustomEditorOutlineVirtualDelegate();
 		const renderers = [instantiationService.createInstance(CustomEditorOutlineRenderer, target, this._resource)];
@@ -316,12 +321,12 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 		};
 
 		// Listen for outline data changes from the extension provider
-		this._disposables.add(this._providerService.onDidChangeOutline(this._viewType, this._resource)(() => {
+		this._disposables.add(this._providerService.onDidChangeOutline(this._viewType, this._webviewHandle)(() => {
 			this._loadItems();
 		}));
 
 		// Listen for active item changes from the extension provider
-		this._disposables.add(this._providerService.onDidChangeActiveItem(this._viewType, this._resource)(itemId => {
+		this._disposables.add(this._providerService.onDidChangeActiveItem(this._viewType, this._webviewHandle)(itemId => {
 			this._activeEntry = itemId ? this._flatMap.get(itemId) : undefined;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}));
@@ -336,7 +341,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 		this._loadCts?.dispose();
 		const cts = this._loadCts = new CancellationTokenSource();
 		try {
-			const dtos = await this._providerService.provideOutline(this._viewType, this._resource, cts.token);
+			const dtos = await this._providerService.provideOutline(this._viewType, this._resource, this._webviewHandle, cts.token);
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -344,10 +349,14 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 			this._entries = dtos ? this._convertItems(dtos, undefined) : [];
 
 			// Restore active entry from the provider's cached active item
-			const activeId = this._providerService.getActiveItemId(this._viewType, this._resource);
+			const activeId = this._providerService.getActiveItemId(this._viewType, this._webviewHandle);
 			this._activeEntry = activeId ? this._flatMap.get(activeId) : undefined;
 
 			this._onDidChange.fire({});
+		} catch (error) {
+			if (!cts.token.isCancellationRequested) {
+				onUnexpectedError(error);
+			}
 		} finally {
 			if (this._loadCts === cts) {
 				this._loadCts = undefined;
@@ -376,7 +385,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	}
 
 	reveal(entry: CustomEditorOutlineEntry, _options: IEditorOptions, _sideBySide: boolean, _select: boolean): void {
-		this._providerService.revealItem(this._viewType, this._resource, entry.id);
+		this._providerService.revealItem(this._viewType, this._resource, this._webviewHandle, entry.id);
 	}
 
 	preview(_entry: CustomEditorOutlineEntry): IDisposable {
@@ -390,8 +399,8 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 	dispose(): void {
 		this._loadCts?.cancel();
 		this._loadCts?.dispose();
-		this._providerService.releaseResource(this._viewType, this._resource);
 		this._disposables.dispose();
+		this._editorRegistration.dispose();
 		this._onDidChange.dispose();
 	}
 }
@@ -400,7 +409,7 @@ class CustomEditorExtensionOutline implements IOutline<CustomEditorOutlineEntry>
 
 class CustomEditorOutlineCreator extends Disposable implements IOutlineCreator<IEditorPane, CustomEditorOutlineEntry> {
 
-	private readonly _registration: MutableDisposable<IDisposable>;
+	readonly onDidChange: Event<void>;
 
 	constructor(
 		@IOutlineService private readonly _outlineService: IOutlineService,
@@ -408,14 +417,8 @@ class CustomEditorOutlineCreator extends Disposable implements IOutlineCreator<I
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._registration = this._register(new MutableDisposable());
-		this._registration.value = this._outlineService.registerOutlineCreator(this);
-
-		// When providers are added/removed, re-register so IOutlineService.onDidChange
-		// fires and the outline pane re-evaluates canCreateOutline.
-		this._register(this._providerService.onDidChange(() => {
-			this._registration.value = this._outlineService.registerOutlineCreator(this);
-		}));
+		this.onDidChange = this._providerService.onDidChange;
+		this._register(this._outlineService.registerOutlineCreator(this));
 	}
 
 	matches(candidate: IEditorPane): candidate is IEditorPane {

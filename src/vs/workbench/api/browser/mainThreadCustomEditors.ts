@@ -192,7 +192,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				const handle = generateUuid();
+				const handle = webviewInput instanceof CustomEditorInput ? webviewInput.webviewHandle : generateUuid();
 
 				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
