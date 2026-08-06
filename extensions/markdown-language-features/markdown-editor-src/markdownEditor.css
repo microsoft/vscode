@@ -20,3 +20,16 @@ body {
 	width: 100%;
 	overflow: scroll;
 }
+
+/*
+ * #326607: in a narrow pane the auto table layout compresses an active table's
+ * columns until the rendered source pipes overlap the cell text. Hold the table
+ * at content width and scroll the wrapper instead of crushing the columns.
+ */
+.md-theme-vscode-default .md-table-wrapper {
+	overflow-x: auto;
+}
+
+.md-theme-vscode-default .md-table.md-block-active {
+	width: max-content;
+}
