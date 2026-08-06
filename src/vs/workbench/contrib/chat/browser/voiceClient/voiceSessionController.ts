@@ -789,6 +789,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// arrive for a session the user isn't currently looking at, and flush
 		// them once that session becomes focused.
 		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._onFocusedSessionChanged()));
+		this._register(this.chatWidgetService.onDidChangeWidgetVisibility(widget => {
+			if (widget.visible) {
+				this._onSessionShown(widget.viewModel?.sessionResource);
+			}
+		}));
 
 		// `onDidChangeFocusedSession` only fires for the DOM-focused widget, so a
 		// session opened into a non-focused widget (e.g. revealed in the chat view
@@ -3766,7 +3771,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 		const key = resource?.toString();
-		if (!key || key === this._lastShownSessionId) {
+		if (!key) {
+			return;
+		}
+		if (key === this._lastShownSessionId && !this._pendingOwned(this._sessionKey(key))) {
 			return;
 		}
 		this.logService.trace(`[voice] session shown=${key}; flushing/re-sending context`);
