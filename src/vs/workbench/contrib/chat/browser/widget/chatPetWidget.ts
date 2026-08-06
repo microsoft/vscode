@@ -371,7 +371,7 @@ export function getChatPetDragPosition(left: number, top: number, minimumLeft: n
 
 export function getChatPetFallTarget(petLeft: number, petTop: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorTop: number): { readonly top: number; readonly landsOnPlatform: boolean } {
 	const petCenter = petLeft + petWidth / 2;
-	const landsOnPlatform = petCenter >= platformLeft && petCenter <= platformRight && petTop < platformTop;
+	const landsOnPlatform = petCenter >= platformLeft && petCenter <= platformRight && petTop + petHeight <= platformTop;
 	return {
 		top: landsOnPlatform ? platformTop - petHeight : floorTop,
 		landsOnPlatform,
@@ -478,7 +478,6 @@ export class ChatPetWidget extends Disposable {
 		this._reviveImage = dom.append(this._reviveButton.element, dom.$('img.chat-pet-revive-image')) as HTMLImageElement;
 		this._reviveImage.alt = '';
 		this._reviveImage.setAttribute('aria-hidden', 'true');
-		this._updateReviveImage();
 		this._register(this._reviveButton.onDidClick(e => {
 			dom.EventHelper.stop(e, true);
 			this._revive();
@@ -641,9 +640,6 @@ export class ChatPetWidget extends Disposable {
 			const variant = this.chatPetService.variant.read(reader);
 			const variantChanged = variant !== this._variant;
 			this._variant = variant;
-			if (variantChanged) {
-				this._updateReviveImage();
-			}
 			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
 			this._button.element.classList.toggle('on-the-run', onTheRun);
@@ -1083,6 +1079,7 @@ export class ChatPetWidget extends Disposable {
 	private _showReviveSign(): void {
 		this._button.element.classList.add('hidden');
 		this._button.element.tabIndex = -1;
+		this._updateReviveImage();
 		this._reviveButton.element.classList.remove('hidden');
 		this._reviveButton.element.tabIndex = 0;
 		this._updateRevivePosition();
@@ -1170,6 +1167,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _finishDisable(): void {
+		if (this._button.element.classList.contains('falling')) {
+			this._finishFall();
+		}
 		this._keyboardDragging = false;
 		if (this._isDragging.get()) {
 			this._isDragging.set(false, undefined);

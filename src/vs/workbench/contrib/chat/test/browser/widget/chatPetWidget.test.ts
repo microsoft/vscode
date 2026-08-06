@@ -371,8 +371,12 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual([
 			getChatPetFallTarget(50, 20, 48, 48, 40, 200, 200, 400),
 			getChatPetFallTarget(0, 20, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 152, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 190, 48, 48, 40, 200, 200, 400),
 			getChatPetFallTarget(50, 220, 48, 48, 40, 200, 200, 400),
 		], [
+			{ top: 152, landsOnPlatform: true },
+			{ top: 400, landsOnPlatform: false },
 			{ top: 152, landsOnPlatform: true },
 			{ top: 400, landsOnPlatform: false },
 			{ top: 400, landsOnPlatform: false },
