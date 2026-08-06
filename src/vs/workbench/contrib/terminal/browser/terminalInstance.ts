@@ -1605,17 +1605,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
-		const bypassWorkspaceTrust = this._isRemoteResolverTerminal
-			&& !!this._workbenchEnvironmentService.remoteAuthority
-			&& URI.isUri(this._shellLaunchConfig.cwd)
-			&& this._shellLaunchConfig.cwd.scheme === Schemas.file
-			&& !this.remoteAuthority
-			&& this._shellLaunchConfig.hideFromUser === true
-			&& this._shellLaunchConfig.isTransient === true;
-		if (this._isRemoteResolverTerminal && !bypassWorkspaceTrust) {
-			this._logService.warn('Ignoring remote resolver terminal workspace trust bypass because the launch configuration is not a local, hidden, transient terminal in a remote window');
-		}
-		const trusted = bypassWorkspaceTrust || await this._trust();
+		const trusted = this._isRemoteResolverTerminal || await this._trust();
 		// Allow remote terminals in a remote workspace to be created when trust is denied, but
 		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
 		const isRemoteTerminal = !!this.remoteAuthority;
