@@ -16,6 +16,7 @@
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "test-build-scripts": "cd build && npm run test",
+    "test-agent-host-e2e": "node scripts/test-agent-host-e2e.ts",
     "test-agent-host-e2e-coverage": "node scripts/agent-host-e2e-coverage.ts",
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
