@@ -137,6 +137,8 @@ suite('SessionPermissionManager', () => {
 			'.yarnrc.yml',
 			'.pnpmfile.js',
 			'.pnpmfile.cjs',
+			'.pnpmfile.mjs',
+			'pnpm-workspace.yaml',
 			join('packages', 'nested', '.npmrc'),
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
