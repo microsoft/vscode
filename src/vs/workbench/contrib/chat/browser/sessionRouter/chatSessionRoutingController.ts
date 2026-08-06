@@ -723,6 +723,7 @@ export class ChatSessionRoutingController extends Disposable {
 			countdownTimer.clear();
 			this._submitDraftListeners.clear();
 			this._setSubmissionPhase('dispatching');
+			badge.classList.remove('chat-routing-badge-ranked');
 			badge.replaceChildren();
 			const progress = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
 			progress.appendChild(renderIcon(Codicon.loading));
