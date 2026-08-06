@@ -271,7 +271,7 @@ function addCodeBlockCopyButtons() {
 	}
 }
 
-async function copyImage(image: HTMLImageElement, retries = 5) {
+async function copyImage(image: HTMLImageElement, retries = 50) {
 	if (!document.hasFocus() && retries > 0) {
 		// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
 		// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
