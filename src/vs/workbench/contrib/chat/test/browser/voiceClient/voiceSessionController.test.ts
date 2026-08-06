@@ -3929,6 +3929,8 @@ suite('VoiceSessionController', () => {
 			responseId: 'omni-response',
 			transcript: 'Omni response.',
 		});
+		(Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).set(resource.toString(), 'Omni response.');
+		ttsPlaybackService.stopPlayback();
 
 		assert.deepStrictEqual({
 			playedAudio: ttsPlaybackService.playedAudio,

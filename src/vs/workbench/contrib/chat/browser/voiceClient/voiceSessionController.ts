@@ -453,6 +453,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// {@link _markNarrationHeard}).
 	private _currentPlaybackResponseId: string | undefined;
 	private _currentPlaybackNarration: IPlaybackNarration | undefined;
+	private _currentPlaybackTranscript: string | undefined;
 	private _lastSpokenResponseSessionId: string | undefined;
 	// True once the currently-playing response has received its final audio
 	// chunk. A same-session frame arriving after this marks a NEW response and
@@ -1143,17 +1144,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._currentPlaybackResponseId = undefined;
 			const finishedNarration = this._currentPlaybackNarration;
 			this._currentPlaybackNarration = undefined;
-			if (finishedResponseId && !wasInterrupted) {
+			const finishedTranscript = this._currentPlaybackTranscript;
+			this._currentPlaybackTranscript = undefined;
+			if (!wasInterrupted) {
 				const spokenSessionId = finishedSessionId ?? this._shownSessionId();
 				if (spokenSessionId) {
-					this._lastSpokenAtBySession.set(this._sessionKey(spokenSessionId), Date.now());
-					this._notifyCheckpointPlaybackComplete(spokenSessionId, finishedResponseId, finishedNarration);
+					const spokenSessionKey = this._sessionKey(spokenSessionId);
+					this._lastSpokenAtBySession.set(spokenSessionKey, Date.now());
+					if (finishedResponseId) {
+						this._notifyCheckpointPlaybackComplete(spokenSessionId, finishedResponseId, finishedNarration);
+					}
+					if (finishedNarration?.kind === 'response' || finishedNarration === undefined) {
+						if (finishedTranscript) {
+							this._lastNarratedText.set(spokenSessionKey, finishedTranscript);
+						}
+						this._clearPendingResponse(spokenSessionKey);
+					}
 				}
 				// The response actually played to the end: mark it heard (set the
 				// exactly-once dedup and clear its pending indicator). This is the
 				// only point that means the audio truly played through, not merely
 				// that it was queued or received.
-				this._markNarrationHeard(finishedResponseId);
+				if (finishedResponseId) {
+					this._markNarrationHeard(finishedResponseId);
+				}
 			} else if (finishedResponseId && wasInterrupted) {
 				// Interrupted before finishing: DON'T mark heard - leave the pending
 				// summary + indicator intact so the reply stays retryable. Drop the
@@ -2142,6 +2156,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._currentPlaybackSessionId = null;
 		this._currentPlaybackResponseId = undefined;
 		this._currentPlaybackNarration = undefined;
+		this._currentPlaybackTranscript = undefined;
 		this._lastSpokenResponseSessionId = undefined;
 		this._isProcessingQueue = false;
 		this._suppressIncomingAudio = false;
@@ -5404,6 +5419,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// mark it heard once its audio truly finishes (not merely queued).
 			this._currentPlaybackResponseId = responseId;
 			this._currentPlaybackNarration = narration;
+			this._currentPlaybackTranscript = transcript ?? this._currentPlaybackTranscript;
 			// A same-session frame arriving after the final chunk is a NEW
 			// response and must be serialized (see `_enqueueAudio`).
 			this._currentPlaybackFinalized = isFinal;

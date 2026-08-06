@@ -637,8 +637,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 						const confirmation = row.querySelector<HTMLElement>('.chat-confirmation-widget-container');
 						const confirmationBounds = confirmation?.getBoundingClientRect();
 						const paddingBottom = parseFloat(dom.getWindow(row).getComputedStyle(row).paddingBottom);
+						const renderedDescendantBottom = confirmation
+							? Array.from(confirmation.querySelectorAll<HTMLElement>('*')).reduce(
+								(bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom),
+								confirmationBounds?.bottom ?? 0,
+							)
+							: 0;
 						const confirmationBottom = confirmationBounds
-							? confirmationBounds.top + (confirmation?.scrollHeight ?? 0)
+							? Math.max(confirmationBounds.top + (confirmation?.scrollHeight ?? 0), renderedDescendantBottom)
 							: 0;
 						const bottom = Math.max(rowBounds.bottom, confirmationBottom + paddingBottom);
 						return Math.max(height, bottom - listBounds.top);
