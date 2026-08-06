@@ -218,6 +218,279 @@
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
         "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !activeEditorIsReadonly"
+      },
+      {
+        "command": "markdown.editor.cursorLeft",
+        "title": "Move Cursor Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorRight",
+        "title": "Move Cursor Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorUp",
+        "title": "Move Cursor Up",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDown",
+        "title": "Move Cursor Down",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLeftSelect",
+        "title": "Select Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorRightSelect",
+        "title": "Select Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorUpSelect",
+        "title": "Select Up",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDownSelect",
+        "title": "Select Down",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeft",
+        "title": "Move Cursor Word Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRight",
+        "title": "Move Cursor Word Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeftSelect",
+        "title": "Select Word Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRightSelect",
+        "title": "Select Word Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStart",
+        "title": "Move Cursor to Visual Line Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEnd",
+        "title": "Move Cursor to Visual Line End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStartSelect",
+        "title": "Select to Visual Line Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEndSelect",
+        "title": "Select to Visual Line End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineStart",
+        "title": "Move Cursor to Logical Line Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineEnd",
+        "title": "Move Cursor to Logical Line End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineStartSelect",
+        "title": "Select to Logical Line Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineEndSelect",
+        "title": "Select to Logical Line End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStart",
+        "title": "Move Cursor to Document Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEnd",
+        "title": "Move Cursor to Document End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStartSelect",
+        "title": "Select to Document Start",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEndSelect",
+        "title": "Select to Document End",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.selectAll",
+        "title": "Select All",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLeft",
+        "title": "Delete Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteRight",
+        "title": "Delete Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordLeft",
+        "title": "Delete Word Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordRight",
+        "title": "Delete Word Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLineLeft",
+        "title": "Delete All Left",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLineRight",
+        "title": "Delete All Right",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.undo",
+        "title": "Undo",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.redo",
+        "title": "Redo",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertTab",
+        "title": "Insert Tab",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.outdent",
+        "title": "Outdent",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.toggleTabFocus",
+        "title": "Toggle Tab Key Moves Focus",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.smartEnter",
+        "title": "Insert Paragraph",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertHardLineBreak",
+        "title": "Insert Hard Line Break",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertParagraph",
+        "title": "Insert Paragraph Without Continuing Markup",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
       }
     ],
     "menus": {
@@ -380,6 +653,201 @@
         {
           "command": "markdown.togglePreview",
           "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+        },
+        {
+          "command": "markdown.editor.cursorLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorUp",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDown",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorLeftSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorRightSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorUpSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDownSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorWordLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorWordRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorWordLeftSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorWordRightSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorVisualLineStart",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorVisualLineEnd",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorVisualLineStartSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorVisualLineEndSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorLogicalLineStart",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorLogicalLineEnd",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorLogicalLineStartSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorLogicalLineEndSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDocumentStart",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDocumentEnd",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDocumentStartSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.cursorDocumentEndSelect",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.selectAll",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteWordLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteWordRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteLineLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteLineRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.undo",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.redo",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.insertTab",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.outdent",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.toggleTabFocus",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.smartEnter",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.insertHardLineBreak",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.insertParagraph",
+          "when": "false",
+          "$generated": true
         }
       ]
     },
@@ -395,6 +863,396 @@
         "key": "shift+ctrl+v",
         "mac": "shift+cmd+v",
         "when": "!terminalFocus && ((editorFocus && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused) || activeCustomEditorId == 'vscode.markdown.preview.editor')"
+      },
+      {
+        "command": "markdown.editor.cursorLeft",
+        "key": "ctrl+b",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLeft",
+        "key": "left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorRight",
+        "key": "ctrl+f",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorRight",
+        "key": "right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorUp",
+        "key": "ctrl+p",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorUp",
+        "key": "up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDown",
+        "key": "ctrl+n",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDown",
+        "key": "down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLeftSelect",
+        "key": "shift+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorRightSelect",
+        "key": "shift+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorUpSelect",
+        "key": "shift+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDownSelect",
+        "key": "shift+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeft",
+        "key": "alt+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeft",
+        "key": "ctrl+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRight",
+        "key": "alt+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRight",
+        "key": "ctrl+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeftSelect",
+        "key": "shift+alt+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordLeftSelect",
+        "key": "ctrl+shift+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRightSelect",
+        "key": "shift+alt+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorWordRightSelect",
+        "key": "ctrl+shift+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStart",
+        "key": "cmd+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStart",
+        "key": "home",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEnd",
+        "key": "cmd+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEnd",
+        "key": "end",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStartSelect",
+        "key": "shift+cmd+left",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineStartSelect",
+        "key": "shift+home",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEndSelect",
+        "key": "shift+cmd+right",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorVisualLineEndSelect",
+        "key": "shift+end",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineStart",
+        "key": "ctrl+a",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineEnd",
+        "key": "ctrl+e",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineStartSelect",
+        "key": "ctrl+shift+a",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorLogicalLineEndSelect",
+        "key": "ctrl+shift+e",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStart",
+        "key": "cmd+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStart",
+        "key": "ctrl+home",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEnd",
+        "key": "cmd+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEnd",
+        "key": "ctrl+end",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStartSelect",
+        "key": "shift+cmd+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentStartSelect",
+        "key": "ctrl+shift+home",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEndSelect",
+        "key": "shift+cmd+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.cursorDocumentEndSelect",
+        "key": "ctrl+shift+end",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.selectAll",
+        "key": "cmd+a",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.selectAll",
+        "key": "ctrl+a",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLeft",
+        "key": "ctrl+h",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLeft",
+        "key": "ctrl+backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLeft",
+        "key": "backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLeft",
+        "key": "shift+backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteRight",
+        "key": "ctrl+d",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteRight",
+        "key": "ctrl+delete",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteRight",
+        "key": "delete",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordLeft",
+        "key": "alt+backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordLeft",
+        "key": "ctrl+backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordRight",
+        "key": "alt+delete",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteWordRight",
+        "key": "ctrl+delete",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLineLeft",
+        "key": "cmd+backspace",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLineRight",
+        "key": "cmd+delete",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLineRight",
+        "key": "ctrl+k",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.undo",
+        "key": "cmd+z",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.undo",
+        "key": "ctrl+z",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.redo",
+        "key": "shift+cmd+z",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.redo",
+        "key": "ctrl+shift+z",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.redo",
+        "key": "ctrl+y",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.smartEnter",
+        "key": "enter",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertHardLineBreak",
+        "key": "shift+enter",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertParagraph",
+        "key": "cmd+enter",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertParagraph",
+        "key": "ctrl+enter",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
       }
     ],
     "configuration": [
@@ -897,6 +1755,9 @@
     "watch-webview": "node ./esbuild.webview.mts --watch",
     "build-markdown-editor": "node ./esbuild.markdownEditor.mts",
     "watch-markdown-editor": "node ./esbuild.markdownEditor.mts --watch",
+    "update-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --write",
+    "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
+    "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",

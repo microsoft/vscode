@@ -78,6 +78,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #linkOpener: MdLinkOpener;
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #logger: ILogger;
+	readonly #webviewPanels = new Set<vscode.WebviewPanel>();
+	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
 	readonly #resolvedCodeBlockEditors = new Map<string, Promise<ResolvedCodeBlockEditor | undefined>>();
 	readonly #resolvedCodeBlockEditorResources = new Set<string>();
@@ -96,6 +98,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#contributions = contributions;
 		this.#logger = logger;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
+		this._register(new vscode.Disposable(() => {
+			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
+		}));
 	}
 
 	public async resolveCustomTextEditor(
@@ -137,6 +142,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			return;
 		}
 		const webview = webviewPanel.webview;
+		this.#webviewPanels.add(webviewPanel);
 		const codeBlockEditorProviders = await this.#loadCodeBlockEditorProviders();
 		if (token.isCancellationRequested) {
 			return;
@@ -205,6 +211,17 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					}
 					break;
 				}
+
+				case 'editorFocusChanged': {
+					if (message.focused) {
+						this.#focusedWebviewPanels.add(webviewPanel);
+					} else {
+						this.#focusedWebviewPanels.delete(webviewPanel);
+					}
+					await this.#updateEditorFocusContext();
+					break;
+				}
+
 
 				case 'setReadonly': {
 					// Remember the edit/read-only choice as the global default for the
@@ -304,11 +321,15 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidDeleteFiles = vscode.workspace.onDidDeleteFiles(event => invalidateResourceCache(event.files));
 		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
 			event.files.flatMap(file => [file.oldUri, file.newUri])));
+		const onDidChangeViewState = webviewPanel.onDidChangeViewState(() => this.#updateEditorFocusContext());
 
 		webviewPanel.onDidDispose(() => {
 			contributionUpdate++;
 			resolveCancellation.cancel();
 			resolveCancellation.dispose();
+			this.#webviewPanels.delete(webviewPanel);
+			this.#focusedWebviewPanels.delete(webviewPanel);
+			this.#updateEditorFocusContext();
 			onMessage.dispose();
 			onDocumentChange.dispose();
 			highlight.dispose();
@@ -320,7 +341,22 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidCreateFiles.dispose();
 			onDidDeleteFiles.dispose();
 			onDidRenameFiles.dispose();
+			onDidChangeViewState.dispose();
 		});
+	}
+
+	public async executeCommand(command: string): Promise<void> {
+		const activePanel = Array.from(this.#webviewPanels).find(panel => panel.active);
+		if (!activePanel) {
+			this.#logger.trace('Markdown editor command', `Ignored ${command} because no Markdown editor is active`);
+			return;
+		}
+		await activePanel.webview.postMessage({ type: 'command', command });
+	}
+
+	async #updateEditorFocusContext(): Promise<void> {
+		const focused = Array.from(this.#focusedWebviewPanels).some(panel => panel.active);
+		await vscode.commands.executeCommand('setContext', 'markdownEditorFocus', focused);
 	}
 
 	async #loadCodeBlockEditorProviders(): Promise<readonly CodeBlockEditorProviderDefinition[]> {
