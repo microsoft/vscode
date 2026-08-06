@@ -407,7 +407,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
-		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const mutex = await this.mutex;
 		if (!this.isApplyingUpdate(availableUpdate)) {
 			return;
@@ -437,25 +436,27 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 			let updateProcess: Win32UpdateProcess;
 			try {
-				updateProcess = updateAttempt.startProcess(sessionEndFlagPath, []);
+				updateProcess = updateAttempt.startProcess([]);
 			} catch (error) {
 				this.failUpdateAttempt(availableUpdate, updateAttempt, error instanceof Error ? error : new Error(String(error)));
 				return;
 			}
 
-			updateProcess.whenTerminated.then(result => {
+			updateProcess.whenTerminated.then(async result => {
 				if (result.type === 'error') {
 					this.failUpdateAttempt(availableUpdate, updateAttempt, result.error);
 					return;
 				}
 
-				updateProcess.waitForReady(() => mutex.isActive(this.readyMutexName)).then(ready => {
-					if (ready) {
-						this.completeUpdateAttempt(availableUpdate, updateAttempt, update, explicit);
-					} else {
-						this.failUpdateAttempt(availableUpdate, updateAttempt, new Error(`Update installer exited before ready (code: ${result.code}, signal: ${result.signal})`));
-					}
-				});
+				if (!mutex.isActive(this.readyMutexName)) {
+					await timeout(500);
+				}
+
+				if (mutex.isActive(this.readyMutexName)) {
+					this.completeUpdateAttempt(availableUpdate, updateAttempt, update, explicit);
+				} else {
+					this.failUpdateAttempt(availableUpdate, updateAttempt, new Error(`Update installer exited before ready (code: ${result.code}, signal: ${result.signal})`));
+				}
 			});
 		}
 

@@ -21,8 +21,9 @@ export interface IUpdateProgress {
 export class Win32UpdateAttempt {
 	readonly cancellationTokenSource = new CancellationTokenSource();
 	readonly updateFilePath: string;
-	readonly cancelFilePath: string;
 	readonly progressFilePath: string;
+	readonly sessionEndFlagPath: string;
+	readonly cancelFilePath: string;
 	private completed = false;
 	private process: Win32UpdateProcess | undefined;
 
@@ -37,6 +38,7 @@ export class Win32UpdateAttempt {
 		this.updateFilePath = path.join(cachePath, `CodeSetup-${quality}-${version}-${id}.flag`);
 		this.cancelFilePath = path.join(cachePath, `cancel-${id}.flag`);
 		this.progressFilePath = path.join(cachePath, `update-progress-${id}`);
+		this.sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 	}
 
 	get isActive(): boolean {
@@ -51,7 +53,7 @@ export class Win32UpdateAttempt {
 		await writeFile(this.updateFilePath, 'flag');
 	}
 
-	startProcess(sessionEndFlagPath: string, additionalArguments: readonly string[], spawnProcess: SpawnUpdateProcess = spawn): Win32UpdateProcess {
+	startProcess(additionalArguments: readonly string[], spawnProcess: SpawnUpdateProcess = spawn): Win32UpdateProcess {
 		if (this.process) {
 			throw new Error('Update process already started');
 		}
@@ -61,7 +63,7 @@ export class Win32UpdateAttempt {
 			'/log',
 			`/update="${this.updateFilePath}"`,
 			`/progress="${this.progressFilePath}"`,
-			`/sessionend="${sessionEndFlagPath}"`,
+			`/sessionend="${this.sessionEndFlagPath}"`,
 			`/cancel="${this.cancelFilePath}"`,
 			'/nocloseapplications',
 			'/mergetasks=runcode,!desktopicon,!quicklaunchicon',

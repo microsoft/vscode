@@ -104,7 +104,7 @@ suite('Win32UpdateAttempt', () => {
 		let spawnCall: { command: string; args: readonly string[]; windowsVerbatimArguments: boolean | undefined } | undefined;
 
 		await attempt.prepare();
-		attempt.startProcess(sessionEndFlagPath, ['/relaunchargs="relaunch-args"'], (command, args, options) => {
+		attempt.startProcess(['/relaunchargs="relaunch-args"'], (command, args, options) => {
 			spawnCall = { command, args, windowsVerbatimArguments: options.windowsVerbatimArguments };
 			return childProcess;
 		});
@@ -142,10 +142,10 @@ suite('Win32UpdateAttempt', () => {
 		const childProcess = new TestUpdateChildProcess();
 		const spawnProcess = () => childProcess;
 
-		attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], spawnProcess);
+		attempt.startProcess([], spawnProcess);
 
 		assert.throws(
-			() => attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], spawnProcess),
+			() => attempt.startProcess([], spawnProcess),
 			/Update process already started/
 		);
 
@@ -157,7 +157,7 @@ suite('Win32UpdateAttempt', () => {
 		const cachePath = await createTestDirectory();
 		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
 		const childProcess = new TestUpdateChildProcess();
-		const updateProcess = attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], () => childProcess);
+		const updateProcess = attempt.startProcess([], () => childProcess);
 		const isRunningBeforeExit = attempt.isProcessRunning;
 
 		childProcess.exit(0);
@@ -193,7 +193,7 @@ suite('Win32UpdateAttempt', () => {
 		const cachePath = await createTestDirectory();
 		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
 		const childProcess = new TestUpdateChildProcess();
-		attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], () => childProcess);
+		attempt.startProcess([], () => childProcess);
 
 		const stopPromise = attempt.stopProcess();
 		childProcess.exit(0);

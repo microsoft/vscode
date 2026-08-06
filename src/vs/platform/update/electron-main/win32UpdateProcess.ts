@@ -66,15 +66,6 @@ export class Win32UpdateProcess {
 		return this.stopPromise;
 	}
 
-	async waitForReady(isReady: () => boolean, readyDelay = 500): Promise<boolean> {
-		if (isReady()) {
-			return true;
-		}
-
-		await timeout(readyDelay);
-		return isReady();
-	}
-
 	private async doStop(): Promise<IUpdateProcessStopResult> {
 		if (!this.isRunning) {
 			return { killed: false };

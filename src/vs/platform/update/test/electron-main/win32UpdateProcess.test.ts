@@ -78,38 +78,6 @@ suite('Win32UpdateProcess', () => {
 		});
 	});
 
-	test('recognizes an immediately ready update', async () => {
-		const childProcess = new TestUpdateChildProcess();
-		const updateProcess = new Win32UpdateProcess(childProcess, () => Promise.resolve());
-		let readyChecks = 0;
-
-		const ready = await updateProcess.waitForReady(() => {
-			readyChecks++;
-			return true;
-		}, 0);
-
-		assert.deepStrictEqual({ ready, readyChecks }, { ready: true, readyChecks: 1 });
-	});
-
-	test('allows the ready mutex to appear after process exit', async () => {
-		const childProcess = new TestUpdateChildProcess();
-		const updateProcess = new Win32UpdateProcess(childProcess, () => Promise.resolve());
-		let readyChecks = 0;
-
-		const ready = await updateProcess.waitForReady(() => ++readyChecks === 2, 0);
-
-		assert.deepStrictEqual({ ready, readyChecks }, { ready: true, readyChecks: 2 });
-	});
-
-	test('reports when the ready mutex does not appear', async () => {
-		const childProcess = new TestUpdateChildProcess();
-		const updateProcess = new Win32UpdateProcess(childProcess, () => Promise.resolve());
-
-		const ready = await updateProcess.waitForReady(() => false, 0);
-
-		assert.strictEqual(ready, false);
-	});
-
 	test('stops gracefully once for concurrent callers', async () => {
 		const childProcess = new TestUpdateChildProcess();
 		let cancellationCount = 0;
