@@ -40,7 +40,7 @@ import './media/chatSessionRouting.css';
  */
 const ROUTE_AMBIGUITY_MARGIN = 0.05;
 
-/** Maximum number of options shown in the disambiguation picker. */
+/** Maximum number of high-confidence session options shown in the destination picker. */
 const ROUTE_MAX_CHOICES = 6;
 
 /**
@@ -585,7 +585,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
 		const ranked = results
-			.filter(result => labelById.has(result.sessionId))
+			.filter(result => labelById.has(result.sessionId) && isHighConfidenceSessionRoute(result))
 			.sort((a, b) => b.confidence - a.confidence)
 			.slice(0, ROUTE_MAX_CHOICES)
 			.map(result => ({
@@ -618,9 +618,9 @@ export class ChatSessionRoutingController extends Disposable {
 			label.textContent = option.label;
 			const score = dom.append(row, dom.$('span.chat-routing-badge-score'));
 			score.textContent = option.kind === 'session'
-				? index === 0 && isHighConfidenceSessionRoute(option)
+				? index === 0
 					? localize('chatSessionRouting.bestMatch', "Best Match")
-					: localize('chatSessionRouting.possibleMatch', "Possible Match")
+					: localize('chatSessionRouting.highConfidenceMatch', "High Confidence")
 				: '';
 			if (option.kind === 'new' && this.workspaceContextService.getWorkspace().folders.length > 1) {
 				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
