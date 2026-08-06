@@ -22,7 +22,7 @@ The A group comes from [Ticket 1862 - VSCode 3rd Party Seti](https://www.figma.c
 
 ## Theme mappings
 
-Add every asset to `iconDefinitions` in `fileicons/vscode-modern-icons-icon-theme.json`, then reference its definition ID from one or more of:
+Add each asset to `iconDefinitions` in `fileicons/vscode-modern-icons-icon-theme.json`, then reference it using one or more of:
 
 - `fileExtensions`
 - `fileNames`
