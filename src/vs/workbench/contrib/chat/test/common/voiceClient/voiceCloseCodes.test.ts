@@ -18,7 +18,6 @@ suite('voiceCloseCodes', () => {
 	test('classifies expected codes as terminal but not errors', () => {
 		assert.strictEqual(isTerminalCloseCode(VoiceCloseCode.SessionReplaced), true);
 		assert.strictEqual(voiceCloseCodeInfo(VoiceCloseCode.SessionReplaced)?.kind, 'expected');
-		// The backend keeps emitting 1001 for an idle timeout, deliberately.
 		assert.strictEqual(isTerminalCloseCode(1001), true);
 		assert.strictEqual(voiceCloseCodeInfo(1001)?.kind, 'expected');
 	});
@@ -26,7 +25,6 @@ suite('voiceCloseCodes', () => {
 	test('classifies transient codes as non-terminal so they still reconnect', () => {
 		assert.strictEqual(isTerminalCloseCode(VoiceCloseCode.InternalError), false);
 		assert.strictEqual(isTerminalCloseCode(VoiceCloseCode.AuthUnavailable), false);
-		// Capacity clears on its own, so it keeps reconnecting.
 		assert.strictEqual(isTerminalCloseCode(VoiceCloseCode.ServerBusy), false);
 	});
 
@@ -45,7 +43,6 @@ suite('voiceCloseCodes', () => {
 
 	test('offers sign-in for an unauthenticated close and nothing for a forbidden one', () => {
 		assert.strictEqual(voiceCloseCodeInfo(VoiceCloseCode.Unauthenticated)?.action, 'signIn');
-		// Forbidden is deliberately actionless: there is nothing to do in-product.
 		assert.strictEqual(voiceCloseCodeInfo(VoiceCloseCode.Forbidden)?.action, undefined);
 	});
 

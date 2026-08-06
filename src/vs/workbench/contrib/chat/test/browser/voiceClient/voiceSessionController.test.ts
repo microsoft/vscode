@@ -4468,7 +4468,6 @@ suite('VoiceSessionController', () => {
 		assert.ok(controller.statusText.get().includes('access'), controller.statusText.get());
 		assert.strictEqual(controller.voiceState.get(), 'error');
 		assert.strictEqual(notificationService.prompts.length, 1);
-		// Forbidden has no in-product remedy, so the prompt carries no choice.
 		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
 	});
 
@@ -4514,10 +4513,8 @@ suite('VoiceSessionController', () => {
 	});
 
 	test('an immediate fatal close after open does not activate the microphone', () => {
-		// Covers the second-order effect of accept-before-close: every rejection
-		// now arrives on a socket that briefly opened. Auto-listen goes through
-		// pttDown, so asserting on a startCapture counter would pass even if
-		// auto-listen fired.
+		// Auto-listen goes through pttDown, so a startCapture counter would pass
+		// even if it fired.
 		const micCaptureService = new RecordingMicCaptureService();
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService, undefined, undefined, undefined, micCaptureService);

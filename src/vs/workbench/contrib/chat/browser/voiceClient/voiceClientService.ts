@@ -309,7 +309,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
 		this._window = window;
 		this._authToken = authToken;
-		// A new user-initiated connect gets a new budget; automatic retries keep theirs.
 		this._resetReconnectBudget();
 		this._connectWebSocket();
 	}
@@ -512,8 +511,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		ws.onclose = (evt: CloseEvent) => {
 			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
-				// Report every terminal outcome; exiting quietly here used to strand
-				// the UI on "Reconnecting..." with nothing reconnecting.
+				// Every terminal outcome must report itself, so consumers can leave
+				// the reconnecting state.
 				if (isTerminalCloseCode(evt.code)) {
 					const kind = voiceCloseCodeInfo(evt.code)?.kind ?? 'fatal';
 					this._logService.warn(`[voice] terminal close ${evt.code} (${kind}): ${evt.reason}, not reconnecting`);
@@ -547,8 +546,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._connectWebSocket();
 				}, delay);
 				this._setConnected(false);
-				// After _setConnected, so the controller is already in its reconnecting
-				// state and will render the reason instead of a bare spinner.
+				// Must follow _setConnected: consumers enter the reconnecting state on
+				// that event and only then render this reason.
 				this._onConnectionIssue.fire({ code: evt.code, reason: evt.reason ?? '' });
 			}
 		};
@@ -563,6 +562,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _cleanup(): void {
+		this._resetReconnectBudget();
 		this._stopPing();
 		if (this._reconnectTimer) {
 			clearTimeout(this._reconnectTimer);
@@ -583,7 +583,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._setConnected(false);
 	}
 
-	/** Reset reconnect tracking; only a confirmed session proves the socket works. */
+	/** Clear the retry counter and the give-up deadline. */
 	private _resetReconnectBudget(): void {
 		this._reconnectAttempts = 0;
 		this._reconnectStartedAt = undefined;

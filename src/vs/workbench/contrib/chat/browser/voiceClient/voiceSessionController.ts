@@ -2239,7 +2239,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set(kind === 'expected' ? 'idle' : 'error', undefined);
 		this._statusText.set(message, undefined);
 
-		// Balance the session-start event this connection already emitted.
 		this._endTelemetrySession();
 
 		if (kind === 'fatal') {
@@ -2251,7 +2250,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	/** Prefer localized messages for known codes; fall back to the server reason. */
 	private _fatalDisconnectMessage(event: IVoiceFatalDisconnect): string {
 		if (event.clientSide) {
 			return localize('voice.notConfigured', "Voice Mode has no backend URL configured.");
@@ -2281,7 +2279,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	/** Status text while retrying, naming the cause when one is known. */
 	private _reconnectingMessage(code: number, reason: string): string {
 		if (reason) {
 			return localize('voice.reconnectingBecause', "Reconnecting - {0}", reason);
@@ -2293,7 +2290,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return localize('voice.reconnecting', "Reconnecting...");
 	}
 
-	/** Show a terminal-disconnect notification with its recovery action. */
 	private _promptFatalDisconnect(event: IVoiceFatalDisconnect, message: string): void {
 		const info = voiceCloseCodeInfo(event.code);
 		// A known code without an action deliberately has none; only an unknown
@@ -2321,7 +2317,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.notificationService.prompt(Severity.Error, message, choices);
 	}
 
-	/** Emit the session-ended pair for a session telemetry already opened. */
 	private _endTelemetrySession(): void {
 		if (!this._telemetrySessionStart) {
 			return;

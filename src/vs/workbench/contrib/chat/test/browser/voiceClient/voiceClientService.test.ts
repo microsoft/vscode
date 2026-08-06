@@ -824,9 +824,6 @@ suite('VoiceClientService', () => {
 	});
 
 	test('a rejected connection does not refill the reconnect budget', async () => {
-		// The backend accepts a socket before refusing it, so onopen fires even for
-		// a connection about to be closed. Resetting there would pin the fast retry
-		// cadence forever and make the give-up unreachable.
 		const { service } = createService();
 		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
 		await service.connect(createTestWindow());
@@ -844,8 +841,6 @@ suite('VoiceClientService', () => {
 	});
 
 	test('a recoverable close reports its reason after the disconnect is visible', async () => {
-		// The controller only renders the reason once it is in the reconnecting
-		// state, which the connection-state change drives, so ordering matters.
 		const { service } = createService();
 		const order: string[] = [];
 		store.add(service.onDidChangeConnectionState(connected => order.push(`connected:${connected}`)));

@@ -259,10 +259,11 @@ export interface IVoiceTurnAutoEnded {
 }
 
 /**
- * Payload for a terminal websocket close. `kind` separates a real failure from
- * an expected end of session, which must not paint the UI red or raise a toast.
- * `clientSide` marks a failure that never reached the network, such as an
- * unconfigured backend URL.
+ * Payload for a terminal websocket close. Despite the name this covers every
+ * close that will not reconnect, including an expected end of session: `kind`
+ * distinguishes them, and an `expected` close must not paint the UI red or
+ * raise a toast. `clientSide` marks a failure that never reached the network,
+ * such as an unconfigured backend URL.
  */
 export interface IVoiceFatalDisconnect {
 	readonly code: number;
