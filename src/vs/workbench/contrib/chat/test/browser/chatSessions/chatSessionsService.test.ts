@@ -599,6 +599,65 @@ suite('ChatSessionsService - lightweight history reads', () => {
 			counters: { provided: 1, disposed: 0 },
 		});
 	});
+
+	test('reads an aliased retained session without resolving it again', async () => {
+		const type = 'history-cached-alias';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const alias = URI.from({ scheme: type, path: '/session-1-materialized' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Continue the aliased session', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		service.registerSessionResourceAlias(resource, alias);
+		const result = await service.getChatSessionHistory(alias, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 0 },
+		});
+	});
+
+	test('resolves alternative session types through their primary provider', async () => {
+		const type = 'history-primary';
+		const alternativeType = 'history-alternative';
+		const resource = URI.from({ scheme: alternativeType, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Read through the primary provider', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '', alternativeIds: [alternativeType] }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				return {
+					sessionResource,
+					history,
+					onWillDispose: Event.None,
+					dispose: () => counters.disposed++,
+				};
+			},
+		}));
+
+		const result = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 1 },
+		});
+	});
+
+	test('returns empty history for an unretained untitled session', async () => {
+		const resource = URI.from({ scheme: 'history-untitled', path: '/untitled-session-1' });
+
+		assert.deepStrictEqual(await service.getChatSessionHistory(resource, CancellationToken.None), []);
+	});
+
+	test('throws when a retained-session provider cannot be resolved', async () => {
+		const type = 'history-unresolvable';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+
+		await assert.rejects(service.getChatSessionHistory(resource, CancellationToken.None), new Error(`Cannot find provider '${type}'`));
+	});
 });
 
 suite('ChatSessionOptionsMap', () => {
