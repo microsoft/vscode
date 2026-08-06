@@ -29,7 +29,7 @@ The server implements the following capabilities of the language server protocol
   - syntax errors
   - structural validation based on the document's [JSON schema](http://json-schema.org/).
 
-In order to load JSON schemas, the JSON server uses NodeJS `http` and `fs` modules. For all other features, the JSON server only relies on the documents and settings provided by the client through the LSP.
+In the Node.js build, the JSON server uses the `fs` module to load `file` schemas by default and delegates all other schema requests to the client. The browser build delegates all schema requests to the client. For all other features, the JSON server only relies on the documents and settings provided by the client through the LSP.
 
 ### Client requirements
 
@@ -127,7 +127,6 @@ let clientOptions: LanguageClientOptions = {
 
 If `handledSchemaProtocols` is not set, the JSON language server will load the following URLs itself:
 
-- `http`, `https`: Loaded using NodeJS's HTTP support. Proxies can be configured through the settings.
 - `file`: Loaded using NodeJS's `fs` support.
 
 #### Schema content request
