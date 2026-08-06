@@ -27,11 +27,36 @@
 		"_folder_open_high_contrast": {
 			"iconPath": "./images/folder-open-high-contrast.svg"
 		},
+		"_apple": {
+			"iconPath": "./images/apple.svg"
+		},
+		"_argdown": {
+			"iconPath": "./images/argdown.svg"
+		},
+		"_asm": {
+			"iconPath": "./images/asm.svg"
+		},
+		"_audio": {
+			"iconPath": "./images/audio.svg"
+		},
 		"_typescript": {
 			"iconPath": "./images/typescript.svg"
 		}
 	},
 	"fileExtensions": {
+		"applescript": "_apple",
+		"scpt": "_apple",
+		"scptd": "_apple",
+		"ad": "_argdown",
+		"adown": "_argdown",
+		"argdown": "_argdown",
+		"argdn": "_argdown",
+		"asm": "_asm",
+		"s": "_asm",
+		"mp3": "_audio",
+		"ogg": "_audio",
+		"wav": "_audio",
+		"flac": "_audio",
 		"ts": "_typescript",
 		"tsx": "_typescript",
 		"cts": "_typescript",
@@ -42,6 +67,7 @@
 		"tsconfig.json": "_typescript"
 	},
 	"languageIds": {
+		"argdown": "_argdown",
 		"typescript": "_typescript",
 		"typescriptreact": "_typescript"
 	},

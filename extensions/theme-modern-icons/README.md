@@ -1,6 +1,15 @@
 # VS Code Modern Icons
 
-This built-in file icon theme is ready for a full icon set. It starts with a TypeScript icon and deliberately leaves generic file and folder associations unset.
+This built-in file icon theme is ready for a full icon set. It deliberately leaves generic file and folder associations unset.
+
+## Design source
+
+The A group comes from [Ticket 1862 - VSCode 3rd Party Seti](https://www.figma.com/design/CnjK8irotB7IEUIgXdbS6M/Ticket-1862---VSCode-3rd-Party-Seti?node-id=4584-939):
+
+- `apple` (`4584:939`)
+- `argdown` (`4584:941`)
+- `asm` (`4584:943`)
+- `audio` (`4584:945`)
 
 ## Asset format
 
