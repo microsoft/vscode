@@ -188,6 +188,13 @@ export class SinglePaneWorkbench extends Workbench {
 		return editorVisible || auxBarVisible;
 	}
 
+	protected override _minimumPartWidthForActivation(view: ISerializableView): number {
+		if (view === this.editorPartView && this.partVisibility.auxiliaryBar) {
+			return view.minimumWidth + this._dockedAuxiliaryBarWidth;
+		}
+		return super._minimumPartWidthForActivation(view);
+	}
+
 	protected override _topRightSectionChildren(sessionsNode: ISerializedNode, editorNode: ISerializedNode, _auxiliaryBarNode: ISerializedNode, customViewGridNode: ISerializedNode): ISerializedNode[] {
 		// The auxiliary bar is inside the editor part and omitted from the grid.
 		return [sessionsNode, editorNode, customViewGridNode];

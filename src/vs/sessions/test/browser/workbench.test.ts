@@ -60,6 +60,8 @@ suite('Sessions - Workbench', () => {
 	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
 	const isVisible = Workbench.prototype.isVisible as (this: ITestWorkbench, part: Parts) => boolean;
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
+	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
+	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -147,8 +149,8 @@ suite('Sessions - Workbench', () => {
 	}
 
 	function createHost(options: IHostOptions = {}): ITestWorkbench {
-		const editorPartView = {};
-		const sessionsPartView = {};
+		const editorPartView = { minimumWidth: 300 };
+		const sessionsPartView = { minimumWidth: 300 };
 		const sideBarPartView = {};
 		const auxiliaryBarPartView = {};
 		const panelPartView = {};
@@ -287,6 +289,39 @@ suite('Sessions - Workbench', () => {
 	}
 
 	// --- Editor split / reveal ---------------------------------------------
+
+	test('activating a minimized Sessions or Editor Part resizes its sibling to minimum width', () => {
+		const sessionsMinimized = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: true } });
+		const editorMinimized = createHost({ sessionsWidth: 700, editorWidth: 300, partVisibility: { editor: true } });
+		const singlePaneSessionsMinimized = createHost({ single: true, sessionsWidth: 300, editorWidth: 800, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
+		const singlePaneEditorMinimized = createHost({ single: true, sessionsWidth: 700, editorWidth: 550, dockedWidth: 250, partVisibility: { editor: true, auxiliaryBar: true } });
+		const neitherMinimized = createHost({ sessionsWidth: 301, editorWidth: 301, partVisibility: { editor: true } });
+		const editorHidden = createHost({ sessionsWidth: 300, editorWidth: 700, partVisibility: { editor: false } });
+
+		restoreSessionsPartOnActivation.call(sessionsMinimized);
+		restoreEditorPartOnActivation.call(editorMinimized);
+		restoreSessionsPartOnActivation.call(singlePaneSessionsMinimized);
+		restoreEditorPartOnActivation.call(singlePaneEditorMinimized);
+		restoreSessionsPartOnActivation.call(neitherMinimized);
+		restoreEditorPartOnActivation.call(neitherMinimized);
+		restoreSessionsPartOnActivation.call(editorHidden);
+
+		assert.deepStrictEqual([
+			sessionsMinimized.resizes,
+			editorMinimized.resizes,
+			singlePaneSessionsMinimized.resizes,
+			singlePaneEditorMinimized.resizes,
+			neitherMinimized.resizes,
+			editorHidden.resizes,
+		], [
+			[{ width: 300, height: 800 }],
+			[{ width: 300, height: 800 }],
+			[{ width: 550, height: 800 }],
+			[{ width: 300, height: 800 }],
+			[],
+			[],
+		]);
+	});
 
 	test('tracks editor pane visibility across editor and auxiliary bar changes', () => {
 		const host = createHost({ partVisibility: { editor: false, auxiliaryBar: true } });

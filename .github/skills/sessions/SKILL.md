@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Minimum-size activation across the Sessions/Editor split must be symmetric and layout-aware**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. In single-pane layout, the Editor grid node's effective minimum includes the visible docked Auxiliary Bar width; using `editorPartView.minimumWidth` alone collapses Details.
+
 - **Do not inject `ISessionsService` into editor-part construction**: the sessions service depends on editor parts through the sessions-part graph, so injecting it into `SinglePaneMainEditorPart` causes recursive service instantiation during startup. Prefer lower-level services such as `ILabelService` when the editor only needs resource presentation.
 
 - **Workspace-folder labels must distinguish physical paths from repository identity**: a worktree URI basename is the worktree directory, not the repository name. Route breadcrumb and workspace-projection labels through the delayed `IWorkspaceFolderLabelService`; the Agents implementation may read `ISessionsService.activeSession` because `BreadcrumbsModel` is created from `BreadcrumbsControl.update()` after editor-part construction, but never inject `ISessionsService` into `SinglePaneMainEditorPart` itself. Breadcrumbs omit a workspace root whenever only one folder exists in any VS Code window; folder changes rebuild the model and recompute labels.
