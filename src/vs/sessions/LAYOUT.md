@@ -114,7 +114,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 |---------|---------|---------|
 | Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment), agent host filter |
 | Center | `Menus.CommandCenter` | Session picker widget |
-| Right | `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout`, `Menus.TitleBarUpdate` | Active-session actions (including Create Pull Request), remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget, and the rightmost Update indicator |
+| Right | `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout`, `Menus.TitleBarUpdate` | Active-session actions (including Create Pull Request for created sessions with changes), remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget, and the rightmost Update indicator |
 
 No menubar or `WindowTitle` dependency. Editor-specific actions remain in the editor header, while session-level actions are placed on the right of the title bar.
 
