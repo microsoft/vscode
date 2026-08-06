@@ -3251,17 +3251,34 @@ export class Repository {
 		return this.getBranch(result.stdout.trim());
 	}
 
-	// TODO: Support core.commentChar
-	stripCommitMessageComments(message: string): string {
-		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+	stripCommitMessageComments(message: string, commentChar: string = '#'): string {
+		const escapedChar = commentChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		return message.replace(new RegExp(`^\\s*${escapedChar}.*$\\n?`, 'gm'), '').trim();
+	}
+
+	async getCommentChar(): Promise<string> {
+		try {
+			const result = await this.exec(['config', '--get', 'core.commentChar']);
+			const commentChar = result.stdout.trim();
+			// 'auto' lets Git choose a character not present in the message; fall back to '#'
+			if (!commentChar || commentChar === 'auto') {
+				return '#';
+			}
+			return commentChar[0];
+		} catch {
+			return '#';
+		}
 	}
 
 	async getSquashMessage(): Promise<string | undefined> {
 		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
 
 		try {
-			const raw = await fs.readFile(squashMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			const [raw, commentChar] = await Promise.all([
+				fs.readFile(squashMsgPath, 'utf8'),
+				this.getCommentChar()
+			]);
+			return this.stripCommitMessageComments(raw, commentChar);
 		} catch {
 			return undefined;
 		}
@@ -3271,8 +3288,11 @@ export class Repository {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
 
 		try {
-			const raw = await fs.readFile(mergeMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			const [raw, commentChar] = await Promise.all([
+				fs.readFile(mergeMsgPath, 'utf8'),
+				this.getCommentChar()
+			]);
+			return this.stripCommitMessageComments(raw, commentChar);
 		} catch {
 			return undefined;
 		}
@@ -3280,15 +3300,18 @@ export class Repository {
 
 	async getCommitTemplate(): Promise<string> {
 		try {
-			const result = await this.exec(['config', '--get', 'commit.template']);
+			const [templateResult, commentChar] = await Promise.all([
+				this.exec(['config', '--get', 'commit.template']),
+				this.getCommentChar()
+			]);
 
-			if (!result.stdout) {
+			if (!templateResult.stdout) {
 				return '';
 			}
 
 			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
 			const homedir = os.homedir();
-			let templatePath = result.stdout.trim()
+			let templatePath = templateResult.stdout.trim()
 				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
 
 			if (!path.isAbsolute(templatePath)) {
@@ -3296,7 +3319,7 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return this.stripCommitMessageComments(raw, commentChar);
 		} catch (err) {
 			return '';
 		}
