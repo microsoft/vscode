@@ -365,6 +365,13 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// use up to 2
 	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
+	// Disable Bluetooth on Linux to prevent BlueZ connection on startup
+	// refs https://github.com/microsoft/vscode/issues/134461
+	// Users can opt-in with --enable-bluetooth CLI flag
+	if (process.platform === 'linux' && !app.commandLine.hasSwitch('enable-bluetooth') && !app.commandLine.hasSwitch('disable-bluetooth')) {
+		app.commandLine.appendSwitch('disable-bluetooth');
+	}
+
 	return argvConfig;
 }
 
