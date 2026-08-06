@@ -573,9 +573,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this.voiceSessionController.setActiveWindow(auxiliaryWindow.window);
 			}
 		}));
-		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'blur', () => {
-			this.voiceSessionController.releaseOmniInputOnBlur();
-		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
 
