@@ -50,6 +50,7 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -835,6 +836,17 @@ export class AgentService extends Disposable implements IAgentService {
 			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
 				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: { id: options.model.id } } : {}) }
 				: undefined),
+			renameSession: async (session, title) => {
+				this._stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionTitleChanged,
+					title,
+				});
+				persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), 'customTitle', title);
+			},
+			renameChat: async (session, chat, title) => {
+				this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
+				persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), `customChatTitle:${chat.toString()}`, title);
+			},
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
 			// Reads the `create_session` spawn depth from a session's `_meta` (0 when absent).
