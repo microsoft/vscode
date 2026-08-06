@@ -382,6 +382,7 @@ export class ContextView extends Disposable {
 		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && this.hasRequiredAncestorClasses(closeAnimation.requiredAncestorClasses)) {
 			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
 			this.prepareMenuCloseAnimation();
+			this.view.inert = true;
 			this.view.classList.add(closeAnimation.className);
 			const timeout = setTimeout(() => this.completeHideAnimation(), closeAnimation.duration);
 			this.hidingContextView = {
@@ -414,6 +415,7 @@ export class ContextView extends Disposable {
 		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE);
 		hidingContextView.toDispose.dispose();
 		DOM.hide(this.view);
+		this.view.inert = false;
 	}
 
 	private prepareMenuCloseAnimation(): void {
