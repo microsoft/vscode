@@ -324,6 +324,24 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const newSessionTarget = this._resolveNewSessionTarget(utterance, attachedContext, results, enriched);
 		const target = this._resolveTarget(results, enriched, newSessionTarget);
+		const candidateIds = new Set(enriched.map(candidate => candidate.sessionId));
+		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
+		if (target.kind === 'new' && !hasSessionChoice) {
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('dispatching');
+			void this._dispatchTo(target, query, submittedAttachmentIds, utterance, requestOptions, cts.token).then(result => {
+				if (this._submitCts.value !== cts) {
+					return;
+				}
+				this._setSubmissionPhase('idle');
+				if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
+					this._showDeliveryConfirmation(target.label, result);
+				} else {
+					this._showDispatchFailure(target.label);
+				}
+			});
+			return true;
+		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
 		return true;
 	}

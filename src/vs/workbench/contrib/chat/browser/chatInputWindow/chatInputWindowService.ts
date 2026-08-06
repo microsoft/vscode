@@ -55,6 +55,7 @@ const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
+const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -611,6 +612,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		let pendingModels: readonly IChatModel[] = [];
 		let layingOut = false;
+		let lastPendingHeight: number | undefined;
+		let lastPendingWidth: number | undefined;
+		let displayedResource: string | undefined;
 		const layout = () => {
 			if (layingOut || !panel.classList.contains('shown')) {
 				return;
@@ -618,32 +622,50 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			layingOut = true;
 			try {
 				const width = Math.max(0, panel.clientWidth);
-				widget.layout(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
+				if (lastPendingHeight === undefined || lastPendingWidth !== width) {
+					lastPendingWidth = width;
+					widget.layout(lastPendingHeight ?? CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
+				}
 				const listBounds = list?.getBoundingClientRect();
 				const renderedRows = list ? Array.from(list.querySelectorAll<HTMLElement>('.interactive-item-container')) : [];
 				const renderedContentHeight = listBounds
 					? renderedRows.reduce((height, row) => {
 						const rowBounds = row.getBoundingClientRect();
-						const confirmationBounds = row.querySelector<HTMLElement>('.chat-confirmation-widget-container')?.getBoundingClientRect();
+						const confirmation = row.querySelector<HTMLElement>('.chat-confirmation-widget-container');
+						const confirmationBounds = confirmation?.getBoundingClientRect();
 						const paddingBottom = parseFloat(dom.getWindow(row).getComputedStyle(row).paddingBottom);
-						const bottom = Math.max(rowBounds.bottom, (confirmationBounds?.bottom ?? 0) + paddingBottom);
+						const confirmationBottom = confirmationBounds
+							? confirmationBounds.top + (confirmation?.scrollHeight ?? 0)
+							: 0;
+						const bottom = Math.max(rowBounds.bottom, confirmationBottom + paddingBottom);
 						return Math.max(height, bottom - listBounds.top);
 					}, 0)
 					: 0;
 				const contentHeight = panel.classList.contains('question') || renderedContentHeight === 0
 					? widget.contentHeight
 					: renderedContentHeight;
-				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(1, Math.ceil(contentHeight)));
+				const minimumHeight = panel.classList.contains('question') ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
+				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
 				parent.style.height = `${height}px`;
-				widget.layout(height, width);
+				if (height !== lastPendingHeight) {
+					lastPendingHeight = height;
+					widget.layout(height, width);
+				}
 				this._fitWindowToContent();
 			} finally {
 				layingOut = false;
 			}
 		};
+		const scheduledLayout = this._windowDisposables.add(new MutableDisposable());
+		const scheduleLayout = () => {
+			scheduledLayout.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, layout);
+		};
 		const showPendingModel = (index: number) => {
 			if (pendingModels.length === 0) {
 				this._pendingPromptIndex = 0;
+				lastPendingHeight = undefined;
+				lastPendingWidth = undefined;
+				displayedResource = undefined;
 				this._voiceConfirmationPending.set(false, undefined);
 				panel.classList.remove('shown', 'question');
 				widget.setModel(undefined);
@@ -652,6 +674,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			this._pendingPromptIndex = (index + pendingModels.length) % pendingModels.length;
 			const model = pendingModels[this._pendingPromptIndex];
+			const resource = model.sessionResource.toString();
+			if (displayedResource !== resource) {
+				displayedResource = resource;
+				lastPendingHeight = undefined;
+			}
 			this._voiceConfirmationPending.set(true, undefined);
 			panel.classList.add('shown');
 			panel.classList.toggle('question', this._hasPendingQuestion(model));
@@ -673,13 +700,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				button.tabIndex = hasMultiple ? 0 : -1;
 			}
 			widget.setModel(model);
-			auxiliaryWindow.window.requestAnimationFrame(layout);
+			scheduleLayout();
 		};
 
 		this._windowDisposables.add(dom.addDisposableListener(previous, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex - 1)));
 		this._windowDisposables.add(dom.addDisposableListener(next, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex + 1)));
-		this._windowDisposables.add(widget.onDidChangeContentHeight(layout));
-		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
+		this._windowDisposables.add(widget.onDidChangeContentHeight(scheduleLayout));
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', scheduleLayout));
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {
 			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();

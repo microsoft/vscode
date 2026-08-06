@@ -276,6 +276,14 @@
 .chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget2 {
 	display: flex;
 	flex-direction: column;
+	flex: none;
+	min-height: 96px;
+}
+
+.chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-container {
+	flex: none;
+	height: max-content;
+	overflow: visible;
 }
 
 .chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget-message-scrollable,
