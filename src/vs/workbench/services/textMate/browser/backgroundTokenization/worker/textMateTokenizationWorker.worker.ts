@@ -121,15 +121,15 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 	}
 
 	public $acceptModelChanged(controllerId: number, e: IModelChangedEvent): void {
-		this._models.get(controllerId)!.onEvents(e);
+		this._models.get(controllerId)?.onEvents(e);
 	}
 
 	public $retokenize(controllerId: number, startLineNumber: number, endLineNumberExclusive: number): void {
-		this._models.get(controllerId)!.retokenize(startLineNumber, endLineNumberExclusive);
+		this._models.get(controllerId)?.retokenize(startLineNumber, endLineNumberExclusive);
 	}
 
 	public $acceptModelLanguageChanged(controllerId: number, newLanguageId: string, newEncodedLanguageId: LanguageId): void {
-		this._models.get(controllerId)!.onLanguageId(newLanguageId, newEncodedLanguageId);
+		this._models.get(controllerId)?.onLanguageId(newLanguageId, newEncodedLanguageId);
 	}
 
 	public $acceptRemovedModel(controllerId: number): void {
@@ -146,7 +146,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 	}
 
 	public $acceptMaxTokenizationLineLength(controllerId: number, value: number): void {
-		this._models.get(controllerId)!.acceptMaxTokenizationLineLength(value);
+		this._models.get(controllerId)?.acceptMaxTokenizationLineLength(value);
 	}
 }
 
