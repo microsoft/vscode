@@ -1,7 +1,7 @@
 {
   "name": "vscode-selfhost-import-aid",
   "displayName": "VS Code Selfhost Import Aid",
-  "description": "Util to improve dealing with imports",
+  "description": "Import path assistance for the VS Code selfhost workspace",
   "engines": {
     "vscode": "^1.88.0"
   },
@@ -10,15 +10,44 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onLanguage:typescript"
+  "keywords": [
+    "vscode",
+    "selfhost",
+    "typescript",
+    "imports",
+    "esm"
   ],
+  "galleryBanner": {
+    "color": "#007ACC",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "workspaceContains:src/vscode-dts/vscode.d.ts"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "VS Code Selfhost Import Aid reads workspace TypeScript files and offers import edits for the VS Code source tree."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "VS Code Selfhost Import Aid requires local workspace file access for indexing TypeScript source files."
+    }
+  },
   "main": "./out/extension.js",
+  "homepage": "https://github.com/microsoft/vscode/tree/main/.vscode/extensions/vscode-selfhost-import-aid",
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
   },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode/issues"
+  },
   "license": "MIT",
+  "qna": false,
   "scripts": {
     "compile": "gulp compile-extension:vscode-selfhost-import-aid",
     "watch": "gulp watch-extension:vscode-selfhost-import-aid"
