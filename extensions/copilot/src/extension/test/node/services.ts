@@ -205,7 +205,15 @@ class NullAutomodeService implements IAutomodeService {
 		throw new Error('Not implemented');
 	}
 
+	async resolveAutoModePickerEndpoint(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+
 	consumeLastRoutingDecision(): undefined {
+		return undefined;
+	}
+
+	async getAutoPickerMetadata(): Promise<undefined> {
 		return undefined;
 	}
 

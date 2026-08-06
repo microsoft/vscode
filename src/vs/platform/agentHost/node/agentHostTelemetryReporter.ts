@@ -9,6 +9,8 @@ import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js'
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
+import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
+import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
@@ -73,6 +75,7 @@ export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'mod
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
@@ -87,6 +90,7 @@ export interface IAgentHostTurnCompletedEvent {
 export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
@@ -103,11 +107,14 @@ export type IAgentHostTurnCompletedClassification = {
 export interface IAgentHostTurnFailedEvent {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	turnId: string;
 	failureStage: AgentHostTurnFailureStage;
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
+	providerCallId: string | undefined;
+	serviceRequestId: string | undefined;
 	msg: string;
 	callstack: string | undefined;
 }
@@ -115,11 +122,14 @@ export interface IAgentHostTurnFailedEvent {
 export type IAgentHostTurnFailedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
+	providerCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The GitHub provider request identifier, when available.' };
+	serviceRequestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot service request identifier, when available.' };
 	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
@@ -143,6 +153,7 @@ export interface IAgentHostTurnCompletedReport {
 	result: AgentHostTurnResult;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
 	failure: IAgentHostTurnFailure | undefined;
 }
@@ -150,10 +161,15 @@ export interface IAgentHostTurnCompletedReport {
 export interface IAgentHostToolInvokedReport {
 	provider: string;
 	session: string;
+	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
+	toolCallId: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
+	resultSizeInCharacters: number;
+	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 }
 
 export interface IAgentHostAskQuestionsToolInvokedEvent {
@@ -435,6 +451,16 @@ export interface IAgentHostStalledToolCallCompletedReport {
 	result: ToolInvokedResult;
 	totalTimeMs: number;
 	timeAfterStallMs: number;
+}
+
+function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): string | TelemetryTrustedValue<string> | undefined {
+	if (model === undefined) {
+		return undefined;
+	}
+	if (modelTelemetryKind === 'trusted') {
+		return new TelemetryTrustedValue(model);
+	}
+	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }
 
 export class AgentHostTelemetryReporter {
@@ -763,33 +789,35 @@ export class AgentHostTelemetryReporter {
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		const model = report.model === undefined
-			? undefined
-			: report.modelTelemetryKind === 'trusted'
-				? new TelemetryTrustedValue(report.model)
-				: report.modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
+		const chatSessionId = getTelemetryChatSessionId(report.session);
+		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
+			chatSessionId,
 			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
 			model,
-			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
+			modelSelectionKind: report.modelSelectionKind,
 			permissionLevel: report.permissionLevel,
 			errorType: report.failure?.error.errorType,
 			failureStage: report.failure?.stage,
 		});
 		if (report.failure) {
+			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
+				chatSessionId,
 				turnId: report.turnId,
 				failureStage: report.failure.stage,
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
 				errorCode: report.failure.errorCode,
+				providerCallId,
+				serviceRequestId,
 				msg: report.failure.error.message,
 				callstack: report.failure.errorStack ?? report.failure.error.stack,
 			});
@@ -807,8 +835,12 @@ export class AgentHostTelemetryReporter {
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+			resultSizeInCharacters: report.resultSizeInCharacters,
+			turnId: report.turnId,
+			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 		});
 	}
 

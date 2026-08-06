@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType, setVisibility, trackFocus } from '../../../../../../base/browser/dom.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 
 interface IChatInputOnboardingHost {
@@ -27,6 +29,10 @@ export interface IChatInputOnboardingOptions {
 export interface IChatInputOnboardingContext {
 	readonly container: HTMLElement;
 	readonly dismiss: (restoreFocus?: boolean) => void;
+}
+
+export interface IChatInputOnboardingBanner extends IDisposable {
+	announce(): void;
 }
 
 export interface IChatInputOnboardingCardOptions {
@@ -85,7 +91,7 @@ export class ChatInputOnboarding extends Disposable {
 		});
 	}
 
-	showIfNeeded(createOnboarding: (context: IChatInputOnboardingContext) => IDisposable): boolean {
+	showIfNeeded(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
 		if (this.currentOnboarding.value) {
 			return true;
 		}
@@ -95,7 +101,7 @@ export class ChatInputOnboarding extends Disposable {
 		return this.show(createOnboarding);
 	}
 
-	show(createOnboarding: (context: IChatInputOnboardingContext) => IDisposable): boolean {
+	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -108,11 +114,13 @@ export class ChatInputOnboarding extends Disposable {
 		host.container.classList.add(this.options.hostClass);
 		onboardingStore.add(toDisposable(() => host.container.classList.remove(this.options.hostClass)));
 
+		let banner: IChatInputOnboardingBanner;
 		try {
-			onboardingStore.add(createOnboarding({
+			banner = createOnboarding({
 				container: host.container,
 				dismiss: (restoreFocus = true) => this.hide(restoreFocus),
-			}));
+			});
+			onboardingStore.add(banner);
 		} catch (error) {
 			this.activeHost = undefined;
 			onboardingStore.dispose();
@@ -123,6 +131,8 @@ export class ChatInputOnboarding extends Disposable {
 		this.setTipsVisible(host, false);
 		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+
+		banner.announce();
 		return true;
 	}
 
@@ -160,8 +170,12 @@ export class ChatInputOnboardingCard extends Disposable {
 
 	readonly domNode: HTMLElement;
 
+	private readonly ariaLabel: string;
+
 	constructor(options: IChatInputOnboardingCardOptions) {
 		super();
+
+		this.ariaLabel = options.ariaLabel;
 
 		this.domNode = options.container.ownerDocument.createElement('div');
 		this.domNode.classList.add(options.className);
@@ -174,6 +188,8 @@ export class ChatInputOnboardingCard extends Disposable {
 		options.container.appendChild(this.domNode);
 		this._register(toDisposable(() => this.domNode.remove()));
 
+		this.domNode.tabIndex = 0;
+
 		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
@@ -182,6 +198,10 @@ export class ChatInputOnboardingCard extends Disposable {
 				options.onEscape();
 			}
 		}));
+	}
+
+	announce(): void {
+		alert(localize('chatInputOnboarding.focusHint', "{0}. Use Shift+Tab to reach the introduction.", this.ariaLabel));
 	}
 
 	addAction(options: IChatInputOnboardingActionOptions): HTMLElement {

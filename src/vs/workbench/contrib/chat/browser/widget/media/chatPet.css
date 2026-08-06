@@ -135,6 +135,11 @@
 	display: none;
 }
 
+.chat-pet-button[data-state='rendering'].speech-bubble-left .chat-pet-speech-bubble {
+	left: calc(-1 * var(--vscode-spacing-size280));
+	transform: scaleX(-1);
+}
+
 .chat-pet-button.dragging .chat-pet-speech-bubble {
 	display: none;
 }

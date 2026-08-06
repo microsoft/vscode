@@ -23,7 +23,6 @@ suite('Session workspace-less meta', () => {
 		test('round-trips workspace provenance and preserves other slots', () => {
 			const multiRoot = {
 				workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-				name: 'Demo Workspace',
 			};
 			const tagged = withSessionMultiRootMetadata({ other: true }, multiRoot);
 
@@ -41,9 +40,8 @@ suite('Session workspace-less meta', () => {
 		test('rejects malformed workspace provenance', () => {
 			assert.deepStrictEqual([
 				readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'relative.code-workspace' } }),
-				readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///demo.code-workspace', name: 42 } }),
 				parseSessionMultiRootMetadata('{'),
-			], [undefined, undefined, undefined]);
+			], [undefined, undefined]);
 		});
 	});
 
