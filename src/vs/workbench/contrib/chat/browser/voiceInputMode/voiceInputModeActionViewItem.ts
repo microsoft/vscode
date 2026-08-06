@@ -309,6 +309,8 @@ export interface IVoiceInputModePillOptions {
 	readonly isActive?: IObservable<boolean>;
 	/** Whether the shared Voice Mode transport belongs to this input. */
 	readonly isVoiceActive?: IObservable<boolean>;
+	/** Claim Voice Mode for this host instead of targeting the last focused chat session. */
+	readonly activateVoiceMode?: () => void | Promise<void>;
 }
 
 /**
@@ -768,12 +770,20 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const controller = this.voiceSessionController;
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
-				await retargetVoiceToCurrentSession(this.commandService, controller);
+				if (this._options.activateVoiceMode) {
+					await this._options.activateVoiceMode();
+				} else {
+					await retargetVoiceToCurrentSession(this.commandService, controller);
+				}
 				return;
 			}
 			controller.disconnect();
 		} else {
-			await retargetVoiceToCurrentSession(this.commandService, controller);
+			if (this._options?.activateVoiceMode) {
+				await this._options.activateVoiceMode();
+			} else {
+				await retargetVoiceToCurrentSession(this.commandService, controller);
+			}
 			const targetWindow = getWindow(this._voiceCell);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}

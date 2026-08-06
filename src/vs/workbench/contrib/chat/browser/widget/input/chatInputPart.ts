@@ -3348,6 +3348,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
 						isActive: isVoiceInputActive,
 						isVoiceActive: isVoiceSessionActive,
+						activateVoiceMode: isOmniInput ? () => {
+							this.voiceSessionController.setOmniInputActive(true);
+							this.voiceSessionController.setDraftTarget();
+						} : undefined,
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
