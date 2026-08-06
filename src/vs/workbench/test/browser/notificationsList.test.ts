@@ -51,7 +51,8 @@ suite('NotificationsList row height', () => {
 		assert.deepStrictEqual(changes, [34, DEFAULT_NOTIFICATION_ROW_HEIGHT]);
 	});
 
-	test('notification center updates rendered row heights and preserves focus', () => {
+	test('notification center updates row heights and preserves the focused row viewport position', () => {
+		setNotificationRowHeight(34);
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -65,23 +66,38 @@ suite('NotificationsList row height', () => {
 		}));
 		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
 
-		model.addNotification({ severity: Severity.Info, message: 'Hello' });
+		for (let index = 0; index < 10; index++) {
+			model.addNotification({ severity: Severity.Info, message: `Message ${index}` });
+		}
 		center.show();
 
 		const getRowState = () => {
-			const row = container.querySelector<HTMLElement>('.monaco-list-row');
-			return { height: row?.style.height, focused: row?.classList.contains('focused') };
+			const row = container.querySelector<HTMLElement>('.monaco-list-row.focused');
+			const rows = container.querySelector<HTMLElement>('.monaco-list-rows');
+			return {
+				height: row?.style.height,
+				viewportTop: row && rows ? parseInt(row.style.top) + parseInt(rows.style.top || '0') : undefined
+			};
 		};
 
+		const rowToFocus = container.querySelector<HTMLElement>('.monaco-list-row[data-index="7"]')!;
+		rowToFocus.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		rowToFocus.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 		const before = getRowState();
-		setNotificationRowHeight(34);
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
 		const after = getRowState();
 		center.dispose();
 		setNotificationRowHeight(36);
 
-		assert.deepStrictEqual({ before, after, rowAfterDispose: container.querySelector('.monaco-list-row') }, {
-			before: { height: `${DEFAULT_NOTIFICATION_ROW_HEIGHT}px`, focused: true },
-			after: { height: '34px', focused: true },
+		assert.deepStrictEqual({
+			beforeHeight: before.height,
+			afterHeight: after.height,
+			preservedFocusedRowViewportPosition: typeof before.viewportTop === 'number' && typeof after.viewportTop === 'number' && Math.abs(after.viewportTop - before.viewportTop) <= DEFAULT_NOTIFICATION_ROW_HEIGHT - 34,
+			rowAfterDispose: container.querySelector('.monaco-list-row')
+		}, {
+			beforeHeight: '34px',
+			afterHeight: `${DEFAULT_NOTIFICATION_ROW_HEIGHT}px`,
+			preservedFocusedRowViewportPosition: true,
 			rowAfterDispose: null
 		});
 	});
