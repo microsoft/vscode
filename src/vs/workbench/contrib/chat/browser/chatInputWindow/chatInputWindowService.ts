@@ -384,7 +384,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// Show only the input box — drop every response list item.
 				filter: () => false,
 				enableImplicitContext: false,
-				defaultMode: ChatMode.Ask,
+				defaultMode: ChatMode.Agent,
 				menus: { telemetrySource: 'chatInputWindow' },
 				sessionTypePickerDelegate: {
 					getActiveSessionProvider: () => AgentSessionProviders.AgentHostCopilot,
