@@ -15,7 +15,7 @@ import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } fr
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
-import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, LayoutSettings, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
+import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
@@ -680,9 +680,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.updateFontAliasing(e, configurationService);
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
-				this.updateModernUITabs(configurationService);
-			}
 		}));
 
 		// Font Info
@@ -721,8 +718,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	//#region Font Aliasing and Caching
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
-	private updateModernUITabs(configurationService: IConfigurationService): void {
-		this.mainContainer.classList.toggle(MODERN_UI_TABS_CLASS, configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true);
+	private enableModernUITabs(): void {
+		this.mainContainer.classList.toggle(MODERN_UI_TABS_CLASS, true);
 	}
 
 	private updateFontAliasing(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService) {
@@ -916,7 +913,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
-		this.updateModernUITabs(configurationService);
+		this.enableModernUITabs();
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
