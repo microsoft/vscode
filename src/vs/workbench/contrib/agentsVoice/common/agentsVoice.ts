@@ -6,7 +6,6 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Event } from '../../../../base/common/event.js';
-import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
 import './agentsVoiceColors.js'; // Register custom voice theme colors
@@ -19,17 +18,15 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
-export const AGENTS_VOICE_ENTITLED = ContextKeyExpr.or(
-	ChatEntitlementContextKeys.Entitlement.planEdu,
-	ChatEntitlementContextKeys.Entitlement.planPro,
-	ChatEntitlementContextKeys.Entitlement.planProPlus,
-	ChatEntitlementContextKeys.Entitlement.planMax,
-	ChatEntitlementContextKeys.Entitlement.planBusiness,
-	ContextKeyExpr.and(
-		ChatEntitlementContextKeys.Entitlement.planEnterprise,
-		ChatEntitlementContextKeys.Entitlement.internal,
-	),
-)!;
+/**
+ * True when the current Copilot entitlement permits Voice Mode. This is a single
+ * key set imperatively from `IChatEntitlementService` (see
+ * `AgentsVoiceEntitlementKeyContribution`) rather than an OR-of-plans context-key
+ * expression: negating such a disjunction — as `SegmentedVoiceInputModePillInactive`
+ * does — distributes it combinatorially into thousands of terms, which is
+ * prohibitively expensive to build and evaluate on every menu/keybinding update.
+ */
+export const AGENTS_VOICE_ENTITLED = new RawContextKey<boolean>('agentsVoiceEntitled', false);
 export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals('config.agents.voice.enabled', true),

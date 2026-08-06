@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive, SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
@@ -36,7 +36,7 @@ suite('VoiceInputModeService', () => {
 		configurationService.setUserConfiguration('dictation.showButton', options.dictationButtonShown ?? true);
 		const contextKeyService = new MockContextKeyService();
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-		ChatContextKeys.Entitlement.planPro.bindTo(contextKeyService).set(true);
+		AGENTS_VOICE_ENTITLED.bindTo(contextKeyService).set(true);
 		const dictationService = createDictationService(options.dictationConfigured ?? false);
 		const service = store.add(new VoiceInputModeService(storageService, configurationService, contextKeyService, dictationService));
 		return { service, contextKeyService };
@@ -83,7 +83,7 @@ suite('VoiceInputModeService', () => {
 	test('shows the segmented pill only when it has multiple active controls', () => {
 		const values: Record<string, ContextKeyValue> = {
 			[ChatContextKeys.enabled.key]: true,
-			[ChatContextKeys.Entitlement.planPro.key]: true,
+			[AGENTS_VOICE_ENTITLED.key]: true,
 			[ChatContextKeys.speechToTextConfigured.key]: true,
 			'config.agents.voice.enabled': true,
 			'config.agents.voice.showButton': true,

@@ -61,7 +61,7 @@ import {
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
-function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
+export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
 	return isProUser(chatEntitlementService.entitlement)
 		&& (chatEntitlementService.entitlement !== ChatEntitlement.Enterprise || chatEntitlementService.isInternal);
 }

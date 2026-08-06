@@ -26,8 +26,8 @@ const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButton
  * In every other single-mode case the standalone controls (gated on the negation
  * below) take over.
  */
-// Keep VisibleVoiceMode factored out so negating this expression does not
-// combinatorially expand its entitlement-plan disjunction.
+// Structured as AND(VisibleVoiceMode, OR(...)) rather than a flat OR of ANDs so
+// the shared VisibleVoiceMode term is only listed once.
 export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.and(
 	VisibleVoiceMode,
 	ContextKeyExpr.or(

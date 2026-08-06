@@ -7,7 +7,7 @@
 import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
-import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController, isVoiceEntitled } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
@@ -35,8 +35,9 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
@@ -61,6 +62,29 @@ const AGENTS_VOICE_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedH
 const VOICE_ACTIVE_ON_SURFACE = ContextKeyExpr.or(IsSessionsWindowContext.negate(), AGENTS_VOICE_INITIATED_HERE)!;
 
 // --- Context Key Binding ---
+
+// Reflects Copilot entitlement into a single `agentsVoiceEntitled` context key.
+// Kept as one imperatively-set key (rather than an OR-of-plans expression) so
+// that negating `AGENTS_VOICE_ENABLED` (e.g. for the standalone voice controls)
+// does not distribute the plan disjunction into thousands of terms.
+class AgentsVoiceEntitlementKeyContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsVoiceEntitlementKey';
+
+	constructor(
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const entitledKey = AGENTS_VOICE_ENTITLED.bindTo(contextKeyService);
+		const update = () => entitledKey.set(isVoiceEntitled(chatEntitlementService));
+		update();
+		this._register(chatEntitlementService.onDidChangeEntitlement(update));
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceEntitlementKeyContribution.ID, AgentsVoiceEntitlementKeyContribution, WorkbenchPhase.AfterRestored);
 
 // Separate contribution for voice connected state — runs later to avoid
 // forcing IVoiceSessionController instantiation too early.
