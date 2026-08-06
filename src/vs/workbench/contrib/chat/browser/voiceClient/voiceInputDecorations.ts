@@ -35,8 +35,10 @@ export interface IVoiceInputDecorationsServices {
 }
 
 export interface IVoiceInputDecorationsOptions {
-	/** Input container for glow and transcript overlay. */
+	/** Input container for the transcript overlay. */
 	readonly inputContainer: HTMLElement;
+	/** Container that receives the ambient glow. Defaults to {@link inputContainer}. */
+	readonly glowContainer?: HTMLElement;
 	/** Whether this surface is active/visible. */
 	readonly isActive: IObservable<boolean>;
 	/** Explicit ownership for surfaces such as omni that do not yet have a resource. */
@@ -61,6 +63,7 @@ export interface IVoiceInputDecorationsOptions {
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
 	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, themeService, accessibilityService } = services;
 	const { inputContainer: inputContainerEl, isActive } = options;
+	const glowContainerEl = options.glowContainer ?? inputContainerEl;
 	const isSurfaceOwner = (reader: IReader): boolean => {
 		if (options.isOwner) {
 			return options.isOwner.read(reader);
@@ -85,13 +88,13 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	inputContainerEl.append(transcriptOverlayNode);
 
 	// --- Audio-reactive glow ---
-	const win = dom.getWindow(inputContainerEl);
+	const win = dom.getWindow(glowContainerEl);
 	let animFrameId: number | undefined;
 	const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 	let glowController: IVoiceGlowController;
 	try {
 		glowController = store.add(createVoiceGlowController(
-			inputContainerEl,
+			glowContainerEl,
 			() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
 			() => resolveVoiceGlowColors(themeService.getColorTheme()),
 		));

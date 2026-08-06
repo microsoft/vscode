@@ -413,6 +413,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					accessibilityService: this.accessibilityService,
 				}, {
 					inputContainer,
+					glowContainer: auxiliaryWindow.container,
 					isActive: this.voiceSessionController.omniInputActive,
 					isOwner: this.voiceSessionController.omniInputActive,
 				}));
