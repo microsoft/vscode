@@ -50,6 +50,7 @@ const updateChatTipVisibility = Reflect.get(NewChatWidget.prototype, 'updateChat
 interface IChatTipVisibilityHarness {
 	_isInputOnboardingVisible: boolean;
 	_isInputNotificationVisible: boolean;
+	storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
 	isInputOnboardingVisible(): boolean;
 	isChatTipSuppressed(): boolean;
 	updateChatTipVisibility(): void;
@@ -57,10 +58,13 @@ interface IChatTipVisibilityHarness {
 	_renderChatTip(): void;
 }
 
-function createChatTipVisibilityHarness(visibilityChanges: string[]): IChatTipVisibilityHarness {
+function createChatTipVisibilityHarness(visibilityChanges: string[], storageValues: Map<string, number> = new Map()): IChatTipVisibilityHarness {
 	const harness: IChatTipVisibilityHarness = {
 		_isInputOnboardingVisible: false,
 		_isInputNotificationVisible: false,
+		storageService: {
+			getNumber: (key: string, _scope: unknown, defaultValue: number) => storageValues.get(key) ?? defaultValue,
+		},
 		isInputOnboardingVisible: () => isInputOnboardingVisible.call(harness),
 		isChatTipSuppressed: () => isChatTipSuppressed.call(harness),
 		updateChatTipVisibility: () => updateChatTipVisibility.call(harness),
@@ -162,7 +166,8 @@ suite('NewChatWidget', () => {
 
 	test('hides tips for notifications until all suppressors are inactive', () => {
 		const visibilityChanges = ['visible'];
-		const harness = createChatTipVisibilityHarness(visibilityChanges);
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 2]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
 
 		setInputNotificationVisible.call(harness, true);
 		setInputOnboardingVisible.call(harness, true);
@@ -170,5 +175,27 @@ suite('NewChatWidget', () => {
 		setInputOnboardingVisible.call(harness, false);
 
 		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden', 'hidden', 'hidden', 'visible']);
+	});
+
+	test('hides tips for users below the session count threshold', () => {
+		const visibilityChanges = ['visible'];
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 0]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
+
+		// Tips should be hidden because session count is 0 (below the threshold of 2)
+		updateChatTipVisibility.call(harness);
+
+		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden']);
+	});
+
+	test('shows tips for users at or above the session count threshold', () => {
+		const visibilityChanges: string[] = [];
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 2]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
+
+		// Tips should be visible because session count is 2 (at the threshold)
+		updateChatTipVisibility.call(harness);
+
+		assert.deepStrictEqual(visibilityChanges, ['visible']);
 	});
 });
