@@ -3191,12 +3191,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const isVoiceSessionActive = derived(this, reader => {
-			if (!isVoiceInputActive.read(reader)) {
-				return false;
-			}
 			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			if (omniInputActive) {
 				return isOmniInput;
+			}
+			if (!isVoiceInputActive.read(reader)) {
+				return false;
 			}
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);

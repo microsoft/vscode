@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { Color } from '../../../../../../base/common/color.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
 import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('only the talking states glow', () => {
 		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
@@ -21,6 +23,27 @@ suite('VoiceGlow', () => {
 			states.filter(isGlowingVoiceState),
 			['listening', 'speaking']
 		);
+	});
+
+	test('renders in an auxiliary owner document', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const target = iframe.contentDocument!.createElement('div');
+		iframe.contentDocument!.body.appendChild(target);
+		const controller = disposables.add(createVoiceGlowController(target));
+		controller.render('listening', 0.5, false);
+
+		assert.deepStrictEqual({
+			active: target.classList.contains('voice-active'),
+			listening: target.classList.contains('voice-listening'),
+			slots: target.querySelectorAll('.voice-glow-slot').length,
+		}, {
+			active: true,
+			listening: true,
+			slots: 2,
+		});
 	});
 
 	test('derives the speaking accent from the theme base color', () => {
