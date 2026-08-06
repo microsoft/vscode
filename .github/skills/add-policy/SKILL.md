@@ -1,6 +1,6 @@
 ---
 name: add-policy
-description: Use when adding, modifying, or reviewing enterprise controls for VS Code or the GitHub Copilot SDK/runtime. Start here to decide whether policy belongs in runtime managed settings, VS Code configuration policy, extension policy, or a split implementation. Run on ANY change that adds a `policy:` field.
+description: Use whenever adding, modifying, or reviewing any Copilot, agent, LLM, AI, tool, permission, sandbox, MCP, model, telemetry, feature-gate, setting, configuration, or enterprise control—especially anything an organization or administrator may need to manage. Start here to decide whether it belongs in runtime managed settings, a typed SDK contract, VS Code configuration policy, extension policy, or a split implementation. Run on every new Copilot/agent/LLM control and ANY change that adds a `policy:` field.
 ---
 
 # Adding an Enterprise Policy
