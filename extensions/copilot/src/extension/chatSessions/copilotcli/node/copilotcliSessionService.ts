@@ -13,9 +13,10 @@ import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/ch
 import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
+import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
-import { FileType } from '../../../../platform/filesystem/common/fileTypes';
+import { FileType, RelativePattern } from '../../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -24,12 +25,12 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
-import { raceCancellation, raceCancellationError, SequencerByKey } from '../../../../util/vs/base/common/async';
+import { disposableTimeout, raceCancellation, raceCancellationError, SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
-import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { dirname, joinPath } from '../../../../util/vs/base/common/resources';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -143,7 +144,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private readonly _sessionTracker: CopilotCLISessionWorkspaceTracker;
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
+	private readonly _onDidChangeSessionsThrottler = this._register(new ThrottledDelayer<void>(500));
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
+	private readonly _sessionsBeingCreatedViaFork = new Set<string>();
 	private readonly _newSessionIds = new Set<string>();
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
@@ -157,6 +160,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@INativeEnvService private readonly nativeEnv: INativeEnvService,
 		@IFileSystemService private readonly fileSystem: IFileSystemService,
 		@ICopilotCLIMCPHandler private readonly mcpHandler: ICopilotCLIMCPHandler,
 		@ICopilotCLIAgents private readonly agents: ICopilotCLIAgents,
@@ -190,6 +194,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				void this.createCustomAgentLookup();
 			}
 		}));
+		if (this._agentSessionsWorkspace.isAgentSessionsWorkspace) {
+			this.monitorSessionFiles();
+		}
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
@@ -278,14 +285,73 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._newSessionIds.has(sessionId);
 	}
 
+	private triggerSessionsChangeEvent(): void {
+		if (this._isGettingSessions > 0) {
+			return;
+		}
+		this._onDidChangeSessionsThrottler.trigger(() => Promise.resolve(this._onDidChangeSessions.fire()));
+	}
+
+	protected monitorSessionFiles(): void {
+		const disposables = this._register(new DisposableStore());
+		try {
+			const sessionDir = joinPath(this.nativeEnv.userHome, '.copilot', 'session-state');
+			const watcher = disposables.add(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
+			disposables.add(watcher.onDidCreate(async e => {
+				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
+				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
+					return;
+				}
+				this.triggerSessionsChangeEvent();
+				const sessionItem = sessionId ? await this.getSessionItemImpl(sessionId, 'disk', CancellationToken.None) : undefined;
+				if (sessionItem) {
+					this._onDidChangeSession.fire(sessionItem);
+				}
+			}));
+			disposables.add(watcher.onDidDelete(e => {
+				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
+				if (sessionId) {
+					this._cachedSessionItems.delete(sessionId);
+					this._onDidDeleteSession.fire(sessionId);
+				}
+				this.triggerSessionsChangeEvent();
+			}));
+			disposables.add(watcher.onDidChange(e => {
+				if (this._isGettingSessions > 0) {
+					return;
+				}
+				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
+				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
+					return;
+				}
+				if (Array.from(this._sessionWrappers.keys()).some(sessionId => e.path.includes(sessionId))) {
+					return;
+				}
+				if (sessionId) {
+					this.triggerOnDidChangeSessionItem(sessionId, 'fileSystemChange');
+				}
+				this.triggerSessionsChangeEvent();
+			}));
+		} catch (error) {
+			disposables.dispose();
+			this.logService.error('Failed to monitor Copilot CLI session files:', error);
+		}
+	}
+
 	async getSessionManager() {
 		return this._sessionManager.value;
 	}
 
 	private readonly _sessionChangeNotifierByKey = new SequencerByKey<string>();
-	private triggerOnDidChangeSessionItem(sessionId: string): void {
+	private triggerOnDidChangeSessionItem(sessionId: string, reason: 'fileSystemChange' | 'statusChange'): void {
 		this._sessionChangeNotifierByKey.queue(sessionId, async () => {
-			const sessionItem = await this.getSessionItemImpl(sessionId, 'inMemorySession', CancellationToken.None);
+			if (reason === 'fileSystemChange') {
+				await new Promise<void>(resolve => disposableTimeout(resolve, 500, this._store));
+				if (this._isGettingSessions > 0) {
+					return;
+				}
+			}
+			const sessionItem = await this.getSessionItemImpl(sessionId, reason === 'statusChange' ? 'inMemorySession' : 'disk', CancellationToken.None);
 			if (sessionItem) {
 				this._onDidChangeSession.fire(sessionItem);
 			}
@@ -1025,19 +1091,24 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 
 		const { sessionId: newSessionId } = await sessionManager.forkSession(sessionId, toEventId);
-		const forkedTitlePrefix = l10n.t("Forked: ");
-		const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
-		await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
+		this._sessionsBeingCreatedViaFork.add(newSessionId);
+		try {
+			const forkedTitlePrefix = l10n.t("Forked: ");
+			const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
+			await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
 
-		this._onDidChangeSessions.fire();
-		this._onDidCreateSession.fire({
-			id: newSessionId,
-			label: customTitle,
-			timing: { created: Date.now(), startTime: Date.now() },
-			workingDirectory: getWorkingDirectory(workspace)
-		});
+			this._onDidChangeSessions.fire();
+			this._onDidCreateSession.fire({
+				id: newSessionId,
+				label: customTitle,
+				timing: { created: Date.now(), startTime: Date.now() },
+				workingDirectory: getWorkingDirectory(workspace)
+			});
 
-		return newSessionId;
+			return newSessionId;
+		} finally {
+			this._sessionsBeingCreatedViaFork.delete(newSessionId);
+		}
 	}
 	public async tryGetPartialSessionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined> {
 		const cached = this._partialSessionHistories.get(sessionId);
@@ -1116,7 +1187,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				otelLifecycle.updateParentTraceContext(sdkSession.sessionId, traceparent, tracestate));
 		}
 		session.add(session.onDidChangeStatus(() => {
-			this.triggerOnDidChangeSessionItem(sdkSession.sessionId);
+			this.triggerOnDidChangeSessionItem(sdkSession.sessionId, 'statusChange');
 			this._onDidChangeSessions.fire();
 		}));
 		session.add(toDisposable(() => {
@@ -1302,6 +1373,17 @@ export class CopilotCLISessionWorkspaceTracker {
 function labelFromPrompt(prompt: string): string {
 	// Strip system reminders from the prompt
 	return stripReminders(prompt);
+}
+
+function extractSessionIdFromEventPath(sessionDir: URI, eventUri: URI): string | undefined {
+	if (basename(eventUri) !== 'events.jsonl') {
+		return undefined;
+	}
+	const parentDir = dirname(eventUri);
+	if (dirname(parentDir).path !== sessionDir.path) {
+		return undefined;
+	}
+	return basename(parentDir);
 }
 
 export class Mutex {

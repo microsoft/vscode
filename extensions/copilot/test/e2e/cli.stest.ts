@@ -131,6 +131,8 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 	}
 
 	class TestCopilotCLISessionService extends CopilotCLISessionService {
+		protected override monitorSessionFiles(): void { }
+
 		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspace: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; sessionId?: string; debugTargetSessionIds?: readonly string[] }) {
 			const sessionOptions = await super.createSessionsOptions({ ...options, agent: undefined });
 			const mutableOptions = sessionOptions as SessionOptions;
