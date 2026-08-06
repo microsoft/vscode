@@ -61,6 +61,10 @@
 	justify-self: start;
 }
 
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container .monaco-dropdown-with-default > .dropdown-action-container {
+	height: 100%;
+}
+
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 	/* Match the VS Code window command center font size. */
