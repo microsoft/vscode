@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { cloneNotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from '../../common/notebookRange.js';
 import { setupInstantiationService, TestCell } from './testNotebookEditor.js';
@@ -314,6 +315,19 @@ suite('NotebookCommon', () => {
 				}
 			]
 		);
+
+		disposables.dispose();
+	});
+
+	test('cloneNotebookCellTextModel preserves user metadata (e.g. cell tags) #237160', function () {
+		const cell = disposables.add(new TestCell('notebook', 0, 'var a = 1;', 'javascript', CellKind.Code, [], languageService));
+		cell.metadata = { tags: ['myTag'], custom: { foo: 'bar' } };
+
+		const clone = cloneNotebookCellTextModel(cell);
+
+		assert.deepStrictEqual(clone.metadata, { tags: ['myTag'], custom: { foo: 'bar' } });
+		// Ensure it is a copy, not a shared reference to the original metadata object.
+		assert.notStrictEqual(clone.metadata, cell.metadata);
 
 		disposables.dispose();
 	});
