@@ -14,6 +14,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -116,6 +117,19 @@ suite('Sessions - Editor Contribution', () => {
 			resource: URI.file('/repo/other').toString(),
 			matchesAnotherEmptyInput: true
 		});
+	});
+
+	test('empty file editor declares managed Files capabilities', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const layoutService = stubEditorVisibility(instantiationService, true);
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+
+		assert.strictEqual(input.capabilities,
+			EditorInputCapabilities.ExcludeFromEditorLimit |
+			EditorInputCapabilities.Readonly |
+			EditorInputCapabilities.Singleton |
+			EditorInputCapabilities.ForceReveal |
+			EditorInputCapabilities.CannotClose);
 	});
 
 	test('empty file editor exposes its breadcrumb resource only while the editor area is visible', () => {

@@ -59,7 +59,7 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal;
+		return super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal | EditorInputCapabilities.CannotClose;
 	}
 
 	override getName(): string {

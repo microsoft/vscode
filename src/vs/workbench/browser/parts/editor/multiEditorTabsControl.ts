@@ -1645,6 +1645,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
 		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+		tabContainer.classList.toggle('cannot-close', !isCloseable);
 
 		for (const option of ['left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
