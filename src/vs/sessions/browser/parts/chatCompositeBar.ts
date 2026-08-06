@@ -13,7 +13,7 @@ import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { Action } from '../../../base/common/actions.js';
+import { Action, Separator } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
@@ -422,6 +422,12 @@ export class ChatCompositeBar extends Disposable {
 			this._startTabEditing(chatTab);
 		}));
 
+		const splitRightAction = this._tabDisposables.add(new Action('sessionCompositeBar.splitChatRight', localize('splitChatRight', "Split Right"), undefined, true, async () => {
+			if (session) {
+				this._sessionsService.splitChat(session, chat, 'right');
+			}
+		}));
+
 		// Delete permanently removes the chat (destructive). Only non-main chats
 		// can be deleted; the main chat lives and dies with its session.
 		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
@@ -454,6 +460,15 @@ export class ChatCompositeBar extends Disposable {
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
 					const actions = [];
+					const canSplit = !!session
+						&& session.isCreated.get()
+						&& session.chats.get().some(candidate => candidate.resource.toString() === chat.resource.toString());
+					if (canSplit) {
+						actions.push(splitRightAction);
+					}
+					if (canSplit && (capabilities.canRename || capabilities.canDelete)) {
+						actions.push(new Separator());
+					}
 					if (capabilities.canRename) {
 						actions.push(renameAction);
 					}
