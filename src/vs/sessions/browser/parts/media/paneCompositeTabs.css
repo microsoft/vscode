@@ -30,6 +30,18 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+	background-color: transparent !important;
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:is(.checked, :hover) .action-label {
+	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator::before {
+	display: none !important;
+}
+
 :is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -41,6 +53,6 @@
 }
 
 :is(.hc-black, .hc-light).agent-sessions-workbench.modern-ui-tabs .pane-composite-part:is(.panel, .auxiliarybar) > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
