@@ -458,7 +458,14 @@ export class ChatSessionStore extends Disposable {
 			return;
 		}
 
-		const storageLocation = this.getStorageLocation(sessionId);
+		let storageLocation: ReturnType<ChatSessionStore['getStorageLocation']>;
+		try {
+			storageLocation = this.getStorageLocation(sessionId);
+		} catch (e) {
+			this.reportError('invalidSessionId', `Removing invalid chat session from index: ${sessionId}`, e);
+			delete index.entries[sessionId];
+			return;
+		}
 		for (const uri of [storageLocation.flat, storageLocation.log]) {
 			try {
 				if (uri) {
@@ -627,7 +634,18 @@ export class ChatSessionStore extends Disposable {
 
 	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
-			const storageLocation = this.getStorageLocation(sessionId);
+			let storageLocation: ReturnType<ChatSessionStore['getStorageLocation']>;
+			try {
+				storageLocation = this.getStorageLocation(sessionId);
+			} catch (e) {
+				this.reportError('invalidSessionId', `Ignoring invalid chat session from index: ${sessionId}`, e);
+				const index = this.internalGetIndex();
+				if (index.entries[sessionId]) {
+					delete index.entries[sessionId];
+					await this.flushIndex();
+				}
+				return undefined;
+			}
 			return this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
 		});
 	}

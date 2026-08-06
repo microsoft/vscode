@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileDeleteOptions, IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -59,12 +59,21 @@ class MockWorkspaceEditingService extends Disposable implements Partial<IWorkspa
 	}
 }
 
+class TestChatSessionFileService extends InMemoryTestFileService {
+	readonly deleteOperations: URI[] = [];
+
+	override async del(resource: URI, options?: IFileDeleteOptions): Promise<void> {
+		this.deleteOperations.push(resource);
+		await super.del(resource, options);
+	}
+}
+
 suite('ChatSessionStore', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let mockWorkspaceEditingService: MockWorkspaceEditingService;
-	let fileService: InMemoryTestFileService;
+	let fileService: TestChatSessionFileService;
 
 	function createChatSessionStore(isEmptyWindow: boolean = false): ChatSessionStore {
 		const workspace = isEmptyWindow ? new Workspace('empty-window-id', []) : TestWorkspace;
@@ -77,7 +86,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		fileService = testDisposables.add(new InMemoryTestFileService());
+		fileService = testDisposables.add(new TestChatSessionFileService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
@@ -185,6 +194,27 @@ suite('ChatSessionStore', () => {
 		assert.strictEqual((session.value as ISerializableChatData3).sessionId, 'session-1');
 	});
 
+	test('readSession ignores and removes a legacy invalid session ID', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+		await store.storeSessions([model]);
+		const index = await store.getIndex();
+		index['../../../outside'] = { ...index['session-1'], sessionId: '../../../outside' };
+		delete index['session-1'];
+
+		const session = await store.readSession('../../../outside');
+
+		assert.deepStrictEqual({
+			session,
+			index: await store.getIndex(),
+			readOperations: fileService.readOperations,
+		}, {
+			session: undefined,
+			index: {},
+			readOperations: [],
+		});
+	});
+
 	test('deleteSession removes session from index', async () => {
 		const store = createChatSessionStore();
 		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
@@ -199,17 +229,37 @@ suite('ChatSessionStore', () => {
 		assert.strictEqual(index['session-1'], undefined);
 	});
 
-	test('clearAllSessions removes all sessions', async () => {
+	test('deleteSession removes a legacy invalid session ID without deleting files', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+		await store.storeSessions([model]);
+		const index = await store.getIndex();
+		index['../../../outside'] = { ...index['session-1'], sessionId: '../../../outside' };
+		delete index['session-1'];
+
+		await store.deleteSession('../../../outside');
+
+		assert.deepStrictEqual({
+			index: await store.getIndex(),
+			deleteOperations: fileService.deleteOperations,
+		}, {
+			index: {},
+			deleteOperations: [],
+		});
+	});
+
+	test('clearAllSessions removes all sessions including legacy invalid session IDs', async () => {
 		const store = createChatSessionStore();
 		const model1 = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
 		const model2 = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-2')));
 
 		await store.storeSessions([model1, model2]);
-		assert.strictEqual(Object.keys(await store.getIndex()).length, 2);
+		const index = await store.getIndex();
+		index['../../../outside'] = { ...index['session-1'], sessionId: '../../../outside' };
+		assert.strictEqual(Object.keys(index).length, 3);
 
 		await store.clearAllSessions();
 
-		const index = await store.getIndex();
 		assert.deepStrictEqual(index, {});
 	});
 
