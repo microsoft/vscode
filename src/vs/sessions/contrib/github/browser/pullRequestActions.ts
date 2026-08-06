@@ -63,7 +63,7 @@ class OpenPullRequestAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenPullRequestAction.ID,
-			title: localize2('agentSessions.openPullRequest', 'Open Pull Request'),
+			title: localize2('agentSessions.openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
 			// Pull request pill shown in the session header meta row
@@ -110,7 +110,7 @@ class CopyPullRequestUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: CopyPullRequestUrlAction.ID,
-			title: localize2('agentSessions.copyPullRequestUrl', 'Copy Pull Request URL'),
+			title: localize2('agentSessions.copyPullRequestUrl', "Copy Pull Request URL"),
 			f1: false,
 			menu: [{
 				id: Menus.SessionItemContextMenu,
