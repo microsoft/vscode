@@ -243,14 +243,17 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-window-pending-widget .interactive-input-part {
-	display: block;
-	padding: 0;
-}
-
 .chat-input-window .chat-input-window-pending-widget .chat-editor-container,
 .chat-input-window .chat-input-window-pending-widget .chat-input-toolbars,
 .chat-input-window .chat-input-window-pending-widget .chat-attachments-container {
+	display: none;
+}
+
+.chat-input-window .chat-input-window-pending-widget .interactive-item-container > :not(.value) {
+	display: none;
+}
+
+.chat-input-window .chat-input-window-pending-widget .interactive-item-container > .value > :not(.chat-confirmation-widget-container):not(:has(.chat-confirmation-widget-container)) {
 	display: none;
 }
 

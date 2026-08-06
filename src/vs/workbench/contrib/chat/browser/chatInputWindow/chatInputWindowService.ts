@@ -606,7 +606,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		));
 		widget.render(parent);
+		widget.setInputVisible(false);
 		widget.setVisible(true);
+		const list = widget.domNode.querySelector<HTMLElement>(':scope > .interactive-list');
 
 		let pendingModels: readonly IChatModel[] = [];
 		let layingOut = false;
@@ -618,7 +620,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			try {
 				const width = Math.max(0, panel.clientWidth);
 				widget.layout(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
-				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(1, Math.ceil(widget.contentHeight)));
+				const contentHeight = panel.classList.contains('question')
+					? widget.contentHeight
+					: list?.scrollHeight ?? widget.contentHeight;
+				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(1, Math.ceil(contentHeight)));
 				parent.style.height = `${height}px`;
 				widget.layout(height, width);
 				this._fitWindowToContent();

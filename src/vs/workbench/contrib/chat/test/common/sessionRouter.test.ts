@@ -62,11 +62,11 @@ suite('SessionRouter helpers', () => {
 		assert.strictEqual(parseRouterResponse('[{"sessionId":"unknown","confidence":0.5}]', new Set(['s1'])), undefined);
 	});
 
-	test('high-confidence routes must exceed 65 percent', () => {
+	test('high-confidence routes must exceed 80 percent', () => {
 		assert.deepStrictEqual([
-			isHighConfidenceSessionRoute({ sessionId: 'below', confidence: 0.64 }),
-			isHighConfidenceSessionRoute({ sessionId: 'boundary', confidence: 0.65 }),
-			isHighConfidenceSessionRoute({ sessionId: 'above', confidence: 0.66 }),
+			isHighConfidenceSessionRoute({ sessionId: 'below', confidence: 0.79 }),
+			isHighConfidenceSessionRoute({ sessionId: 'boundary', confidence: 0.8 }),
+			isHighConfidenceSessionRoute({ sessionId: 'above', confidence: 0.81 }),
 		], [false, false, true]);
 	});
 

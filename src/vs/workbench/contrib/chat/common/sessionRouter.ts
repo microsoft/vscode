@@ -13,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
 /** Existing sessions must exceed this confidence to be shown or selected. */
-export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.65;
+export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
@@ -122,6 +122,8 @@ export function buildRouterMessages(request: ISessionRouteRequest): ISessionRout
 		'You route a user request to the coding session it most likely refers to.',
 		'Each candidate may include a summary plus its first request, most recent request, and most recent response; weigh these more heavily than the name when present.',
 		'Score every candidate session from 0 (no match) to 1 (certain match).',
+		'Reserve scores above 0.8 for a clear continuation of the same concrete task; shared repository names or generic coding terms are not enough.',
+		'When the request could reasonably start a new task, score every existing session at 0.8 or below.',
 		'Respond with ONLY a JSON array, sorted by confidence descending, of objects:',
 		'[{"sessionId": string, "confidence": number, "reason": string}]',
 		'Do not include any prose or code fences.'
