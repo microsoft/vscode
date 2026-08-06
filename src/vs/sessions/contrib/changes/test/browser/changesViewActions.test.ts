@@ -13,7 +13,7 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
@@ -188,7 +188,7 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual(actual, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group: 'secondary',
+			group: 'secondary/2_viewMode',
 			order: 20,
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
@@ -199,7 +199,7 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group: 'secondary',
+			group: 'secondary/2_viewMode',
 			order: 20,
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
@@ -210,7 +210,7 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Create Pull Request anchor is contributed to the right-side title bar menu', () => {
+	test('Create Pull Request anchor is contributed to the right-side title bar menu for created sessions', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
@@ -227,6 +227,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
 		}, {
 			editorTitleItem: undefined,
@@ -235,6 +236,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: true,
 			hasAuxiliaryWindowGate: true,
 			hasSinglePaneLayoutGate: true,
+			hasCreatedSessionGate: true,
 			hasChangesGate: true,
 		});
 	});

@@ -193,6 +193,16 @@ const openPullRequestDetails: IGitHubPullRequest = {
 	mergeableState: 'clean',
 };
 
+const shortDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Suppresses the expected EPIPE error on graceful disconnect.',
+};
+
+const longDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Every graceful client disconnect currently logs an unexpected EPIPE error. This makes a routine shutdown look like a server failure and adds noise for anyone scanning logs while investigating connection issues. The change recognizes the expected disconnect path and avoids reporting it as an error while preserving diagnostics for unexpected failures. This description is intentionally long enough to exceed three lines and verify that the pull request hover clamps the text without revealing any part of a fourth line.',
+};
+
 const draftPullRequestDetails: IGitHubPullRequest = {
 	...openPullRequestDetails,
 	number: draftPr.number,
@@ -233,7 +243,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenPullRequest_Hover: defineComponentFixture({
-		render: (ctx) => renderPullRequestHover(ctx, openPullRequestDetails),
+		render: (ctx) => renderPullRequestHover(ctx, shortDescriptionPullRequest),
+	}),
+
+	OpenPullRequest_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderPullRequestHover(ctx, longDescriptionPullRequest),
 	}),
 
 	OpenPullRequest_List: defineComponentFixture({

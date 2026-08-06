@@ -19,7 +19,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 3. **Recording needs a real token** (`GITHUB_TOKEN` or `gh auth token`) and talks to real CAPI. Only run it intentionally, with trivial/read-only prompts in temp dirs.
 4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
-6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. Record symptoms, not speculative root causes.
+6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. For suspected product bugs, begin with a self-contained explanation in complete sentences of what the user is trying to do, what fails, and the likely user impact; define feature-specific terms instead of relying on test names or implementation details. Record symptoms, not speculative root causes.
 
 ## Workflow A — Add a cross-provider test
 

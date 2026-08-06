@@ -113,6 +113,50 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('find . -exec rm {} ;'), 'denied');
 		});
 
+		test('handles sort with blocked args', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sort input.txt'),
+				approver.shouldAutoApprove('sort --check input.txt'),
+				approver.shouldAutoApprove('sort --check=quiet input.txt'),
+				approver.shouldAutoApprove('sort "--check" input.txt'),
+				approver.shouldAutoApprove('sort --buffer-size=1K input.txt'),
+				approver.shouldAutoApprove('sort -o output.txt input.txt'),
+				approver.shouldAutoApprove('sort -S 1G input.txt'),
+				approver.shouldAutoApprove('sort --compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program /bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-prog=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-p=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --com=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --co=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort "--compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort \'--compress-prog=/bin/sh\' input.txt'),
+				approver.shouldAutoApprove('sort \\-\\-compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program\\=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --"compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort $\'--compress-program=/bin/sh\' input.txt'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
+		});
+
 		test('handles sed with blocked args', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
@@ -456,6 +500,32 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Remove-Item $_ }', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem | ForEach-Object { Invoke-Expression $_ }', pwsh),
 			], ['denied', 'denied']);
+		});
+
+		// Reported PowerShell wrapper shapes: an outer allowed cmdlet must not
+		// hide nested denied/non-allowed commands inside a script block. The Bash
+		// grammar keeps `{ ... }` opaque, so the same rules can incorrectly
+		// approve the line when the wrong dialect is selected.
+		test('does not auto-approve denied commands nested in Measure-Command script blocks', () => {
+			const rules = {
+				...pwsh,
+				autoApproveRules: {
+					'Measure-Command': true,
+					'Where-Object': true,
+					'Set-Content': false,
+					'Start-Process': false,
+					'Invoke-Expression': false,
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', rules),
+				approver.shouldAutoApprove('Measure-Command { Invoke-Expression "Write-Output hi" }', rules),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Start-Process notepad }', rules),
+				// Visible separators already rejected nested denied commands.
+				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
+				// The wrong dialect demonstrates the opaque-block bypass.
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
+			], ['denied', 'denied', 'denied', 'denied', 'approved']);
 		});
 
 		// An unquoted `$null` discards PowerShell output; both the spaced form (a

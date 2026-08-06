@@ -26,6 +26,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */
@@ -45,6 +46,7 @@ const FILES_TAB_OPTIONS: IEditorOptions = { pinned: true, inactive: true, preser
  */
 interface IManagedTabsTarget {
 	readonly changesSessionResource: URI | undefined;
+	readonly workspace: ISessionWorkspace | undefined;
 	readonly wantsChangesTab: boolean;
 	readonly wantsFilesTab: boolean;
 }
@@ -213,11 +215,11 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		const read = <T>(obs: IObservable<T>): T => reader ? obs.read(reader) : obs.get();
 		const session = read(this._sessionsService.activeSession);
 		const isQuickChat = session?.isQuickChat ? read(session.isQuickChat) : false;
-		const hasWorkspace = !!session && !!read(session.workspace);
-		if (!session || isQuickChat || !hasWorkspace) {
-			return { changesSessionResource: undefined, wantsChangesTab: false, wantsFilesTab: false };
+		const workspace = session ? read(session.workspace) : undefined;
+		if (!session || isQuickChat || !workspace) {
+			return { changesSessionResource: undefined, workspace: undefined, wantsChangesTab: false, wantsFilesTab: false };
 		}
-		return { changesSessionResource: session.resource, wantsChangesTab: true, wantsFilesTab: true };
+		return { changesSessionResource: session.resource, workspace, wantsChangesTab: true, wantsFilesTab: true };
 	}
 
 	private _queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
@@ -275,6 +277,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			if (generation !== this._generation) {
 				return;
 			}
+			this._updateFilesEditors(group, target.workspace);
 
 			// [2] Decide which docked inputs to open, from the trigger + group state.
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
@@ -290,7 +293,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 			// [3] Keep Files active by default for a new-session view.
 			if (openFilesFirst) {
-				await this._openFilesTab(group);
+				await this._openFilesTab(group, target.workspace);
 				if (generation !== this._generation) {
 					return;
 				}
@@ -305,7 +308,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 			// [5] Open the Files placeholder after Changes for created sessions.
 			if (openFiles && !openFilesFirst) {
-				await this._openFilesTab(group);
+				await this._openFilesTab(group, target.workspace);
 				if (generation !== this._generation) {
 					return;
 				}
@@ -343,10 +346,10 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		return true;
 	}
 
-	private async _openFilesTab(group: IEditorGroup): Promise<void> {
+	private async _openFilesTab(group: IEditorGroup, workspace: ISessionWorkspace | undefined): Promise<void> {
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput), FILES_TAB_OPTIONS, group);
+			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput, workspace), FILES_TAB_OPTIONS, group);
 		} finally {
 			suppression.dispose();
 		}
@@ -366,6 +369,14 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		});
 		if (foreign.length > 0) {
 			await this._closeManagedEditors(group, foreign);
+		}
+	}
+
+	private _updateFilesEditors(group: IEditorGroup, workspace: ISessionWorkspace | undefined): void {
+		for (const editor of group.editors) {
+			if (editor instanceof EmptyFileEditorInput) {
+				editor.setWorkspace(workspace);
+			}
 		}
 	}
 

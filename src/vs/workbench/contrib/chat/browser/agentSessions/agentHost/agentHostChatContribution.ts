@@ -103,7 +103,7 @@ export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
  * registers each one as a chat session type with its own session handler,
  * customization harness, and language model provider.
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 

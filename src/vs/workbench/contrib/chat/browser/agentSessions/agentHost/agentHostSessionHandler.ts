@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
-import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -40,11 +40,11 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getInlineToolInput, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type ToolInput, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -423,6 +423,17 @@ function metaWithoutToolSearchCandidates(source: { readonly _meta?: Record<strin
 	const meta = { ...source._meta };
 	delete meta['toolSearchCandidates'];
 	return meta;
+}
+
+async function resolveToolInput(connection: IAgentConnection, toolInput: ToolInput | undefined): Promise<string> {
+	if (toolInput === undefined) {
+		return '{}';
+	}
+	if (typeof toolInput === 'string') {
+		return toolInput;
+	}
+	const result = await connection.resourceRead(URI.parse(toolInput.uri));
+	return result.encoding === ContentEncoding.Base64 ? decodeBase64(result.data).toString() : result.data;
 }
 
 /**
@@ -2118,43 +2129,68 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (initial.clientId !== this._config.connection.clientId) {
 					return; // A different client owns this call.
 				}
-				let handled = false;
-				const execute = (contextSessionResource: URI | undefined) => {
-					if (handled) {
+				let generation = 0;
+				let observedRequest: SessionToolClientExecutionRequest | undefined;
+				let startedRequest: SessionToolClientExecutionRequest | undefined;
+				let invocationStarted = false;
+				const unobservedTimer = itemStore.add(new MutableDisposable<IDisposable>());
+				itemStore.add(autorun(reader => {
+					const request = request$.read(reader);
+					const claimant = this._renderedRequests.read(reader).get(key);
+					if (request.kind !== SessionInputRequestKind.ToolClientExecution || request.clientId !== this._config.connection.clientId) {
+						generation++;
+						observedRequest = undefined;
+						startedRequest = undefined;
+						invocationStarted = false;
+						unobservedTimer.clear();
 						return;
 					}
-					handled = true;
-					void this._executeClientTool(request$.get() as SessionToolClientExecutionRequest, contextSessionResource, cts.token);
-				};
-				const claimant = this._renderedRequests.get().get(key);
-				if (claimant) {
-					// A turn observer is rendering it, so a live chat request
-					// exists: run with that observer's session as context so
-					// confirmation renders in the tool part, any pre-approval
-					// is honored, and side effects attribute to the right chat.
-					execute(claimant);
-				} else if (!this._clientToolRequiresConfirmation(initial.toolCall)) {
-					// Unclaimed and cannot pop a confirmation: run headlessly so
-					// it does not depend on the owning turn still being live.
-					execute(undefined);
-				} else {
-					// Unclaimed and might pop a confirmation: a headless run
-					// would surface a modal nobody could see. Wait for an
-					// observer to claim it; if none does within the grace
-					// window, deny it.
-					itemStore.add(autorun(reader => {
-						const claimed = this._renderedRequests.read(reader).get(key);
-						if (!handled && claimed) {
-							execute(claimed);
+					if (!equals(observedRequest, request)) {
+						observedRequest = request;
+						if (invocationStarted) {
+							return;
 						}
-					}));
-					itemStore.add(disposableTimeout(() => {
-						if (!handled) {
-							handled = true;
-							this._denyClientTool(request$.get() as SessionToolClientExecutionRequest);
-						}
-					}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
-				}
+						generation++;
+						startedRequest = undefined;
+						unobservedTimer.clear();
+					}
+					if (startedRequest) {
+						return;
+					}
+					if (request.toolCall.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+						&& readToolCallMeta(request.toolCall).toolSearchCandidates === undefined) {
+						return;
+					}
+					const execute = (contextSessionResource: URI | undefined) => {
+						startedRequest = request;
+						unobservedTimer.clear();
+						const requestGeneration = generation;
+						void this._executeClientTool(
+							request,
+							contextSessionResource,
+							cts.token,
+							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
+							() => {
+								if (requestGeneration === generation) {
+									invocationStarted = true;
+								}
+							},
+						);
+					};
+					if (claimant) {
+						execute(claimant);
+					} else if (!this._clientToolRequiresConfirmation(request.toolCall)) {
+						execute(undefined);
+					} else if (!unobservedTimer.value) {
+						const requestGeneration = generation;
+						unobservedTimer.value = disposableTimeout(() => {
+							if (requestGeneration === generation && !startedRequest) {
+								startedRequest = request;
+								this._denyClientTool(request);
+							}
+						}, UNOBSERVED_CLIENT_TOOL_GRACE_MS);
+					}
+				}));
 			} else if (initial.kind === SessionInputRequestKind.ToolAuthentication) {
 				// An MCP tool call blocked on authentication. The token is
 				// pushed out-of-band via the `authenticate` command, so this
@@ -2295,7 +2331,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: SessionToolClientExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken): Promise<void> {
+	private async _executeClientTool(request: SessionToolClientExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
@@ -2307,28 +2343,61 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// candidate corpus from `_meta` while preserving any other metadata.
 		const completionMeta = isToolSearch ? { _meta: metaWithoutToolSearchCandidates(toolCall) } : {};
 
-		const fail = (message: string, code: string) => this._resolveToolCall(chatURI, request.turnId, toolCall.toolCallId, {
-			type: ActionType.ChatToolCallComplete,
-			turnId: request.turnId,
-			toolCallId: toolCall.toolCallId,
-			result: {
-				success: false,
-				pastTenseMessage: localize('agentHost.clientTool.pastTense', "Couldn't run {0}", toolCall.displayName),
-				error: { message, code },
-			},
-			...completionMeta,
-		});
+		const invocation = toolData
+			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, undefined)
+			: undefined;
+		const fail = (message: string, code: string) => {
+			const pastTenseMessage = localize('agentHost.clientTool.pastTense', "Couldn't run {0}", toolCall.displayName);
+			const result: IToolResult = {
+				content: [],
+				toolResultError: message,
+				toolResultMessage: pastTenseMessage,
+			};
+			void invocation?.didExecuteTool(result);
+			this._resolveToolCall(chatURI, request.turnId, toolCall.toolCallId, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: request.turnId,
+				toolCallId: toolCall.toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage,
+					error: { message, code },
+				},
+				...completionMeta,
+			});
+		};
 
 		if (!toolData) {
 			fail(localize('agentHost.clientTool.unknown', "Tool \"{0}\" is not available on this client.", toolName), 'toolUnavailable');
 			return;
 		}
 
+		if (!invocation) {
+			fail(localize('agentHost.clientTool.beginFailed', "Could not create invocation for client tool \"{0}\".", toolName), 'invocationFailed');
+			return;
+		}
+
 		// eslint-disable-next-line local/code-no-in-operator
-		const rawInput = 'toolInput' in toolCall ? toolCall.toolInput : undefined;
+		const toolInput = 'toolInput' in toolCall ? toolCall.toolInput : undefined;
+		let rawInput: string;
+		try {
+			rawInput = await resolveToolInput(this._config.connection, toolInput);
+		} catch (error) {
+			if (!isCurrent() || token.isCancellationRequested) {
+				return;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._logService.warn(`[AgentHost] Failed to read client tool input: ${toolName}`, error);
+			fail(message, 'inputReadFailed');
+			return;
+		}
+		if (!isCurrent() || token.isCancellationRequested) {
+			return;
+		}
+
 		let parameters: Record<string, unknown>;
 		try {
-			const parsed: unknown = JSON.parse(rawInput ?? '{}');
+			const parsed: unknown = JSON.parse(rawInput);
 			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 				throw new Error('expected JSON object');
 			}
@@ -2343,16 +2412,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			parameters = { ...parameters, candidateTools: toolSearchCandidates };
 		}
 
-		const invocation = this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, undefined);
-		if (!invocation) {
-			fail(localize('agentHost.clientTool.beginFailed', "Could not create invocation for client tool \"{0}\".", toolName), 'invocationFailed');
-			return;
-		}
-
 		this._logService.info(`[AgentHost] Running client tool: ${toolName} (callId=${toolCall.toolCallId}, withContext=${contextSessionResource !== undefined})`);
 		let result: IToolResult | undefined;
 		let error: unknown;
 		try {
+			markInvocationStarted();
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
@@ -2365,7 +2429,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			error = err;
 		}
 
-		if (token.isCancellationRequested) {
+		if (!isCurrent() || token.isCancellationRequested) {
 			return;
 		}
 		if (error !== undefined) {
@@ -3665,13 +3729,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			if (state.type === IChatToolInvocation.StateKind.Executing) {
 				confirmationDispatched = true;
-				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: opts.turnId,
-					toolCallId,
-					approved: true,
-					confirmed: confirmedReasonToProtocol(state.confirmed),
-				});
+				const selectedOptionId = state.confirmed.type === ToolConfirmKind.UserAction ? state.confirmed.selectedButton : undefined;
+				const approved = state.confirmed.type !== ToolConfirmKind.UserAction
+					|| state.confirmed.selectedButtonKind !== ConfirmationOptionKind.Deny;
+				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, approved
+					? {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: true,
+						confirmed: confirmedReasonToProtocol(state.confirmed),
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					}
+					: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: false,
+						reason: ToolCallCancellationReason.Denied,
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
 				// Pre-execution cancellation (a denied confirmation). If the
 				// protocol call already reached a terminal state the server
@@ -3691,20 +3768,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
-		// Presentational: keep subagent observation current, and if the
-		// protocol call reaches a terminal state while the shared invocation is
-		// still streaming (the watcher never ran it), settle the card so the UI
-		// is not stuck.
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
+			const state = invocation.state.read(reader);
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
+			if (tc.status === ToolCallStatus.PendingConfirmation && state.type === IChatToolInvocation.StateKind.Streaming) {
+				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
+				invocation.transitionFromStreaming(prepared, invocation.parameters, getClientToolPreApproval(tc));
+			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)
-				&& invocation.state.read(reader).type === IChatToolInvocation.StateKind.Streaming) {
+				&& !IChatToolInvocation.isComplete(invocation, reader)) {
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 				if (fileEdits.length > 0) {
 					opts.onFileEdits?.(tc, fileEdits);
 				}
-				invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
 			}
 		}));
 	}
@@ -3979,7 +4056,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const terminalContent = getTerminalContent(tc.content);
 		const terminalUri = terminalContent?.resource;
-		const toolInput = tc.toolInput;
+		const toolInput = getInlineToolInput(tc.toolInput);
 		if (!terminalContent || !terminalUri || !toolInput) {
 			return;
 		}
