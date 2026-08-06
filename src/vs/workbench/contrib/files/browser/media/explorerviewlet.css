@@ -58,6 +58,18 @@
 	display: none;
 }
 
+.explorer-folders-view .explorer-item.highlight-badge > .monaco-icon-label-container {
+	display: flex;
+	align-items: center;
+}
+
+.explorer-folders-view .explorer-item.highlight-badge .monaco-icon-name-container {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .explorer-folders-view .monaco-list-row[aria-expanded="false"] .explorer-item.highlight-badge .monaco-count-badge {
 	display: inline-block;
 }

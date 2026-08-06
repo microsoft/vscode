@@ -31,6 +31,7 @@ import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -43,6 +44,18 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
+	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
+};
+
+function getLockedPackageVersion(packageName: string): string {
+	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	if (!version) {
+		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+	}
+
+	return version;
+}
 
 // Build
 const vscodeEntryPoints = [
@@ -93,10 +106,14 @@ const vscodeResourceIncludes = [
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'out-build/vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+
+	// Chat Pet
+	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/*.{gif,png}',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -235,23 +252,19 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// onnxruntime-node (direct dependency and transitive via @huggingface/transformers,
-// on-device chat dictation) ships prebuilt binaries for every platform/arch inside its
-// tarball. Keep only the target build's binary so we don't bloat each package
-// with ~170MB of unused native code.
-const onnxRuntimeShippedTargets: readonly [string, string][] = [
-	['darwin', 'arm64'],
-	['linux', 'x64'],
-	['linux', 'arm64'],
-	['win32', 'x64'],
-	['win32', 'arm64'],
-];
-function getOnnxRuntimeExcludeFilter(platform: string, arch: string): string[] {
+// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
+// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
+// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
+// time. The addon requires a newer glibc than VS Code's minimum supported Linux
+// distros, so we deliberately do NOT ship any of this native payload: it is
+// downloaded on demand at runtime, only on supported platforms, into a per-user
+// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
+// Exclude every prebuilt addon and core library from the package here.
+function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
-		...onnxRuntimeShippedTargets
-			.filter(([p, a]) => !(p === platform && a === arch))
-			.map(([p, a]) => `!**/onnxruntime-node/bin/napi-v6/${p}/${a}/**`),
+		'!**/foundry-local-sdk/prebuilds/**',
+		'!**/foundry-local-sdk/foundry-local-core/**',
 	];
 }
 
@@ -326,12 +339,23 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
+				json.copilotVersions = {
+					runtime: getLockedPackageVersion('@github/copilot'),
+					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
 				const agentSdks = readAgentSdkResults();
 				if (Object.keys(agentSdks).length > 0) {
 					json.agentSdks = agentSdks;
+				}
+				// Stamp dictationRuntime from the per-platform results file
+				// produced by `build/dictation-runtime/produce.ts`. Local dev /
+				// unsupported target: file absent → undefined → not stamped.
+				const dictationRuntime = readDictationRuntimeResults();
+				if (dictationRuntime) {
+					json.dictationRuntime = dictationRuntime;
 				}
 				return json;
 			}))
@@ -370,7 +394,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getOnnxRuntimeExcludeFilter(platform, arch)))
+			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -401,14 +425,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/node-pty/package.json',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-				// onnxruntime-node (direct dependency and transitive via
-				// @huggingface/transformers, used
-				// for on-device chat dictation) ships a prebuilt N-API addon that
-				// dlopen's sibling shared libraries (libonnxruntime.*.dylib / .so /
-				// onnxruntime.dll + DirectML). The OS loader resolves those by
-				// on-disk path relative to the addon, so the whole bin/ tree must
-				// live outside the archive, not just the `.node` file.
-				'**/onnxruntime-node/bin/**',
 			], [
 				'**/*.mk',
 			], [

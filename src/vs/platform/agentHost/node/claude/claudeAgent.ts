@@ -10,7 +10,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -20,9 +20,9 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
+import { AgentSessionEntry, buildSideChatSourceContext, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -32,7 +32,7 @@ import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../c
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -41,8 +41,10 @@ import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
+import { detectExistingClaudeSetup, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
 import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
+import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import { handleElicitation } from './claudeElicitationBridge.js';
@@ -53,6 +55,8 @@ import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
@@ -226,6 +230,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+	/**
+	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
+	 * token change, a transport flip, or a periodic tick from the host's
+	 * model-refresh scheduler) collapse into a single enumeration instead of
+	 * racing each other's writes to {@link _models}.
+	 */
+	private _modelRefreshInFlight: Promise<void> | undefined;
 
 	private _githubToken: string | undefined;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
@@ -234,11 +245,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Resolved host transport mode (Phase 19). `proxy` (default) routes through
 	 * the Copilot-CAPI proxy; `native` talks to Anthropic directly on the user's
-	 * own credentials. Resolved once from the `ClaudeUseCopilotProxy` root
-	 * config value and kept current by an `onDidRootConfigChange` subscription.
-	 * Config changes affect FUTURE sessions only — never an in-flight subprocess.
+	 * own credentials. Resolved from the precedence in {@link resolveClaudeTransportMode}
+	 * (explicit `claudeUseCopilotProxy` override; else the experimentation flag,
+	 * GitHub sign-in state, and any existing local Claude setup) and kept current
+	 * by config-change and sign-in triggers. Config/auth changes affect FUTURE
+	 * sessions only — never an in-flight subprocess.
 	 */
-	private _transportMode: 'proxy' | 'native' = 'proxy';
+	private _transportMode: ClaudeTransportMode = 'proxy';
 
 	/**
 	 * Memoized teardown promise. Set on the first call to {@link shutdown},
@@ -436,6 +449,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IClaudeProxyService private readonly _claudeProxyService: IClaudeProxyService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
@@ -454,30 +469,28 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._findSessionBySdkId(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
 		}));
 
+		// Emit a host-produced session-title metadata span whenever this agent's
+		// session title changes. The shared state manager fires for every
+		// provider, so gate on our own provider id. Mirrors `CopilotAgent`.
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
+		}));
+
 		// Phase 19: resolve the transport mode now and re-resolve reactively.
 		// A flip only affects sessions materialized afterwards; in-flight
 		// subprocesses keep their original transport. When native, kick off an
 		// initial model refresh since no GitHub auth (which would otherwise
 		// trigger it) is required.
+		//
+		// Resolution now depends on the `claudeUseCopilotProxy` setting, the
+		// experimentation flag, and GitHub sign-in state. The setting and flag
+		// both live in the root config, so `onDidRootConfigChange` covers them;
+		// the sign-in trigger is wired in {@link authenticate}.
 		this._transportMode = this._resolveTransportMode();
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const next = this._resolveTransportMode();
-			if (next !== this._transportMode) {
-				this._transportMode = next;
-				void this._refreshModels();
-				// Flipping into proxy makes GitHub Copilot auth newly required.
-				// If no proxy handle was ever established, proactively ask the
-				// client to authenticate rather than waiting for the next command
-				// to fail with `AHP_AUTH_REQUIRED`. A handle persists across a
-				// proxy→native→proxy round-trip (cleared only on dispose), so this
-				// fires only when a credential is genuinely missing.
-				if (next === 'proxy' && !this._proxyHandle) {
-					this._onDidRequireAuth.fire({
-						resource: this._gitHubEndpointService.getCopilotResource().resource,
-						reason: AuthRequiredReason.Required,
-					});
-				}
-			}
+			this._applyTransportModeChange(this._resolveTransportMode());
 		}));
 		if (this._transportMode === 'native') {
 			// Only native bootstraps its model list here. Proxy mode fetches
@@ -488,14 +501,49 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// kick off the initial enumeration ourselves. (Transport *flips*
 			// after construction are covered by the `onDidRootConfigChange`
 			// subscription above.) `queueMicrotask` runs it off the ctor stack.
-			queueMicrotask(() => { void this._refreshModels(); });
+			queueMicrotask(() => { void this._startModelRefresh(); });
 		}
 	}
 
-	private _resolveTransportMode(): 'proxy' | 'native' {
-		// Defaults to proxied when the `claudeUseCopilotProxy` root value is unset.
-		const useProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy) ?? true;
-		return useProxy ? 'proxy' : 'native';
+	/**
+	 * Gather the four precedence inputs and delegate the decision to the pure
+	 * {@link resolveClaudeTransportMode}. {@link authenticate} passes
+	 * `hasGitHubToken: true` while a token is arriving, so resolution reflects the
+	 * imminent sign-in before the token is committed to {@link _githubToken}.
+	 */
+	private _resolveTransportMode(hasGitHubToken: boolean = this._githubToken !== undefined): ClaudeTransportMode {
+		// An absent `claudeUseCopilotProxy` stays `undefined` so the pure function
+		// can tell an explicit override from "fall through to the flag/sign-in rules".
+		const explicitProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy);
+		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
+		const hasExistingSetup = allowSignedOutWhenUsable && detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
+		return resolveClaudeTransportMode({ explicitProxy, allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup });
+	}
+
+	/**
+	 * Apply a freshly-resolved transport mode. No-op when it matches the current
+	 * mode. On a real flip it drops the stale model catalog — which also
+	 * republishes the newly-resolved protected resources downstream, since the
+	 * side-effects layer reads `models` and `getProtectedResources()` together —
+	 * kicks off a fresh enumeration, and, when flipping into proxy with no proxy
+	 * handle, proactively asks the client to authenticate rather than waiting for
+	 * the next command to fail with `AHP_AUTH_REQUIRED`. A handle persists across
+	 * a proxy→native→proxy round-trip (cleared only on dispose), so the auth
+	 * prompt fires only when a credential is genuinely missing.
+	 */
+	private _applyTransportModeChange(next: ClaudeTransportMode): void {
+		if (next === this._transportMode) {
+			return;
+		}
+		this._transportMode = next;
+		this._models.set([], undefined);
+		void this._startModelRefresh();
+		if (next === 'proxy' && !this._proxyHandle) {
+			this._onDidRequireAuth.fire({
+				resource: this._gitHubEndpointService.getCopilotResource().resource,
+				reason: AuthRequiredReason.Required,
+			});
+		}
 	}
 
 	// #region Descriptor + auth
@@ -505,19 +553,36 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
-			capabilities: { multipleChats: { fork: true } },
+			capabilities: {
+				multipleChats: { fork: true, sideChat: true },
+				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+			},
 		};
 	}
 
+	private _isMultiRootEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
+	}
+
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// Native (BYO-Anthropic) mode needs no GitHub Copilot auth — the SDK owns
-		// the Anthropic credential — so the required Copilot resource is dropped.
+		// Native (BYO-Anthropic) mode does not *require* GitHub Copilot auth — the
+		// SDK owns the Anthropic credential. Rather than DROP the Copilot resource,
+		// native keeps advertising it with `required: false` (mirroring Codex when
+		// using a provider that does not require GitHub). Two effects, both
+		// wanted:
+		//   1. The host silently forwards a GitHub token IFF the user is already
+		//      signed in (no prompt when signed out) — the sign-in probe that lets
+		//      `authenticate()` flip a signed-in user from native to proxy at
+		//      startup (precedence rule 3). Without advertising it, a signed-in
+		//      user with a local Claude setup would be stuck in native forever.
+		//   2. `required: false` still tells the window gate the type is usable
+		//      without GitHub when signed out (see
+		//      `protectedResourcesRequireGitHubCopilotSignIn`, which checks
+		//      `required !== false`), so no sign-in is forced.
 		// The optional repo resource is kept for git operations either way.
-		if (this._transportMode !== 'proxy') {
-			return [this._gitHubEndpointService.getRepoResource()];
-		}
+		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._gitHubEndpointService.getCopilotResource(),
+			this._transportMode === 'proxy' ? copilotResource : { ...copilotResource, required: false },
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -549,15 +614,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
+		// A GitHub Copilot token is arriving (sign-in). Re-resolve the transport
+		// with the token now available: absent an explicit `claudeUseCopilotProxy`,
+		// signing in prefers proxy even over an existing native setup, so this can
+		// flip a signed-out native session into proxy.
+		const nextMode = this._resolveTransportMode(true);
+
 		// Native (BYO-Anthropic) mode needs no proxy and no GitHub token. Record
 		// the token (harmless; lets a later flip back to proxy reuse it) but do
 		// NOT start the proxy or treat the absence of a token as unauthenticated.
-		if (this._transportMode !== 'proxy') {
+		// The only way to resolve to native with a token present is an explicit
+		// `claudeUseCopilotProxy=false`, so `_applyTransportModeChange` here is a
+		// no-op unless a stale proxy mode still needs reconciling to native.
+		if (nextMode === 'native') {
 			this._githubToken = token;
+			this._applyTransportModeChange('native');
 			return true;
 		}
+
 		const tokenChanged = this._githubToken !== token;
-		if (!tokenChanged && this._proxyHandle) {
+		const modeChanged = this._transportMode !== nextMode;
+		if (!tokenChanged && !modeChanged && this._proxyHandle) {
 			this._logService.info('[Claude] Auth token unchanged');
 			return true;
 		}
@@ -577,25 +654,76 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const oldHandle = this._proxyHandle;
 		this._proxyHandle = newHandle;
 		this._githubToken = token;
+		// Commit the (possibly flipped native→proxy) mode now that a handle is in
+		// hand — do NOT route through `_applyTransportModeChange`, which would
+		// fire a redundant `auth/required` even though we just authenticated.
+		this._transportMode = nextMode;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		void this._refreshModels();
+		if (tokenChanged || modeChanged) {
+			// A different account can have different model entitlements, and a
+			// transport flip enumerates a different catalog. Do not retain the
+			// previous list if enumeration for the new input fails. The `models`
+			// write also republishes the (now proxy) protected resources downstream.
+			this._models.set([], undefined);
+		}
+		void this._startModelRefresh();
 		return true;
 	}
 
 	/**
 	 * Whether the Claude provider routes through the Copilot-CAPI proxy.
-	 * Reads the resolved {@link _transportMode} (Phase 19), which the
-	 * constructor seeds from the `ClaudeUseCopilotProxy` root config value.
+	 * Reads the resolved {@link _transportMode} (Phase 19), kept current by
+	 * {@link _resolveTransportMode} on construction, config change, and sign-in.
 	 */
 	private _isProxyEnabled(): boolean {
 		return this._transportMode === 'proxy';
+	}
+
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh and
+	 * never rejects — {@link _refreshModels} already logs and handles failure.
+	 *
+	 * Only safe for callers with no new input to apply (the host's periodic
+	 * scheduler). Triggers that invalidate the in-flight request — a rotated
+	 * token, a transport flip — must call {@link _startModelRefresh} so they
+	 * are not answered by a refresh bound to the superseded input.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelRefreshInFlight ?? this._startModelRefresh();
+	}
+
+	/**
+	 * Unconditionally begins a refresh, superseding any in-flight one as the
+	 * coalescing target. The superseded request stays harmless: its own
+	 * stale-write guard drops the result if the token or transport moved on.
+	 */
+	private _startModelRefresh(): Promise<void> {
+		const refresh = this._refreshModels().finally(() => {
+			if (this._modelRefreshInFlight === refresh) {
+				this._modelRefreshInFlight = undefined;
+			}
+		});
+		this._modelRefreshInFlight = refresh;
+		return refresh;
 	}
 
 	private async _refreshModels(): Promise<void> {
 		const proxyAtStart = this._isProxyEnabled();
 		const tokenAtStart = this._githubToken;
 		if (proxyAtStart && !tokenAtStart) {
+			this._models.set([], undefined);
+			return;
+		}
+		// Native without a credential cannot run a turn. The SDK's
+		// `supportedModels()` is a static catalog and answers regardless, so
+		// publishing it would advertise models that fail on first use — and would
+		// make the agent look usable-without-GitHub to the window gate. Report an
+		// empty catalog instead, which surfaces as "no models" (see the `Unusable`
+		// entry in `src/vs/sessions/CONTEXT.md`). Only reachable via an explicit
+		// `claudeUseCopilotProxy: false`; the flag-driven path only picks native
+		// when a setup was detected.
+		if (!proxyAtStart && !detectExistingClaudeSetup(this._environmentService.userHome.fsPath)) {
 			this._models.set([], undefined);
 			return;
 		}
@@ -613,9 +741,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');
-			if (this._isProxyEnabled() === proxyAtStart && (!proxyAtStart || this._githubToken === tokenAtStart)) {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. A periodic refresh is advisory;
+			// a transient service failure must not make every model disappear.
+			// Input changes that invalidate the catalog clear it at the point
+			// where that input changes.
 		}
 	}
 
@@ -684,27 +813,33 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (!existing.isPipelineReady) {
 				return {
 					session: existing.sessionUri,
-					workingDirectory: existing.workingDirectory,
+					resolvedWorkingDirectory: existing.workingDirectory,
 					provisional: true,
 					...(existing.project ? { project: existing.project } : {}),
 				};
 			}
-			return { session: sessionUri, workingDirectory: config.workingDirectory };
+			return { session: sessionUri, resolvedWorkingDirectory: config.workingDirectories?.[0] };
 		}
 
-		// A workspace-less session (no `workingDirectory` supplied, and not a
+		// A workspace-less session (no `workingDirectories` supplied, and not a
 		// fork) runs in a stable per-session scratch dir shared with the Copilot
 		// agent; without a cwd Claude throws at materialize. The workspace-less
 		// marker itself is owned/persisted centrally by the AH service.
-		const workingDirectory = config.workingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
+		const requestedWorkingDirectory = config.workingDirectories?.[0];
+		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
 
 		// Only probe for a project when the caller supplied a real folder; a
 		// scratch dir is never a code project.
-		const project = config.workingDirectory
-			? await projectFromCopilotContext({ cwd: config.workingDirectory.fsPath }, this._gitService)
+		const project = requestedWorkingDirectory
+			? await projectFromCopilotContext({ cwd: requestedWorkingDirectory.fsPath }, this._gitService)
 			: undefined;
 
 		const permissionMode = this._resolvePermissionMode(config.config);
+
+		// The additional (non-primary) roots of a multi-root session. Stable from
+		// creation — a worktree remap only affects index 0 — so they are captured
+		// here and preserved across every materialization. Empty for single-root.
+		const additionalDirectories = config.workingDirectories?.slice(1) ?? [];
 
 		const session = ClaudeAgentSession.createProvisional(
 			sessionId,
@@ -719,13 +854,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			additionalDirectories,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
 		await this._seedEagerActiveClient(sessionUri, config.activeClient);
 
 		return {
 			session: sessionUri,
-			workingDirectory,
+			resolvedWorkingDirectory: workingDirectory,
 			provisional: true,
 			...(project ? { project } : {}),
 		};
@@ -819,6 +955,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude:${sessionId}] overlay read failed during remove-all; continuing with defaults`, err);
 		}
 
+		// Reconstruct the full ordered set so a multi-root session keeps every
+		// granted root after the recreate. Prefer the live session's set; else
+		// combine the resolved primary with the persisted overlay tail.
+		const workingDirectories = existing?.workingDirectories
+			?? (overlay.workingDirectories && overlay.workingDirectories.length > 1
+				? [workingDirectory, ...overlay.workingDirectories.slice(1)]
+				: [workingDirectory]);
+
 		// `shutdownLiveQuery` awaits the subprocess's actual exit (and its final
 		// transcript flush), so the on-disk `<id>.jsonl` is now stable and safe
 		// to delete: no live writer can recreate it before the next turn
@@ -829,7 +973,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		await this.createSession({
 			session,
-			workingDirectory,
+			workingDirectories,
 			...(overlay.model ? { model: overlay.model } : {}),
 			...(overlay.agent ? { agent: overlay.agent } : {}),
 			...(overlay.permissionMode ? { config: { [ClaudeSessionConfigKey.PermissionMode]: overlay.permissionMode } } : {}),
@@ -865,8 +1009,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this._disposeChat(session, chat);
 		},
-		sendMessage: (chatUri, prompt, workingDirectory, attachments, turnId, senderClientId) => {
-			return this._sendMessage(chatUri, prompt, workingDirectory, attachments, turnId, senderClientId);
+		sendMessage: (chatUri, prompt, workingDirectories, attachments, turnId, senderClientId) => {
+			return this._sendMessage(chatUri, prompt, workingDirectories, attachments, turnId, senderClientId);
 		},
 		abort: chatUri => {
 			return this._abortSession(chatUri);
@@ -934,20 +1078,30 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const model = config.model ?? sourceOverlay.model;
 			const agent = config.agent ?? sourceOverlay.agent;
 			const permissionMode = narrowClaudePermissionMode(config.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? sourceOverlay.permissionMode;
-			await this._metadataStore.write(newSessionUri, {
-				...(model ? { model } : {}),
-				...(permissionMode ? { permissionMode } : {}),
-				...(agent ? { agent } : {}),
-			});
 
 			// Resolve the forked session's working directory now so we can fail
 			// fast (rather than at the first `sendMessage` when `_resumeSession`
 			// requires a cwd). The Query itself starts lazily — see the JSDoc.
 			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
-			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectory;
+			const workingDirectory = sdkInfo?.cwd
+				? URI.file(sdkInfo.cwd)
+				: existingSource?.workingDirectory ?? sourceOverlay.workingDirectories?.[0];
 			if (!workingDirectory) {
-				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
+				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd and source working directory missing)`);
 			}
+
+			// The protocol ignores request-time workingDirectories for forks:
+			// inherit the live source set, or its persisted overlay when unloaded.
+			const additionalDirectories = existingSource?.workingDirectories?.slice(1)
+				?? sourceOverlay.workingDirectories?.slice(1)
+				?? [];
+			await this._metadataStore.write(newSessionUri, {
+				...(model ? { model } : {}),
+				...(permissionMode ? { permissionMode } : {}),
+				...(agent ? { agent } : {}),
+				...(additionalDirectories.length > 0 ? { workingDirectories: [workingDirectory, ...additionalDirectories] } : {}),
+			});
+
 			let project: IAgentSessionProjectInfo | undefined;
 			try {
 				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
@@ -956,7 +1110,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 			return {
 				session: newSessionUri,
-				workingDirectory,
+				resolvedWorkingDirectory: workingDirectory,
 				...(project ? { project } : {}),
 			};
 		});
@@ -1007,7 +1161,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *   inside `materialize` throws so we never expose a live pipeline
 	 *   for a session the caller has already torn down.
 	 */
-	private async _materializeProvisional(sessionId: string, workingDirectory?: URI): Promise<ClaudeAgentSession> {
+	private async _materializeProvisional(sessionId: string, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const session = this._findAnySession(sessionId);
 		if (!session) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -1017,16 +1171,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(sessionId);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory: workingDirectories?.[0], workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
 		}
 
+		// Emit the full resolved set (index 0 = process root, 1..N = additional
+		// roots). Falls back to the session's own ordered set when the host
+		// didn't hand us one (e.g. workspace-less single-root).
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
-			workingDirectory: session.workingDirectory,
 			project: session.project,
+			workingDirectories: workingDirectories ?? session.workingDirectories,
 		});
 
 		return session;
@@ -1046,7 +1203,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * `sendMessage` calls for a freshly-resumed session collapse into
 	 * one resume + two ordered sends.
 	 */
-	private async _resumeSession(sessionId: string, sessionUri: URI): Promise<ClaudeAgentSession> {
+	private async _resumeSession(sessionId: string, sessionUri: URI, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		this._logService.info(`[Claude:${sessionId}] _resumeSession — no in-memory state, rebuilding from disk`);
 		const transport = this._ensureAuthenticated();
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
@@ -1063,6 +1220,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Claude:${sessionId}] overlay read failed during resume; continuing with defaults`, err);
 		}
+		// The additional roots come from the send-time set when the host supplied
+		// one (the caller carries it from `sendMessage`); otherwise from the
+		// persisted overlay so a cold resume from disk still reaches every root.
+		// The SDK's `cwd` stays authoritative for the primary (index 0).
+		const additionalDirectories = workingDirectories
+			? workingDirectories.slice(1)
+			: overlay.workingDirectories?.slice(1) ?? [];
 		const permissionMode = readClaudePermissionMode(this._configurationService, sessionUri)
 			?? overlay.permissionMode
 			?? 'default';
@@ -1086,13 +1250,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			additionalDirectories,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
 
 		const canUseTool = this._makeCanUseTool(sessionId);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1100,8 +1265,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
-			workingDirectory,
 			project,
+			workingDirectories: session.workingDirectories,
 		});
 
 		return session;
@@ -1129,6 +1294,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._disposeSequencer.queue(sessionId, async () => {
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
+			this._otelService.releaseSessionTraceContext(session.toString());
 		});
 	}
 
@@ -1235,7 +1401,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const chatKey = chat.toString();
 		const parentSessionId = AgentSession.id(session);
 		let result: IAgentCreateChatResult | undefined;
-		await this._sessionSequencer.queue(parentSessionId, async () => {
+		const queueKey = options?.sideChat ? chatKey : parentSessionId;
+		await this._sessionSequencer.queue(queueKey, async () => {
 			const existing = this._chatBackings.get(chatKey);
 			if (existing) {
 				// Idempotent re-create: hand back the existing backing so the
@@ -1247,16 +1414,33 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const model = options?.model ?? parentSession.model;
 
 			let sdkSessionId: string | undefined;
+			let sideChat: IPersistedChat['sideChat'];
 			if (options?.fork) {
 				// If the fork point can't be resolved, fall through to a fresh
 				// chat rather than inheriting the whole source backend.
-				sdkSessionId = await this._forkChat(session, options.fork);
+				sdkSessionId = (await this._forkChat(session, options.fork))?.sessionId;
+			} else if (options?.sideChat) {
+				const forked = await this._forkChat(session, { source: options.sideChat.source, turnId: options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId });
+				sdkSessionId = forked?.sessionId;
+				const fallbackContext = options.sideChat.sourceContext ?? (!forked ? this._buildSideChatContext(session, options.sideChat.source, options.sideChat.turnId) : undefined);
+				if (!forked && !fallbackContext && !options.sideChat.partialResponse) {
+					throw new Error(`[Claude] createChat side chat: source turn ${options.sideChat.turnId} could not be forked`);
+				}
+				sideChat = {
+					source: options.sideChat.source.toString(),
+					turnId: options.sideChat.turnId,
+					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
+					...(options.sideChat.providerAnchorTurnId ? { providerAnchorTurnId: options.sideChat.providerAnchorTurnId } : {}),
+					inheritedTurnCount: forked?.inheritedTurnCount ?? 0,
+					...(fallbackContext ? { context: fallbackContext } : {}),
+					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
+				};
 			}
 			sdkSessionId ??= generateUuid();
 
 			// Record the live backing and hand the opaque blob back to the
 			// orchestrator to persist.
-			const backing: IPersistedChat = { sdkSessionId, ...(model ? { model } : {}) };
+			const backing: IPersistedChat = { sdkSessionId, ...(model ? { model } : {}), ...(sideChat ? { sideChat } : {}) };
 			this._chatBackings.set(chatKey, backing);
 			result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 
@@ -1315,7 +1499,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * session. Prefers the live in-memory parent; falls back to the SDK's
 	 * on-disk session record + metadata overlay for an unloaded parent.
 	 */
-	private async _resolveParentSession(session: URI, parentSessionId: string): Promise<{ workingDirectory: URI; project: IAgentSessionProjectInfo | undefined; model: ModelSelection | undefined; agent: AgentSelection | undefined; permissionMode: ClaudePermissionMode }> {
+	private async _resolveParentSession(session: URI, parentSessionId: string): Promise<{ workingDirectory: URI; additionalDirectories: readonly URI[]; project: IAgentSessionProjectInfo | undefined; model: ModelSelection | undefined; agent: AgentSelection | undefined; permissionMode: ClaudePermissionMode }> {
 		const parent = this._findAnySession(parentSessionId);
 		let workingDirectory = parent?.workingDirectory;
 		let project = parent?.project;
@@ -1340,7 +1524,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] createChat: parent overlay read failed for ${session.toString()}; continuing with defaults`, err);
 		}
 		const permissionMode = readClaudePermissionMode(this._configurationService, session) ?? overlay.permissionMode ?? 'default';
-		return { workingDirectory, project, model: overlay.model, agent: overlay.agent, permissionMode };
+		// Peer chats span the same directories as their parent: prefer the live
+		// parent's tail, else the persisted overlay's.
+		const additionalDirectories = parent?.workingDirectories?.slice(1) ?? overlay.workingDirectories?.slice(1) ?? [];
+		return { workingDirectory, additionalDirectories, project, model: overlay.model, agent: overlay.agent, permissionMode };
 	}
 
 	/**
@@ -1349,7 +1536,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * caller creates a fresh chat instead) when the source chat or the
 	 * fork anchor cannot be resolved.
 	 */
-	private async _forkChat(session: URI, fork: IAgentCreateChatOptions['fork'] & {}): Promise<string | undefined> {
+	private async _forkChat(session: URI, fork: IAgentCreateChatOptions['fork'] & {}): Promise<{ sessionId: string; inheritedTurnCount: number } | undefined> {
 		const sourceSdkId = await this._resolveChatSdkId(session, fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
@@ -1362,7 +1549,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
-		return sessionId;
+		const anchorIndex = messages.findIndex(message => message.uuid === upToMessageId);
+		const inheritedTurnCount = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService).length;
+		return { sessionId, inheritedTurnCount };
 	}
 
 	/**
@@ -1379,6 +1568,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return inMemory;
 		}
 		return this._resolveChatBacking(chatUri)?.sdkSessionId;
+	}
+
+	private _getSourceChatState(session: URI, chatUri: URI): ChatState | undefined {
+		if (isDefaultChatUri(chatUri) || chatUri.toString() === session.toString()) {
+			return this._stateManager.getDefaultChatState(session.toString());
+		}
+		return this._stateManager.getChatState(chatUri.toString());
+	}
+
+	private _buildSideChatContext(session: URI, chatUri: URI, turnId: string): string | undefined {
+		const state = this._getSourceChatState(session, chatUri);
+		if (!state) {
+			return undefined;
+		}
+		const completedIndex = state.turns.findIndex(turn => turn.id === turnId);
+		const boundedTurns = completedIndex >= 0
+			? state.turns.slice(0, completedIndex + 1)
+			: state.activeTurn?.id === turnId
+				? state.turns
+				: undefined;
+		return boundedTurns ? buildSideChatSourceContext(boundedTurns, state.activeTurn?.id === turnId ? state.activeTurn : undefined) : undefined;
 	}
 
 	/**
@@ -1417,6 +1627,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				parentSession.permissionMode,
 				this._metadataStore,
 				this._instantiationService,
+				parentSession.additionalDirectories,
 			);
 			return this._seedSessionEntry(sessionId, session, mainSession);
 		});
@@ -1430,7 +1641,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * concurrent first sends collapse into one materialize and teardown can't
 	 * race the build.
 	 */
-	private async _materializeChatLocked(session: URI, chat: URI): Promise<ClaudeAgentSession> {
+	private async _materializeChatLocked(session: URI, chat: URI, workingDirectories: readonly URI[] | undefined): Promise<ClaudeAgentSession> {
 		const chatKey = chat.toString();
 		const entry = await this._ensureSessionEntry(session);
 		const existing = entry.getPeerChat(chatKey);
@@ -1445,7 +1656,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
 		try {
-			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
+			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			entry.disposePeerChat(chatKey);
 			throw err;
@@ -1492,6 +1703,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			parentSession.additionalDirectories,
 		);
 		entry.registerPeerChat(chat.toString(), this._wireEntry(chatSession));
 		return chatSession;
@@ -1507,7 +1719,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!backing) {
 			return;
 		}
-		const updated: IPersistedChat = { sdkSessionId: backing.sdkSessionId, model };
+		const updated: IPersistedChat = { ...backing, model };
 		this._chatBackings.set(chat.toString(), updated);
 		this._onDidChangeChatData.fire({ chat: chat, providerData: encodeProviderData(updated) });
 	}
@@ -1555,12 +1767,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Phase 13 — reconstruct the full turn history from the SDK's on-disk
-	 * JSONL transcript. Out-of-process: no live `Query` required. Subagent
-	 * URIs (`<parent>/subagent/<toolCallId>`) throw `TODO: Phase 12` until
-	 * Phase 12 wires `getSubagentMessages`. Provisional sessions return `[]`.
-	 * Resilient: any failure (transcript fetch, mapping, backfill) warn-logs
-	 * and returns `[]` rather than propagating — mirrors `listSessions`.
+	 * Reconstruct the full turn history from the SDK's on-disk JSONL transcript.
+	 * Provisional sessions return `[]`; transcript failures are logged and return `[]`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		// Don't trigger a cold SDK download just to reconstruct a transcript
@@ -1578,19 +1786,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the same fetch+map path as the default chat via `_reconstructTurns`.
 		if (isSubagentSession(session)) {
 			const parsed = parseSubagentSessionUri(session);
-			const parentSession = parsed ? this._sessions.get(AgentSession.id(parsed.parentSession))?.defaultChat : undefined;
-			if (!parentSession) {
-				// Parent session is gone (disposed or never materialized).
-				// The registry that holds the agentId cache lives on the
-				// parent session, so we cannot resolve the subagent.
-				this._logService.warn(`[Claude] getSessionMessages: parent session not found for subagent ${session.toString()} (registry unavailable)`);
+			if (!parsed) {
 				return [];
 			}
+			const parentSessionId = AgentSession.id(parsed.parentSession);
+			const parentSession = this._sessions.get(parentSessionId)?.defaultChat;
+			const store = new DisposableStore();
+			const subagents = parentSession?.subagents ?? store.add(new SubagentRegistry());
 			try {
-				return await getSubagentTranscript(session, parentSession.subagents, this._sdkService, this._logService, CancellationToken.None);
+				if (!parentSession) {
+					await this._reconstructTurns(parentSessionId, parsed.parentSession, subagents);
+				}
+				return await getSubagentTranscript(session, subagents, this._sdkService, this._logService, CancellationToken.None);
 			} catch (err) {
 				this._logService.warn(`[Claude] getSubagentTranscript threw for ${session.toString()}`, err);
 				return [];
+			} finally {
+				store.dispose();
 			}
 		}
 
@@ -1607,26 +1819,31 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (!sdkId) {
 				return [];
 			}
-			return this._reconstructTurns(sdkId, chat, context.target);
+			const turns = await this._reconstructTurns(sdkId, chat, context.target?.subagents);
+			const sideChat = this._resolveChatBacking(chat)?.sideChat;
+			return stripSideChatContext(turns.slice(sideChat?.inheritedTurnCount ?? 0), sideChat);
 		}
 
 		const sess = context.target;
 		if (sess && !sess.isPipelineReady) {
+			// Provisional session: the SDK chat has never been materialized, so
+			// there is no on-disk transcript to read. Logged because an empty
+			// transcript is otherwise indistinguishable from a failed read.
+			this._logService.info(`[Claude] getSessionMessages: chat ${chat.toString()} is not materialized yet; returning no turns`);
 			return [];
 		}
 		// Default chat: its SDK chat id is the session id.
-		return this._reconstructTurns(sessionId, parentSessionUri, sess);
+		return this._reconstructTurns(sessionId, parentSessionUri, sess?.subagents);
 	}
 
 	/**
 	 * Fetch a chat's SDK transcript ({@link sdkSessionId}) and map it to
 	 * protocol {@link Turn}s routed to {@link routingUri} (the session or chat
-	 * channel URI). When {@link primeOn} is supplied (the materialized owning
-	 * session), its subagent registry is primed from the agentId suffixes the
+	 * channel URI). When {@link subagents} is supplied, it is primed from the agentId suffixes the
 	 * SDK encoded in Task tool_result blocks. Resilient: any failure warn-logs
 	 * and returns `[]` rather than propagating.
 	 */
-	private async _reconstructTurns(sdkSessionId: string, routingUri: URI, primeOn: ClaudeAgentSession | undefined): Promise<readonly Turn[]> {
+	private async _reconstructTurns(sdkSessionId: string, routingUri: URI, subagents: SubagentRegistry | undefined): Promise<readonly Turn[]> {
 		let messages;
 		try {
 			messages = await this._sdkService.getSessionMessages(sdkSessionId, { includeSystemMessages: true });
@@ -1643,10 +1860,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] replay mapper threw for ${sdkSessionId}`, err);
 			return [];
 		}
+		// Always a bug: the SDK handed back a transcript but replay produced
+		// nothing, which surfaces to the user as a chat that opens completely
+		// empty. Warn so the next report is diagnosable from the log alone.
+		if (turns.length === 0 && messages.length > 0) {
+			this._logService.warn(`[Claude] replay produced no turns from ${messages.length} transcript message(s) for ${sdkSessionId}; chat will render empty`);
+		}
 		// A bug in `primeFromTranscript` MUST NOT break an otherwise-successful
 		// transcript read.
 		try {
-			primeOn?.subagents.primeFromTranscript(turns);
+			subagents?.primeFromTranscript(turns);
 		} catch (err) {
 			this._logService.warn(`[Claude] primeFromTranscript threw for ${sdkSessionId}`, err);
 		}
@@ -1654,17 +1877,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		// Plan section 3.3.2: SDK is the source of truth; the per-session DB
-		// is a pure overlay/cache for Claude-namespaced fields like
-		// `customizationDirectory`. We deliberately do NOT filter
-		// entries that lack a DB — external Claude Code CLI sessions
-		// have no DB and must still surface (Phase-5 exit criterion).
-		//
-		// Each per-session overlay read is independently try/caught so a
-		// single corrupt DB cannot poison the wider listing. CopilotAgent's
-		// `Promise.all`-with-throwing-mapper pattern at copilotAgent.ts:519
-		// has a latent bug; we follow AgentService.listSessions's resilient
-		// pattern (`agentService.ts:188-204`) instead.
+		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
+		// NOT filter entries that lack a per-session DB — external Claude Code
+		// CLI sessions have no DB and must still surface (Phase-5 exit
+		// criterion). The SDK entry supplies the authoritative primary directory;
+		// an optional per-session overlay hydrates the additional-directory tail.
+		// External sessions without an overlay remain valid single-root entries.
 		//
 		// `AgentService.listSessions` fans out across all providers via
 		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
@@ -1687,16 +1905,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);
 			return [];
 		}
-		return Promise.all(sdkEntries.map(async entry => {
-			try {
-				const sessionUri = AgentSession.uri(this.id, entry.sessionId);
-				const overlay = await this._metadataStore.read(sessionUri);
-				return this._metadataStore.project(entry, overlay);
-			} catch (err) {
-				this._logService.warn(`[Claude] Overlay read failed for session ${entry.sessionId}`, err);
-			}
-			// External session, or DB read failed: surface what the SDK gave us.
-			return this._metadataStore.project(entry, {});
+		return Promise.all(sdkEntries.map(entry => {
+			const meta = this._metadataStore.project(entry);
+			return this._withPersistedWorkingDirectories(meta.session, meta);
 		}));
 	}
 
@@ -1706,12 +1917,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * external-CLI case: a session that exists on disk via the raw
 	 * Anthropic CLI has no per-session DB, so we MUST NOT gate on the
 	 * sidecar (the way Copilot's variant does). The SDK is the source
-	 * of truth for existence; the overlay merely decorates.
+	 * of truth for existence.
 	 *
-	 * Failures in the overlay read are swallowed — a corrupt DB on one
-	 * session must not lose the SDK-supplied summary/cwd. Failures in
-	 * the SDK lookup propagate (the caller is doing a single targeted
-	 * fetch and should learn that the SDK module is broken).
+	 * The SDK entry supplies the authoritative primary directory; an optional
+	 * per-session overlay hydrates the additional-directory tail. External
+	 * sessions without an overlay remain valid single-root entries. Failures in
+	 * the SDK lookup propagate (the caller is doing a single targeted fetch and
+	 * should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		// Don't trigger a cold SDK download just to hydrate session metadata
@@ -1729,13 +1941,32 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!sdkInfo) {
 			return undefined;
 		}
+		return this._withPersistedWorkingDirectories(session, this._metadataStore.project(sdkInfo));
+	}
+
+	/**
+	 * Merge the persisted additional working directories (index 1..N) onto a
+	 * projected metadata's `workingDirectories`, keeping the SDK-derived `cwd`
+	 * as the authoritative primary. The SDK catalog only stores `cwd`, so the
+	 * tail of a multi-root session lives in the per-session overlay. Sessions
+	 * without an overlay (external Claude CLI, single-root) are returned as-is.
+	 */
+	private async _withPersistedWorkingDirectories(session: URI, meta: IAgentSessionMetadata): Promise<IAgentSessionMetadata> {
+		const primary = meta.workingDirectories?.[0];
+		if (!primary) {
+			return meta;
+		}
 		let overlay: IClaudeSessionOverlay = {};
 		try {
 			overlay = await this._metadataStore.read(session);
 		} catch (err) {
-			this._logService.warn(`[Claude] Overlay read failed for session ${sessionId}`, err);
+			this._logService.warn(`[Claude] overlay read failed while hydrating working directories for ${session.toString()}; using SDK cwd only`, err);
 		}
-		return this._metadataStore.project(sdkInfo, overlay);
+		const tail = overlay.workingDirectories?.slice(1) ?? [];
+		if (tail.length === 0) {
+			return meta;
+		}
+		return { ...meta, workingDirectories: [primary, ...tail] };
 	}
 
 	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -1838,7 +2069,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
 		// `IAgent.sendMessage` declares `turnId?` but every production caller in
 		// `AgentSideEffects` supplies one. Generate a fallback so the
 		// session-side `QueuedRequest.turnId: string` invariant holds even if a
@@ -1855,8 +2086,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// session under it.
 		if (context.isPeerChat) {
 			return this._sessionSequencer.queue(context.chatKey, async () => {
-				const chatSession = await this._materializeChatLocked(context.session, chat);
-				await chatSession.send(this._buildSdkPrompt(chatSession.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);
+				const chatSession = await this._materializeChatLocked(context.session, chat, workingDirectories);
+				const sideChat = this._resolveChatBacking(chat)?.sideChat;
+				const turns = sideChat ? await this._reconstructTurns(chatSession.sessionId, chat, chatSession.subagents) : [];
+				const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
+				await chatSession.send(this._buildSdkPrompt(chatSession.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, workingDirectories);
 			});
 		}
 
@@ -1872,12 +2106,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (existing?.isPipelineReady) {
 				session = existing;
 			} else if (existing) {
-				session = await this._materializeProvisional(context.sessionId, workingDirectory);
+				session = await this._materializeProvisional(context.sessionId, workingDirectories);
 			} else {
-				session = await this._resumeSession(context.sessionId, context.session);
+				session = await this._resumeSession(context.sessionId, context.session, workingDirectories);
 			}
 
-			await session.send(this._buildSdkPrompt(context.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);
+			await session.send(this._buildSdkPrompt(context.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, workingDirectories);
 		});
 	}
 
@@ -1949,23 +2183,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[], chat?: URI): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// Phase 9 D5: queued messages are intentionally a no-op. CONTEXT.md
 		// M10 + AgentSideEffects confirm queued messages are consumed
 		// server-side; the agent boundary always receives an empty queue.
 		//
-		// Steering targets the chat that owns the in-flight turn: an additional
-		// peer chat is addressed by its `chat` channel URI, the default chat by
-		// the session URI.
-		const isPeerChat = !!chat && !isDefaultChatUri(chat);
-		const target = this._findChat(session, chat);
-		this._logService.info(`[Claude] setPendingMessages for ${(chat ?? session).toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
-		if (!target) {
-			this._logService.warn(`[Claude] setPendingMessages: ${isPeerChat ? 'chat' : 'session'} not found for ${(chat ?? session).toString()}`);
+		// Steering targets the chat that owns the in-flight turn — the caller
+		// always addresses a concrete chat channel (the session's default chat
+		// or an additional peer chat).
+		const context = this._getChatContext(chat);
+		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
+		if (!context.target) {
+			this._logService.warn(`[Claude] setPendingMessages: chat not found for ${chat.toString()}`);
 			return;
 		}
 		if (steeringMessage) {
-			target.injectSteering(steeringMessage);
+			context.target.injectSteering(steeringMessage);
 		}
 	}
 

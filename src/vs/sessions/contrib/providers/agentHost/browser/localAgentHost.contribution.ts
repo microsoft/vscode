@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AgentHostContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
+import { AgentHostAllowSignedOutWhenUsableContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAllowSignedOutWhenUsableContribution.js';
+import { AgentHostDiscoveredConfigNotificationContribution } from './agentHostDiscoveredConfigNotification.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
@@ -17,23 +20,24 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
+import './codexCustomizationSettings.contribution.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
 		[LocalAgentHostDefaultProviderSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
+			description: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window."),
 		},
 	},
 });
 
 /**
- * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider
- * when `chat.agentHost.enabled` is true.
+ * Registers the {@link LocalAgentHostSessionsProvider} when the Agent Host is
+ * available in this runtime.
  *
  * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
  * session handler registration, language model providers, customization harness —
@@ -53,39 +57,45 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		if (!this._agentHostEnablementService.enabled) {
-			return;
-		}
+		const initialize = () => {
+			const provider = this._register(instantiationService.createInstance(LocalAgentHostSessionsProvider));
+			this._register(sessionsProvidersService.registerProvider(provider));
 
-		const provider = this._register(instantiationService.createInstance(LocalAgentHostSessionsProvider));
-		this._register(sessionsProvidersService.registerProvider(provider));
-
-		const resolverRegistrations = this._register(new DisposableMap<string>());
-		const registerResolvers = () => {
-			const sessionTypeIds = new Set(provider.sessionTypes.map(sessionType => `agent-host-${sessionType.id}`));
-			for (const [sessionTypeId] of resolverRegistrations) {
-				if (!sessionTypeIds.has(sessionTypeId)) {
-					resolverRegistrations.deleteAndDispose(sessionTypeId);
+			const resolverRegistrations = this._register(new DisposableMap<string>());
+			const registerResolvers = () => {
+				const sessionTypeIds = new Set(provider.sessionTypes.map(sessionType => `agent-host-${sessionType.id}`));
+				for (const [sessionTypeId] of resolverRegistrations) {
+					if (!sessionTypeIds.has(sessionTypeId)) {
+						resolverRegistrations.deleteAndDispose(sessionTypeId);
+					}
 				}
-			}
 
-			for (const sessionType of provider.sessionTypes) {
-				const resourceScheme = `agent-host-${sessionType.id}`;
-				if (resolverRegistrations.has(resourceScheme)) {
-					continue;
+				for (const sessionType of provider.sessionTypes) {
+					const resourceScheme = `agent-host-${sessionType.id}`;
+					if (resolverRegistrations.has(resourceScheme)) {
+						continue;
+					}
+					resolverRegistrations.set(resourceScheme, workingDirectoryResolver.registerResolver(resourceScheme, sessionResource => {
+						return provider.getSessionByResource(sessionResource)?.workspace.get()?.folders[0]?.workingDirectory;
+					}, sessionResource => {
+						return provider.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
+					}));
 				}
-				resolverRegistrations.set(resourceScheme, workingDirectoryResolver.registerResolver(resourceScheme, sessionResource => {
-					return provider.getSessionByResource(sessionResource)?.workspace.get()?.folders[0]?.workingDirectory;
-				}, sessionResource => {
-					return provider.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
-				}));
-			}
+			};
+			registerResolvers();
+			this._register(provider.onDidChangeSessionTypes(registerResolvers));
 		};
-		registerResolvers();
-		this._register(provider.onDidChangeSessionTypes(registerResolvers));
+
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				initialize();
+			}
+		}));
 	}
 }
 
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostDiscoveredConfigNotificationContribution.ID, AgentHostDiscoveredConfigNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(LocalAgentHostContribution.ID, LocalAgentHostContribution, WorkbenchPhase.AfterRestored);

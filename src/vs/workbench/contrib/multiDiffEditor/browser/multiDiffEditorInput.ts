@@ -108,6 +108,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return {
 				source,
 				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+				label: source?.label ? observableFromValueWithChangeEvent(this, source.label) : undefined,
 			};
 		});
 		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
@@ -141,7 +142,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
-			const label = this.label ?? localize('name', "Multi Diff Editor");
+			const resolvedSource = this._resolvedSource.cachedPromiseResult.read(reader)?.data;
+			const label = resolvedSource?.label?.read(reader) ?? this.label ?? localize('name', "Multi Diff Editor");
 			if (resources && resources.length === 1) {
 				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
 			} else if (resources) {
@@ -190,18 +192,38 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
 			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
 
-			try {
-				[original, modified] = await Promise.all([
-					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
-				]);
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
 				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
 				if (modified) { multiDiffItemStore.add(modified); }
-			} catch (e) {
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
+				return undefined;
+			}
+
+			let errorResult: PromiseRejectedResult | undefined;
+			if (originalResult.status === 'rejected') {
+				errorResult = originalResult;
+			} else if (modifiedResult.status === 'rejected') {
+				errorResult = modifiedResult;
+			}
+			if (errorResult) {
+				multiDiffItemStore.dispose();
 				// e.g. "File seems to be binary and cannot be opened as text"
-				console.error(e);
-				onUnexpectedError(e);
+				console.error(errorResult.reason);
+				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
 

@@ -26,6 +26,7 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -65,10 +66,10 @@ export const FLOATING_PANEL_MARGIN = 4;
 /**
  * The trailing card margin (in pixels) when the Modern UI Update experiment is
  * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 6px inter-card gap. Keep in sync with the
- * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ * it forms the 4px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
  */
-export const FLOATING_PANEL_INNER_MARGIN = 2;
+export const FLOATING_PANEL_INNER_MARGIN = 0;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -116,6 +117,14 @@ export function positionToString(position: Position): string {
 		case Position.TOP: return 'top';
 		default: return 'bottom';
 	}
+}
+
+/**
+ * Whether the floating cards sit against the top window edge and take the doubled outer
+ * gutter. Both grid rows above the middle section (title bar and banner) must be hidden.
+ */
+export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return !layoutService.isVisible(Parts.TITLEBAR_PART, targetWindow) && !layoutService.isVisible(Parts.BANNER_PART);
 }
 
 /**
@@ -242,6 +251,76 @@ export function getFloatingSidebarSiblingToEditorStatus(
 	return {
 		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
 		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
+ * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
+ * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Each edge takes the
+ * doubled outer gutter only when it faces the window rather than another card.
+ */
+export function getFloatingPaneCompositeVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const panelPosition = layoutService.getPanelPosition();
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const isSideBar = partId === Parts.SIDEBAR_PART || partId === Parts.AUXILIARYBAR_PART;
+	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
+	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
+	const topEdgeExposed = isFloatingTopEdgeExposed(layoutService, targetWindow);
+
+	let top: number;
+	if (partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM) {
+		// A visible editor sits above the panel, so the gap is between two cards. When the
+		// panel is maximized the editor is gone and the panel takes over that row instead.
+		top = layoutService.isVisible(Parts.EDITOR_PART, targetWindow) ? FLOATING_PANEL_MARGIN
+			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : 0;
+	} else if (panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor) {
+		// Sibling bars share the editor's row, so their top faces the panel card above.
+		top = FLOATING_PANEL_MARGIN;
+	} else {
+		top = topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : 0;
+	}
+
+	// A top panel faces the editor below it, and a sibling bar faces a bottom panel card,
+	// so in neither case does the bottom reach the window edge.
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP;
+	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
+	const atWindowBottom = !facesEditorBelow && !facesPanelBelow;
+	const bottom = !layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) && atWindowBottom
+		? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+
+	return { top, bottom };
+}
+
+/**
+ * Vertical margins (in pixels) the floating main editor reserves, mirroring the margins in
+ * `floatingPanels.css`. A panel above or below takes the place of the corresponding window edge.
+ */
+export function getFloatingEditorVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const panelPosition = layoutService.getPanelPosition();
+	const panelAtTop = panelVisible && panelPosition === Position.TOP;
+	const panelAtBottom = panelVisible && panelPosition === Position.BOTTOM;
+
+	return {
+		top: panelAtTop ? FLOATING_PANEL_MARGIN
+			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
+		bottom: !layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) && !panelAtBottom
+			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN
 	};
 }
 
@@ -416,6 +495,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set part hidden or not in the target window.
 	 */
 	setPartHidden(hidden: boolean, part: Parts): void;
+
+	/**
+	 * Returns whether the layout surface that represents the secondary sidebar is visible.
+	 */
+	isSecondarySideBarVisible(): boolean;
+
+	/**
+	 * Toggles the layout surface that represents the secondary sidebar.
+	 */
+	toggleSecondarySideBar(): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.

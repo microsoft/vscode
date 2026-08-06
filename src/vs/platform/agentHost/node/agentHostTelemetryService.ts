@@ -59,10 +59,20 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	constructor(
 		private readonly _delegate: ITelemetryService,
 		private readonly _restricted?: IAgentHostRestrictedTelemetry,
+		copilotSdkVersion?: string,
+		copilotRuntimeVersion?: string,
 	) {
 		super();
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
+		}
+		if (copilotSdkVersion) {
+			// __GDPR__COMMON__ "common.copilotSdkVersion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The version of the Copilot SDK used by the Agent Host process." }
+			this._delegate.setCommonProperty('common.copilotSdkVersion', copilotSdkVersion);
+		}
+		if (copilotRuntimeVersion) {
+			// __GDPR__COMMON__ "common.copilotRuntimeVersion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The version of the Copilot runtime used by the Agent Host process." }
+			this._delegate.setCommonProperty('common.copilotRuntimeVersion', copilotRuntimeVersion);
 		}
 	}
 
@@ -181,8 +191,8 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.setInternalTelemetryContext(context);
 	}
 
-	setExperimentProperty(name: string, value: string, triggerBufferFlush?: boolean): void {
-		this._delegate.setExperimentProperty(name, value, triggerBufferFlush);
+	setExperimentProperty(name: string, value: string): void {
+		this._delegate.setExperimentProperty(name, value);
 	}
 
 	setCommonProperty(name: string, value: string | boolean): void {
@@ -263,5 +273,5 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
 	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
-	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
+	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime));
 }

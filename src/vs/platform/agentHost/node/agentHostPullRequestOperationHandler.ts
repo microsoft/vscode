@@ -33,9 +33,22 @@ const MAX_PR_CONVERSATION_CONTEXT_CHARS = 12_000;
  */
 const MAX_PR_CHANGE_SUMMARY_CHARS = 4_000;
 
+function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
+	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
+	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
+		return undefined;
+	}
+	return {
+		remote: upstreamBranchName.substring(0, separatorIndex),
+		branch: upstreamBranchName.substring(separatorIndex + 1),
+	};
+}
+
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	readonly pullRequestUrl: string;
+	/** The head branch the pull request was created (or found) for. */
+	readonly branchName: string;
 }
 
 /**
@@ -50,7 +63,7 @@ export interface PullRequestCreatedEvent {
  * 1. Resolve session → working directory + current/base branch from
  *    {@link ISessionGitState}.
  * 2. Commit any uncommitted working-tree changes.
- * 3. Push the current branch to `origin` (with `--set-upstream` when missing).
+ * 3. Push the current branch to its GitHub upstream remote (with `--set-upstream` when missing).
  * 4. Resolve `owner` / `repo` from {@link ISessionGitState.githubOwner}
  *    / {@link ISessionGitState.githubRepo} (populated by the git probe).
  * 5. Reuse an existing PR for the branch, or POST `/repos/{owner}/{repo}/pulls`
@@ -104,7 +117,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
@@ -118,7 +131,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const gitState = readSessionGitState(sessionState._meta);
+		const gitState = await this._gitService.getSessionGitState(workingDirectory) ?? readSessionGitState(sessionState._meta);
 		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
@@ -165,21 +178,28 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} for session ${sessionUri}`);
+		const githubHeadOwner = gitState?.githubHeadOwner;
+		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState.upstreamBranchName) : undefined;
+		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : gitHubState.owner;
+		const headBranch = upstreamBranch?.branch ?? branchName;
+		const pushRef = headBranch === branchName ? branchName : `${branchName}:${headBranch}`;
+		const createHead = headOwner === gitHubState.owner ? headBranch : `${headOwner}:${headBranch}`;
+
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} to ${upstreamBranch?.remote ?? 'origin'} for session ${sessionUri}`);
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
-			await this._gitService.push(workingDirectory, { ref: branchName, setUpstream: !upstreamPresent });
+			await this._gitService.push(workingDirectory, { remote: upstreamBranch?.remote, ref: pushRef, setUpstream: !upstreamPresent });
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to push branch '${branchName}': ${err instanceof Error ? err.message : String(err)}`);
 		}
 		this._throwIfCancelled(token);
 
-		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
+		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, headBranch, authToken, signal, headOwner);
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 		}
 		this._throwIfCancelled(token);
 
@@ -188,7 +208,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const title = generated?.title ?? this._formatTitle(branchName);
 		const body = generated?.description ?? this._formatBody(branchName, base);
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${branchName} -> ${base}`);
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${createHead} -> ${base}`);
 		let created: CreatedPullRequest;
 		try {
 			created = await this._octoKitService.createPullRequest(
@@ -196,7 +216,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				gitHubState.repo,
 				title,
 				body,
-				branchName,
+				createHead,
 				base,
 				this._draft,
 				authToken,
@@ -206,19 +226,19 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._throwIfCancelled(token);
 			let foundAfterFailure: CreatedPullRequest | undefined;
 			try {
-				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
+				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, headBranch, authToken, signal, headOwner);
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token);
 	}
 
 	/**
@@ -233,13 +253,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		sessionUri: string,
 		owner: string,
 		repo: string,
+		branchName: string,
 		authToken: string,
 		signal: AbortSignal,
 		token: CancellationToken,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!this._autoMergeMethod) {
 			// No auto-merge configured
-			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined));
 		}
 
@@ -262,7 +283,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError));
 	}
 

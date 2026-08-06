@@ -46,11 +46,11 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -60,7 +60,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -236,6 +236,26 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('propagates Agents Voice Mode input to the participant request', async () => {
+		const captured = new DeferredPromise<boolean | undefined>();
+		testDisposables.add(chatAgentService.registerAgent('voiceAgent', getAgentData('voiceAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('voiceAgent', {
+			async invoke(request) {
+				captured.complete(request.isVoiceModeInput);
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+
+		await service.sendRequest(model.sessionResource, 'voice request', {
+			agentId: 'voiceAgent',
+			isVoiceModeInput: true,
+		});
+
+		assert.strictEqual(await captured.p, true);
+	});
 
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
@@ -649,6 +669,38 @@ suite('ChatService', () => {
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
 		assert.strictEqual(disposed, true);
+	});
+
+	test('disposing a session cancels pending followups', async () => {
+		let followupsToken: CancellationToken | undefined;
+		const followupsCancelled = new DeferredPromise<IChatFollowup[]>();
+		const followupsAgent: IChatAgentImplementation = {
+			async invoke() {
+				return {};
+			},
+			provideFollowups(request, result, history, token) {
+				followupsToken = token;
+				testDisposables.add(token.onCancellationRequested(() => followupsCancelled.complete([])));
+				return followupsCancelled.p;
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('followupsAgent', { ...getAgentData('followupsAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('followupsAgent', followupsAgent));
+
+		const testService = createChatService();
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const response = await testService.sendRequest(modelRef.object.sessionResource, 'test request', { agentId: 'followupsAgent' });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.ok(followupsToken);
+		assert.strictEqual(followupsToken.isCancellationRequested, false);
+
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		assert.strictEqual(followupsToken.isCancellationRequested, true);
 	});
 
 	test('steering message queued triggers setYieldRequested', async () => {
@@ -1088,6 +1140,71 @@ suite('ChatService', () => {
 		// The agent should have been invoked twice: first request + re-sent queued request
 		assert.strictEqual(invokedMessages.length, 2);
 		assert.ok(invokedMessages[1].includes('queued request'));
+	});
+
+	test('syncPendingRequestsFromRemote adds, reorders and removes pending requests preserving ids', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'second remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+				{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, text: 'second remote message' },
+			],
+		);
+
+		const firstRequest = model.getPendingRequests()[0].request;
+
+		// Reorder, drop one, add a steering message and update text of the survivor.
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+			],
+		);
+		assert.strictEqual(model.getPendingRequests()[1].request, firstRequest, 'unchanged messages should not be rebuilt');
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, []);
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('syncPendingRequestsFromRemote atomically emits the final state and no-ops when it already matches', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'old remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'removed remote message' },
+		]);
+
+		const snapshots: { id: string; kind: ChatRequestQueueKind; text: string }[][] = [];
+		testDisposables.add(model.onDidChangePendingRequests(() => {
+			snapshots.push(model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })));
+		}));
+
+		const remote = [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'updated remote message' },
+		];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+
+		assert.deepStrictEqual(snapshots, [[
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
+		]]);
 	});
 
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
@@ -1751,7 +1868,10 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
 
-		assert.deepStrictEqual(providerInvokedEvents.map(event => event.sessionType), ['remote-agent-host']);
+		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
+			sessionType: event.sessionType,
+			hasRequestId: typeof event.requestId === 'string',
+		})), [{ sessionType: 'remote-agent-host', hasRequestId: true }]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
@@ -2140,7 +2260,7 @@ suite('ChatService', () => {
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData; timestamp?: number; isSystemInitiated?: boolean; systemInitiatedLabel?: string }>;
+			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
@@ -2268,7 +2388,7 @@ suite('ChatService', () => {
 		});
 
 		test('uses the Agent Host timestamp for live server-initiated requests', async () => {
-			const onDidStartServerRequest = testDisposables.add(new Emitter<{ prompt: string; timestamp?: number }>());
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
 			const timestamp = 1_752_012_321_000;
 			const { resource } = setupRemoteProvider({
 				progressObs: observableValue<IChatProgress[]>('progress', []),
@@ -2280,7 +2400,7 @@ suite('ChatService', () => {
 			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
-			onDidStartServerRequest.fire({ prompt: 'server request', timestamp });
+			onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'server request', timestamp });
 
 			assert.deepStrictEqual({
 				message: ref.object.lastRequest?.message.text,
@@ -2289,6 +2409,27 @@ suite('ChatService', () => {
 				message: 'server request',
 				timestamp,
 			});
+		});
+
+		test('adopts the Agent Host turn id for live server-initiated requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'turn-2', prompt: 'server request' });
+
+			assert.deepStrictEqual(ref.object.getRequests().map(r => ({ id: r.id, message: r.message.text })), [
+				{ id: 'turn-1', message: 'hello' },
+				{ id: 'turn-2', message: 'server request' },
+			]);
 		});
 
 		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {
@@ -2478,6 +2619,50 @@ suite('ChatService', () => {
 			);
 		});
 
+		test('restored draft keeps the history model while the live catalog is cold', async () => {
+			const historyModelId = 'agent-host-copilotcli:gpt-5.6-sol';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'GPT-5.6 Sol', vendor: 'agent-host-copilotcli', version: '1.0', family: 'gpt-5.6-sol',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: {}, targetChatSessionType: remoteScheme,
+			};
+			let catalogLoaded = true;
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return catalogLoaded && id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+			const testService = createChatService();
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: historyModelId, metadata: historyMetadata },
+			});
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			catalogLoaded = false;
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({
+				inputText: restored?.inputText,
+				selectedModel: restored?.selectedModel?.identifier,
+				target: restored?.selectedModel?.metadata.targetChatSessionType,
+			}, {
+				inputText: 'unsent draft',
+				selectedModel: historyModelId,
+				target: remoteScheme,
+			});
+		});
+
 		test('restored draft preserves the model configuration (effort/context) of the history model', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {
@@ -2650,6 +2835,44 @@ suite('backfillRestoredPickerState', () => {
 	test('returns the chosen state unchanged when there is no stored state', () => {
 		const chosen = state(AGENT, undefined);
 		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+});
+
+suite('backfillTransferredModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: AGENT, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('backfills the history model when the transferred state dropped its model', () => {
+		const history = model('agent-host-copilotcli:gpt-5.6-sol');
+		const result = backfillTransferredModel(state(undefined), history);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-sol');
+	});
+
+	test('never overrides a model already present on the transferred state', () => {
+		const result = backfillTransferredModel(state(model('agent-host-copilotcli:gpt-5.6-terra')), model('agent-host-copilotcli:gpt-5.6-sol'));
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-terra');
+	});
+
+	test('leaves the state unchanged when there is no history model', () => {
+		const chosen = state(undefined);
+		assert.strictEqual(backfillTransferredModel(chosen, undefined), chosen);
+		assert.strictEqual(chosen.selectedModel, undefined);
+	});
+
+	test('returns undefined state as-is', () => {
+		assert.strictEqual(backfillTransferredModel(undefined, model('agent-host-copilotcli:gpt-5.6-sol')), undefined);
 	});
 });
 

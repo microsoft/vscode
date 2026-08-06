@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { isAgentHostTarget } from './chatSessionsService.js';
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -48,11 +49,21 @@ export function resolveModelIdentifierFromCatalog(
 
 	const separator = identifier.search(/[/:]/);
 	const vendor = separator === -1 ? undefined : identifier.substring(0, separator);
-	const isAbsenceConclusive = !vendor || isLanguageModelVendorAbsenceConclusive(
+	const hasLive = vendor ? vendorResolution.hasLiveModels(vendor) : false;
+	// Agent-host vendors publish their models asynchronously after the agent host connects, so an
+	// empty (not-yet-populated) list is transient: keep the remembered/restored model `pending`
+	// (wait) rather than `unavailable` (give up). The same holds while the host has only mirrored
+	// the workbench's BYOK models into its pool and its own catalog is still in flight, which is
+	// why `hasLiveModels` reports whether the vendor published models of its OWN (see
+	// `hasOwnLiveModels`). Once it has, an absent model is genuinely gone, so stay conclusive.
+	// This grace is scoped to restore *resolution* only — cache-retention (`mergeModelsWithCache`)
+	// and send-availability keep treating a resolved-empty list as authoritative. The vendor id
+	// equals the session type for agent-host models, so `isAgentHostTarget` classifies it directly.
+	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
 		vendor,
-		vendorResolution.hasLiveModels(vendor),
+		hasLive,
 		vendorResolution.hasResolved(vendor),
-	);
+	) && (hasLive || !isAgentHostTarget(vendor)));
 	return resolveModelIdentifier(models, identifier, isAbsenceConclusive);
 }
 
@@ -65,15 +76,25 @@ export function getRegisteredLanguageModels(languageModelsService: Pick<ILanguag
 		.filter(model => model !== undefined);
 }
 
+/**
+ * Whether a vendor has published models of its own, ignoring copies bridged in from another
+ * provider. An agent host mirrors the workbench's BYOK models into its pool as soon as the bridge
+ * is up, but its own catalog only arrives once the host has connected and authenticated — so a pool
+ * that is nothing but bridged copies is a half-published catalog. Counting it as live makes a
+ * restored session's model look permanently gone and swaps it for an arbitrary bridged model.
+ */
+function hasOwnLiveModels(models: readonly ILanguageModelChatMetadataAndIdentifier[], vendor: string): boolean {
+	return models.some(model => model.metadata.vendor === vendor && model.metadata.byokModelIdentifier === undefined);
+}
+
 export function resolveModelIdentifierFromLanguageModels(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	identifier: string | undefined,
 	languageModelsService: Pick<ILanguageModelsService, 'hasResolvedVendor'>,
 	allModels: readonly ILanguageModelChatMetadataAndIdentifier[],
 ): ModelIdentifierResolution {
-	const liveVendors = new Set(allModels.map(model => model.metadata.vendor));
 	return resolveModelIdentifierFromCatalog(models, identifier, {
-		hasLiveModels: vendor => liveVendors.has(vendor),
+		hasLiveModels: vendor => hasOwnLiveModels(allModels, vendor),
 		hasResolved: vendor => languageModelsService.hasResolvedVendor(vendor),
 	});
 }
@@ -125,6 +146,7 @@ export const enum ModelSelectionReason {
 	ConfiguredDefault = 'configuredDefault',
 	FirstAvailable = 'firstAvailable',
 	NoModels = 'noModels',
+	ProgrammaticSelection = 'programmaticSelection',
 	Remembered = 'remembered',
 	RemovedModelFallback = 'removedModelFallback',
 	SessionRestore = 'sessionRestore',
@@ -134,8 +156,23 @@ export const enum ModelSelectionReason {
 
 export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
 
+export function isAuthoritativeModelSelectionReason(reason: ModelSelectionApplyReason | undefined): boolean {
+	return reason === ModelSelectionReason.ProgrammaticSelection
+		|| reason === ModelSelectionReason.SessionRestore
+		|| reason === ModelSelectionReason.UserSelection;
+}
+
+/**
+ * Whether a reason represents a choice made inside the current conversation. `chat.defaultModel`
+ * seeds every new conversation but must never override one of these. `SessionRestore` is excluded
+ * deliberately: on an empty session it is spillover from the previous one, not a choice.
+ */
+export function isInConversationModelChoice(reason: ModelSelectionApplyReason | undefined): boolean {
+	return reason === ModelSelectionReason.UserSelection
+		|| reason === ModelSelectionReason.ProgrammaticSelection;
+}
+
 export interface IPendingModelSelection {
-	readonly source: 'configured' | 'desired';
 	readonly reference: string;
 }
 
@@ -145,9 +182,7 @@ export type InitialModelSelectionResult =
 	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionApplyReason };
 
 export interface IInitialModelSelectionInput {
-	readonly configuredModelValue: string | undefined;
 	readonly configuredModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly waitForConfiguredModel: boolean;
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	readonly desiredReason: ModelSelectionReason.SessionRestore | ModelSelectionReason.Remembered;
 	readonly fallbackModel: ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -159,14 +194,11 @@ export function resolveInitialModelSelection(input: IInitialModelSelectionInput)
 	if (input.configuredModel) {
 		return { kind: 'apply', model: input.configuredModel, reason: ModelSelectionReason.ConfiguredDefault };
 	}
-	if (input.configuredModelValue && input.waitForConfiguredModel) {
-		return { kind: 'pending', selection: { source: 'configured', reference: input.configuredModelValue } };
-	}
 	if (input.desiredModelResolution.kind === 'available') {
 		return { kind: 'apply', model: input.desiredModelResolution.model, reason: input.desiredReason };
 	}
 	if (input.desiredModelResolution.kind === 'pending') {
-		return { kind: 'pending', selection: { source: 'desired', reference: input.desiredModelResolution.identifier } };
+		return { kind: 'pending', selection: { reference: input.desiredModelResolution.identifier } };
 	}
 	return input.fallbackModel
 		? { kind: 'apply', model: input.fallbackModel, reason: input.fallbackReason }
@@ -190,7 +222,6 @@ export type IModelSelectionSessionContext =
 export interface IModelSelectionModelsContext {
 	readonly available: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly configuredModel: string | undefined;
-	readonly waitForConfiguredModel: boolean;
 	readonly rememberedModelId: string | undefined;
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	readonly fallbackModel: ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -228,7 +259,16 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 	const currentReason = sessionChanged ? undefined : previous.currentReason;
 	const sessionModel = sessionModelId ? models.available.find(model => model.identifier === sessionModelId) : undefined;
 	const fallbackModel = models.available.find(model => model.identifier === models.rememberedModelId) ?? models.fallbackModel;
-	const configuredModelValue = session.kind === 'untitled' && (chatKey !== previous.lastPushedChatKey || currentReason !== ModelSelectionReason.UserSelection) ? models.configuredModel : undefined;
+	const newConversation = session.kind === 'untitled' && !sessionChanged && chatKey !== previous.lastPushedChatKey;
+	const automaticSelection = currentReason === ModelSelectionReason.ConfiguredDefault
+		|| currentReason === ModelSelectionReason.FirstAvailable
+		|| currentReason === ModelSelectionReason.Remembered
+		|| currentReason === ModelSelectionReason.NewChatRepush;
+	const configuredModelValue = session.kind === 'untitled'
+		&& (newConversation
+			|| (!newConversation && (!sessionModelId || automaticSelection) && !isAuthoritativeModelSelectionReason(currentReason)))
+		? models.configuredModel
+		: undefined;
 	const configuredModel = configuredModelValue
 		? resolveConfiguredModel(models.configuredModel, models.available)
 		: undefined;
@@ -238,22 +278,22 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 		}
 		return applyResult(sessionKey, chatKey, configuredModel, ModelSelectionReason.ConfiguredDefault);
 	}
-	if (configuredModelValue && models.waitForConfiguredModel) {
-		return {
-			currentModel: undefined,
-			currentReason: undefined,
-			pendingSelection: { source: 'configured', reference: configuredModelValue },
-			effect: { kind: 'none' },
-			sessionKey,
-			lastPushedChatKey: previous.lastPushedChatKey,
-		};
-	}
 	if (session.kind === 'existing' && models.desiredModelResolution.kind === 'pending') {
 		return {
 			currentModel: undefined,
 			currentReason: undefined,
-			pendingSelection: { source: 'desired', reference: models.desiredModelResolution.identifier },
+			pendingSelection: { reference: models.desiredModelResolution.identifier },
 			effect: currentModel ? { kind: 'clear', reason: ModelSelectionReason.SessionRestore } : { kind: 'none' },
+			sessionKey,
+			lastPushedChatKey: chatKey,
+		};
+	}
+	if (!currentModel && session.kind === 'untitled' && sessionModel) {
+		return {
+			currentModel: sessionModel,
+			currentReason: ModelSelectionReason.SessionRestore,
+			pendingSelection: undefined,
+			effect: { kind: 'none' },
 			sessionKey,
 			lastPushedChatKey: chatKey,
 		};
@@ -261,9 +301,7 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 
 	if (!currentModel && session.kind === 'untitled') {
 		const initial = resolveInitialModelSelection({
-			configuredModelValue,
 			configuredModel,
-			waitForConfiguredModel: models.waitForConfiguredModel,
 			desiredModelResolution: models.desiredModelResolution,
 			desiredReason: sessionModelId ? ModelSelectionReason.SessionRestore : ModelSelectionReason.Remembered,
 			fallbackModel,
@@ -310,7 +348,7 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 			return {
 				currentModel: undefined,
 				currentReason: undefined,
-				pendingSelection: { source: 'desired', reference: models.desiredModelResolution.identifier },
+				pendingSelection: { reference: models.desiredModelResolution.identifier },
 				effect: { kind: 'clear', reason: ModelSelectionReason.SessionRestore },
 				sessionKey,
 				lastPushedChatKey: previous.lastPushedChatKey,
@@ -331,9 +369,7 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 
 	if (session.kind === 'untitled' && currentModel && currentReason === ModelSelectionReason.FirstAvailable) {
 		const initial = resolveInitialModelSelection({
-			configuredModelValue,
 			configuredModel,
-			waitForConfiguredModel: models.waitForConfiguredModel,
 			desiredModelResolution: models.desiredModelResolution,
 			desiredReason: ModelSelectionReason.Remembered,
 			fallbackModel,

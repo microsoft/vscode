@@ -8,6 +8,7 @@ import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
 
@@ -20,10 +21,12 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { SegmentedVoiceInputModePillInactive } from '../../chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -32,10 +35,10 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
@@ -46,13 +49,16 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
+import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
+import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 // --- Context Keys ---
 
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
-const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
-const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
-const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+const AGENTS_VOICE_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
+const VOICE_ACTIVE_ON_SURFACE = ContextKeyExpr.or(IsSessionsWindowContext.negate(), AGENTS_VOICE_INITIATED_HERE)!;
 
 // --- Context Key Binding ---
 
@@ -114,6 +120,35 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
 
+// --- First-run introduction ---
+
+/**
+ * Shows the Voice Mode introduction the first time a session starts. This
+ * watches the connection state rather than any one entry point, because Voice
+ * Mode can be started from the input-mode pill, a command, a keybinding or the
+ * Agents window - all of which land here.
+ */
+class AgentsVoiceOnboardingContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceOnboarding';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IVoiceModeOnboardingService voiceModeOnboardingService: IVoiceModeOnboardingService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			if (voiceSessionController.isConnecting.read(reader) || voiceSessionController.isConnected.read(reader)) {
+				voiceModeOnboardingService.showIfNeeded();
+			}
+		}));
+	}
+}
+
+// Registered at the same late phase as the connected-key contribution so it
+// does not force `IVoiceSessionController` to instantiate early.
+registerWorkbenchContribution2(AgentsVoiceOnboardingContribution.ID, AgentsVoiceOnboardingContribution, WorkbenchPhase.Eventually);
+
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
 // Click to connect if disconnected, or toggle PTT if connected.
@@ -124,7 +159,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.connecting',
 			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
-			icon: Codicon.loading,
+			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -132,9 +167,12 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
 				order: -10
@@ -151,16 +189,22 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
+					// Hide Voice Mode while dictation is active (recording or the
+					// model is loading) so the two mic affordances never compete.
+					ChatContextKeys.speechToTextRecording.negate(),
+					ChatContextKeys.speechToTextPreparing.negate(),
 				),
 				group: 'navigation',
 				order: -10
@@ -168,10 +212,8 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
-				},
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 				),
@@ -181,6 +223,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
+		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
 
 		// Capture hold-mode FIRST, synchronously, before any `await`. The
 		// keybinding service only reports a held chord while it is still
@@ -192,14 +235,36 @@ registerAction2(class extends Action2 {
 		// invoked without a held key (toolbar mic button / command palette).
 		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.startVoiceInChat');
 
+		// An explicit press in another composer transfers Voice Mode ownership to
+		// that composer. The draft sentinel deliberately clears the concrete target.
+		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		if (currentSession) {
+			try {
+				const resource = URI.parse(currentSession);
+				if (resource.scheme === 'sessions-voice') {
+					voiceController.setDraftTarget();
+				} else {
+					voiceController.setTargetSession(resource);
+					voiceController.activateSession(resource);
+				}
+			} catch {
+				// The routing command owns validation; leave the current target unchanged.
+			}
+		}
+
 		// Ensure the session is connected before we start recording. The mic
 		// button's first press connects; a held keybinding also connects here so
 		// that press-and-hold works on the very first invocation. If the user
 		// releases the key while we're still connecting, `holdMode` resolves
 		// early and the awaited release below fires right after pttDown() — the
 		// controller then treats it as a quick tap (toggle on).
-		if (!voiceController.isConnected.get()) {
+		const wasConnected = voiceController.isConnected.get();
+		if (!wasConnected) {
 			await voiceController.connect(mainWindow);
+		}
+
+		if (!holdMode && !handsFree && !wasConnected) {
+			return;
 		}
 
 		// Map the physical key/button gesture directly onto the controller's
@@ -228,7 +293,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.pttStopInChat',
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -236,10 +301,13 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
 				order: -10
@@ -267,7 +335,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.debugDisconnect,
+			icon: Codicon.debugDisconnectCompact,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
@@ -277,9 +345,14 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
+					// The segmented voice pill's voice cell is itself the on/off toggle,
+					// so a separate disconnect button would be redundant there.
+					SegmentedVoiceInputModePillInactive,
 				),
 				group: 'navigation',
 				order: -9
@@ -294,6 +367,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
 					// Don't disconnect voice while a request is running — pressing
 					// Escape there is meant to interrupt/cancel that request, not
 					// tear down the voice session (which is especially disruptive
@@ -349,33 +423,37 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Open Voice Mode Settings (gear button, shown left of Disconnect when connected) ---
+// --- Open Voice Mode Settings ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.openSettings',
 			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
-			icon: Codicon.settingsGear,
 			f1: true,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.currentlyEditing.negate(),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-				),
-				group: 'navigation',
-				// Just before the Disconnect button (order -9) and after the mic/stop button (order -10).
-				order: -9.5
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
+			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		if (!accessor.get(IVoiceModeOnboardingService).show()) {
+			accessor.get(INotificationService).info(nls.localize('agentsVoice.onboardingNeedsChat', "Open a chat to see the Voice Mode introduction."));
+		}
 	}
 });
 
@@ -408,6 +486,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
+		storageService.remove(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION);
 	}
 });
 
@@ -423,9 +502,6 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
-				},
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_WIDGET_FOCUSED,
 					ContextKeyExpr.not('inputFocus'),
@@ -435,6 +511,11 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		// Capture hold mode before awaiting so the dispatching command is still available.
+		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.pushToTalk');
+
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
 			await voiceController.connect(mainWindow);
@@ -442,81 +523,26 @@ registerAction2(class extends Action2 {
 		if (!voiceController.isConnected.get()) {
 			return;
 		}
+
 		voiceController.pttDown();
-	}
-});
 
-// --- Select Microphone Command ---
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentsVoice.selectMicrophone',
-			title: nls.localize2('agentsVoice.selectMicrophone', "Voice: Select Microphone"),
-			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const storageService = accessor.get(IStorageService);
-
-		const devices = await navigator.mediaDevices.enumerateDevices();
-
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
-			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
+		if (!holdMode) {
+			// Not invoked via a held keybinding: emulate a tap so the controller
+			// enters toggle mode and keeps listening. Pressing again stops.
+			voiceController.pttUp();
 			return;
 		}
 
-		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
-
-		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [];
-
-		// "System Default" entry — clears the stored device so the OS default is always used
-		items.push({
-			label: nls.localize('systemDefault', "System Default"),
-			description: currentDeviceId === '' ? nls.localize('current', "(current)") : undefined,
-			deviceId: '',
-		});
-
-		for (const d of audioInputs) {
-			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? nls.localize('current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
-		});
-
-		if (picked) {
-			const selection = picked as DevicePickItem;
-			if (selection.deviceId) {
-				storageService.store(AgentsVoiceStorageKeys.MicrophoneDevice, selection.deviceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			} else {
-				storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
-			}
-		}
+		// The shortcut is being held: wait for release, then finish the turn.
+		// The controller decides tap-vs-hold based on how long it was held.
+		await holdMode;
+		voiceController.pttUp();
 	}
 });
+
+// Microphone selection is shared with dictation via the single
+// `workbench.action.chat.selectSpeechToTextMicrophone` command (see
+// chatSpeechToTextActions.ts), so Voice Mode no longer registers its own.
 
 // --- Settings ---
 
@@ -533,9 +559,16 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto',
 			},
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+		},
+		[AgentsVoiceSettingId.ShowButton]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.showButton', "Controls whether the Voice Mode button is shown in the chat input. When hidden, Voice Mode can still be started with its keyboard shortcut."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',
@@ -550,6 +583,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[VOICE_AGENT_PROGRESS_SETTING]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.agentProgress', "Allow Agent mode to speak brief semantic progress updates while it investigates, plans, edits, validates, or recovers from a problem."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.voice': {
 			type: 'string',
 			enum: ['victoria_neutral', 'kevin_neutral', 'maya_neutral', 'daniel_neutral'],
@@ -560,7 +600,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.maya', "Maya."),
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
-			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately. Use [Voice Mode instructions](command:{0}) to customize Voice Mode behavior and terminology.", CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID),
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
@@ -579,7 +619,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.language.ko', "Korean"),
 				nls.localize('agents.voice.language.zh', "Chinese"),
 			],
-			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic uses the configured display language for speech recognition and dictation when supported; otherwise, it follows the system or browser locale. English voice output is used when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 		},
@@ -597,13 +637,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
-			default: false,
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start and end each turn manually, and ending the turn sends it. Turns are not ended automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {
 			type: 'number',
-			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth.", '`#agents.voice.turn.stopPhrases#`'),
+			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth. When hands-free mode ({1}) is disabled, the turn is not ended on silence by default unless this setting is explicitly configured, so you keep manual control over when a turn is sent.", '`#agents.voice.turn.stopPhrases#`', '`#agents.voice.handsFree#`'),
 			default: 800,
 			anyOf: [
 				{
@@ -621,7 +661,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.turn.stopPhrases': {
 			type: 'array',
 			items: { type: 'string' },
-			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent.", '`#agents.voice.turn.silenceMs#`'),
+			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent. When hands-free mode ({1}) is disabled, stop phrases do not end the turn by default unless this setting is explicitly configured, so you keep manual control over when a turn is sent.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.handsFree#`'),
 			default: ['send it'],
 			scope: ConfigurationScope.APPLICATION,
 		},

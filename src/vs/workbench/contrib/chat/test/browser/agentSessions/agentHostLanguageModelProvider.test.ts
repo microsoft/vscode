@@ -54,6 +54,54 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
 	});
 
+	test('carries picker category, price category, and promo from model metadata', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			makeModel('claude-sonnet', {
+				category: 'powerful',
+				priceCategory: 'medium',
+				promo: {
+					id: 'summer-sale',
+					discountPercent: 25,
+					endsAt: '2026-08-01T00:00:00Z',
+					message: 'Save on Claude Sonnet',
+				},
+			}),
+			// Open-ended, message-only promo: the untyped `_meta` read must keep it
+			// rather than drop the promo for the missing `endsAt` / zero discount.
+			makeModel('gpt-5', {
+				promo: {
+					id: 'featured',
+					discountPercent: 0,
+					message: 'Now available',
+				},
+			}),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			category: info.metadata.category,
+			priceCategory: info.metadata.priceCategory,
+			promo: info.metadata.promo,
+		})), [
+			{
+				category: 'powerful',
+				priceCategory: 'medium',
+				promo: {
+					id: 'summer-sale',
+					discountPercent: 25,
+					endsAt: '2026-08-01T00:00:00Z',
+					message: 'Save on Claude Sonnet',
+				},
+			},
+			{
+				category: undefined,
+				priceCategory: undefined,
+				promo: { id: 'featured', discountPercent: 0, message: 'Now available' },
+			},
+		]);
+	});
+
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {
 		const provider = createProvider();
 		// The agent host reports every model under the harness provider (`copilotcli`);
@@ -84,6 +132,32 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('keeps duplicate Codex model names distinct and provider scoped', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
+		provider.updateModels([
+			{ id: '@provider=vscode-proxy:gpt-5.6-sol', provider: 'copilot', name: 'GPT-5.6 Sol' },
+			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol', _meta: { modelSourceId: 'chatgptSubscription' } },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			identifier: info.identifier,
+			name: info.metadata.name,
+			group: info.metadata.modelGroup,
+		})), [
+			{ identifier: 'codex:@provider=vscode-proxy:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'copilot' } },
+			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', sourceId: 'chatgptSubscription' } },
+		]);
+	});
+
+	test('does not infer a trusted source from provider names', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
+		provider.updateModels([{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' }]);
+
+		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		assert.deepStrictEqual(info.metadata.modelGroup, { id: 'chatgpt' });
 	});
 
 	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {
