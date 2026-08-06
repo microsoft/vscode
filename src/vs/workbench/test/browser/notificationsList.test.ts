@@ -12,6 +12,25 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+
+suite('NotificationsList row height', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT));
+
+	test('notifies existing lists when the row height changes', () => {
+		const changes: number[] = [];
+		store.add(onDidChangeNotificationRowHeight(height => changes.push(height)));
+
+		setNotificationRowHeight(34);
+		setNotificationRowHeight(34);
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+
+		assert.deepStrictEqual(changes, [34, DEFAULT_NOTIFICATION_ROW_HEIGHT]);
+	});
+});
 
 suite('NotificationsList AccessibilityProvider', () => {
 
