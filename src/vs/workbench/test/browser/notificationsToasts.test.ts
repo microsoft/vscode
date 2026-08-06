@@ -38,6 +38,7 @@ suite('NotificationsToasts', () => {
 		readonly flushAnimationFrame: () => Promise<void>;
 	}> {
 		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
 		const targetWindow = getWindow(container);
 		targetWindow.document.body.appendChild(container);
 		testDisposables.add(toDisposable(() => container.remove()));

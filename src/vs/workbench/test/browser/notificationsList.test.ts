@@ -54,6 +54,7 @@ suite('NotificationsList row height', () => {
 	test('notification center updates row heights and preserves the focused row viewport position', () => {
 		setNotificationRowHeight(34);
 		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 
