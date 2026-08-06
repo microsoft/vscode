@@ -1019,7 +1019,7 @@ configurationRegistry.registerConfiguration({
 		[mcpUserServersEnabledConfig]: {
 			type: 'boolean',
 			title: nls.localize('chat.mcp.userServersEnabled.title', "Use User-Level MCP Servers"),
-			markdownDescription: nls.localize('chat.mcp.userServersEnabled.description', "Controls whether Model Context Protocol servers configured at the user level (for example, in your user `mcp.json`) are available in this workspace. Set to `false` in workspace settings to restrict the agent to only workspace-defined MCP servers, so personal MCP configuration cannot affect this project and the same set of servers is available to every contributor."),
+			markdownDescription: nls.localize('chat.mcp.userServersEnabled.description', "Controls whether Model Context Protocol servers configured at the user level (for example, in your user `mcp.json`) are available in this workspace. Disable this in workspace settings to restrict the agent to only workspace-defined MCP servers, so personal MCP configuration cannot affect this project and the same set of servers is available to every contributor."),
 			default: true,
 			tags: ['mcp'],
 		},
