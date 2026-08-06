@@ -149,7 +149,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
 				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
 				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false),
-				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false)
+				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false),
+				ignoreFoldedRegions: this._storageService.getBoolean('editor.ignoreFoldedRegions', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -208,6 +209,9 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		if (e.preserveCase) {
 			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+		if (e.ignoreFoldedRegions) {
+			this._storageService.store('editor.ignoreFoldedRegions', this._state.ignoreFoldedRegions, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	private loadQueryState() {
@@ -215,7 +219,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
 			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
 			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex),
-			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase)
+			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase),
+			ignoreFoldedRegions: this._storageService.getBoolean('editor.ignoreFoldedRegions', StorageScope.WORKSPACE, this._state.ignoreFoldedRegions)
 		}, false);
 	}
 
@@ -302,6 +307,13 @@ export class CommonFindController extends Disposable implements IEditorContribut
 					this._state.change({ searchScope: selections }, true);
 				}
 			}
+		}
+	}
+
+	public toggleIgnoreFoldedRegions(): void {
+		this._state.change({ ignoreFoldedRegions: !this._state.ignoreFoldedRegions }, false);
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
 		}
 	}
 
@@ -1133,6 +1145,16 @@ registerEditorCommand(new FindCommand({
 		mac: ToggleSearchScopeKeybinding.mac,
 		win: ToggleSearchScopeKeybinding.win,
 		linux: ToggleSearchScopeKeybinding.linux
+	}
+}));
+
+registerEditorCommand(new FindCommand({
+	id: FIND_IDS.ToggleIgnoreFoldedCommand,
+	precondition: undefined,
+	handler: x => x.toggleIgnoreFoldedRegions(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib + 5,
+		kbExpr: EditorContextKeys.focus,
 	}
 }));
 
