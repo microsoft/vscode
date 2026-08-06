@@ -42,12 +42,18 @@ export function decideHostKeyTrust(
 ): SSHHostKeyDecision {
 	const strict = request.strictHostKeyChecking;
 
-	if (strict === 'no' || strict === 'off') {
-		return { kind: 'trust', persist: false, reason: 'strict-disabled' };
-	}
-
+	// Revocation is checked before everything, including the
+	// `StrictHostKeyChecking` opt-out. Verified against OpenSSH 9.9: with
+	// `StrictHostKeyChecking=no` it still reports "REVOKED HOST KEY DETECTED"
+	// and disables password auth, keyboard-interactive auth and agent
+	// forwarding. Disabling host key checking means "I accept unknown keys",
+	// never "I accept keys I have explicitly revoked".
 	if (request.knownHostsMatch === 'revoked') {
 		return { kind: 'deny', reason: 'revoked' };
+	}
+
+	if (strict === 'no' || strict === 'off') {
+		return { kind: 'trust', persist: false, reason: 'strict-disabled' };
 	}
 
 	const storedForKeyType = trustedKeys.find(key => key.keyType === request.keyType);

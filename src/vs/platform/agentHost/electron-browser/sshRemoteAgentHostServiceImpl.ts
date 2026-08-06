@@ -122,6 +122,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 */
 	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
 
+	/**
+	 * The host key that authenticated the most recent session for a given
+	 * connection key. Used to decide whether an `UpdateHostKeys` announcement
+	 * may be trusted (see {@link _handleAnnouncedHostKeys}). Bounded by the
+	 * number of distinct SSH hosts, and each entry is overwritten on reconnect.
+	 */
+	private readonly _sessionHostKeys = new Map<string, { keyType: string; fingerprint: string }>();
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -564,6 +572,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
+			// Remember which host key actually authenticated this session, so
+			// a later UpdateHostKeys announcement can be checked against it.
+			this._sessionHostKeys.set(request.connectionKey, { keyType: request.keyType, fingerprint: request.fingerprint });
 			await this._mainService.respondHostKeyVerification(request.requestId, trusted);
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Failed handling host key verification', err);
@@ -657,10 +668,23 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	/**
-	 * Persist host keys the server proved it owns. ssh2 verifies these before
-	 * surfacing them, so trusting them without a prompt is safe and is what
-	 * makes a legitimate server key rotation invisible to the user instead of
-	 * a hard failure on the next connect.
+	 * Persist host keys the server proved it owns, so a legitimate key
+	 * rotation is invisible to the user instead of a hard failure on the next
+	 * connect.
+	 *
+	 * ssh2 verifies the `hostkeys-prove` signatures before surfacing these,
+	 * but that only proves the keys belong to *whoever we are currently
+	 * talking to* — it says nothing about whether that party is the real host.
+	 * So we additionally require that the host key which authenticated this
+	 * very session is itself currently trusted. This mirrors OpenSSH, whose
+	 * `UpdateHostKeys` documentation states additional host keys are accepted
+	 * only "if the key used to authenticate the host was already trusted or
+	 * explicitly accepted by the user".
+	 *
+	 * Without that check, a session accepted through
+	 * `StrictHostKeyChecking=no` — where we deliberately did not verify
+	 * anything — could announce keys that overwrite the user's genuine stored
+	 * key, leaving an impostor's key trusted once strict checking is restored.
 	 */
 	private _handleAnnouncedHostKeys(announcement: ISSHHostKeysAnnouncement): void {
 		const existing = this._hostKeyTrustService.getTrustedKeys(announcement.host, announcement.port);
@@ -670,6 +694,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			// establish trust without any verification at all.
 			return;
 		}
+
+		const sessionKey = this._sessionHostKeys.get(announcement.connectionKey);
+		if (!sessionKey || !existing.some(e => e.keyType === sessionKey.keyType && e.fingerprint === sessionKey.fingerprint)) {
+			this._logService.warn(`[SSHRemoteAgentHost] Ignoring announced host keys for ${announcement.host}: the key that authenticated this session is not itself trusted`);
+			return;
+		}
+
 		for (const key of announcement.keys) {
 			if (!existing.some(e => e.keyType === key.keyType && e.fingerprint === key.fingerprint)) {
 				this._logService.info(`[SSHRemoteAgentHost] Learned rotated ${key.keyType} host key for ${announcement.host}: ${key.fingerprint}`);

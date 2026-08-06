@@ -42,9 +42,17 @@ class HostKeyMockSSHClient {
 	 */
 	deferVerification = false;
 
+	/** Resolves once ssh2 has entered `hostVerifier` for this connection. */
+	readonly verifierEntered: Promise<void>;
+	private _verifierEntered!: () => void;
+
 	private readonly _errorListeners: Array<(err: Error) => void> = [];
 	private readonly _readyListeners: Array<() => void> = [];
 	private readonly _hostKeysListeners: Array<(keys: readonly { getPublicSSH(): Buffer; type: string }[]) => void> = [];
+
+	constructor() {
+		this.verifierEntered = new Promise<void>(resolve => { this._verifierEntered = resolve; });
+	}
 
 	on(event: string, listener: (...args: never[]) => void): this {
 		if (event === 'error') {
@@ -65,6 +73,7 @@ class HostKeyMockSSHClient {
 		this.readyTimeout = config.readyTimeout;
 		const hostVerifier = config.hostVerifier as ((key: Buffer, verify: (permitted: boolean) => void) => void) | undefined;
 		assert.ok(hostVerifier, 'hostVerifier must be installed — without it ssh2 accepts any host key');
+		this._verifierEntered();
 		hostVerifier(HOST_KEY, permitted => {
 			this.verdictCount++;
 			this.verdict = permitted;
@@ -97,6 +106,11 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 	knownHostsContents = '';
 	/** Set to make the known_hosts read throw, exercising the fail-closed path. */
 	knownHostsError: Error | undefined;
+	/**
+	 * When set, the known_hosts read blocks on this promise, so a test can
+	 * make the connection die while evidence gathering is still in flight.
+	 */
+	knownHostsGate: Promise<void> | undefined;
 
 	protected override async _createSSHClient() {
 		return this.client as never;
@@ -107,10 +121,34 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 	}
 
 	protected override async _readKnownHostsEntries(_host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: undefined }> {
+		if (this.knownHostsGate) {
+			await this.knownHostsGate;
+		}
 		if (this.knownHostsError) {
 			throw this.knownHostsError;
 		}
 		return { entries: parseKnownHosts(this.knownHostsContents), strictHostKeyChecking: undefined };
+	}
+
+	/** Expose the pending-request map so tests can assert nothing is leaked. */
+	get pendingHostKeyRequestCount(): number {
+		return this['_pendingHostKeyRequests'].size;
+	}
+
+	/** Every deadline armed during the connect, in order. */
+	readonly deadlineHistory: number[] = [];
+	/** The currently armed deadline, or undefined when no timer is running. */
+	currentDeadlineMs: number | undefined;
+
+	protected override _armHandshakeDeadline(ms: number, onExpired: () => void): ReturnType<typeof setTimeout> {
+		this.deadlineHistory.push(ms);
+		this.currentDeadlineMs = ms;
+		return super._armHandshakeDeadline(ms, onExpired);
+	}
+
+	protected override _clearHandshakeDeadline(timer: ReturnType<typeof setTimeout> | undefined): void {
+		this.currentDeadlineMs = undefined;
+		super._clearHandshakeDeadline(timer);
 	}
 
 	connectSSHForTest(config: ISSHAgentHostConfig) {
@@ -217,25 +255,68 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 		assert.strictEqual(requests[0]?.userInitiated, false);
 	});
 
-	test('allows time for a human to answer, but only when a prompt is possible', async () => {
-		// ssh2's readyTimeout keeps running while hostVerifier awaits a
-		// verdict, so a short window would kill the connection out from under
-		// a user who is doing exactly what the dialog asks — going to check
-		// the fingerprint somewhere else.
-		const interactive = createService();
-		await connectAnswering(interactive, true, makeConfig({ userInitiated: true }));
-
-		const background = createService();
-		await connectAnswering(background, true, makeConfig({ userInitiated: false }));
+	test('bounds the handshake, and only widens it while a prompt is outstanding', async () => {
+		// ssh2's own readyTimeout is disabled because it keeps running while
+		// hostVerifier waits on a human. We arm the short network deadline up
+		// front, widen it only for the interval a prompt is actually
+		// outstanding, and restore it once the verdict arrives — so a user
+		// gets time to compare a fingerprint without an unreachable host
+		// taking minutes to fail.
+		const service = createService();
+		const observed: number[] = [];
+		const store = new DisposableStore();
+		store.add(service.onDidRequestHostKeyVerification(request => {
+			observed.push(service.currentDeadlineMs!);
+			void service.respondHostKeyVerification(request.requestId, true);
+		}));
+		await service.connectSSHForTest(makeConfig());
+		store.dispose();
 
 		assert.deepStrictEqual(
 			{
-				interactive: interactive.client.readyTimeout,
-				// A background reconnect never prompts, so it keeps the short
-				// window and abandons a stalled handshake promptly.
-				background: background.client.readyTimeout,
+				ssh2TimerDisabled: service.client.readyTimeout,
+				armedBeforeConnect: service.deadlineHistory[0],
+				whilePrompting: observed[0],
+				// Cleared once the connect settles — no timer left running.
+				afterSettle: service.currentDeadlineMs,
 			},
-			{ interactive: 300_000, background: 30_000 });
+			{ ssh2TimerDisabled: 0, armedBeforeConnect: 30_000, whilePrompting: 300_000, afterSettle: undefined });
+	});
+
+	test('a connection that dies during evidence gathering leaves nothing pending', async () => {
+		// `_verifyHostKey` awaits the known_hosts read, so the connection can
+		// die before the request is ever registered for cancellation. If that
+		// window isn't handled, we leak a pending entry forever and pop a
+		// dialog for a connection that is already gone.
+		const service = createService();
+		let openGate = () => { };
+		service.knownHostsGate = new Promise<void>(resolve => { openGate = resolve; });
+
+		const requests: ISSHHostKeyVerificationRequest[] = [];
+		const store = new DisposableStore();
+		store.add(service.onDidRequestHostKeyVerification(request => requests.push(request)));
+
+		const connectPromise = service.connectSSHForTest(makeConfig());
+		// Wait until ssh2 has actually entered hostVerifier and blocked inside
+		// the known_hosts read, then kill the connection underneath it.
+		await service.client.verifierEntered;
+		service.client.fireError(new Error('Connection lost'));
+		const result = await connectPromise.then(() => 'resolved', err => `rejected: ${err.message}`);
+
+		// Now release the read: verification resumes on a dead connection.
+		openGate();
+		await new Promise(resolve => setTimeout(resolve, 10));
+		store.dispose();
+
+		assert.deepStrictEqual(
+			{
+				result,
+				// No orphaned prompt, and no leaked map entry.
+				requestCount: requests.length,
+				pending: service.pendingHostKeyRequestCount,
+				verdict: service.client.verdict,
+			},
+			{ result: 'rejected: Connection lost', requestCount: 0, pending: 0, verdict: false });
 	});
 
 	test('fails closed when gathering evidence throws', async () => {

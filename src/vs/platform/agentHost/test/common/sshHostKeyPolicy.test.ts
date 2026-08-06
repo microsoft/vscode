@@ -90,6 +90,20 @@ suite('sshHostKeyPolicy', () => {
 			'deny(revoked)');
 	});
 
+	test('revocation overrides even a StrictHostKeyChecking opt-out', () => {
+		// Verified against OpenSSH 9.9: with StrictHostKeyChecking=no it still
+		// reports "REVOKED HOST KEY DETECTED" and disables password auth,
+		// keyboard-interactive auth and agent forwarding. Disabling host key
+		// checking means "I accept unknown keys", never "I accept keys I have
+		// explicitly revoked".
+		assert.deepStrictEqual(
+			{
+				no: summarize(decideHostKeyTrust(makeRequest({ knownHostsMatch: 'revoked', strictHostKeyChecking: 'no' }), [])),
+				off: summarize(decideHostKeyTrust(makeRequest({ knownHostsMatch: 'revoked', strictHostKeyChecking: 'off' }), [])),
+			},
+			{ no: 'deny(revoked)', off: 'deny(revoked)' });
+	});
+
 	test('a stored key wins over a disagreeing known_hosts file', () => {
 		// Our store is authoritative for hosts already connected to, so a
 		// known_hosts entry that agrees with the server must not silently

@@ -101,12 +101,12 @@ class MockSSHMainService {
 		this._hostKeyResponseWaiters.splice(0).forEach(waiter => waiter.complete());
 	}
 
-	/** Test helper: fire a host key verification request as the main process would. */
+	/** Test helper: fire a host key verification request as the shared process would. */
 	fireHostKeyVerificationRequest(request: ISSHHostKeyVerificationRequest): void {
 		this._onDidRequestHostKeyVerification.fire(request);
 	}
 
-	/** Test helper: fire a host key announcement as the main process would. */
+	/** Test helper: fire a host key announcement as the shared process would. */
 	fireHostKeysAnnouncement(announcement: ISSHHostKeysAnnouncement): void {
 		this._onDidAnnounceHostKeys.fire(announcement);
 	}
@@ -1228,6 +1228,9 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
 	test('learns a rotated key announced over an authenticated connection', async () => {
 		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		// Establish a session whose host key is itself trusted — that is what
+		// entitles the server to tell us about its other keys.
+		await fireAndWait(makeHostKeyRequest());
 
 		mainService.fireHostKeysAnnouncement({
 			connectionKey: 'ssh:remote.example',
@@ -1242,6 +1245,36 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		assert.deepStrictEqual(
 			hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`).sort(),
 			['ssh-ed25519 SHA256:rotated', 'ssh-rsa SHA256:rsakey']);
+	});
+
+	test('an unverified session cannot poison stored trust via announcements', async () => {
+		// StrictHostKeyChecking=no accepts whatever key is presented without
+		// verifying it. ssh2 still proves announced keys belong to whoever we
+		// are talking to — but under `no` that could be an impostor, so the
+		// announcement must not be allowed to overwrite the real stored key.
+		// Mirrors OpenSSH, which only accepts additional host keys when the
+		// key that authenticated the host was already trusted.
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({ fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:attackerkey' }],
+		});
+
+		assert.deepStrictEqual(
+			{
+				// The unverified session was allowed to connect...
+				connected: mainService.hostKeyResponses,
+				// ...but the genuine stored key is untouched.
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				connected: [{ requestId: 'hostkey-1', trusted: true }],
+				stored: [FINGERPRINT],
+			});
 	});
 
 	test('ignores announcements for hosts that were never trusted', async () => {

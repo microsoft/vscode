@@ -120,26 +120,30 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
  */
 const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
 
+/** Opaque handle for the handshake deadline timer; see `_armHandshakeDeadline`. */
+type IHandshakeDeadlineHandle = ReturnType<typeof setTimeout>;
+
 /**
- * Handshake timeout for a connect that can never show UI (a background
- * reconnect). Nothing blocks on a human, so a server that accepts TCP but
- * stalls the handshake should be abandoned promptly.
+ * Deadline for the parts of the handshake that involve no human: TCP connect,
+ * key exchange, and authentication. Kept short so an unreachable or stalled
+ * server fails promptly.
  */
 const HANDSHAKE_TIMEOUT_MS = 30_000;
 
 /**
- * Handshake timeout for a user-initiated connect, which may suspend the
- * handshake on a host key confirmation or a password prompt.
+ * Deadline that applies only while we are waiting on a person — a host key
+ * confirmation or a keyboard-interactive prompt.
  *
- * ssh2's `readyTimeout` covers the whole handshake and keeps running while
- * `hostVerifier` awaits a verdict, so the 30s used elsewhere would kill the
- * connection out from under a user who is doing exactly what the host key
- * dialog asks — going to check a fingerprint against another source. Waiting
- * longer is safe here precisely because these prompts only happen *after* the
- * server has proven it is responsive (we are holding its host key), so this
- * window is not what protects us from an unreachable host.
+ * We manage the handshake deadline ourselves (ssh2's `readyTimeout` is
+ * disabled) because ssh2's timer covers the whole handshake and keeps running
+ * while `hostVerifier` awaits a verdict. Leaving it armed would abort the
+ * connection out from under a user doing exactly what the host key dialog asks
+ * — going to compare a fingerprint against another source — while simply
+ * raising it for the whole handshake would make an unreachable host take
+ * minutes to fail. So the deadline is short by default and only stretched for
+ * the interval a prompt is actually outstanding.
  */
-const INTERACTIVE_HANDSHAKE_TIMEOUT_MS = 300_000;
+const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -1326,15 +1330,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		connectionKey?: string,
 	): Promise<SSHClient> {
 		const port = config.port ?? 22;
-		// A background reconnect never prompts (the host key policy declines
-		// unknown keys outright rather than raising UI), so only a
-		// user-initiated connect needs the interaction-sized window.
-		const canPrompt = config.userInitiated ?? true;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port,
 			username: config.username,
-			readyTimeout: canPrompt ? INTERACTIVE_HANDSHAKE_TIMEOUT_MS : HANDSHAKE_TIMEOUT_MS,
+			// We enforce the handshake deadline ourselves so it can be stretched
+			// while a prompt is outstanding; see INTERACTIVE_TIMEOUT_MS.
+			readyTimeout: 0,
 			keepaliveInterval: 15_000,
 		};
 
@@ -1412,13 +1414,21 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// pre-hash the key and hand us a hex digest, discarding the raw blob we
 		// need to compare against `known_hosts` entries.
 		const liveHostKeyRequests = new Set<string>();
+		// Set once the connect attempt settles, so a verification that is still
+		// gathering evidence at that moment can bail out instead of registering
+		// itself after cancellation has already swept the set.
+		let hostKeyVerificationAborted = false;
+		// Forward references into the connect promise below, following the same
+		// pattern the keyboard-interactive path already uses.
+		let armDeadline: ((ms: number) => void) | undefined;
 		const cancelLiveHostKeyRequests = () => {
+			hostKeyVerificationAborted = true;
 			for (const requestId of liveHostKeyRequests) {
 				const pending = this._pendingHostKeyRequests.get(requestId);
 				this._pendingHostKeyRequests.delete(requestId);
 				this._onDidCancelHostKeyVerification.fire(requestId);
 				// Fail closed: an aborted connect must never leave ssh2 waiting
-				// on a verdict until `readyTimeout` elapses.
+				// on a verdict until the deadline elapses.
 				pending?.verify(false);
 			}
 			liveHostKeyRequests.clear();
@@ -1431,19 +1441,45 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				port,
 				key,
 				verify,
-				requestId => liveHostKeyRequests.add(requestId),
+				requestId => {
+					liveHostKeyRequests.add(requestId);
+					// A human is now in the loop; stop holding them to the
+					// network-sized deadline.
+					armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+				},
+				() => hostKeyVerificationAborted,
+				() => armDeadline?.(HANDSHAKE_TIMEOUT_MS),
 			);
 		};
 
 		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
+			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
+
+			const clearDeadline = () => {
+				this._clearHandshakeDeadline(deadlineTimer);
+				deadlineTimer = undefined;
+			};
+
+			// Replaces ssh2's `readyTimeout` (disabled above) so the window can
+			// be widened only for the interval a prompt is actually outstanding.
+			armDeadline = (ms: number) => {
+				if (settled) {
+					return;
+				}
+				clearDeadline();
+				deadlineTimer = this._armHandshakeDeadline(ms, () => {
+					rejectConnect(new Error(`SSH handshake to ${config.host} timed out`), true);
+				});
+			};
 
 			const resolveConnect = () => {
 				if (settled) {
 					return;
 				}
 				settled = true;
+				clearDeadline();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
@@ -1455,6 +1491,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return;
 				}
 				settled = true;
+				clearDeadline();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
 				if (endClient) {
@@ -1477,6 +1514,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				rejectConnect(err, false);
 			});
 
+			// A server can drop the connection cleanly mid-handshake (for
+			// example sshd refusing a session under MaxStartups), in which case
+			// ssh2 emits only 'end'/'close' with no 'error'. Without this the
+			// connect promise would never settle and any outstanding host key
+			// prompt would be left on screen forever.
+			client.on('close', () => {
+				rejectConnect(new Error(`SSH connection to ${config.host} closed before the handshake completed`), false);
+			});
+
 			// A server may announce its full host key set over the
 			// already-authenticated channel (OpenSSH's UpdateHostKeys). ssh2
 			// completes the `hostkeys-prove` challenge and verifies the
@@ -1487,8 +1533,23 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, config.host, port, keys);
 			});
 
+			armDeadline(HANDSHAKE_TIMEOUT_MS);
 			client.connect(connectConfig);
 		});
+	}
+
+	/**
+	 * Arm the handshake deadline. Overridable so tests can observe how the
+	 * window changes as prompts come and go without waiting on real timers.
+	 */
+	protected _armHandshakeDeadline(ms: number, onExpired: () => void): IHandshakeDeadlineHandle {
+		return setTimeout(onExpired, ms);
+	}
+
+	protected _clearHandshakeDeadline(timer: IHandshakeDeadlineHandle | undefined): void {
+		if (timer) {
+			clearTimeout(timer);
+		}
 	}
 
 	protected async _createSSHClient(): Promise<SSHClient> {
@@ -1725,13 +1786,21 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		key: Buffer,
 		verify: (permitted: boolean) => void,
 		onRequest: (requestId: string) => void,
+		isAborted: () => boolean,
+		onPromptSettled: () => void,
 	): Promise<void> {
 		let settled = false;
+		let prompted = false;
 		const verifyOnce = (permitted: boolean) => {
 			if (settled) {
 				return;
 			}
 			settled = true;
+			if (prompted) {
+				// The human is out of the loop; restore the network deadline so
+				// the rest of the handshake is not held to the long window.
+				onPromptSettled();
+			}
 			verify(permitted);
 		};
 
@@ -1748,10 +1817,22 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			const fingerprint = computeHostKeyFingerprint(key);
 			const { entries, strictHostKeyChecking } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+
+			// Gathering evidence is asynchronous, so the connect attempt may
+			// have failed while we were reading known_hosts. Registering now
+			// would leak a pending entry that nothing will ever settle, and
+			// would prompt the user about a connection that is already gone.
+			if (isAborted()) {
+				this._logService.info(`${LOG_PREFIX} Abandoning host key verification for ${displayHost}: connect attempt already settled`);
+				verifyOnce(false);
+				return;
+			}
+
 			const knownHostsMatch = matchKnownHosts(entries, config.host, port, keyType, key);
 			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
+			prompted = true;
 			onRequest(requestId);
 			this._pendingHostKeyRequests.set(requestId, { verify: verifyOnce });
 			this._onDidRequestHostKeyVerification.fire({
