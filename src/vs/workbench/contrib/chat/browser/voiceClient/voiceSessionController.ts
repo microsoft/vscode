@@ -4471,7 +4471,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (info.state === 'waiting_for_confirmation' && info.detail) {
 				return { kind: 'confirmation', text: info.detail, confirmationType: info.confirmation_type };
 			}
-			if (info.state === 'idle' && info.last_response_summary && !this._isOmniRoutedSession(resource.toString())) {
+			if (info.state === 'idle' && info.last_response_summary) {
 				return { kind: 'response', text: info.last_response_summary };
 			}
 			return undefined;
@@ -4480,9 +4480,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (session?.status === AgentSessionStatus.NeedsInput) {
 			// Detail lives on the model; load it and let the state-change path narrate once it renders.
 			this._ensureModelLoaded(resource);
-			return undefined;
-		}
-		if (this._isOmniRoutedSession(resource.toString())) {
 			return undefined;
 		}
 		if (session?.status === AgentSessionStatus.Completed) {
@@ -4882,13 +4879,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return { flushed: false, finalTranscripts: [] };
 		}
-		if (this._isOmniRoutedSession(sessionId)) {
-			this._deferredResponses.delete(key);
-			this._clearPendingResponse(key);
-			this.logService.trace(`[voice] discarding cached response for live-only omni session=${key.slice(-32)}`);
-			return { flushed: false, finalTranscripts: [] };
-		}
-
 		const responses = this._deferredResponses.get(key);
 		if (!responses || responses.length === 0) {
 			this._deferredResponses.delete(key);
@@ -5691,7 +5681,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
 		const routedRequest = this._routedRequests.get(sessionKey);
-		let isCurrentRoutedCompletion = false;
 		if (routedRequest && currentState === 'thinking') {
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
 		} else if (routedRequest && currentState === 'waiting_for_confirmation') {
@@ -5702,7 +5691,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const isRoutedResponse = routedRequest.phase !== 'queued'
 				|| (!!routedRequest.requestId && lastRequest?.id === routedRequest.requestId);
 			if (isRoutedResponse && lastResponseSummary) {
-				isCurrentRoutedCompletion = true;
 				this._routedRequests.delete(sessionKey);
 			} else if (isRoutedResponse && !lastResponseSummary) {
 				this.logService.trace(`[voice] retaining routed request through summary-less idle session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
@@ -5721,13 +5709,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._clearPendingResponse(sessionKey);
 			// A deferred narration from the previous turn is now stale.
 			this._clearDeferred(sessionKey);
-		}
-		if (currentState === 'idle' && this._isOmniRoutedSession(sessionId) && !isCurrentRoutedCompletion) {
-			this._lastResponseSummaryById.delete(sessionKey);
-			this._clearPendingResponse(sessionKey);
-			this._clearDeferred(sessionKey);
-			this.logService.trace(`[voice] skipping cached response summary for live-only omni session=${sessionKey.slice(-32)}`);
-			return;
 		}
 		const targetSessionId = this._targetSession.get()?.toString();
 		if (this._hasDraftTarget.get() || (targetSessionId && !this._isSameSession(sessionId, targetSessionId))) {
@@ -6363,10 +6344,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
 		} else if (routedRequest && state === 'waiting_for_confirmation') {
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
-		}
-		if (this._isOmniRoutedSession(sessionId)) {
-			this._lastResponseSummaryById.delete(sessionKey);
-			return;
 		}
 		if (state === 'idle' && summary) {
 			this._lastResponseSummaryById.set(sessionId, summary);

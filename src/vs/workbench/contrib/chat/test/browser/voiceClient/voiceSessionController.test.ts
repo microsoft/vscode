@@ -4018,7 +4018,7 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
-	test('does not narrate a cached response summary for an omni-routed session', () => {
+	test('narrates a completed omni-routed response when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
 		const resource = URI.parse('vscode-chat://omni-target');
@@ -4031,7 +4031,7 @@ suite('VoiceSessionController', () => {
 			narrations: voiceClientService.requests.map(request => ({ sessionId: request.sessionId, kind: request.kind, text: request.text })),
 			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
 		}, {
-			narrations: [],
+			narrations: [{ sessionId: resource.toString(), kind: 'response', text: 'The omni task is complete.' }],
 			pendingResponses: 0,
 		});
 	});
