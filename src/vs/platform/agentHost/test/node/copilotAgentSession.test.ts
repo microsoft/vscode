@@ -7058,7 +7058,108 @@ suite('CopilotAgentSession', () => {
 
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
-			assert.deepStrictEqual(result.toolReferences, ['everything-get-sum']);
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: '["everything-get-sum"]',
+				toolReferences: ['everything-get-sum'],
+			});
+		});
+
+		test('tool-search override hides unvalidated client-registry names from the model', async () => {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-unvalidated';
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: { query: 'create github pull request draft' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId, { query: 'create github pull request draft' }, [
+				{ name: 'create_pull_request', description: 'Create a pull request', deferLoading: true },
+				{ name: 'doSearch', description: 'Search GitHub', deferLoading: true },
+				{ name: 'issue_fetch', description: 'Fetch an issue', deferLoading: true },
+				{ name: 'pullRequestInViewport', description: 'Get the pull request in the viewport', deferLoading: true },
+				{ name: 'pullRequestStatusChecks', description: 'Get pull request status checks', deferLoading: true },
+			]);
+			session.handleClientToolCallComplete(toolCallId, {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{
+					type: ToolResultContentType.Text,
+					text: '["github-pull-request_create_pull_request","github-pull-request_doSearch","github-pull-request_issue_fetch","github-pull-request_pullRequestInViewport","github-pull-request_pullRequestStatusChecks"]',
+				}],
+			});
+
+			const result = await handlerPromise;
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: '[]',
+				toolReferences: [],
+			});
+		});
+
+		test('tool-search override canonicalizes namespaced aliases for the model and runtime', async () => {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-alias';
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: { query: 'create pull request' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId, { query: 'create pull request' }, [
+				{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true },
+			]);
+			session.handleClientToolCallComplete(toolCallId, {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: '["github-pull-request/create_pull_request","create_pull_request"]' }],
+			});
+
+			const result = await handlerPromise;
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: '["create_pull_request"]',
+				toolReferences: ['create_pull_request'],
+			});
+		});
+
+		test('tool-search override preserves non-list client result text', async () => {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-error-text';
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId);
+			session.handleClientToolCallComplete(toolCallId, {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: 'Error: query parameter is required' }],
+			});
+
+			const result = await handlerPromise;
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: 'Error: query parameter is required',
+				toolReferences: [],
+			});
 		});
 
 		test('auto-approved tool search defers its only ready until candidates are available', async () => {
