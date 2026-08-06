@@ -16,7 +16,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ITunnelHostService } from '../common/tunnelHost.js';
-import { SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
+import { RENAME_TUNNEL_ID, SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
 
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
@@ -119,9 +119,9 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			lines.push(localize('tunnelHost.hover.idle', "Allow remote session access"));
 		}
 
-		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${SHOW_TUNNEL_HOST_OUTPUT_ID})`);
+		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${SHOW_TUNNEL_HOST_OUTPUT_ID}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RENAME_TUNNEL_ID})`);
 
-		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [SHOW_TUNNEL_HOST_OUTPUT_ID] } });
+		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [SHOW_TUNNEL_HOST_OUTPUT_ID, RENAME_TUNNEL_ID] } });
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
 	}
 

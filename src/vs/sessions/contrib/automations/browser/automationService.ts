@@ -333,6 +333,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 		});
 	}
 
+	async deleteRun(runId: string): Promise<void> {
+		await this.mutateLedger(ledger => {
+			if (!ledger.runs.some(run => run.id === runId)) {
+				return { kind: 'noChange', result: undefined };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations,
+					runs: ledger.runs.filter(run => run.id !== runId),
+				},
+				result: undefined,
+			};
+		});
+	}
+
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
 		return findActiveRun(this._runs.get(), automationId);
 	}

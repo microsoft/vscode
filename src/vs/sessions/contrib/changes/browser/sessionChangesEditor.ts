@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
-import { IEditorHeaderActions, IEditorOpenContext } from '../../../../workbench/common/editor.js';
+import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -38,13 +38,13 @@ import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar, ChangesActionsBarActionViewItem, CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
+import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -274,27 +274,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return store;
 	}
 
-	/**
-	 * In single-pane, opt this editor in to the group's full-width header (spanning
-	 * the editor content and docked detail), providing this editor's scoped context
-	 * so the header actions' `when` clauses evaluate correctly.
-	 */
-	getHeaderActions(): IEditorHeaderActions | undefined {
-		if (!this._singlePane || !this._scopedInstantiationService) {
-			return undefined;
-		}
-		return { instantiationService: this._scopedInstantiationService };
-	}
-
-	/**
-	 * In single-pane, render the Create Pull Request button bar ({@link ChangesActionsBar})
-	 * as the editor tabs title anchor action ({@link CHANGES_HEADER_ACTIONS_ID}).
-	 */
-	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
-		if (this._singlePane && action.id === CHANGES_HEADER_ACTIONS_ID) {
-			return this.instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
-		}
-		return super.getActionViewItem(action, options);
+	get scopedInstantiationService(): IInstantiationService | undefined {
+		return this._singlePane ? this._scopedInstantiationService : undefined;
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

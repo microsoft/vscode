@@ -838,7 +838,7 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('does not fail creation when an already-ready session send rejects', async () => {
+		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');
 
@@ -855,14 +855,51 @@ suite('AgentSideEffects', () => {
 			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatError) || undefined);
 
 			assert.deepStrictEqual({
-				chatError: envelopes.some(e => e.action.type === ActionType.ChatError),
+				chatErrors: envelopes.filter(e => e.action.type === ActionType.ChatError).length,
 				creationFailed: envelopes.some(e => e.action.type === ActionType.SessionCreationFailed),
 				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
 			}, {
-				chatError: true,
+				chatErrors: 1,
 				creationFailed: false,
 				lifecycle: SessionLifecycle.Ready,
 			});
+		});
+
+		test('does not duplicate a Codex provider-owned failure when sendMessage resolves', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const originalSendMessage = agent.sendMessage.bind(agent);
+			agent.sendMessage = async (...args) => {
+				await originalSendMessage(...args);
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, error: { errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' } },
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+				});
+			};
+
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatTurnComplete) || undefined);
+
+			assert.deepStrictEqual(
+				envelopes
+					.filter(e => e.action.type === ActionType.ChatError || e.action.type === ActionType.ChatTurnComplete)
+					.map(e => e.action.type),
+				[ActionType.ChatError, ActionType.ChatTurnComplete],
+			);
 		});
 	});
 
@@ -1866,6 +1903,10 @@ suite('AgentSideEffects', () => {
 					toolCallId: 'active-tool',
 					result: { success: true, pastTenseMessage: 'Read file' },
 				},
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-2', duration: 1000 },
 			});
 
 			assert.deepStrictEqual(
@@ -4975,6 +5016,10 @@ suite('AgentSideEffects', () => {
 			return stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [];
 		}
 
+		function sessionStatus() {
+			return stateManager.getSessionState(sessionUri.toString())?.status;
+		}
+
 		test('chat input request mirrors its unresolved response part and is removed on completion', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -5178,7 +5223,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
-		test('auto-approved tool call is kept out of the session inputNeeded queue', () => {
+		test('auto-approved tool call still surfaces its client execution without flagging input needed', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -5200,7 +5245,15 @@ suite('AgentSideEffects', () => {
 				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1',
 				toolCallId: 'tc-auto', approved: true, confirmed: ToolCallConfirmationReason.Setting,
 			});
-			assert.deepStrictEqual(sessionInputNeeded(), [], 'no client-execution entry while Running');
+
+			// The client still has to run the call, so it must be discoverable
+			// from the session channel — but it is not a user prompt, so the
+			// session must not present as "input needed".
+			assert.deepStrictEqual(
+				sessionInputNeeded().map(r => ({ kind: r.kind, clientId: r.kind === SessionInputRequestKind.ToolClientExecution ? r.clientId : undefined })),
+				[{ kind: SessionInputRequestKind.ToolClientExecution, clientId: 'client-1' }],
+			);
+			assert.strictEqual(sessionStatus(), SessionStatus.InProgress, 'auto-approved client execution must not present as input needed');
 		});
 
 		test('auto-approved tool still surfaces a genuine result confirmation', () => {

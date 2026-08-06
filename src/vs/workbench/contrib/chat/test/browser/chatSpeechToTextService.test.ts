@@ -5,27 +5,54 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
+import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+	test('requires a paid plan and restricts MAI for external Enterprise users', () => {
+		assert.deepStrictEqual({
+			freeLocal: isDictationEntitled(ChatEntitlement.Free, false, false),
+			proLocal: isDictationEntitled(ChatEntitlement.Pro, false, false),
+			proMai: isDictationEntitled(ChatEntitlement.Pro, false, true),
+			enterpriseLocal: isDictationEntitled(ChatEntitlement.Enterprise, false, false),
+			enterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, false, true),
+			internalEnterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, true, true),
+		}, {
+			freeLocal: false,
+			proLocal: true,
+			proMai: true,
+			enterpriseLocal: true,
+			enterpriseMai: false,
+			internalEnterpriseMai: true,
+		});
+	});
+
+	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({
 			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
-			automatic: resolveDictationLanguage('auto', 'uk-UA'),
-			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
-			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
-			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
+			explicitWithDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE', 'ja'),
+			displayLanguage: resolveDictationLanguage('auto', 'en-US', 'de'),
+			englishDisplayLanguage: resolveDictationLanguage('auto', 'de-DE', 'en'),
+			unsupportedDisplayLanguage: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA', 'id-ID'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL', 'id-ID'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU', 'id-ID'),
 			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
 			explicitAdaptationReady: resolveDictationLanguage('lt', 'en-US'),
-			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO', 'id-ID'),
 			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
-			missing: resolveDictationLanguage(undefined, undefined),
+			missing: resolveDictationLanguage(undefined, undefined, 'id-ID'),
 		}, {
 			explicit: 'fr-FR',
+			explicitWithDisplayLanguage: 'fr-FR',
+			displayLanguage: 'de-DE',
+			englishDisplayLanguage: 'en-US',
+			unsupportedDisplayLanguage: 'pt-BR',
 			automatic: 'uk-UA',
 			regionalAutomatic: 'pt-BR',
 			additionalSupportedAutomatic: 'he-IL',

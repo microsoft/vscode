@@ -15,6 +15,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getModelHoverContent } from './modelPickerHover.js';
 import { getPriceCategoryLabel, isMultiplierPricing } from './modelPickerPresentation.js';
 
@@ -71,9 +72,12 @@ export function getProviderGroupForModel(
 ): IProviderGroupInfo {
 	if (model.metadata.modelGroup) {
 		const byokGroup = model.metadata.byokModelIdentifier ? modelToGroup.get(model.metadata.byokModelIdentifier) : undefined;
+		const sourcePresentation = model.metadata.modelGroup.sourceId
+			? languageModelSourcePresentationRegistry.get(model.metadata.vendor, model.metadata.modelGroup.sourceId)
+			: undefined;
 		return byokGroup ?? {
 			vendor: model.metadata.vendor,
-			groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+			groupName: sourcePresentation?.label ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
 		};
 	}
 	return modelToGroup.get(model.identifier) ?? {

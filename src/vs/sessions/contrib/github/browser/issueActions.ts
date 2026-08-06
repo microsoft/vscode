@@ -31,7 +31,8 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/session.js';
 import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
-import { createIssueHoverElement, createIssueListElement } from './issueHover.js';
+import { createIssueHoverElement } from './issueHover.js';
+import { createGitHubReferenceListElement } from './githubReferenceList.js';
 
 /** A session issue paired with its live details, once they have been fetched. */
 interface IResolvedSessionIssue {
@@ -242,7 +243,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}));
 
 		this._hoverService.showInstantHover({
-			content: createIssueListElement(entries, entry => {
+			content: createGitHubReferenceListElement(entries, entry => {
 				this._hoverService.hideHover();
 				this._openerService.open(entry.uri, { openExternal: true });
 			}),
