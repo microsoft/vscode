@@ -1,20 +1,29 @@
 {
+	"id": "/",
 	"name": "Code - OSS",
 	"short_name": "Code- OSS",
 	"start_url": "/",
+	"scope": "/",
 	"lang": "en-US",
 	"display": "standalone",
 	"display_override": ["window-controls-overlay"],
+	"orientation": "any",
+	"theme_color": "#1e1e1e",
+	"background_color": "#1e1e1e",
+	"categories": ["productivity", "development"],
+	"prefer_related_applications": false,
 	"icons": [
 		{
 			"src": "code-192.png",
 			"type": "image/png",
-			"sizes": "192x192"
+			"sizes": "192x192",
+			"purpose": "any"
 		},
 		{
 			"src": "code-512.png",
 			"type": "image/png",
-			"sizes": "512x512"
+			"sizes": "512x512",
+			"purpose": "any"
 		}
 	]
 }

@@ -20,6 +20,9 @@ export interface CloneOptions {
 	ref?: string;
 	recursive?: boolean;
 	postCloneAction?: ApiPostCloneAction;
+	providerName?: string;
+	placeholder?: string;
+	title?: string;
 }
 
 export class CloneManager {
@@ -31,7 +34,10 @@ export class CloneManager {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
-				urlLabel: l10n.t('Clone from URL')
+				urlLabel: l10n.t('Clone from URL'),
+				providerName: options.providerName,
+				title: options.title,
+				placeholder: options.placeholder
 			});
 		}
 
