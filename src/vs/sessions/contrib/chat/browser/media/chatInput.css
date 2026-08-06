@@ -196,9 +196,7 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
-.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
-.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact,
+.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label,
 .sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-stt-button {
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
