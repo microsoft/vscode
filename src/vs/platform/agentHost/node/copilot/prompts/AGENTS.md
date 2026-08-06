@@ -98,8 +98,7 @@ non-core client tools behind the runtime's `tool_search_tool`:
   maps `tool_search_tool` back to `toolSearch` to execute the real VS Code tool.
 - **The prompt** (this folder): `toolSearchInstructionLines(toolSearchActive)`
   adds a `tool_instructions` line (`toolSearchToolInstructions`) telling the
-  model to load deferred tools via `tool_search_tool` first and not to interpret
-  one ranked miss as evidence that a tool or server is unavailable — gated on
+  model to load deferred tools via `tool_search_tool` first — gated on
   `context.toolSearchActive` because the `toolSearch` tool is *always* forwarded,
   so presence alone can't gate it. The runtime already emits its own
   deferred-tools reminder (`build_deferred_tools_user_message`) with the accurate
