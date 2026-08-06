@@ -4036,6 +4036,29 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('narrates the completion summary for the current omni-routed request', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		controller.setTargetSession(resource, 'existing_session');
+		controller.markRoutedRequestPending(resource);
+
+		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The current omni request is complete.', undefined);
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			sessionId: request.sessionId,
+			kind: request.kind,
+			text: request.text,
+		})), [{
+			sessionId,
+			kind: 'response',
+			text: 'The current omni request is complete.',
+		}]);
+	});
+
 	test('narrates an omni-routed confirmation when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

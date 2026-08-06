@@ -5694,6 +5694,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
 		const routedRequest = this._routedRequests.get(sessionKey);
+		let isCurrentRoutedCompletion = false;
 		if (routedRequest && currentState === 'thinking') {
 			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
 		} else if (routedRequest && currentState === 'waiting_for_confirmation') {
@@ -5705,6 +5706,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				? lastRequest?.id === routedRequest.requestId
 				: routedRequest.phase !== 'queued';
 			if (isRoutedResponse && lastResponseSummary) {
+				isCurrentRoutedCompletion = true;
 				this._routedRequests.delete(sessionKey);
 			} else if (routedRequest.phase !== 'queued' && !lastResponseSummary) {
 				this._routedRequests.delete(sessionKey);
@@ -5724,7 +5726,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// A deferred narration from the previous turn is now stale.
 			this._clearDeferred(sessionKey);
 		}
-		if (currentState === 'idle' && this._isOmniRoutedSession(sessionId)) {
+		if (currentState === 'idle' && this._isOmniRoutedSession(sessionId) && !isCurrentRoutedCompletion) {
 			this._lastResponseSummaryById.delete(sessionKey);
 			this._clearPendingResponse(sessionKey);
 			this._clearDeferred(sessionKey);
