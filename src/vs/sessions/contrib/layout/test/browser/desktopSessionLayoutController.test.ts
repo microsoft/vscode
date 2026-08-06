@@ -403,9 +403,7 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'browser tab should hide the detail panel while the editor area is visible');
 
-		// Mirror HideMainEditorPartAction.run(): reveal the auxiliary bar, then
-		// hide the editor part. Both calls fire onDidChangePartVisibility, like
-		// the real workbench layout service.
+		// Mirror HideMainEditorPartAction.run(): reveal the auxiliary bar, then hide the editor part.
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
 		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
@@ -416,8 +414,7 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasDockedDetails(), true, 'the Changes/Files fallback should enable the editor chevron context');
 		assert.ok(harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID), 'a created session should fall back to the Changes container');
 
-		// Revealing the editor area again (e.g. Show Editor) while still on the
-		// Browser tab must restore the "Browser hides the detail" invariant.
+		// Show Editor while still on Browser must restore the "Browser hides the detail" invariant.
 		harness.setPartHiddenCalls = [];
 		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
 		await timeout(0);

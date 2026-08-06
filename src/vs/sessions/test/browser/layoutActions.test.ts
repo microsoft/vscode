@@ -24,12 +24,8 @@ suite('Sessions - Layout Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Loaded once via `suiteSetup` (before `ensureNoDisposablesAreLeakedInTestSuite`'s
-	// per-test tracker starts), rather than a static top-level import, since
-	// `vs/sessions/test/browser/**` may not statically import `vs/sessions/contrib/**`
-	// (see the source-code-organization layering rules) and a dynamic `import()`
-	// inside an individual test body would wrongly attribute its permanent
-	// module-level command/menu registrations to that one test as "leaked".
+	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
+	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
 	suiteSetup(async () => {
 		await import('../../contrib/editor/browser/editor.contribution.js');
 	});
@@ -96,6 +92,7 @@ suite('Sessions - Layout Actions', () => {
 				group: item.group,
 				order: item.order,
 				precondition: item.command.precondition?.serialize(),
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			}));
 
 		assert.deepStrictEqual({
@@ -104,10 +101,10 @@ suite('Sessions - Layout Actions', () => {
 			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
 			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
 		}, {
-			maximize: [{ group: 'navigation', order: 10, precondition: undefined }],
-			restore: [{ group: 'navigation', order: 10, precondition: undefined }],
-			hide: [{ group: 'navigation', order: 20, precondition: undefined }],
-			show: [{ group: 'navigation', order: 20, precondition: undefined }],
+			maximize: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenFull.id }],
+			restore: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenNormal.id }],
+			hide: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelHide.id }],
+			show: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelShow.id }],
 		});
 
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
@@ -143,11 +140,7 @@ suite('Sessions - Layout Actions', () => {
 
 		await command.handler(accessor);
 
-		// Whether the active tab has a docked detail of its own (Changes/Files/
-		// text file) or not (Browser/Search), Hide Editor always reveals the
-		// auxiliary bar: SinglePaneDetailPanelStrategy decides what to show in
-		// it (the tab's own detail, or a Changes/Files fallback once the editor
-		// area itself is hidden), so the action itself does not need to know.
+		// SinglePaneDetailPanelStrategy, not this action, decides what the panel shows.
 		assert.deepStrictEqual(calls, [
 			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
 			{ hidden: true, part: Parts.EDITOR_PART },

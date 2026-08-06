@@ -185,10 +185,10 @@ restored when returning to a workspace session.
 | sessions list closed after side-pane growth | Toggle Sessions List open | same pane state; editor/detail side pane returns to its pre-collapse width |
 | any | Close the last editor tab | *Side pane closed* (chat-only; opening a tab restores the pane) |
 | *Detail only* (created session) | Drag grid sash wider | *Detail only* (editor content stays closed) |
-| any | Activate **Browser** tab | detail hidden (transient) |
-| Browser active (detail hidden) | Activate **Files/Changes** tab | detail restored |
-| *Editor + Detail* with Browser active | Hide Editor | *Detail only* (detail shows the Changes/Files fallback, not left blank) |
-| *Detail only* (Browser was last active tab) | Show Editor | *Editor + Detail* (detail hides again — Browser's transient-hide rule resumes) |
+| *Editor only* / *Editor + Detail* | Activate **Browser** tab | *Editor only* (detail hidden, transient) |
+| *Editor only* (Browser active) | Activate **Files/Changes** tab | *Editor + Detail* (detail restored) |
+| *Editor only* (Browser active) | Hide Editor | *Detail only* (detail shows the Changes/Files fallback, not left blank) |
+| *Detail only* (Browser was last active tab) | Show Editor | *Editor only* (detail hides again — Browser's transient-hide rule resumes) |
 | any new-session pane state | **Submit** the session | same visibility and active tab; Changes becomes active after file changes arrive |
 
 ---

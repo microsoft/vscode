@@ -217,10 +217,8 @@ class HideMainEditorPartAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		// Reveal the detail panel so Hide Editor always lands in "Detail only"
-		// rather than collapsing the whole side pane. For tabs with no docked
-		// detail of their own (e.g. Browser), SinglePaneDetailPanelStrategy
-		// shows the Changes/Files fallback instead of forcing it shut again.
+		// Reveal the detail panel before hiding the editor, so the pane never
+		// passes through fully empty.
 		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		// Closing the editor area frees horizontal space, so bring the sessions

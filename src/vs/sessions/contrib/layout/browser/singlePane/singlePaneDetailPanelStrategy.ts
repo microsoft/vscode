@@ -46,15 +46,8 @@ const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
 
 /**
  * Maps the active editor to its detail container (Changes / Files) and
- * reveals/hides the auxiliary bar accordingly. A created single-pane session
- * defaults to the Changes editor with the detail closed; a Changes/file editor
- * becoming active never force-reveals a hidden detail (except restoring it after
- * a transient browser-tab hide). Opening the empty Files placeholder (making it
- * the active editor) reveals the Files detail, since its content lives there.
- * A Browser tab hides the detail only while the editor area itself stays
- * visible; if the editor area is hidden (e.g. via Hide Editor) while Browser
- * is active, the docked panel instead shows the Changes/Files fallback, since
- * it would otherwise be the only thing left on screen.
+ * reveals/hides the auxiliary bar accordingly. See SINGLE_PANE_SCENARIOS.md
+ * section 5 for the full per-tab behavior catalog.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
@@ -141,13 +134,9 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}
 
 		if (activeEditor instanceof BrowserEditorInput) {
-			// Browser has no docked detail of its own. While the editor area is
-			// still visible (Editor + Detail), any newly-revealed detail is
-			// transient and gets hidden again immediately. But once the editor
-			// area itself is hidden (e.g. via Hide Editor), the docked panel is
-			// all that is left on screen, so it must show something meaningful —
-			// the same contextual default (Changes/Files) as having no active
-			// editor at all — instead of being forced shut right back down.
+			// Browser has no detail of its own, so it only hides the panel
+			// while the editor area is visible; once hidden, fall back to the
+			// contextual Changes/Files default instead of leaving it blank.
 			if (editorPartVisibleObs.read(reader)) {
 				return DetailPanelTarget.BrowserHidden;
 			}
