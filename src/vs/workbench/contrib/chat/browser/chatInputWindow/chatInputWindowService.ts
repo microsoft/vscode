@@ -633,6 +633,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		skipButton.label = skipLabel;
 		const renderedApprovalTitle = this._windowDisposables.add(new MutableDisposable<IRenderedMarkdown>());
 		let displayedApproval: IChatToolInvocation | undefined;
+		let lastActivatedApproval: IChatToolInvocation | undefined;
 		const confirmDisplayedApproval = (reason: ToolConfirmKind.UserAction | ToolConfirmKind.Skipped) => {
 			IChatToolInvocation.confirmWith(displayedApproval, { type: reason });
 		};
@@ -758,6 +759,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				confirmationWidgetLayoutHeight = 0;
 				displayedResource = undefined;
 				displayedApproval = undefined;
+				lastActivatedApproval = undefined;
 				allowButton.enabled = false;
 				skipButton.enabled = false;
 				renderedApprovalTitle.clear();
@@ -782,6 +784,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.add('shown');
 			const hasPendingQuestion = this._hasPendingQuestion(model);
 			const pendingApproval = this._getPendingToolApproval(model);
+			const omniVoiceActive = this.voiceSessionController.omniInputActive.get();
+			if (!omniVoiceActive) {
+				lastActivatedApproval = undefined;
+			}
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-summary', !hasPendingQuestion && !!pendingApproval);
 			displayedApproval = pendingApproval?.invocation;
@@ -791,7 +797,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			approvalTitle.replaceChildren();
 			if (pendingApproval) {
 				const title = typeof pendingApproval.title === 'string'
-					? new MarkdownString('', { supportThemeIcons: true }).appendText(pendingApproval.title)
+					? new MarkdownString(pendingApproval.title, { supportThemeIcons: true })
 					: new MarkdownString(pendingApproval.title.value, { supportThemeIcons: true, isTrusted: pendingApproval.title.isTrusted });
 				const renderedTitle = renderMarkdown(title);
 				renderedApprovalTitle.value = renderedTitle;
@@ -816,6 +822,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				button.tabIndex = hasMultiple ? 0 : -1;
 			}
 			widget.setModel(model);
+			if (pendingApproval && omniVoiceActive && pendingApproval.invocation !== lastActivatedApproval) {
+				// The pending card is the most direct observation that this exact
+				// approval is visible in omni. Activate it once so a coalesced/missed
+				// session-state transition cannot leave hands-free mode listening over
+				// an unannounced confirmation. Voice narration dedup is occurrence-based,
+				// so the normal state-change path and this UI path remain exactly-once.
+				lastActivatedApproval = pendingApproval.invocation;
+				this.voiceSessionController.activateSession(model.sessionResource);
+			}
 			scheduleLayout();
 		};
 
@@ -828,6 +843,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', scheduleLayout));
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {
+			this.voiceSessionController.omniInputActive.read(reader);
 			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
 			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
 			pendingModels = [...this.chatService.chatModels.read(reader)]
