@@ -411,7 +411,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			context.client.dispatch({
 				channel: terminalUri,
 				clientSeq: 1,
-				action: { type: ActionType.TerminalInput, data: 'node -p "\'CLEAR_MARKER\'"\r' },
+				action: { type: ActionType.TerminalInput, data: 'node -p "\'CLEAR_\'+\'MARKER\'"\r' },
 			});
 			let streamedOutput = '';
 			await context.client.waitForNotification(n => {
