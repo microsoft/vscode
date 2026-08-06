@@ -19,7 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, mcpUserServersEnabledConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -219,7 +219,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		});
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(mcpAccessConfig)) {
+			if (e.affectsConfiguration(mcpAccessConfig) || e.affectsConfiguration(mcpUserServersEnabledConfig)) {
 				this._onChange.fire(undefined);
 			}
 		}));
@@ -484,6 +484,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[] {
+		const userServersEnabled = this.configurationService.getValue<boolean>(mcpUserServersEnabledConfig) !== false;
 		const result = new Map<string, IWorkbenchLocalMcpServer>();
 		const userRemote: IWorkbenchLocalMcpServer[] = [];
 		const workspace: IWorkbenchLocalMcpServer[] = [];
@@ -495,9 +496,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			}
 
 			if (server.local?.scope === LocalMcpServerScope.User) {
-				result.set(server.name, server.local);
+				if (userServersEnabled) {
+					result.set(server.name, server.local);
+				}
 			} else if (server.local?.scope === LocalMcpServerScope.RemoteUser) {
-				userRemote.push(server.local);
+				if (userServersEnabled) {
+					userRemote.push(server.local);
+				}
 			} else if (server.local?.scope === LocalMcpServerScope.Workspace) {
 				workspace.push(server.local);
 			}

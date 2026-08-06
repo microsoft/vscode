@@ -31,7 +31,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig, mcpUserServersEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -1015,6 +1015,13 @@ configurationRegistry.registerConfiguration({
 					]
 				},
 			}
+		},
+		[mcpUserServersEnabledConfig]: {
+			type: 'boolean',
+			title: nls.localize('chat.mcp.userServersEnabled.title', "Use User-Level MCP Servers"),
+			markdownDescription: nls.localize('chat.mcp.userServersEnabled.description', "Controls whether Model Context Protocol servers configured at the user level (for example, in your user `mcp.json`) are available in this workspace. Set to `false` in workspace settings to restrict the agent to only workspace-defined MCP servers, so personal MCP configuration cannot affect this project and the same set of servers is available to every contributor."),
+			default: true,
+			tags: ['mcp'],
 		},
 		[mcpAllowedServersConfig]: {
 			type: ['array', 'null'],

@@ -11,7 +11,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -19,7 +19,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, mcpUserServersEnabledConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -672,5 +672,87 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		]));
 
 		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed']);
+	});
+});
+
+suite('McpWorkbenchService - user-scoped server exclusion', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], configuration: Record<string, unknown> = {}) {
+		const galleryService = new TestMcpGalleryService(store);
+		const manifestService = new TestMcpGalleryManifestService(store);
+		const managementService = new TestWorkbenchMcpManagementService(store);
+		managementService.installed = [...installed];
+		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All, ...configuration });
+		const services = new ServiceCollection(
+			[IMcpGalleryManifestService, manifestService],
+			[IMcpGalleryService, galleryService],
+			[IWorkbenchMcpManagementService, managementService],
+			[IEditorService, upcastPartial<IEditorService>({})],
+			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [] })],
+			[IUriIdentityService, upcastPartial<IUriIdentityService>({})],
+			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({})],
+			[IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({})],
+			[ILabelService, upcastPartial<ILabelService>({})],
+			[IProductService, TestProductService],
+			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({})],
+			[IConfigurationService, configurationService],
+			[ITelemetryService, NullTelemetryService],
+			[ILogService, store.add(new NullLogService())],
+			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({})],
+			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None })],
+			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable([]) })],
+			[IURLService, upcastPartial<IURLService>({ registerHandler: () => Disposable.None })],
+			[IFileService, upcastPartial<IFileService>({})],
+		);
+		const instantiationService = store.add(new TestInstantiationService(services));
+		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
+		await Event.toPromise(service.onChange);
+		return { service, configurationService };
+	}
+
+	test('includes user and remote-user scoped servers by default', async () => {
+		const user = createLocal('user-server', LocalMcpServerScope.User);
+		const remoteUser = createLocal('remote-user-server', LocalMcpServerScope.RemoteUser);
+		const workspace = createLocal('workspace-server', LocalMcpServerScope.Workspace);
+		const { service } = await createFixture([user, remoteUser, workspace]);
+
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name).sort(), ['remote-user-server', 'user-server', 'workspace-server']);
+	});
+
+	test('excludes user and remote-user scoped servers when disabled, keeping workspace-scoped servers', async () => {
+		const user = createLocal('user-server', LocalMcpServerScope.User);
+		const remoteUser = createLocal('remote-user-server', LocalMcpServerScope.RemoteUser);
+		const workspace = createLocal('workspace-server', LocalMcpServerScope.Workspace);
+		const { service } = await createFixture([user, remoteUser, workspace], { [mcpUserServersEnabledConfig]: false });
+
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['workspace-server']);
+	});
+
+	test('a workspace-scoped server is not shadowed by an excluded user-scoped server of the same name', async () => {
+		const user = createLocal('shared-name', LocalMcpServerScope.User);
+		const workspace = createLocal('shared-name', LocalMcpServerScope.Workspace);
+		const { service } = await createFixture([user, workspace], { [mcpUserServersEnabledConfig]: false });
+
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.mcpResource.toString()), [workspace.mcpResource.toString()]);
+	});
+
+	test('re-evaluates enabled servers when the setting changes', async () => {
+		const user = createLocal('user-server', LocalMcpServerScope.User);
+		const { service, configurationService } = await createFixture([user]);
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['user-server']);
+
+		const changePromise = Event.toPromise(service.onChange);
+		configurationService.setUserConfiguration(mcpUserServersEnabledConfig, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === mcpUserServersEnabledConfig,
+			affectedKeys: new Set([mcpUserServersEnabledConfig]),
+			change: { keys: [mcpUserServersEnabledConfig], overrides: [] },
+			source: ConfigurationTarget.WORKSPACE,
+		});
+		await changePromise;
+
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), []);
 	});
 });
