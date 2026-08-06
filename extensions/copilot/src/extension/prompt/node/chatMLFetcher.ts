@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
 import type { CancellationToken } from 'vscode';
@@ -16,6 +17,8 @@ import { getTextPart, toTextParts } from '../../../platform/chat/common/globalSt
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
+import { getRefusalFallbackModel } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
@@ -130,8 +133,33 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWebSocketManager private readonly _webSocketManager: IChatWebSocketManager,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 	) {
 		super(options);
+	}
+
+	/**
+	 * Resolves the endpoint to re-issue a refused request against, or `undefined`
+	 * when refusal recovery is disabled, the model has no configured fallback, or
+	 * the fallback model is not available.
+	 */
+	private async _resolveRefusalFallbackEndpoint(endpoint: IChatEndpoint): Promise<IChatEndpoint | undefined> {
+		if (!this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicRefusalFallback, this._experimentationService)) {
+			return undefined;
+		}
+
+		const fallbackModel = getRefusalFallbackModel(endpoint);
+		if (!fallbackModel || fallbackModel === endpoint.model) {
+			return undefined;
+		}
+
+		try {
+			const endpoints = await this._endpointProvider.getAllChatEndpoints();
+			return endpoints.find(candidate => candidate.model === fallbackModel);
+		} catch (e) {
+			this._logService.warn(`Failed to resolve refusal fallback endpoint '${fallbackModel}': ${collectSingleLineErrorMessage(e)}`);
+			return undefined;
+		}
 	}
 
 	/**
@@ -383,6 +411,79 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							requestId: result.requestId,
 							serverRequestId: result.serverRequestId
 						};
+					}
+
+					// Recover an Anthropic content refusal (`stop_reason: "refusal"`) by
+					// re-issuing the request once against the model's configured fallback.
+					// The declined attempt still counts toward usage.
+					//
+					// Only callers that opted into retries participate: like the filter and
+					// error retries, the refused attempt's deltas are rolled back through
+					// `delta.retryReason`, which the caller's `finishedCb` must support.
+					//
+					// `MessagesProxy` is intentionally out of scope: that endpoint streams
+					// upstream bytes straight through to the Claude SDK client, so the
+					// refusal has already been forwarded and cannot be replaced.
+					if (result.type === ChatFetchResponseType.Refusal && enableRetryOnError && !opts.disableRefusalFallback && location !== ChatLocation.MessagesProxy) {
+						const fallbackEndpoint = await this._resolveRefusalFallbackEndpoint(chatEndpoint);
+						if (fallbackEndpoint) {
+							this._logService.info(`Model '${chatEndpoint.model}' refused the request, retrying once with fallback model '${fallbackEndpoint.model}'.`);
+							/* __GDPR__
+								"chat.refusalFallback" : {
+									"owner": "bhavyaus",
+									"comment": "Tracks recovery of an Anthropic content refusal by re-issuing the request against a fallback model",
+									"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+									"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that refused the request" },
+									"fallbackModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model the request was re-issued against" }
+								}
+							*/
+							this._telemetryService.sendMSFTTelemetryEvent('chat.refusalFallback', {
+								requestId: ourRequestId,
+								model: chatEndpoint.model,
+								fallbackModel: fallbackEndpoint.model,
+							});
+
+							// The refused attempt is finished; close its span before the
+							// fallback request opens its own.
+							otelInferenceSpan?.setAttribute(GenAiAttr.RESPONSE_FINISH_REASONS, ['refusal']);
+							otelInferenceSpan?.end();
+							otelInferenceSpan = undefined;
+
+							streamRecorder.callback('', 0, {
+								text: '',
+								retryReason: 'refusal',
+								// Mirrors the runtime's `session.info` notice: name both models and
+								// be explicit that the declined attempt still counts toward usage.
+								retryMessage: l10n.t(
+									"{0} declined this request, so it was retried with {1}. The declined attempt still counts toward usage.",
+									chatEndpoint.name,
+									fallbackEndpoint.name,
+								),
+							});
+
+							const retryResult = await this.fetchMany({
+								...opts,
+								debugName: 'refusal-fallback-' + debugName,
+								endpoint: fallbackEndpoint,
+								userInitiatedRequest: false, // do not mark the retry as user initiated
+								telemetryProperties: { ...telemetryProperties, refusalFallbackFromModel: chatEndpoint.model },
+								disableRefusalFallback: true,
+							}, token);
+
+							pendingLoggedChatRequest?.resolve(retryResult, streamRecorder.deltas);
+							switch (retryResult.type) {
+								case ChatFetchResponseType.Success:
+								// Outcomes that carry user intent or account state must not be
+								// masked — they have dedicated handling in the UI.
+								case ChatFetchResponseType.Canceled:
+								case ChatFetchResponseType.RateLimited:
+								case ChatFetchResponseType.QuotaExceeded:
+									return retryResult;
+								default:
+									// Surface the original refusal — the user never picked the fallback model.
+									return result;
+							}
+						}
 					}
 
 					pendingLoggedChatRequest?.resolve(result, streamRecorder.deltas);
@@ -1925,6 +2026,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
 					truncatedValue: getTextPart(result.message.content)
+				};
+			case FinishedCompletionReason.Refusal:
+				return {
+					type: ChatFetchResponseType.Refusal,
+					reason: 'Model declined to respond.',
+					requestId: requestId,
+					serverRequestId: result.requestId.headerRequestId,
 				};
 			case FinishedCompletionReason.ServerError:
 				return {

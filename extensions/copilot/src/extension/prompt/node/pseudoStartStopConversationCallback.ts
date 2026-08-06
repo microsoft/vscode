@@ -213,12 +213,15 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 			this.nonReportedDeltas = [];
 			this.thinkingActive = false;
 			this._clearPendingToolStreamUpdates();
-			if (delta.retryReason === 'network_error' || delta.retryReason === 'server_error') {
+			if (delta.retryReason === 'network_error' || delta.retryReason === 'server_error' || delta.retryReason === 'refusal') {
 				progress.clearToPreviousToolInvocation(ChatResponseClearToPreviousToolInvocationReason.NoReason);
 			} else if (delta.retryReason === FilterReason.Copyright) {
 				progress.clearToPreviousToolInvocation(ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry);
 			} else {
 				progress.clearToPreviousToolInvocation(ChatResponseClearToPreviousToolInvocationReason.FilteredContentRetry);
+			}
+			if (delta.retryMessage) {
+				progress.warning(delta.retryMessage);
 			}
 			return;
 		}

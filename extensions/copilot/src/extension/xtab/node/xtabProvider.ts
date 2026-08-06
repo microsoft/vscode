@@ -1760,6 +1760,7 @@ export function mapChatFetcherErrorToNoNextEditReason(fetchError: ChatFetchError
 		case ChatFetchResponseType.AgentUnauthorized:
 		case ChatFetchResponseType.AgentFailedDependency:
 		case ChatFetchResponseType.InvalidStatefulMarker:
+		case ChatFetchResponseType.Refusal:
 			return new NoNextEditReason.Uncategorized(ErrorUtils.fromUnknown(fetchError));
 		case ChatFetchResponseType.BadRequest:
 		case ChatFetchResponseType.NotFound:

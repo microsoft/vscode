@@ -568,6 +568,7 @@ export class DefaultIntentRequestHandler {
 				return chatResult;
 			}
 			case ChatFetchResponseType.NotFound: // before we had `NotFound`, it would fall into Unknown, so behavior should be consistent
+			case ChatFetchResponseType.Refusal:
 			case ChatFetchResponseType.Unknown: {
 				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
