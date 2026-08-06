@@ -170,6 +170,25 @@ describe('BYOKContrib policy integration', () => {
 		);
 	}
 
+	it.each([
+		{ policy: 'allow', allowed: true, expectedProviderRegistrations: 9 },
+		{ policy: 'deny', allowed: false, expectedProviderRegistrations: 0 },
+	])('publishes the initial $policy policy during startup', async ({ allowed, expectedProviderRegistrations }) => {
+		policyMocks.resolveClientBYOKAllowed.mockResolvedValue(allowed);
+		contribution = createContribution();
+
+		expect(policyMocks.resolveClientBYOKAllowed).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(vscodeMocks.executeCommand).toHaveBeenCalledWith('setContext', 'github.copilot.clientByokEnabled', allowed));
+
+		expect({
+			providerRegistrations: vscodeMocks.registerLanguageModelChatProvider.mock.calls.length,
+			contextUpdates: vscodeMocks.executeCommand.mock.calls,
+		}).toEqual({
+			providerRegistrations: expectedProviderRegistrations,
+			contextUpdates: [['setContext', 'github.copilot.clientByokEnabled', allowed]],
+		});
+	});
+
 	it('keeps provider registration and the context key aligned across policy transitions', async () => {
 		policyMocks.resolveClientBYOKAllowed.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 		contribution = createContribution();
