@@ -3619,6 +3619,35 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
+		test('forwards attachments to the SDK', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const imageUri = URI.file('/session/attachments/pasted-image.png');
+
+			await session.sendSteering({
+				id: 'steer-1',
+				message: {
+					text: 'see the screenshot',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: imageUri.toString(),
+						label: 'Pasted Image',
+						displayKind: 'image',
+					}],
+				},
+			});
+
+			assert.deepStrictEqual(mockSession.sendRequests, [{
+				prompt: 'see the screenshot',
+				attachments: [{
+					type: 'file',
+					path: imageUri.fsPath,
+					displayName: 'Pasted Image',
+				}],
+				mode: 'immediate',
+			}]);
+		});
+
 		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -6786,7 +6815,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('tool-search override routes to the client and injects deferred candidates', async () => {
+		async function createToolSearchSession(autoApprove: boolean) {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
 				plugins: [],
@@ -6794,12 +6823,21 @@ suite('CopilotAgentSession', () => {
 			};
 			const activeClientToolSet = new ActiveClientToolSet();
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+			const created = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
+				...(autoApprove ? { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } } : {}),
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
+			if (autoApprove) {
+				await created.session.syncPermissionMode('turn-start');
+			}
+			return created;
+		}
+
+		test('tool-search override routes to the client and injects deferred candidates', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(false);
 
 			const [override] = runtime.createClientSdkTools();
 			assert.strictEqual(override.name, 'tool_search_tool');
@@ -6816,6 +6854,7 @@ suite('CopilotAgentSession', () => {
 			const start = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
 			assert.ok(start && isAction(start, ActionType.ChatToolCallStart));
 			assert.deepStrictEqual((start.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'tool-search-client' });
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
 			const handlerPromise = invokeClientToolHandler(override, 'tc-tool-search', { query: 'add numbers' }, [
 				{ name: 'everything-get-sum', description: 'Adds numbers', deferLoading: true },
@@ -6825,8 +6864,17 @@ suite('CopilotAgentSession', () => {
 			const readySignal = await waitForSignal(s => isAction(s, ActionType.ChatToolCallReady));
 			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
 			const ready = readySignal.action as ChatToolCallReadyAction;
-			assert.strictEqual(ready.confirmed, ToolCallConfirmationReason.NotNeeded);
-			assert.deepStrictEqual(ready._meta?.['toolSearchCandidates'], [{ name: 'everything-get-sum', description: 'Adds numbers' }]);
+			assert.deepStrictEqual({
+				readyCount: signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length,
+				confirmed: ready.confirmed,
+				meta: ready._meta,
+			}, {
+				readyCount: 1,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				meta: {
+					toolSearchCandidates: [{ name: 'everything-get-sum', description: 'Adds numbers' }],
+				},
+			});
 
 			session.handleClientToolCallComplete('tc-tool-search', {
 				success: true,
@@ -6837,6 +6885,45 @@ suite('CopilotAgentSession', () => {
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.deepStrictEqual(result.toolReferences, ['everything-get-sum']);
+		});
+
+		test('auto-approved tool search defers its only ready until candidates are available', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(true);
+			const [override] = runtime.createClientSdkTools();
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-tool-search',
+				toolName: 'tool_search_tool',
+				arguments: { query: 'add numbers' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length, 0);
+
+			const handlerPromise = invokeClientToolHandler(override, 'tc-tool-search', { query: 'add numbers' }, [
+				{ name: 'everything-get-sum', description: 'Adds numbers', deferLoading: true },
+			]);
+
+			const readySignal = await waitForSignal(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			const ready = readySignal.action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				readyCount: signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length,
+				confirmed: ready.confirmed,
+				meta: ready._meta,
+			}, {
+				readyCount: 1,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				meta: {
+					autoApproveBySetting: true,
+					toolSearchCandidates: [{ name: 'everything-get-sum', description: 'Adds numbers' }],
+				},
+			});
+
+			session.handleClientToolCallComplete('tc-tool-search', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: '["everything-get-sum"]' }],
+			});
+			await handlerPromise;
 		});
 
 		test('toolSearch is omitted when the flag is off or the model is unsupported', async () => {
