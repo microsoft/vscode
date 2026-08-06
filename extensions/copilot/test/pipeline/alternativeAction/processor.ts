@@ -118,8 +118,15 @@ export namespace Processor {
 		split: ISplitRecording,
 		proposedEdits: IStringReplacement[],
 		isAccepted: boolean,
+		oracleEdits?: ISerializedEdit,
 	): Scoring.t {
-		const nextUserEdit = getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest);
+		const nextUserEdit: NextUserEdit.t = oracleEdits === undefined
+			? getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest)
+			: {
+				edit: oracleEdits,
+				relativePath: split.currentFile.relativePath,
+				originalOpIdx: split.recordingPriorToRequest.length - 1,
+			};
 
 		const reconstructedRecording: Recording.t = {
 			log: split.recordingPriorToRequest,

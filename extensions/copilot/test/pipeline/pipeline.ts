@@ -14,7 +14,7 @@ import { Limiter } from '../../src/util/vs/base/common/async';
 import { OffsetRange } from '../../src/util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
-import { DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP, NesDatagen, NesDatagenInputFormat, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT, DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP, NesDatagen, NesDatagenInputFormat, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
 import { loadAndParseContinuousInput } from './continuous/continuousRecord';
 import { processContinuousRecords } from './continuous/processContinuous';
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
@@ -47,6 +47,10 @@ function formatElapsed(startTime: number): string {
 
 function getWorkspaceRecordingSampleCap(options: NesDatagen): number {
 	return options.maxSamplesPerRecording ?? DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP;
+}
+
+function getWorkspaceRecordingOracleEditLimit(options: NesDatagen): number {
+	return options.maxOracleEdits ?? DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT;
 }
 
 /**
@@ -114,7 +118,11 @@ async function loadAndProduceProcessedRows(nesDatagenOpts: NesDatagen, verbose: 
 
 	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
 		const recording = await loadWorkspaceRecording(inputPath);
-		const selected = selectWorkspaceRecordingSamples(recording, getWorkspaceRecordingSampleCap(nesDatagenOpts));
+		const selected = selectWorkspaceRecordingSamples(
+			recording,
+			getWorkspaceRecordingSampleCap(nesDatagenOpts),
+			getWorkspaceRecordingOracleEditLimit(nesDatagenOpts),
+		);
 		const selectedByOperationIndex = new Map(selected.map(descriptor => [descriptor.pivotOperationIndex, descriptor]));
 		const descriptors = nesDatagenOpts.workspacePivotOperationIndices === undefined
 			? selected
@@ -803,14 +811,15 @@ async function runWorkspaceRecordingPipelineParallel(opts: SimulationOptions): P
 	const verbose = !!opts.verbose;
 	const recording = await loadWorkspaceRecording(inputPath);
 	const maxSamples = getWorkspaceRecordingSampleCap(nesDatagenOpts);
-	const descriptors = selectWorkspaceRecordingSamples(recording, maxSamples);
+	const maxOracleEdits = getWorkspaceRecordingOracleEditLimit(nesDatagenOpts);
+	const descriptors = selectWorkspaceRecordingSamples(recording, maxSamples, maxOracleEdits);
 	const totalSamples = descriptors.length;
 	const partitions = partitionWork(totalSamples, opts.parallelism);
 	const numWorkers = Math.max(1, partitions.length);
 
 	console.log(`\n=== Pipeline (parallel: ${numWorkers} workers) ===`);
 	console.log(`  Input: ${inputPath} (${totalSamples} selected workspace-recording samples)`);
-	console.log(`  Input format: workspace-recording (max samples: ${maxSamples})`);
+	console.log(`  Input format: workspace-recording (max samples: ${maxSamples}, max oracle edits: ${maxOracleEdits})`);
 	console.log('');
 
 	if (totalSamples === 0) {
@@ -839,6 +848,7 @@ async function runWorkspaceRecordingPipelineParallel(opts: SimulationOptions): P
 				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
 				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
 				'--max-samples-per-recording', String(maxSamples),
+				'--max-oracle-edits', String(maxOracleEdits),
 				'--workspace-pivot-operation-indices', pivotOperationIndices.join(','),
 				'--worker',
 			];

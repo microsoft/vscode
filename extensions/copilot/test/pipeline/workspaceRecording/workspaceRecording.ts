@@ -6,23 +6,26 @@
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
+import { DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT } from '../../base/simulationOptions';
+import { Edits } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
 import { deserializeStringEdit, serializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
 import { RecordingData, ResolvedRecording } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/resolvedRecording';
 import { OperationKind, type Operation } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/operation';
 import type { HeaderLogEntry, ISerializedEdit, ISerializedOffsetRange, LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { ErrorUtils } from '../../../src/util/common/errors';
+import { StringEdit } from '../../../src/util/vs/editor/common/core/edits/stringEdit';
 import { StringText } from '../../../src/util/vs/editor/common/core/text/abstractText';
 import type { IWorkspaceRecordingSampleProvenance } from '../replayRecording';
 
 const WORKSPACE_RECORDING_CONTEXT_WINDOW_MS = 5 * 60 * 1000;
 const WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS = 200;
 const WORKSPACE_RECORDING_ORACLE_IDLE_MS = 5 * 1000;
-export const WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT = 10;
 const WORKSPACE_RECORDING_SYNTHETIC_TIME_BASE = 3_000_000;
 
-type EditClassification = 'user' | 'generated' | 'ambiguous';
+type EditClassification = 'user' | 'accepted' | 'partially-accepted' | 'generated' | 'ambiguous';
 type WorkspacePivotKind = IWorkspaceRecordingSampleProvenance['pivotKind'];
 type WorkspaceOracleStopReason = IWorkspaceRecordingSampleProvenance['oracleStopReason'];
+type WorkspaceOracleCollectionStopReason = WorkspaceOracleStopReason | 'end-of-recording' | 'touching-boundary';
 
 export interface IWorkspaceRecording {
 	readonly entries: LogEntry[];
@@ -34,6 +37,7 @@ export interface IWorkspaceRecordingSampleDescriptor {
 	readonly pivotOperationIndex: number;
 	readonly pivotKind: WorkspacePivotKind;
 	readonly oracleOperationIndices: readonly number[];
+	readonly oracleEdits: ISerializedEdit;
 	readonly cursorBoundaryOperationIndex: number | undefined;
 	readonly oracleStopReason: WorkspaceOracleStopReason;
 }
@@ -55,8 +59,6 @@ const userCursorKinds = new Set([
 ]);
 
 const generatedEditSources = new Set([
-	'inlineCompletionAccept',
-	'inlineCompletionPartialAccept',
 	'Chat.applyEdits',
 	'inlineChat.applyEdits',
 	'reloadFromDisk',
@@ -128,7 +130,12 @@ export async function loadWorkspaceRecording(inputPath: string): Promise<IWorksp
 export function selectWorkspaceRecordingSamples(
 	recording: IWorkspaceRecording,
 	maxSamples: number,
+	maxOracleEdits = DEFAULT_WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
 ): IWorkspaceRecordingSampleDescriptor[] {
+	if (!Number.isInteger(maxOracleEdits) || maxOracleEdits <= 0) {
+		throw new Error(`Workspace recording oracle edit limit must be a positive integer, but got: ${maxOracleEdits}`);
+	}
+
 	const classifications = createEditClassifications(recording);
 	const deliberateCursorOperations = findDeliberateCursorOperations(recording);
 	const candidates: IWorkspaceRecordingSampleDescriptor[] = [];
@@ -145,7 +152,7 @@ export function selectWorkspaceRecordingSamples(
 		}
 
 		const oracle = collectOracle(recording, operation, classifications, deliberateCursorOperations);
-		if (oracle.operationIndices.length === 0) {
+		if (oracle.operationIndices.length === 0 || oracle.stopReason === 'end-of-recording' || oracle.stopReason === 'touching-boundary') {
 			continue;
 		}
 
@@ -153,6 +160,7 @@ export function selectWorkspaceRecordingSamples(
 			pivotOperationIndex: operation.operationIdx,
 			pivotKind,
 			oracleOperationIndices: oracle.operationIndices,
+			oracleEdits: composeOracleEdits(recording, oracle.operationIndices, maxOracleEdits),
 			cursorBoundaryOperationIndex: oracle.cursorBoundaryOperationIndex,
 			oracleStopReason: oracle.stopReason,
 		});
@@ -286,7 +294,7 @@ export function materializeWorkspaceRecordingSample(
 		provenance: {
 			sourceFormat: 'workspace-recording',
 			recordingRevision: recording.revision,
-			policyVersion: 1,
+			policyVersion: 2,
 			pivotKind: descriptor.pivotKind,
 			pivotOperationIndex: descriptor.pivotOperationIndex,
 			oracleOperationCount: descriptor.oracleOperationIndices.length,
@@ -532,10 +540,17 @@ function classifyMetadata(metadata: Record<string, unknown> | undefined): EditCl
 		const kind = metadata['kind'];
 		return typeof kind === 'string' && userCursorKinds.has(kind) ? 'user' : 'ambiguous';
 	}
-	if (generatedEditSources.has(source)) {
-		return 'generated';
+	return classifyNonCursorSource(source);
+}
+
+function classifyNonCursorSource(source: string): EditClassification {
+	if (source === 'inlineCompletionAccept') {
+		return 'accepted';
 	}
-	return 'ambiguous';
+	if (source === 'inlineCompletionPartialAccept') {
+		return 'partially-accepted';
+	}
+	return generatedEditSources.has(source) ? 'generated' : 'ambiguous';
 }
 
 function collectLegacyClassifications(entries: readonly LogEntry[]): ReadonlyMap<string, EditClassification> {
@@ -552,9 +567,7 @@ function collectLegacyClassifications(entries: readonly LogEntry[]): ReadonlyMap
 		if (typeof version !== 'number' || !Number.isInteger(version) || typeof source !== 'string') {
 			continue;
 		}
-		const classification = source === 'cursor'
-			? 'user'
-			: generatedEditSources.has(source) ? 'generated' : 'ambiguous';
+		const classification = source === 'cursor' ? 'user' : classifyNonCursorSource(source);
 		const key = documentVersionKey(entry.id, version);
 		const previous = result.get(key);
 		result.set(key, previous !== undefined && previous !== classification ? 'ambiguous' : classification);
@@ -603,7 +616,7 @@ function collectOracle(
 ): {
 	operationIndices: number[];
 	cursorBoundaryOperationIndex: number | undefined;
-	stopReason: WorkspaceOracleStopReason;
+	stopReason: WorkspaceOracleCollectionStopReason;
 } {
 	const operationIndices: number[] = [];
 	let previousEditTime = pivot.time;
@@ -611,6 +624,18 @@ function collectOracle(
 	for (let i = pivot.operationIdx + 1; i < recording.resolved.operations.length; i++) {
 		const operation = recording.resolved.operations[i];
 		if (deliberateCursorOperations.has(i)) {
+			const nextChangeOperationIndex = findNextDocumentChangeOperationIndex(recording, i + 1, pivot.documentId);
+			if (
+				operationIndices.length > 0
+				&& nextChangeOperationIndex !== undefined
+				&& doesOperationContinueOracle(recording, operationIndices, nextChangeOperationIndex)
+			) {
+				return {
+					operationIndices,
+					cursorBoundaryOperationIndex: undefined,
+					stopReason: 'touching-boundary',
+				};
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: i,
@@ -619,13 +644,24 @@ function collectOracle(
 		}
 
 		if (operation.kind === OperationKind.SetContent || operation.kind === OperationKind.Restore) {
+			let stopReason: WorkspaceOracleCollectionStopReason;
+			if (operation.documentId !== pivot.documentId) {
+				stopReason = 'other-document-edit';
+			} else if (operationIndices.length > 0) {
+				stopReason = 'touching-boundary';
+			} else {
+				stopReason = 'ambiguous-edit';
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: undefined,
-				stopReason: operation.documentId === pivot.documentId ? 'ambiguous-edit' : 'other-document-edit',
+				stopReason,
 			};
 		}
 		if (operation.kind !== OperationKind.Changed) {
+			continue;
+		}
+		if (isNoOpDocumentChange(recording, operation)) {
 			continue;
 		}
 		if (operation.documentId !== pivot.documentId) {
@@ -633,7 +669,14 @@ function collectOracle(
 		}
 
 		const classification = classifications.get(operation.operationIdx) ?? 'ambiguous';
-		if (classification !== 'user') {
+		if (classification !== 'user' && classification !== 'accepted' && classification !== 'partially-accepted') {
+			if (operationIndices.length > 0 && doesOperationContinueOracle(recording, operationIndices, operation.operationIdx)) {
+				return {
+					operationIndices,
+					cursorBoundaryOperationIndex: undefined,
+					stopReason: 'touching-boundary',
+				};
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: undefined,
@@ -641,19 +684,85 @@ function collectOracle(
 			};
 		}
 
-		const delta = operation.time - previousEditTime;
-		if (delta <= 0 || delta >= WORKSPACE_RECORDING_ORACLE_IDLE_MS) {
-			return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'idle-gap' };
+		if (classification === 'user') {
+			const delta = operation.time - previousEditTime;
+			if (delta <= 0 || delta >= WORKSPACE_RECORDING_ORACLE_IDLE_MS) {
+				if (operationIndices.length > 0 && doesOperationContinueOracle(recording, operationIndices, operation.operationIdx)) {
+					return {
+						operationIndices,
+						cursorBoundaryOperationIndex: undefined,
+						stopReason: 'touching-boundary',
+					};
+				}
+				return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'idle-gap' };
+			}
 		}
 
 		operationIndices.push(operation.operationIdx);
 		previousEditTime = operation.time;
-		if (operationIndices.length === WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT) {
-			return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'edit-limit' };
-		}
 	}
 
 	return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'end-of-recording' };
+}
+
+function findNextDocumentChangeOperationIndex(
+	recording: IWorkspaceRecording,
+	startOperationIndex: number,
+	documentId: number,
+): number | undefined {
+	for (let i = startOperationIndex; i < recording.resolved.operations.length; i++) {
+		const operation = recording.resolved.operations[i];
+		if (operation.kind === OperationKind.SetContent || operation.kind === OperationKind.Restore) {
+			return undefined;
+		}
+		if (operation.kind !== OperationKind.Changed || isNoOpDocumentChange(recording, operation)) {
+			continue;
+		}
+		return operation.documentId === documentId ? operation.operationIdx : undefined;
+	}
+	return undefined;
+}
+
+function isNoOpDocumentChange(recording: IWorkspaceRecording, operation: Operation): boolean {
+	if (operation.kind !== OperationKind.Changed) {
+		return false;
+	}
+	const document = recording.resolved.getDocument(operation.documentId);
+	return document.getState(operation.documentStateIdBefore).value === document.getState(operation.documentStateIdAfter).value;
+}
+
+function composeOracleEdits(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+	maxOracleEdits: number,
+): ISerializedEdit {
+	return composeOperations(recording, operationIndices).slice(0, maxOracleEdits);
+}
+
+function composeOperations(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+): ISerializedEdit {
+	const edits = operationIndices.map(operationIndex => {
+		const operation = recording.resolved.operations[operationIndex];
+		if (!operation || operation.kind !== OperationKind.Changed) {
+			throw new Error(`Workspace recording oracle operation ${operationIndex} is not a document change`);
+		}
+		return operation.edit;
+	});
+	return serializeStringEdit(new Edits(StringEdit, edits).compose());
+}
+
+function doesOperationContinueOracle(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+	nextOperationIndex: number,
+): boolean {
+	const current = composeOperations(recording, operationIndices);
+	const combined = composeOperations(recording, [...operationIndices, nextOperationIndex]);
+	return current.some(edit => !combined.some(candidate =>
+		candidate[0] === edit[0] && candidate[1] === edit[1] && candidate[2] === edit[2]
+	));
 }
 
 function deduplicateCandidates(
@@ -669,7 +778,12 @@ function deduplicateCandidates(
 	for (const candidate of candidates) {
 		const sample = materializeWorkspaceRecordingSample(recording, candidate);
 		const inputDigest = digest(sample.entries.slice(0, sample.pivotEntryIndex + 1));
-		const labelDigest = digest(sample.entries.slice(sample.pivotEntryIndex + 1));
+		const labelDigest = digest({
+			oracleEdits: candidate.oracleEdits,
+			cursorBoundaries: sample.entries
+				.slice(sample.pivotEntryIndex + 1)
+				.filter(entry => entry.kind === 'selectionChanged'),
+		});
 		const group = groups.get(inputDigest);
 		if (!group) {
 			groups.set(inputDigest, { labelDigest, candidate, conflicting: false });

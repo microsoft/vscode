@@ -6,7 +6,7 @@
 import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../../src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer';
 import { DocumentId } from '../../src/platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, MutableObservableWorkspace } from '../../src/platform/inlineEdits/common/observableWorkspace';
-import { LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
+import { type ISerializedEdit, LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
 import { ErrorUtils } from '../../src/util/common/errors';
 import { Result } from '../../src/util/common/result';
 import { coalesce } from '../../src/util/vs/base/common/arrays';
@@ -72,11 +72,11 @@ export interface IProcessedRow {
 export interface IWorkspaceRecordingSampleProvenance {
 	readonly sourceFormat: 'workspace-recording';
 	readonly recordingRevision: 4;
-	readonly policyVersion: 1;
+	readonly policyVersion: 2;
 	readonly pivotKind: 'user-edit' | 'cursor-move';
 	readonly pivotOperationIndex: number;
 	readonly oracleOperationCount: number;
-	readonly oracleStopReason: 'cursor-move' | 'generated-edit' | 'ambiguous-edit' | 'other-document-edit' | 'idle-gap' | 'edit-limit' | 'end-of-recording';
+	readonly oracleStopReason: 'cursor-move' | 'generated-edit' | 'ambiguous-edit' | 'other-document-edit' | 'idle-gap';
 	readonly contextTruncated: boolean;
 }
 
@@ -156,6 +156,7 @@ interface IProcessRecordingArgs {
 	readonly entries: LogEntry[];
 	readonly proposedEdits: IStringReplacement[];
 	readonly isAccepted: boolean;
+	readonly oracleEdits?: ISerializedEdit;
 	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
 }
 
@@ -202,11 +203,12 @@ function _processRecordingAtSplit(
 		readonly row: IInputRow;
 		readonly proposedEdits: IStringReplacement[];
 		readonly isAccepted: boolean;
+		readonly oracleEdits?: ISerializedEdit;
 		readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
 	},
 	split: Processor.ISplitRecording,
 ): Result<IProcessedRow, Error> {
-	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted);
+	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted, args.oracleEdits);
 
 	const recording = scoring.scoringContext.recording;
 
