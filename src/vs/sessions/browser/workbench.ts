@@ -9,7 +9,7 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableListener, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -221,17 +221,13 @@ export interface IDockedEditorLayout {
 
 	/**
 	 * Whether the editor's current visible state was produced by an explicit user
-	 * reveal (opening an editor, or toggling the detail panel off) rather than an
-	 * automatic layout/working-set reveal. The single-pane new-session rule (R1)
-	 * uses this to avoid re-hiding an editor the user explicitly asked to show.
+	 * reveal (opening an editor, or toggling the detail panel off).
 	 */
 	isEditorRevealedExplicitly(): boolean;
 
 	/**
-	 * Reveals the (possibly hidden) editor part as an *explicit* user reveal, so
-	 * the automatic single-pane hide rules (R1 / working-set apply) do not undo it.
-	 * Use for deliberate opens like the session-header Changes pill or opening a
-	 * file diff — not for automatic/layout-driven reveals.
+	 * Reveals the (possibly hidden) editor part as an explicit user action. Use for
+	 * deliberate opens like the session-header Changes pill or opening a file diff.
 	 */
 	revealEditorPartExplicitly(): void;
 
@@ -403,7 +399,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	get isSinglePaneLayoutEnabled(): boolean {
 		return false;
 	}
-	/** `true` while the editor's current visible state was produced by an explicit user reveal (opening an editor, or toggling the detail panel off) rather than an automatic layout/working-set reveal. Read by the single-pane new-session rule (R1) so it does not undo an explicit reveal. */
+	/** `true` while the editor's current visible state was produced by an explicit user reveal. */
 	protected _editorRevealedExplicitly = false;
 
 	protected readonly partVisibility: IPartVisibilityState = {
@@ -1093,6 +1089,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		editorPartContainer.classList.add('part', 'editor');
 		editorPartContainer.id = Parts.EDITOR_PART;
 		editorPartContainer.setAttribute('role', 'main');
+		this._register(addDisposableListener(editorPartContainer, EventType.FOCUS_IN, () => this._restoreEditorPartOnActivation()));
+		this._register(addDisposableGenericMouseDownListener(editorPartContainer, () => this._restoreEditorPartOnActivation()));
 		this._editorPartContainer = editorPartContainer;
 
 		mark('code/willCreatePart/workbench.parts.editor');
@@ -1107,12 +1105,47 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right', AGENTS_PART_CARD_CLASS);
 		sessionsPartContainer.id = Parts.SESSIONS_PART;
 		sessionsPartContainer.setAttribute('role', 'main');
+		this._register(addDisposableListener(sessionsPartContainer, EventType.FOCUS_IN, () => this._restoreSessionsPartOnActivation()));
+		this._register(addDisposableGenericMouseDownListener(sessionsPartContainer, () => this._restoreSessionsPartOnActivation()));
 
 		mark(`code/willCreatePart/${Parts.SESSIONS_PART}`);
 		this.getPart(Parts.SESSIONS_PART).create(sessionsPartContainer);
 		mark(`code/didCreatePart/${Parts.SESSIONS_PART}`);
 
 		this.mainContainer.appendChild(sessionsPartContainer);
+	}
+
+	private _restoreSessionsPartOnActivation(): void {
+		if (!this.workbenchGrid || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+
+		this._restoreMinimizedPartOnActivation(this.sessionsPartView, this.editorPartView);
+	}
+
+	private _restoreEditorPartOnActivation(): void {
+		if (!this.workbenchGrid || !this.isVisible(Parts.EDITOR_PART, mainWindow) || !this.isVisible(Parts.SESSIONS_PART)) {
+			return;
+		}
+
+		this._restoreMinimizedPartOnActivation(this.editorPartView, this.sessionsPartView);
+	}
+
+	private _restoreMinimizedPartOnActivation(target: ISerializableView, sibling: ISerializableView): void {
+		const targetSize = this.workbenchGrid.getViewSize(target);
+		if (targetSize.width !== this._minimumPartWidthForActivation(target)) {
+			return;
+		}
+
+		const siblingSize = this.workbenchGrid.getViewSize(sibling);
+		const siblingMinimumWidth = this._minimumPartWidthForActivation(sibling);
+		if (siblingSize.width > siblingMinimumWidth) {
+			this.workbenchGrid.resizeView(sibling, { width: siblingMinimumWidth, height: siblingSize.height });
+		}
+	}
+
+	protected _minimumPartWidthForActivation(view: ISerializableView): number {
+		return view.minimumWidth;
 	}
 
 	private createCustomViewGridPart(): void {
@@ -1860,7 +1893,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	revealEditorPartExplicitly(): void {
-		// Mark the reveal explicit so R1 / the working-set apply do not re-hide it.
+		// Preserve the distinction from automatic layout-driven reveals.
 		// Re-assert the flag even when already visible (the early-return in
 		// setEditorHidden would otherwise skip it).
 		this._editorRevealedExplicitly = true;
@@ -2314,8 +2347,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
 
-		// Track whether this visible state was an explicit user reveal so R1 does
-		// not undo it. Any hide clears it; an automatic reveal leaves it false.
+		// Track whether this visible state was an explicit user reveal.
 		this._editorRevealedExplicitly = !hidden && explicit;
 
 		this._runWithEditorResizeSyncSuspended(() => {

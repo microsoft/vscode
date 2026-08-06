@@ -8,7 +8,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -227,6 +227,7 @@ interface ISerializedGitState {
 interface ISerializedGitHubState {
 	readonly owner?: string;
 	readonly repo?: string;
+	/** Most recent pull request in this compact tool-facing session summary. */
 	readonly pullRequestUrl?: string;
 }
 
@@ -490,7 +491,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrl) {
+		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrls?.length) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -531,7 +532,7 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	const result: Mutable<ISerializedGitHubState> = {};
 	if (github.owner !== undefined) { result.owner = github.owner; }
 	if (github.repo !== undefined) { result.repo = github.repo; }
-	if (github.pullRequestUrl !== undefined) { result.pullRequestUrl = github.pullRequestUrl; }
+	if (github.pullRequestUrls?.[0] !== undefined) { result.pullRequestUrl = github.pullRequestUrls[0]; }
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
@@ -808,11 +809,6 @@ function assistantTextOf(parts: readonly ResponsePart[]): string {
 	return parts.filter((p): p is Extract<ResponsePart, { kind: ResponsePartKind.Markdown }> => p.kind === ResponsePartKind.Markdown).map(p => p.content).join('').trim();
 }
 
-/** Reads a tool call's JSON input string, which is absent while still streaming. */
-function readToolInput(tc: ToolCallState): string | undefined {
-	return tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
-}
-
 interface ISerializedContextTurn {
 	readonly turn: number;
 	readonly state: string;
@@ -873,7 +869,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		if (detail !== 'summary' && toolCalls.length > 0) {
 			serializedToolCalls = toolCalls.map(tc => {
 				if (caps.toolInput > 0) {
-					const input = trunc(readToolInput(tc) ?? '', caps.toolInput);
+					const input = trunc(tc.status === ToolCallStatus.Streaming ? '' : getInlineToolInput(tc.toolInput) ?? '', caps.toolInput);
 					return input !== undefined ? { name: tc.toolName, input } : { name: tc.toolName };
 				}
 				return tc.toolName;

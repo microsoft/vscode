@@ -14,12 +14,13 @@ import {
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
-	ICloudSandboxCredentialsService,
+	ICloudSandboxApiService,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/agentHost/common/githubEndpoints.js';
+import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -47,7 +48,7 @@ interface ITaskDetail extends ITaskSummary {
 	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string }[];
 }
 
-const LOG_PREFIX = '[CloudSandboxCredentials]';
+const LOG_PREFIX = '[CloudSandboxApi]';
 
 /** Per-request timeout (ms) for credential and environment calls. */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -66,12 +67,13 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 
 /**
  * Mission Control client for cloud sandbox sessions: mints (`connect`) and refreshes (`reconnect`)
- * Web PubSub credentials, reads an environment's status, and discovers sandbox-backed sessions.
+ * Web PubSub credentials, reads environment and task records, discovers sandbox-backed sessions,
+ * and replays a task's persisted AHP history.
  *
  * Runs in the renderer so the sandbox path works in VS Code Web, where no Copilot extension host is
  * available.
  */
-export class CloudSandboxCredentialsService extends Disposable implements ICloudSandboxCredentialsService {
+export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -106,6 +108,9 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 		if (!environment?.status) {
 			throw new Error('Mission Control get returned an incomplete environment response');
 		}
+		// `status` comes from heartbeat age: a stale one means `/connect` will attempt a resume and
+		// can block for its whole budget.
+		this._logService.trace(`${LOG_PREFIX} Environment ${environmentId}: status=${environment.status}, ahp=${environment.capabilities?.ahp_version ?? 'unknown'}`);
 		return environment;
 	}
 
@@ -149,6 +154,7 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 				return {
 					environmentId: binding.environmentId,
 					sessionId: binding.sessionId,
+					taskId: task.id,
 					name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 					repoName: repo ? `${repo.owner}/${repo.name}` : undefined,
 					updatedAt: full.updated_at ?? task.updated_at,
@@ -163,6 +169,29 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}.`);
 		return { kind: unresolved > 0 ? 'partial' : 'complete', sessions };
+	}
+
+	/**
+	 * Read a task's persisted AHP history and fold it into session/chat state.
+	 *
+	 * The only history path that survives the sandbox: `/events` is served by Mission Control's
+	 * mirror, not the environment. The `vnd.github.ahp+json` media type selects the raw relayed
+	 * frames rather than the cloud-task event summaries the endpoint serves by default.
+	 */
+	async getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined> {
+		const url = `${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/events`;
+		const context = await this._request(url, 'mc.taskClient.events', 'getTaskEvents', {
+			'Accept': 'application/vnd.github.ahp+json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, DISCOVERY_TIMEOUT_MS);
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task events', context);
+		}
+		const body = await this._readJson<unknown>(context);
+		if (body === undefined) {
+			throw new TaskEventReplayError('Task AHP history response was empty or not JSON.');
+		}
+		return replayTaskAhpEvents(parseTaskEventsResponse(body));
 	}
 
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */
@@ -225,6 +254,7 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
+		const started = Date.now();
 		try {
 			const context = await this._requestService.request({
 				type: 'GET',
@@ -234,12 +264,17 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 				callSite,
 			}, token);
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
+			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply
+			// came to being cut off separates "Mission Control is silent" from "we stopped listening".
+			this._logService.trace(`${LOG_PREFIX} ${action} -> HTTP ${context.res.statusCode ?? 'none'} in ${Date.now() - started}ms (budget ${timeout}ms)${context.res.headers?.['retry-after'] ? `, Retry-After: ${context.res.headers['retry-after']}` : ''}`);
 			return context;
 		} catch (error) {
 			// A cancelled request was never answered, so it is not a failure worth counting.
 			if (!isCancellationError(error) && !token.isCancellationRequested) {
 				this._telemetry.reportRequest(action, 'networkError');
 			}
+			// Elapsed at the budget means our own timeout fired; shorter means something else did.
+			this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeout}ms)`);
 			this._logService.error(`${LOG_PREFIX} GET ${url} failed: ${toErrorMessage(error)}`);
 			throw error;
 		}

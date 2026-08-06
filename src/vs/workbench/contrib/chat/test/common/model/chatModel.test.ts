@@ -27,7 +27,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
@@ -787,8 +787,22 @@ suite('Response', () => {
 		}, {
 			didResolve: false,
 			changes: 0,
-			responseText: 'foo.ts',
+			responseText: '`foo.ts:1`',
 		});
+	});
+
+	test('inline file reference copies as code with its line suffix', () => {
+		// Matches what the inline anchor widget renders, and keeps names containing `*` or `_`
+		// intact when the copied markdown is rendered somewhere else.
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'inlineReference', inlineReference: { uri, range: new Range(42, 1, 42, 8) } });
+		response.updateContent({ content: new MarkdownString(' and '), kind: 'markdownContent' });
+		response.updateContent({ kind: 'inlineReference', inlineReference: { uri, range: new Range(10, 1, 20, 1) } });
+		response.updateContent({ content: new MarkdownString(' and '), kind: 'markdownContent' });
+		response.updateContent({ kind: 'inlineReference', inlineReference: uri });
+
+		assert.strictEqual(response.toString(), '`foo.ts:42` and `foo.ts:10-20` and `foo.ts`');
 	});
 
 	test('consolidated edit summary', () => {
@@ -1359,6 +1373,23 @@ suite('isExportableSessionData', () => {
 
 	test('invalid - undefined', () => {
 		assert.strictEqual(isExportableSessionData(undefined), false);
+	});
+
+	test('extracts only exportable session fields', () => {
+		const data = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'assistant',
+			sessionId: '../../../outside',
+			creationDate: 1,
+			customTitle: 'Injected title',
+		};
+
+		assert.deepStrictEqual(extractExportableSessionData(data), {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'assistant',
+		});
 	});
 });
 

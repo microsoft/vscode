@@ -16,6 +16,7 @@ import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -28,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
@@ -40,6 +42,14 @@ import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourc
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
+
+languageModelSourcePresentationRegistry.register({
+	ownerVendor: 'agent-host-codex',
+	sourceId: CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID,
+	label: localize('agentHostModelSource.chatGPT.label', "ChatGPT"),
+	icon: Codicon.openai,
+	description: localize('agentHostModelSource.chatGPT.description', "Models provided by your ChatGPT subscription"),
+});
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
@@ -93,7 +103,7 @@ export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
  * registers each one as a chat session type with its own session handler,
  * customization harness, and language model provider.
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -308,13 +318,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
 		const vendorDescriptors = [
 			{ vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined },
-			...(agent.provider === 'codex' ? [{
-				vendor: 'chatgpt',
-				displayName: localize('agentHostModelProvider.chatGPT', "ChatGPT"),
-				configuration: undefined,
-				managementCommand: undefined,
-				when: undefined,
-			}] : []),
 		];
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors(vendorDescriptors, []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], vendorDescriptors)));
