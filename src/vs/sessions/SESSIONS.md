@@ -412,6 +412,13 @@ included in plan submission, so pre-existing or already-submitted session feedba
 is not resent or cleared. Ownership snapshots include hidden feedback states so a
 pre-existing comment cannot become plan-owned merely by transitioning to accepted.
 
+Agent-host feedback is session-scoped and shared by every peer chat. The feedback
+server tools normalize chat channels to the parent annotations channel, while the
+review-confirmation command bridge resolves the rendered `IChat.resource` through
+`ISessionsManagementService.getSessionForChatResource` before reading or mutating
+feedback. This keeps the unreviewed count, picker contents, and reveal selection on
+the same parent session even when the tool is invoked from an additional chat.
+
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
 `_sessionStates` map and serialized to workspace-scoped machine storage. The
