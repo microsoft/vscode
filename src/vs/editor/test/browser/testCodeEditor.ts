@@ -72,6 +72,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 	registerDisposable(disposable: IDisposable): void;
 	runCommand(command: ITestEditorCommand, args?: any): void | Promise<void>;
 	runAction(action: ITestEditorAction, args?: any): void | Promise<void>;
+	setHasTextFocus(hasTextFocus: boolean): void;
 }
 
 export interface ITestEditorCommand {
