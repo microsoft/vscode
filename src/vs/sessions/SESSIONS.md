@@ -180,6 +180,8 @@ A second producer sits **outside** the protocol: `IAgentHostAdapterOptions.readO
 - `applyChatCatalog` (`baseAgentHostSessionsProvider.ts`) surfaces a non-default chat as a peer when the session supports multiple chats (`copilotcli`) **or** the chat is a subagent (`origin.kind === Tool`). So subagent chats exist in the peer-chat catalog even in single-chat session types (e.g. `claude`), while ordinary user/fork/side-chat peers still require the usual session support.
 - `VisibleSession` keeps tool-origin chats out of `visibleChatTabs` until the user explicitly opens one (for example from the transcript pill or the **Conversations** menu). `chatCompositeBar` renders whatever is in `visibleChatTabs`, so user-created peers such as side chats behave like ordinary tabs while subagents stay hidden/read-only by default. The trailing **New Chat** action remains gated to `capabilities.supportsMultipleChats`, so single-chat sessions that merely host a subagent don't expose chat creation.
 
+Non-main chat tabs close from their close button, the active-chat close keybinding, or a middle click anywhere on the tab. Closing a committed chat hides it until it is reopened from the **Chats** menu; closing an untitled draft deletes it.
+
 Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
 
 **Opening a subagent chat from the transcript.** `ChatSubagentContentPart` and `OpenSubagentChatActionViewItem` provide one shared rich pill in both windows. The Agents window opens the surfaced peer chat; regular chat editors use the default-enabled `chat.subagents.useRichRendering` setting to open the child in a read-only editor instead of rendering its full activity inline. Editor-hosted children show the shared **This chat is read-only** banner above the transcript.
@@ -256,7 +258,7 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
-Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
 ---
 
