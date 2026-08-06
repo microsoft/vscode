@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -12,7 +12,7 @@ import { isTerminalCommandPaste } from '../../../../workbench/contrib/chat/brows
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
-import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { INewChatAttachments } from './newChatContextAttachments.js';
 
 /**
  * Exposes the Agents window composer to the shared chat paste pipeline. Inline
@@ -22,8 +22,8 @@ import { NewChatContextAttachments } from './newChatContextAttachments.js';
 export class NewChatInputPasteTarget implements IChatPasteTarget {
 
 	constructor(
-		private readonly editor: CodeEditorWidget,
-		private readonly contextAttachments: NewChatContextAttachments,
+		private readonly editor: ICodeEditor,
+		private readonly contextAttachments: INewChatAttachments,
 		private readonly completionHandler: AgentHostInputCompletionHandler,
 		private readonly getTerminalCommandPrefix: () => string | undefined,
 		private readonly getSessionResource: () => URI | undefined,
@@ -49,6 +49,7 @@ export class NewChatInputPasteTarget implements IChatPasteTarget {
 
 	removeAttachments(ids: readonly string[]): void {
 		for (const id of ids) {
+			this.completionHandler.forgetReference(id);
 			this.contextAttachments.removeAttachment(id);
 		}
 	}

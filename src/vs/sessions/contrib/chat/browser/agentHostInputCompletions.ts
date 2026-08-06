@@ -6,7 +6,7 @@
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -32,7 +32,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
-import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { INewChatAttachments } from './newChatContextAttachments.js';
 
 /**
  * Command ID used by completion items to attach an agent-host-supplied
@@ -162,7 +162,7 @@ export function getCommandArgumentHintPlaceholder(
  * Bridges the new-chat input editor to the agent host's `completions`
  * command for the currently-selected session type. Mirrors
  * {@link AgentHostInputCompletions} (which handles the *existing* chat
- * widget) but feeds results into {@link NewChatContextAttachments}
+ * widget) but feeds results into {@link INewChatAttachments}
  * instead of the chat widget's `ChatDynamicVariableModel`.
  *
  * The Monaco completion provider is registered dynamically per active
@@ -192,8 +192,8 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	private readonly _artifactReferenceIds = new Set<string>();
 
 	constructor(
-		private readonly _editor: CodeEditorWidget,
-		private readonly _contextAttachments: NewChatContextAttachments,
+		private readonly _editor: ICodeEditor,
+		private readonly _contextAttachments: INewChatAttachments,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
@@ -488,6 +488,17 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._register(this._editor.onDidChangeModelContent(() => this._updateDecorations()));
 		this._register(this._contextAttachments.onDidChangeContext(() => this._updateDecorations()));
 		this._updateDecorations();
+	}
+
+	/**
+	 * Drops tracking for a reference without touching the input text, for callers
+	 * that remove that text themselves. The paste pipeline's undo does: the undo
+	 * stack removes the pasted reference text as its own step, so the chip-removal
+	 * cleanup below must not run a competing edit while that undo is unwinding.
+	 */
+	forgetReference(id: string): void {
+		this._insertedReferences.delete(id);
+		this._artifactReferenceIds.delete(id);
 	}
 
 	/** Removes an inline reference's text, including one trailing space. */

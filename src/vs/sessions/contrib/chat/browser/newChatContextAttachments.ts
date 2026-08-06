@@ -8,13 +8,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
@@ -42,6 +41,19 @@ import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 
 /**
+ * The attachment surface of the composer, as seen by its input plumbing
+ * (completions, paste). Kept free of rendering so those parts can be used
+ * without the pill UI.
+ */
+export interface INewChatAttachments {
+	readonly onDidChangeContext: Event<void>;
+	readonly attachments: readonly IChatRequestVariableEntry[];
+	setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	addAttachments(...entries: IChatRequestVariableEntry[]): void;
+	removeAttachment(id: string): void;
+}
+
+/**
  * Manages context attachments for the sessions new-chat widget.
  *
  * Supports:
@@ -50,7 +62,7 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
  * - Drag and drop files
  * - Paste images from clipboard (Ctrl/Cmd+V)
  */
-export class NewChatContextAttachments extends Disposable {
+export class NewChatContextAttachments extends Disposable implements INewChatAttachments {
 
 	private readonly _attachedContext: IChatRequestVariableEntry[] = [];
 	private _container: HTMLElement | undefined;
@@ -86,7 +98,6 @@ export class NewChatContextAttachments extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -167,7 +178,7 @@ export class NewChatContextAttachments extends Disposable {
 			} else if (isPastedTextArtifact(entry)) {
 				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
-					await openPastedTextArtifact(this.editorService, entry);
+					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
 				}));
 			}
 

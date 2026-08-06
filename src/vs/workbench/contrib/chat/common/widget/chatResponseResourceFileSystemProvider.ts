@@ -19,16 +19,32 @@ import { isToolResultInputOutputDetails } from '../tools/languageModelToolsServi
 
 export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
 
+/** Data associated with a URI, readable until it is disposed. */
+export interface IChatResourceAssociation extends IDisposable {
+	readonly resource: URI;
+}
+
+export interface IChatResourceAssociateOptions {
+	/** Also releases the data when this chat session is disposed. */
+	readonly sessionResource?: URI;
+
+	/** Stable identity: associating the same id again yields the same URI. */
+	readonly id?: string;
+
+	/** Appended to the URI so the resource carries a readable name. */
+	readonly name?: string;
+}
+
 export interface IChatResponseResourceFileSystemProvider extends IFileSystemProvider {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Associates arbitrary data with a URI in the chat response resource filesystem.
-	 * The data is scoped to the given session and automatically cleaned up when
-	 * the session is disposed.
-	 * Returns a URI that can later be read via the file service.
+	 * Associates arbitrary data with a URI in this filesystem, so it can be read
+	 * through the file service and opened in an editor. The data is held until the
+	 * returned association is disposed, or — for a session-scoped association —
+	 * until that session is disposed, whichever comes first.
 	 */
-	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI;
+	associate(data: Uint8Array | { base64: string }, options?: IChatResourceAssociateOptions): IChatResourceAssociation;
 }
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
@@ -73,22 +89,26 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}));
 	}
 
-	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI {
-		const id = generateUuid();
+	associate(data: Uint8Array | { base64: string }, options?: IChatResourceAssociateOptions): IChatResourceAssociation {
 		const uri = URI.from({
 			scheme: ChatResponseResource.scheme,
-			path: `/assoc/${id}` + (name ? `/${name}` : ''),
+			path: `/assoc/${options?.id ?? generateUuid()}` + (options?.name ? `/${options.name}` : ''),
 		});
 		this._associated.set(uri, data);
 
-		let set = this._sessionAssociations.get(sessionResource);
-		if (!set) {
-			set = new ResourceSet();
-			this._sessionAssociations.set(sessionResource, set);
+		if (options?.sessionResource) {
+			let set = this._sessionAssociations.get(options.sessionResource);
+			if (!set) {
+				set = new ResourceSet();
+				this._sessionAssociations.set(options.sessionResource, set);
+			}
+			set.add(uri);
 		}
-		set.add(uri);
 
-		return uri;
+		return {
+			resource: uri,
+			dispose: () => this._associated.delete(uri),
+		};
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {

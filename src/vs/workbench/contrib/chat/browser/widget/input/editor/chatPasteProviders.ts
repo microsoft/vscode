@@ -10,7 +10,6 @@ import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToM
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
-import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Mimes } from '../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../../../../base/common/resources.js';
@@ -34,7 +33,6 @@ import { chatVariableLeader } from '../../../../common/requestParser/chatParserT
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
 import { chatInputSchemes, isChatInputModel } from '../../../../common/constants.js';
-import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
@@ -347,7 +345,6 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		private readonly pasteTargetService: IChatPasteTargetService,
 		private readonly modelService: IModelService,
 		private readonly logService: ILogService,
-		private readonly chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, _context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -408,13 +405,6 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			if (ranges.length !== 1 || target.isTerminalCommandPaste(textdata, ranges[0])) {
 				return;
 			}
-			// Back the artifact with a read-only resource so its full contents can be
-			// opened in an editor; it is scoped to the session for cleanup.
-			const contentResource = this.chatResponseResourceFsProvider.associate(
-				target.sessionResource,
-				VSBuffer.fromString(artifact.attachment.code).buffer,
-				artifact.attachment.name,
-			);
 			const pasteRange = ranges[0];
 			const referenceRange = new Range(
 				pasteRange.startLineNumber,
@@ -427,7 +417,6 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 				model,
 				[{
 					...artifact.attachment,
-					_meta: { ...artifact.attachment._meta, [ChatPasteAttachmentMetadata.ContentResource]: contentResource.toString() },
 					range: { start: referenceOffset, endExclusive: referenceOffset + artifact.referenceText.length },
 				}],
 				Mimes.text,
@@ -857,13 +846,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@IChatResponseResourceFileSystemProvider chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
 	) {
 		super();
 		const chatInputProviders: DocumentPasteEditProvider[] = [
 			instaService.createInstance(CopyAttachmentsProvider),
 			new PasteImageProvider(pasteTargetService, extensionService, fileService, environmentService, logService),
-			new PasteTextProvider(pasteTargetService, modelService, logService, chatResponseResourceFsProvider),
+			new PasteTextProvider(pasteTargetService, modelService, logService),
 			new PasteHtmlProvider(),
 		];
 		for (const scheme of chatInputSchemes) {

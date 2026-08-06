@@ -15,14 +15,30 @@ import { IRange, Range } from '../../../../../../../../editor/common/core/range.
 import { DocumentPasteTriggerKind, ICustomEdit } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../../../editor/common/services/model.js';
+import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../../../../platform/log/common/log.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
-import { IChatResponseResourceFileSystemProvider } from '../../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
-import { ChatPasteAttachmentMetadata, getPastedTextArtifactResource, IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
+import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
 
 suite('Chat Paste Providers', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not offer an opened artifact back as attachable context', () => {
+		// Opening an artifact makes it the active editor; offering it as context
+		// would re-attach text the attachment already carries.
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getContentProviderSchemes(): string[] { return []; }
+		});
+
+		assert.strictEqual(
+			instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, ChatResponseResource.scheme)),
+			false);
+	});
 
 	test('creates sequential artifacts only for long pasted text', () => {
 		const longText = 'x'.repeat(1000);
@@ -102,9 +118,6 @@ suite('Chat Paste Providers', () => {
 			pasteTargetService,
 			new class extends mock<IModelService>() { },
 			new class extends mock<ILogService>() { },
-			new class extends mock<IChatResponseResourceFileSystemProvider>() {
-				override associate(): URI { return URI.parse('chat-response-resource:/assoc/1/Pasted text #1'); }
-			},
 		);
 		const model = upcastPartial<ITextModel>({
 			uri: modelUri,
@@ -147,7 +160,6 @@ suite('Chat Paste Providers', () => {
 				name: attachment.name,
 				kind: attachment.kind,
 				valueIsPreserved: attachment.value === longText,
-				contentResource: getPastedTextArtifactResource(attachment as IChatRequestPasteVariableEntry)?.toString(),
 			})),
 			references: inlineAttachments.map(inline => ({
 				idMatchesAttachment: inline.entry.id === attachments[0]?.id,
@@ -168,7 +180,6 @@ suite('Chat Paste Providers', () => {
 				name: 'Pasted text #1',
 				kind: 'paste',
 				valueIsPreserved: true,
-				contentResource: 'chat-response-resource:/assoc/1/Pasted%20text%20#1',
 			}],
 			references: [{
 				idMatchesAttachment: true,

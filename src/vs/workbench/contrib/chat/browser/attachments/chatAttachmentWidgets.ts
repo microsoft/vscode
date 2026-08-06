@@ -22,7 +22,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -73,10 +73,11 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, getPastedTextArtifactResource, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IChatResponseResourceFileSystemProvider } from '../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
@@ -776,23 +777,31 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 
 /**
  * Opens a pasted-text attachment so its full contents can be reviewed; the
- * attachment pill is otherwise the only handle on that text. Prefers the
- * read-only resource associated at paste time, which keeps one editor per
- * artifact and prevents edits that would not reach the attachment.
+ * attachment pill is otherwise the only handle on that text. The contents are
+ * derived from the attachment on demand — so nothing is held for an artifact
+ * that is never opened — and backed by a read-only resource keyed on the
+ * attachment, which keeps one editor per artifact and prevents edits that would
+ * not reach the attachment. The association is dropped once the editor closes.
  */
-export async function openPastedTextArtifact(editorService: IEditorService, attachment: IChatRequestPasteVariableEntry): Promise<void> {
-	const contentResource = getPastedTextArtifactResource(attachment);
-	if (contentResource) {
-		await editorService.openEditor({ resource: contentResource, options: { pinned: true } });
-		return;
+export async function openPastedTextArtifact(accessor: ServicesAccessor, attachment: IChatRequestPasteVariableEntry): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const owned = accessor.get(IChatResponseResourceFileSystemProvider)
+		.associate(VSBuffer.fromString(attachment.code).buffer, { id: attachment.id, name: attachment.name });
+
+	try {
+		await editorService.openEditor({ resource: owned.resource, options: { pinned: true } });
+	} catch (error) {
+		owned.dispose();
+		throw error;
 	}
 
-	// Restored attachments predate the association, so fall back to a scratch copy.
-	await editorService.openEditor({
-		resource: URI.from({ scheme: Schemas.untitled, path: `/${attachment.id}/${attachment.name}` }),
-		contents: attachment.code,
-		languageId: attachment.language,
-		options: { pinned: true },
+	// Watched only once the editor is open, so an editor this open replaces cannot
+	// be mistaken for the artifact's own editor closing.
+	const listener = editorService.onDidCloseEditor(() => {
+		if (!editorService.editors.some(editor => isEqual(editor.resource, owned.resource))) {
+			owned.dispose();
+			listener.dispose();
+		}
 	});
 }
 
@@ -845,7 +854,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		} else if (isPastedTextArtifact(attachment)) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
-				await this.instantiationService.invokeFunction(accessor => openPastedTextArtifact(accessor.get(IEditorService), attachment));
+				await this.instantiationService.invokeFunction(openPastedTextArtifact, attachment);
 			}));
 		}
 	}

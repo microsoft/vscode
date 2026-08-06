@@ -96,6 +96,9 @@ export namespace Schemas {
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
 
+	/** Scheme used for read-only resources owned by a chat response or attachment */
+	export const vscodeChatResponseResource = 'vscode-chat-response-resource';
+
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
 	 */
