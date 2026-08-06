@@ -569,10 +569,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * Per-session record of the reply we most recently read for a session (played
 	 * live or flushed from the deferred buffer): its transcript and when it was
 	 * read. The backend re-emits a session's reply when that session becomes
-	 * active (on focus), which would double-read it. We drop a subsequent reply
-	 * for the same session ONLY when its transcript matches this one within
-	 * `RENARRATION_DEDUPE_WINDOW_MS` - so a genuinely new reply (different text)
-	 * always plays, and so does a later identical reply once the window lapses. */
+	 * active (on focus), which would double-read it. Durable dedup is mirrored in
+	 * `_lastHeardTranscriptById`; this record also supports activation/flush
+	 * bookkeeping. */
 	private readonly _recentlyReadResponse = new Map<string, { transcript: string; at: number }>();
 	/** In-flight backend re-narrations we are dropping, so continuation chunks are
 	 *  dropped too (not just the first). Keyed by responseId when the backend
@@ -583,16 +582,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  `narration_id` we sent on `request_narration`, which the backend echoes as
 	 *  `responseId` on the audio it produces). Audio whose `responseId` is one of
 	 *  these was solicited by us and must never be classified as an unsolicited
-	 *  duplicate re-narration, even when its transcript matches content we recently
+	 *  duplicate re-narration, even when its transcript matches content we
 	 *  read (e.g. narrating a completed reply on focus). Ids are pruned when their
 	 *  stream ends (final chunk) and cleared on disconnect. */
 	private readonly _solicitedNarrationIds = new Set<string>();
-	private static readonly RENARRATION_DEDUPE_WINDOW_MS = 6000;
-
 	/**
-	 * Last reply transcript heard per session (persistent, unlike the windowed
-	 * `_recentlyReadResponse`). On activation it arms `_recentlyReadResponse` so a
-	 * backend re-read of a reply we heard earlier is dropped as a re-narration.
+	 * Last reply transcript heard per session. This is the durable exactly-once
+	 * guard: a backend re-read of that response is always dropped.
 	 */
 	private readonly _lastHeardTranscriptById = new Map<string, string>();
 
@@ -4048,6 +4044,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (kind === 'response' && this._getLastNarratedText(sessionId) === text) {
 			return false;
 		}
+		if (kind === 'response') {
+			const heard = this._lastHeardTranscriptById.get(this._sessionKey(sessionId));
+			const requested = this._normalizeTranscript(text);
+			if (heard && requested && (heard === requested || heard.startsWith(requested) || requested.startsWith(heard))) {
+				return false;
+			}
+		}
 		// A request for this exact occurrence+kind is already in flight (its audio
 		// hasn't finalized yet); don't re-request or we'd narrate it twice. Match on
 		// kind too so an in-flight response can't suppress a same-text confirmation,
@@ -4949,9 +4952,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * for this session (played live or flushed from the deferred buffer). The
 	 * backend re-emits a session's reply when that session becomes active (on
 	 * focus), which would otherwise be read a second time. We drop it ONLY when
-	 * its transcript matches what we recently read AND arrives within
-	 * RENARRATION_DEDUPE_WINDOW_MS - so a genuinely new reply (different text)
-	 * always plays, and so does a later identical reply once the window lapses.
+	 * its transcript matches the last reply actually heard for the session.
+	 * That dedupe is durable: focus/context refreshes must never replay a response
+	 * the user already heard. A genuinely new reply (different text) still plays,
+	 * and an actively awaited reply bypasses this check.
 	 * The whole response (including continuation chunks) is dropped until final.
 	 *
 	 * This is purely content-based: it never suppresses a reply just because the
@@ -4989,25 +4993,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._awaitingReplyAudio && this._awaitingReplyForSession === sessionId) {
 			return false;
 		}
-		const recent = this._recentlyReadResponse.get(sessionId);
-		if (recent === undefined) {
+		const sessionKey = this._sessionKey(sessionId);
+		const heard = this._lastHeardTranscriptById.get(sessionKey) ?? this._recentlyReadResponse.get(sessionKey)?.transcript;
+		if (heard === undefined) {
 			return false;
 		}
-		if (Date.now() - recent.at > VoiceSessionController.RENARRATION_DEDUPE_WINDOW_MS) {
-			this._recentlyReadResponse.delete(sessionId);
-			return false;
-		}
-		// Only drop when the incoming reply is the SAME text we recently read.
+		// Only drop when the incoming reply is the SAME text we already read.
 		// A genuinely new reply (different text) for the same session must still
-		// play, so we never suppress on the time window alone.
+		// play, so we never suppress on session identity alone.
 		const incoming = this._normalizeTranscript(transcript ?? '');
-		if (!incoming || !(recent.transcript === incoming || recent.transcript.startsWith(incoming))) {
+		if (!incoming || !(heard === incoming || heard.startsWith(incoming))) {
 			return false;
 		}
 		// This first chunk is the re-narration; keep dropping its continuation
-		// chunks (if any) until final. The marker is left in place so repeated
-		// re-narrations within the window are also dropped; it expires by time or
-		// is overwritten when a new reply is read.
+		// chunks (if any) until final.
 		this._liveReplyKeys.delete(sessionId);
 		if (!isFinal) {
 			this._droppingRenarration.add(dropKey);
@@ -5371,6 +5370,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
+	private _hasResponseAudioInFlight(sessionId: string): boolean {
+		const sessionKey = this._sessionKey(sessionId);
+		const isResponseForSession = (candidateSessionId: string | undefined, narration: IPlaybackNarration | undefined) =>
+			!!candidateSessionId
+			&& this._sessionKey(candidateSessionId) === sessionKey
+			&& (narration === undefined || narration.kind === 'response');
+		return isResponseForSession(this._currentPlaybackSessionId ?? undefined, this._currentPlaybackNarration)
+			|| this._audioQueue.some(queued => isResponseForSession(queued.sessionId, queued.narration));
+	}
+
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
 		const isCheckpointNarration = narration?.kind === 'checkpoint';
 		// An incoming response frame means the assistant is actively replying, so
@@ -5668,7 +5677,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// finalizes (_markNarrationHeard clears it then), so a request that is
 			// accepted but never produces audio doesn't lose the reply.
 			const alreadyNarrated = this._lastNarratedText.get(sessionKey) === lastResponseSummary;
-			this._narrate(sessionId, 'response', lastResponseSummary);
+			// The backend's direct response can still be playing when the model
+			// settles to idle. Requesting the summary here queues a second reading
+			// of that same turn, which may surface just before its next prompt.
+			if (!this._hasResponseAudioInFlight(sessionKey)) {
+				this._narrate(sessionId, 'response', lastResponseSummary);
+			}
 			if (alreadyNarrated) {
 				this._clearPendingResponse(sessionKey);
 			}

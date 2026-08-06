@@ -2620,7 +2620,7 @@ suite('VoiceSessionController', () => {
 		const controller = createController(voiceClientService, ttsPlaybackService);
 		const sessionId = 'chat-session:/checkpoint-reread';
 		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata) => boolean;
-		const recentlyRead = Reflect.get(controller, '_recentlyReadResponse') as Map<string, { transcript: string; at: number }>;
+		const lastHeard = Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>;
 		await controller.connect(mainWindow);
 		controller.setActiveSessionShown(URI.parse(sessionId));
 
@@ -2637,7 +2637,7 @@ suite('VoiceSessionController', () => {
 			codingSessionId: sessionId,
 			responseId: checkpointId,
 		});
-		recentlyRead.set(sessionId, { transcript: 'already heard', at: Date.now() });
+		lastHeard.set(sessionId, 'already heard');
 		voiceClientService.fireAudioResponse({
 			audio: 'duplicate',
 			isFirstChunk: true,
@@ -4063,6 +4063,34 @@ suite('VoiceSessionController', () => {
 			cachedSummaries: 0,
 			narrations: [{ kind: 'confirmation', text: 'Allow writing the file?' }],
 		});
+	});
+
+	test('an omni response summary is not requested while its direct audio is still playing', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		controller.setTargetSession(resource, 'existing_session');
+		Reflect.set(controller, '_currentPlaybackSessionId', sessionId);
+		Reflect.set(controller, '_currentPlaybackNarration', undefined);
+
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The completed response.', undefined);
+
+		assert.deepStrictEqual(voiceClientService.requests, []);
+	});
+
+	test('an omni response is never requested again after it has been heard', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string) => boolean;
+		controller.setTargetSession(resource, 'existing_session');
+		(Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>).set(sessionId, 'the completed response with extra detail');
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'The completed response.'), false);
+		assert.deepStrictEqual(voiceClientService.requests, []);
 	});
 
 	test('does not mark an omni-routed confirmation as pending in the sessions list', () => {

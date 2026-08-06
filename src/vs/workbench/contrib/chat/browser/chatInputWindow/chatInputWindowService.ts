@@ -655,12 +655,17 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					: renderedContentHeight;
 				const minimumHeight = panel.classList.contains('question') ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
 				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
-				parent.style.height = `${height}px`;
 				if (height !== lastPendingHeight) {
 					lastPendingHeight = height;
-					widget.layout(height, width);
+					parent.style.height = `${height}px`;
+					// Confirmation rows use natural-height layout. Feeding their
+					// measured height back into the virtualized widget changes the
+					// measurement again and creates an endless resize oscillation.
+					if (panel.classList.contains('question')) {
+						widget.layout(height, width);
+					}
+					this._fitWindowToContent();
 				}
-				this._fitWindowToContent();
 			} finally {
 				layingOut = false;
 			}
