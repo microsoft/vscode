@@ -24,7 +24,7 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, stableNewScenarioResponse } = context;
+	const { config, createdSessions, tempDirs } = context;
 	const behaviorSnapshot = { profile: 'behavior' } as const;
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
@@ -88,12 +88,13 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}
 
 		assert.ok(agent.models.length > 0, 'Expected at least one model from listModels');
+		const expectedModelProviders = config.modelProviders ?? [config.provider];
 
 		for (const model of agent.models) {
 			assert.strictEqual(typeof model.id, 'string', `model.id should be a string: ${JSON.stringify(model)}`);
 			assert.ok(model.id.length > 0, `model.id should be non-empty: ${JSON.stringify(model)}`);
 			assert.strictEqual(typeof model.name, 'string', `model.name should be a string: ${JSON.stringify(model)}`);
-			assert.strictEqual(model.provider, config.provider, `model.provider should be ${config.provider}: ${JSON.stringify(model)}`);
+			assert.ok(expectedModelProviders.includes(model.provider), `model.provider should be one of ${expectedModelProviders.join(', ')}: ${JSON.stringify(model)}`);
 			assert.ok(model.maxContextWindow === undefined || (typeof model.maxContextWindow === 'number' && model.maxContextWindow >= 0),
 				`model.maxContextWindow should be undefined or a non-negative number: ${JSON.stringify(model)}`);
 			assert.ok(model.supportsVision === undefined || typeof model.supportsVision === 'boolean',
@@ -101,7 +102,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}
 	});
 
-	(stableNewScenarioResponse ? test : test.skip)('retains context across consecutive turns', async function () {
+	test('retains context across consecutive turns', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
 		tempDirs.push(workspace);

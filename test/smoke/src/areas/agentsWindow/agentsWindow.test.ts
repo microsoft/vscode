@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -116,6 +116,38 @@ interface CapturedRequest {
 	readonly path: string;
 	readonly method: string;
 	readonly body: any;
+}
+
+async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefined, mockServerUrl: string, additionalSettings: Record<string, string | boolean> = {}): Promise<void> {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed Agents Window profiles without a user data directory');
+	}
+
+	const settings = JSON.stringify({
+		'github.copilot.advanced.debug.overrideProxyUrl': mockServerUrl,
+		'github.copilot.advanced.debug.overrideAuthType': 'token',
+		'chat.allowAnonymousAccess': true,
+		'github.copilot.chat.githubMcpServer.enabled': false,
+		'chat.agentHost.defaultSessionsProvider': false,
+		'chat.agents.copilotCli.hideExtensionHost': false,
+		'chat.agents.claude.preferAgentHost': false,
+		'sessions.chat.localAgent.enabled': true,
+		'github.copilot.chat.cli.sandbox.enabled': 'on',
+		'github.copilot.chat.cli.sessionEventLogging.enabled': true,
+		// Keep follow-up turns in the same chat so the test flow is deterministic.
+		'sessions.github.copilot.multiChatSessions': false,
+		// Capture enough runtime detail to diagnose CI hangs.
+		'chat.agentHost.copilotSdk.logLevel': 'trace',
+		...additionalSettings,
+	}, null, 2);
+	for (const settingsPath of [
+		path.join(userDataDir, 'User', 'settings.json'),
+		path.join(userDataDir, 'User', 'profiles', 'builtin', 'agents', 'settings.json'),
+	]) {
+		fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+		fs.writeFileSync(settingsPath, settings);
+	}
+	await preseedChatExtensionEnablement(userDataDir);
 }
 
 /**
@@ -352,7 +384,7 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		});
+		}, app => preseedExtensionHostAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer)));
 
 		before(async function () {
 			// One-time setup: write VS Code settings and open the Agents Window
@@ -367,42 +399,6 @@ export function setup(logger: Logger) {
 			// "uncommitted changes" confirmation flow which aborts the session.
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			logger.log(`[Agents Window] reset workspace via 'git checkout .'`);
-
-			// overrideProxyUrl redirects all Copilot SDK traffic to our mock server
-			// and enables HMAC auth — no real GitHub token required.
-			// allowAnonymousAccess skips the token-validation gate in the
-			// extension-host copilotTokenManager when there is no real GitHub session.
-			// githubMcpServer is disabled to prevent a real-network MCP connection
-			// to the GitHub MCP server during the test.
-			// sessions.chat.localAgent.enabled exposes the "Local" session type.
-			await app.workbench.settingsEditor.addUserSettings([
-				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(getMockLlmServerUrl(mockServer))],
-				// Use token auth (not HMAC) so the SDK can call /models and
-				// /models/session against the mock server without HMAC validation.
-				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
-				['chat.allowAnonymousAccess', 'true'],
-				['github.copilot.chat.githubMcpServer.enabled', 'false'],
-				['sessions.chat.localAgent.enabled', 'true'],
-				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
-				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
-				// Disable multi-chat per Copilot CLI session for this smoke
-				// test. With multi-chat enabled (default), each follow-up
-				// turn creates a *new sub-chat* with its own SDK session
-				// nested under the parent session: the workbench
-				// auto-swaps the active slot to a fresh new-session
-				// homepage right after the previous turn commits, and
-				// each turn ends up in its own isolated worktree
-				// (`isolationEnabled: true, worktreePath: agents-...`).
-				// That interferes with the smoke test driver's
-				// activate/send sequence and makes msg2 land in a
-				// different VS Code session than the assertion expects.
-				// With this setting off, `supportsMultipleChats` is
-				// false for Copilot CLI and turns share a workspace
-				// (`isolationEnabled: false, worktreePath: undefined`),
-				// which keeps the test flow deterministic.
-				['sessions.github.copilot.multiChatSessions', 'false'],
-			]);
-			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
 			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.
 			const windowsBefore = app.code.driver.getAllWindows().length;
@@ -668,38 +664,20 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		});
+		}, app => preseedExtensionHostAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer), {
+			'github.copilot.advanced.debug.overrideCapiUrl': getMockLlmServerUrl(mockServer),
+			'chat.mcp.discovery.enabled': false,
+			'chat.mcp.enabled': false,
+			'github.copilot.chat.responsesApiContextManagement.enabled': true,
+			'chat.contextUsage.enabled': true,
+		}));
 
 		before(async function () {
-			// One-time setup: write VS Code settings and open the Agents Window
-			// with the smoke-test workspace folder pre-selected.
 			const app = this.app as Application;
 
 			// Reset any uncommitted changes left by earlier smoke test suites so
 			// session/worktree creation isn't blocked by a dirty workspace.
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-
-			await app.workbench.settingsEditor.addUserSettings([
-				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(getMockLlmServerUrl(mockServer))],
-				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(getMockLlmServerUrl(mockServer))],
-				// Use token auth (not HMAC) so the SDK can call /models and
-				// /models/session against the mock server without HMAC validation.
-				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
-				['chat.allowAnonymousAccess', 'true'],
-				['github.copilot.chat.githubMcpServer.enabled', 'false'],
-				['chat.mcp.discovery.enabled', 'false'],
-				['chat.mcp.enabled', 'false'],
-				// Expose the "Local" session type, whose copilot-chat-backed model
-				// picker surfaces the mock-config-model.
-				['sessions.chat.localAgent.enabled', 'true'],
-				// Enable Responses-API context management so the chosen Context Size
-				// is forwarded as a `compact_threshold`. This is an experiment-based
-				// setting (default off); set it explicitly for a deterministic run.
-				['github.copilot.chat.responsesApiContextManagement.enabled', 'true'],
-				// Show the context-usage gauge so the test can verify the denominator
-				// (context window) reflects the selected Context Size.
-				['chat.contextUsage.enabled', 'true'],
-			]);
 
 			const windowsBefore = app.code.driver.getAllWindows().length;
 			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
@@ -713,7 +691,12 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+		// Warm up and select the mock model once for the whole suite: cold-starting
+		// the Local session's copilot-chat exthost and registering the models is
+		// expensive, and both tests need the same starting point. Selecting the
+		// model does not touch its configuration, so the default-state test below
+		// still sees a pristine picker.
+		before(async function () {
 			const app = this.app as Application;
 
 			try {
@@ -730,7 +713,51 @@ export function setup(logger: Logger) {
 				// Select the mock model that exposes both configuration pickers in
 				// the active session input.
 				await app.workbench.agentsWindow.selectModel(MODEL_CONFIG_MODEL_NAME);
+			} catch (error) {
+				logger.log(`[Agents Window/model-config] SETUP FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
 
+		// Must run before any test selects an option: the model configuration is
+		// sticky, so the pristine defaults are only observable on the first test of
+		// the suite.
+		it('shows the schema defaults and every configured option in the model configuration picker', async function () {
+			const app = this.app as Application;
+
+			try {
+				// The button summarizes the *effective* configuration, which before any
+				// selection is the schema default of each group.
+				const defaultLabel = await app.workbench.agentsWindow.getModelConfigLabel();
+				assert.strictEqual(
+					defaultLabel.replace(/\s+/g, ' ').trim(),
+					MOCK_CONFIG_MODEL_DEFAULT_LABEL,
+					`Expected the untouched model-config button to show '${MOCK_CONFIG_MODEL_DEFAULT_LABEL}', got '${defaultLabel}'.`
+				);
+
+				await app.workbench.agentsWindow.openModelConfig();
+				const sections = await app.workbench.agentsWindow.getModelConfigSections();
+				await app.workbench.agentsWindow.closeModelConfig();
+
+				assert.deepStrictEqual(
+					sections,
+					MOCK_CONFIG_MODEL_DEFAULT_SECTIONS,
+					`Model configuration dropdown did not list every option declared by '${MODEL_CONFIG_MODEL_NAME}' with its pristine defaults.`
+				);
+
+				logger.log(`[Agents Window/model-config] defaults verified: label='${defaultLabel}', sections=${JSON.stringify(sections)}`);
+			} catch (error) {
+				logger.log(`[Agents Window/model-config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+
+		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+			const app = this.app as Application;
+
+			try {
 				for (const testCase of MODEL_CONFIG_CASES) {
 					logger.log(`[Agents Window/model-config] case '${testCase.name}': selecting effort='${testCase.effortLabel}', context='${testCase.contextLabel}'`);
 
@@ -877,7 +904,7 @@ export function setup(logger: Logger) {
 			try {
 				await app.workbench.agentsWindow.startNewSession();
 				await app.workbench.agentsWindow.waitForNewSessionView();
-				await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
 
 				const requestsBefore = agentHost.mockServer.requestCount();
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SANDBOX_SCENARIO_ID}]`);
@@ -1159,12 +1186,12 @@ export function setup(logger: Logger) {
  *
  * Assumes the Agents Window is showing a new-session view. Sends a throwaway
  * prompt, ignores its outcome, then leaves a fresh new-session view with
- * 'Local Agent Host' selected so the caller can submit the real prompt
+ * Agent Host Copilot selected so the caller can submit the real prompt
  * against an already-warmed model list.
  */
 async function warmUpAgentHostModel(app: Application, logger: Logger, label: string): Promise<void> {
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+	await app.workbench.agentsWindow.selectSessionType('Copilot');
 	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_WARMUP_SCENARIO_ID}]`);
 	try {
 		await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_WARMUP_REPLY, 30_000);
@@ -1175,7 +1202,7 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	}
 	await app.workbench.agentsWindow.startNewSession();
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+	await app.workbench.agentsWindow.selectSessionType('Copilot');
 }
 
 
@@ -1306,9 +1333,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}));
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
-		// Agents profile. Writing settings after the workbench is up would race
-		// with AgentHostContribution’s startup (it gates on
-		// `chat.agentHost.enabled` at construction).
+		// Agents profile so Agent Host startup observes the test configuration.
 		const userDataDir = (this.app as Application).userDataPath;
 		if (userDataDir) {
 			const settings = JSON.stringify({
@@ -1320,9 +1345,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'http.proxySupport': 'override',
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
-				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [

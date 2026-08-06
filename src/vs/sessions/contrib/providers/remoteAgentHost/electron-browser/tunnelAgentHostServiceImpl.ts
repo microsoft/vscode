@@ -6,27 +6,39 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { localize } from '../../../../../nls.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import {
 	ITunnelAgentHostService,
+	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_CHANNEL,
 	TunnelAgentHostsSettingId,
 	type ICachedTunnel,
 	type ITunnelAgentHostMainService,
+	type ITunnelConnectResult,
+	type ITunnelGatewayEndpoint,
+	type ITunnelGatewayInventory,
+	type ITunnelGatewaySelection,
 	type ITunnelInfo,
+	type TunnelGatewayServerType,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { TunnelRelayTransport } from '../../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
 
 const LOG_PREFIX = '[TunnelAgentHost]';
@@ -35,6 +47,144 @@ const LOG_PREFIX = '[TunnelAgentHost]';
 const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
 /** Storage key for tunnels the user explicitly disconnected. */
 const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
+
+/** Endpoints of `type`, sorted deterministically by `instanceId`. */
+function sortedGatewayEndpoints(inventory: ITunnelGatewayInventory, type: TunnelGatewayServerType): ITunnelGatewayEndpoint[] {
+	return inventory.endpoints
+		.filter(endpoint => endpoint.type === type)
+		.sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+}
+
+/** The live `editor` endpoint to use, chosen deterministically when several exist. */
+export function selectEditorGatewayEndpoint(inventory: ITunnelGatewayInventory): ITunnelGatewayEndpoint | undefined {
+	return sortedGatewayEndpoints(inventory, 'editor')[0];
+}
+
+/**
+ * Deterministic dedicated-agent-host selection: reuse the first live
+ * standalone instance if one exists, otherwise request a new dedicated one.
+ * Never selects an `editor` endpoint.
+ */
+export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
+	const standalone = sortedGatewayEndpoints(inventory, 'standalone')[0];
+	return standalone ? { instanceId: standalone.instanceId } : { newDedicated: true };
+}
+
+/** Inputs needed to resolve a protocol-v6 gateway endpoint selection. See {@link resolveGatewaySelection}. */
+export interface IGatewaySelectionRequest {
+	/** Stable {@link IRemoteAgentHostLocationPreferenceService} key, e.g. `tunnel:<tunnelId>`. */
+	readonly hostKey: string;
+	/** User-facing tunnel name shown in the location-preference modal. */
+	readonly hostLabel: string;
+	/** Product name (typically {@link IProductService.nameShort}) substituted into the modal's editor-option detail text. */
+	readonly productName: string;
+	readonly inventory: ITunnelGatewayInventory;
+	readonly userInitiated: boolean;
+}
+
+/**
+ * Resolve which agent host endpoint to select for a protocol-v6 gateway
+ * session, driven by the user's saved {@link IRemoteAgentHostLocationPreferenceService}
+ * preference for the host rather than an endpoint picker:
+ *
+ * - A saved `'editor'` preference selects the live editor endpoint if one
+ *   exists, or falls back to a dedicated endpoint (without changing the
+ *   preference) if it doesn't — a stored editor preference is explicit
+ *   consent, so this applies even for a background reconnect.
+ * - A saved `'dedicated'` preference always falls back to a dedicated
+ *   endpoint and never prompts.
+ * - With no saved preference: falls back to a dedicated endpoint (no prompt,
+ *   no persistence) when no editor endpoint exists, or for a background
+ *   connection; otherwise prompts with {@link promptRemoteAgentHostLocationPreference}
+ *   and persists the user's choice.
+ *
+ * Returns `undefined` only when the user cancels that modal.
+ */
+export async function resolveGatewaySelection(
+	locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+	dialogService: IDialogService,
+	request: IGatewaySelectionRequest,
+): Promise<ITunnelGatewaySelection | undefined> {
+	const { hostKey, hostLabel, productName, inventory, userInitiated } = request;
+	const editor = selectEditorGatewayEndpoint(inventory);
+	const preference = locationPreferenceService.getPreference(hostKey);
+
+	if (preference === 'editor') {
+		return editor ? { instanceId: editor.instanceId } : selectDedicatedGatewayFallback(inventory);
+	}
+	if (preference === 'dedicated' || !editor || !userInitiated) {
+		return selectDedicatedGatewayFallback(inventory);
+	}
+
+	const chosen = await promptRemoteAgentHostLocationPreference(dialogService, hostLabel, productName);
+	if (!chosen) {
+		return undefined;
+	}
+	locationPreferenceService.setPreference(hostKey, chosen);
+	return chosen === 'editor' ? { instanceId: editor.instanceId } : selectDedicatedGatewayFallback(inventory);
+}
+
+/**
+ * Decide whether a tunnel-failover notification should be shown after a
+ * connection attempt's {@link IRemoteAgentHostService.addManagedConnection}
+ * has already succeeded. Only fires for an automatic/background reconnect
+ * (never a user-initiated connect or reconnect) that silently moved a
+ * previously `editor`-owned endpoint to a `standalone` one for the same
+ * stable tunnel address — i.e. the editor process that used to host the
+ * connection exited and a dedicated agent host took over. Exported so the
+ * decision can be unit tested without constructing the full service.
+ */
+export function shouldNotifyTunnelFailover(
+	previousServerType: TunnelGatewayServerType | 'unknown' | undefined,
+	newServerType: TunnelGatewayServerType | 'unknown',
+	userInitiated: boolean,
+): boolean {
+	return !userInitiated && previousServerType === 'editor' && newServerType === 'standalone';
+}
+
+/**
+ * Whether the tunnel-failover tracker/notification step should run at all
+ * for a completed `connect()` attempt. Must be `false` whenever the
+ * attempt is ultimately a failure — including a registered-for-upgrade
+ * incompatible handshake (`connectError` set) — even though
+ * `addManagedConnection` already succeeded and the endpoint is registered.
+ * A failed reconnect must never update {@link TunnelFailoverTracker} or
+ * notify: the tracker would otherwise record an endpoint the caller never
+ * actually got a working connection to, and a subsequent real reconnect
+ * could then silently skip a notification it should have shown (or vice
+ * versa). Exported so this ordering guard can be unit tested without
+ * constructing the full service.
+ */
+export function shouldTrackTunnelConnection(connectError: unknown): boolean {
+	return !connectError;
+}
+
+/**
+ * Retains the last successfully registered endpoint's server type per
+ * stable tunnel address (`tunnel:<tunnelId>`) so a later automatic
+ * reconnect for the same tunnel can detect a silent editor → standalone
+ * failover via {@link shouldNotifyTunnelFailover}. Entries are only ever
+ * written after a successful {@link IRemoteAgentHostService.addManagedConnection}
+ * registration and are deliberately never cleared on relay closure, so the
+ * comparison survives disconnect/reconnect cycles for the tunnel's
+ * lifetime. Exported (and kept free of any IPC/protocol dependencies) so
+ * the retention + decision behavior can be unit tested in isolation.
+ */
+export class TunnelFailoverTracker {
+	private readonly _lastSelectedServerType = new Map<string, TunnelGatewayServerType | 'unknown'>();
+
+	/**
+	 * Record a successful registration for `address` and report whether it
+	 * should trigger a failover notification. Always updates the retained
+	 * metadata, regardless of the returned value.
+	 */
+	recordAndShouldNotify(address: string, newServerType: TunnelGatewayServerType | 'unknown', userInitiated: boolean): boolean {
+		const previousServerType = this._lastSelectedServerType.get(address);
+		const notify = shouldNotifyTunnelFailover(previousServerType, newServerType, userInitiated);
+		this._lastSelectedServerType.set(address, newServerType);
+		return notify;
+	}
+}
 
 /**
  * Renderer-side implementation of {@link ITunnelAgentHostService} that
@@ -52,6 +202,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	/** Tracks which auth provider was last used successfully. */
 	private _lastAuthProvider: 'github' | 'microsoft' | undefined;
 
+	/** See {@link TunnelFailoverTracker}. */
+	private readonly _failoverTracker = new TunnelFailoverTracker();
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -62,6 +215,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -90,7 +246,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		return this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
 	}
 
-	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
@@ -103,7 +259,31 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${tunnel.name}' (${tunnel.tunnelId})`);
-		const result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+
+		// Protocol-v6 tunnels expose a registry-based endpoint selection
+		// gateway: prepare it first and resolve a target by the user's saved
+		// location preference before completing the connection. Protocol-v5
+		// tunnels have no gateway — `prepareSelection` returns `undefined`
+		// and we fall back to the legacy direct-connect path with no prompt.
+		const session = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		let result: ITunnelConnectResult;
+		if (session) {
+			const selection = await resolveGatewaySelection(this._locationPreferenceService, this._dialogService, {
+				hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
+				hostLabel: tunnel.name,
+				productName: this._productService.nameShort,
+				inventory: session.inventory,
+				userInitiated: options?.userInitiated ?? true,
+			});
+			if (!selection) {
+				this._logService.info(`${LOG_PREFIX} Agent host selection cancelled for tunnel '${tunnel.name}'`);
+				await this._mainService.cancelSelection(session.selectionId);
+				return;
+			}
+			result = await this._mainService.completeSelection(session.selectionId, selection);
+		} else {
+			result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		}
 		this._logService.info(`${LOG_PREFIX} Tunnel relay connected, connectionId=${result.connectionId}`);
 
 		// Build relay transport + protocol client. If construction itself
@@ -118,7 +298,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient, result.address, transport, undefined, undefined,
+				RemoteAgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 			);
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
@@ -169,9 +349,47 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			throw err;
 		}
 
-		if (connectError) {
+		if (!shouldTrackTunnelConnection(connectError)) {
 			throw connectError;
 		}
+
+		this._notifyIfTunnelFailover(result, options);
+	}
+
+	/**
+	 * After a successful {@link addManagedConnection} registration, compare
+	 * the newly selected endpoint's server type against the last one
+	 * successfully registered for this tunnel's stable address and, if this
+	 * was a silent editor → standalone failover, show a single informational
+	 * notification. Delegates the retention + decision to
+	 * {@link TunnelFailoverTracker}, which always records this connection
+	 * for future comparisons regardless of whether a notification was shown.
+	 */
+	private _notifyIfTunnelFailover(result: ITunnelConnectResult, options?: { readonly userInitiated?: boolean }): void {
+		const userInitiated = options?.userInitiated ?? true;
+		const shouldNotify = this._failoverTracker.recordAndShouldNotify(result.address, result.selected.serverType, userInitiated);
+		if (shouldNotify) {
+			this._notificationService.notify({
+				severity: Severity.Info,
+				message: localize(
+					'tunnelAgentHostFailoverNotification',
+					"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted.",
+				),
+			});
+		}
+	}
+
+	readonly canDeleteTunnels = true;
+
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
+		const auth = await this._getToken(false);
+		if (!auth) {
+			throw new Error('No authentication available');
+		}
+
+		this._logService.info(`${LOG_PREFIX} Deleting tunnel '${tunnel.name}' (${tunnel.tunnelId})`);
+		await this._mainService.deleteTunnel(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		this.removeCachedTunnel(tunnel.tunnelId);
 	}
 
 	async disconnect(address: string): Promise<void> {

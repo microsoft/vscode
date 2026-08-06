@@ -9,7 +9,7 @@
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo, URI } from '../common/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type ToolCallRiskAssessment, type Turn } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -158,8 +158,8 @@ export interface ChatToolCallStartAction extends ToolCallActionBase {
  */
 export interface ChatToolCallDeltaAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallDelta;
-	/** Partial parameter content to append */
-	content: string;
+	/** Partial parameter content to append, if provided by the host. */
+	content?: string;
 	/** Updated progress message */
 	invocationMessage?: StringOrMarkdown;
 }
@@ -184,10 +184,20 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
  */
 export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallReady;
+	/**
+	 * Final contributor metadata. MUST NOT change execution ownership established
+	 * at `chat/toolCallStart`; a client contributor must keep the same `clientId`.
+	 */
+	contributor?: ToolCallContributor;
+	/**
+	 * Final human-readable description of what the tool invocation intends to do.
+	 * When present, replaces the provisional intention from `chat/toolCallStart`.
+	 */
+	intention?: string;
 	/** Message describing what the tool will do or what confirmation is needed */
 	invocationMessage: StringOrMarkdown;
-	/** Raw tool input */
-	toolInput?: string;
+	/** Final tool input */
+	toolInput?: ToolInput;
 	/** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
 	confirmationTitle?: StringOrMarkdown;
 	/** Risk assessment that informed the confirmation requirement. */
@@ -220,7 +230,13 @@ export interface ChatToolCallApprovedAction extends ToolCallActionBase {
 	approved: true;
 	/** How the tool was confirmed */
 	confirmed: ToolCallConfirmationReason;
-	/** Edited tool input parameters, if the client modified them before confirming */
+	/**
+	 * Edited tool input parameters, if the client modified them before confirming.
+	 *
+	 * For inline `toolInput`, the reducer replaces the state value directly.
+	 * For referenced input, the host MUST replace the resource contents before
+	 * echoing the accepted action.
+	 */
 	editedToolInput?: string;
 	/** ID of the selected confirmation option, if the server provided options */
 	selectedOptionId?: string;

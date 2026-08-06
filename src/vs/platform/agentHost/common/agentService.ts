@@ -15,13 +15,14 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -51,6 +52,51 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
+
+/**
+ * Configuration key gating multiple-working-directory support for the Copilot
+ * agent-host provider. When `true`, the Copilot provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Hidden from the Settings UI and
+ * off by default while the feature is dogfooded; the agent host re-advertises
+ * on change, so newly created sessions pick it up without a restart.
+ */
+export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
+
+/**
+ * Configuration key gating multiple-working-directory support for the Claude
+ * agent-host provider. When `true`, the Claude provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Independent of
+ * {@link AgentHostCopilotMultiRootEnabledSettingId} because the Claude Agent SDK
+ * already supports additional directories while the Copilot SDK does not. Hidden
+ * from the Settings UI and off by default while the feature is dogfooded; the
+ * agent host re-advertises on change, so newly created sessions pick it up
+ * without a restart.
+ */
+export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
+
+/**
+ * Configuration key gating multiple-working-directory support for the Codex
+ * agent-host provider. Hidden from the Settings UI and off by default while the
+ * feature is dogfooded.
+ */
+export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
+
+/**
+ * Experimentation setting id gating the conditional agent-window auth feature.
+ * When `true`, a session type that is usable without GitHub (e.g. Claude in
+ * native mode with an existing local setup) lets the agent window open for a
+ * signed-out user instead of forcing GitHub sign-in.
+ *
+ * This is the **workbench** VS Code setting id. The workbench registers the
+ * configuration schema and forwards the value into the agent-host root config
+ * under the short key `AgentHostConfigKey.AllowSignedOutWhenUsable`, which the
+ * Claude provider reads node-side via `getRootValue`. Until it is wired and
+ * enabled the root key is absent, so it reads `false` and behavior is identical
+ * to today.
+ */
+export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
 
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
@@ -177,15 +223,13 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
 /**
  * Selects which Claude integration fulfills Claude sessions opened from the
  * **Agents Window**:
- *  - `true` — Claude is provided by the agent host process.
- *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *  - `true` (default) — Claude is provided by the agent host process.
+ *  - `false` — Claude is provided by the GitHub Copilot Chat extension.
  *
- * The agent host always registers Claude when its SDK is reachable; this
- * setting only controls whether the per-window bridge in
- * `AgentHostContribution` actually surfaces the AH provider in the Agents
- * Window. The extension's `chatSessions` contribution mirrors the rule
- * declaratively (its `when` clause hides the EH provider when this is `true`),
- * so flipping the setting takes effect live without a window reload.
+ * When Agent Host is enabled, this controls whether the per-window bridge in
+ * `AgentHostContribution` surfaces the AH provider in the Agents Window. The
+ * extension's `chatSessions` contribution mirrors the rule declaratively and
+ * remains visible when Agent Host is unavailable.
  *
  * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
  * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
@@ -725,12 +769,12 @@ export interface IAgentSessionMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
-	readonly workingDirectory?: URI;
-	readonly isRead?: boolean;
-	readonly isArchived?: boolean;
+	/** All working directories available to the session (index 0 = primary). */
+	readonly workingDirectories?: readonly URI[];
 	/**
 	 * Aggregate counts (additions / deletions / files) describing the
 	 * `changeKind: 'session'` changeset for this session — the chip
@@ -767,8 +811,19 @@ export interface IAgentSessionProjectInfo {
 export interface IAgentCreateSessionResult {
 	readonly session: URI;
 	readonly project?: IAgentSessionProjectInfo;
-	/** The resolved working directory, which may differ from the requested one (e.g. worktree). */
-	readonly workingDirectory?: URI;
+	/**
+	 * The single working directory the provider resolved for this session — its
+	 * process root. This may differ from the requested primary (e.g. a
+	 * workspace-less session runs in a provider-assigned scratch dir). It is NOT
+	 * the full multi-root set: a provider only resolves the one directory its
+	 * subprocess launches in. The host assembles the session's set by replacing
+	 * the requested primary (index 0) with this value while keeping the requested
+	 * tail. Worktree remaps and the fully-resolved set land later, on the first
+	 * send, via {@link IAgentMaterializeSessionEvent.workingDirectories}.
+	 * `undefined` means the provider did not resolve a directory (the host keeps
+	 * the requested set as-is).
+	 */
+	readonly resolvedWorkingDirectory?: URI;
 	/**
 	 * `true` when the agent only allocated an in-memory placeholder for this
 	 * session (no SDK session, no worktree, no on-disk state). Materialization
@@ -788,7 +843,14 @@ export interface IAgentCreateSessionResult {
  */
 export interface IAgentMaterializeSessionEvent {
 	readonly session: URI;
-	readonly workingDirectory: URI | undefined;
+	/**
+	 * The complete resolved working-directory set (index 0 = the resolved process
+	 * root, e.g. a worktree). The host replaces index 0 of the current session set
+	 * with this set's index 0 while preserving the rest of the current set — the
+	 * resume path can only report the single process cwd, so its tail is owned
+	 * by the restored session state.
+	 */
+	readonly workingDirectories: readonly URI[] | undefined;
 	readonly project: IAgentSessionProjectInfo | undefined;
 }
 
@@ -897,16 +959,48 @@ export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 	required: false,
 };
 
+/**
+ * Pure decision: does this set of advertised protected resources require the
+ * user to be signed in to GitHub Copilot right now?
+ *
+ * Returns `true` iff the agent advertises the canonical GitHub Copilot
+ * protected resource ({@link GITHUB_COPILOT_PROTECTED_RESOURCE}) with
+ * `required !== false`. Provider-agnostic by design: an agent that drops the
+ * resource entirely (e.g. Claude in native mode) or advertises it with
+ * `required: false` (e.g. Codex on OpenAI) does not require a GitHub sign-in.
+ *
+ * An absent `required` field is treated the same as `true` (see
+ * {@link ProtectedResourceMetadata.required}).
+ */
+export function protectedResourcesRequireGitHubCopilotSignIn(resources: readonly ProtectedResourceMetadata[]): boolean {
+	return resources.some(resource =>
+		resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource && resource.required !== false);
+}
+
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
+	readonly _meta?: Record<string, unknown>;
 	/**
 	 * Initial custom agent selection for the new session. Omit to start with
 	 * no custom agent selected (provider default behavior).
 	 */
 	readonly agent?: AgentSelection;
 	readonly session?: URI;
-	readonly workingDirectory?: URI;
+	/**
+	 * The working directories the session's agent is granted tool access to,
+	 * ordered so that index 0 is the intended process root (the "primary").
+	 *
+	 * Distinct values:
+	 * - `undefined` — no directories requested (workspace-less inference applies);
+	 * - `[]` — explicitly no directories;
+	 * - `[dir, …]` — the ordered set (index 0 = primary/process root).
+	 *
+	 * A client MUST NOT supply more than one entry unless the agent advertises
+	 * the `multipleWorkingDirectories` capability (not advertised yet). During
+	 * the compatibility phase callers supply exactly one directory (`[dir]`).
+	 */
+	readonly workingDirectories?: readonly URI[];
 	readonly config?: Record<string, unknown>;
 	/**
 	 * Eagerly claim the active client role for the new session. When provided,
@@ -965,6 +1059,12 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+	/**
+	 * Create this new chat as a side chat branching from a turn in an existing
+	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
+	 * and must not appear in the chat's visible history.
+	 */
+	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
 
 /** Identifies a source chat and turn to fork a new chat from. */
@@ -979,6 +1079,30 @@ export interface IAgentCreateChatForkSource {
 	 * ID mappings) in the forked chat's database.
 	 */
 	readonly turnIdMapping?: ReadonlyMap<string, string>;
+}
+
+/** Immutable selected-text snapshot captured when a side chat is created. */
+export interface IAgentCreateChatSideChatSelection {
+	/** Exact selected-text snapshot captured at side-chat creation time. */
+	readonly text: string;
+	/** Optional provenance for the response part that contained {@link text}. */
+	readonly responsePartId?: string;
+}
+
+/** Identifies a source chat and turn a side chat (`/btw`) branches from. */
+export interface IAgentCreateChatSideChatSource {
+	/** URI of the existing chat the side chat branches from. */
+	readonly source: URI;
+	/** Turn ID in the source chat the side chat records as its provenance. */
+	readonly turnId: string;
+	/** Optional selected-text snapshot captured from the source chat transcript. */
+	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
+	readonly providerAnchorTurnId?: string;
+	/** Bounded source-chat context captured from host state when the provider transcript lags. */
+	readonly sourceContext?: string;
+	/** User-visible assistant text captured while the source turn was active. */
+	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -1071,9 +1195,9 @@ export function subagentChatTitle(taskDescription: string | undefined, agentDisp
 }
 
 /**
- * Maps agent `subagent_*` signals to the unified chat catalog's
- * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
- * subagent membership has one derivation.
+ * Maps agent `subagent_started` signals to the unified chat catalog's spawn
+ * events. Shared by the agents' spawn bridges and the orchestrator so subagent
+ * membership has one derivation.
  */
 export namespace SubagentChatSignal {
 
@@ -1152,10 +1276,13 @@ export interface IAgentChats {
 	disposeChat(chat: URI): Promise<void>;
 
 	/**
-	 * Send a user message into `chat`; on first send, the host passes the resolved
-	 * working directory (or `undefined` for workspace-less sessions).
+	 * Send a user message into `chat`. On every send, the host passes the complete
+	 * resolved, ordered working-directory snapshot (index 0 = the process root /
+	 * resolved worktree, followed by any additional roots), or `undefined` for
+	 * workspace-less sessions. Providers must make that snapshot effective before
+	 * the prompt enters their runtime.
 	 */
-	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
@@ -1214,6 +1341,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentResumedSignal
 	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
@@ -1256,15 +1384,26 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
+	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
+	 */
+	readonly managedApprovalRequired?: boolean;
 	/**
 	 * Host-only flag (not part of the dispatched action): the model requested
 	 * this shell command run OUTSIDE the sandbox (and the host opted in via
 	 * `sandbox.allowBypass`).
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only shell language for terminal auto-approval.
+	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;
+	 * missing requires explicit confirmation.
+	 */
+	readonly shellLanguage?: 'bash' | 'powershell';
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
@@ -1326,11 +1465,19 @@ export interface IAgentSubagentStartedSignal {
 }
 
 /**
- * A subagent has finished — either successfully or with an error. The host
- * uses this to tear down the child session after all of its events have been
- * routed. The parent tool call completing is not a reliable signal for this
- * because background subagents (e.g. Copilot's `mode: background` task) keep
- * emitting events after their parent tool call returns immediately.
+ * A previously completed subagent started another turn after being steered.
+ */
+export interface IAgentSubagentResumedSignal {
+	readonly kind: 'subagent_resumed';
+	readonly chat: URI;
+	readonly toolCallId: string;
+	readonly message?: Message;
+}
+
+/**
+ * A subagent turn has finished — either successfully or with an error. The
+ * child chat and its routing remain live because the same subagent can be
+ * steered into another turn.
  */
 export interface IAgentSubagentCompletedSignal {
 	readonly kind: 'subagent_completed';
@@ -1456,6 +1603,15 @@ export interface IAgent {
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
 	/**
+	 * Fires (debounced) when the provider's on-disk session set may have changed
+	 * out of band (e.g. a legacy Copilot CLI session was created by the extension
+	 * host while the window is open). The {@link IAgentService} responds by
+	 * announcing any adoptable-legacy sessions not yet known to clients. Optional:
+	 * providers that cannot detect out-of-band changes omit it.
+	 */
+	readonly onDidChangeSessionList?: Event<void>;
+
+	/**
 	 * Provides the agent host's server-tool host so the provider can advertise
 	 * and execute the agent host's server tools (feedback "comments" today, more
 	 * in the future) against a session's state. Optional: providers that do not
@@ -1480,6 +1636,17 @@ export interface IAgent {
 
 	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
+
+	/**
+	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
+	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
+	 * no agent-host metadata yet, seed that metadata in place — reusing the event
+	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
+	 * it newly adopted the session (so the caller can run a one-time checkpoint
+	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
+	 * format omit it.
+	 */
+	ensureSessionAdopted?(session: URI): Promise<boolean>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
@@ -1540,16 +1707,16 @@ export interface IAgent {
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
 
 	/**
-	 * Called when the session's pending (steering) message changes.
+	 * Called when a chat's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
-	 * peer chat's URI), the steering targets that chat's chat rather
-	 * than the session's default chat.
+	 * mid-turn via `mode: 'immediate'`. Steering is always addressed by a
+	 * concrete chat channel URI — the session's default chat or an additional
+	 * peer chat — so it never leaks into a sibling chat of the same session.
 	 *
 	 * Queued messages are consumed on the server side and are not
 	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
-	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void;
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
 	/**
 	 * Retrieve the reconstructed turns for a session, used when restoring
@@ -1596,6 +1763,19 @@ export interface IAgent {
 
 	/** Available models from this provider. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Re-enumerate this provider's model list and publish the result to
+	 * {@link models}. Called both on provider-owned triggers (authentication,
+	 * transport changes) and periodically by the host's model-refresh
+	 * scheduler, so implementations MUST coalesce concurrent calls into a
+	 * single backend request and MUST NOT reject: a failed refresh is logged
+	 * and leaves the last known-good list in place.
+	 *
+	 * Optional so providers without a dynamic model catalog (mocks, test
+	 * agents) need not implement it.
+	 */
+	refreshModels?(): Promise<void>;
 
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -1951,7 +2131,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -2203,6 +2383,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Start connecting to the agent host if it has not already started. */
+	startAgentHost(): void;
 
 	restartAgentHost(): Promise<void>;
 

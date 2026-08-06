@@ -266,6 +266,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private rightContent!: HTMLElement;
 
 	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
+	private readonly customMenubarDisposables = this._register(new DisposableStore());
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
@@ -277,6 +278,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private actionToolBarElement!: HTMLElement;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
 	private centerAdjacentToolBarElement: HTMLElement | undefined;
+	private readonly updateToolBarDisposable = this._register(new DisposableStore());
+	private updateToolBarElement: HTMLElement | undefined;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -429,18 +432,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return; // If the menubar is already installed, skip
 		}
 
-		this.customMenubar.value = this.instantiationService.createInstance(CustomMenubarControl);
+		const customMenubar = this.instantiationService.createInstance(CustomMenubarControl);
+		this.customMenubar.value = customMenubar;
 
 		this.menubar = append(this.leftContent, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');
 
-		this._register(this.customMenubar.value.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this.customMenubarDisposables.add(customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 
-		this.customMenubar.value.create(this.menubar);
+		customMenubar.create(this.menubar);
 	}
 
 	private uninstallMenubar(): void {
-		this.customMenubar.value = undefined;
+		this.customMenubarDisposables.clear();
+		this.customMenubar.clear();
 
 		this.menubar?.remove();
 		this.menubar = undefined;
@@ -511,7 +516,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}));
 
 			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
-			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateCenterAdjacentToolBarOverflow()));
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
 		// Create Toolbar Actions
@@ -519,6 +524,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
+		}
+
+		// Update Toolbar
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
+			this.updateToolBarElement = updateToolBarElement;
+			const updateToolBar = this.updateToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, MenuId.TitleBarUpdate, {
+				contextMenu: MenuId.TitleBarContext,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: {
+					primaryGroup: () => true,
+				},
+				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
+				hoverDelegate: this.hoverDelegate
+			}));
+
+			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
 		// Window Controls Container
@@ -919,30 +941,27 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		super.layoutContents(width, height);
 
 		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
-		this.updateCenterAdjacentToolBarOverflow();
+		this.updateTitleBarToolBarOverflow();
 	}
 
 	/**
-	 * Hides the optional center-adjacent toolbar (e.g. the update indicator) when showing it would push the title bar
-	 * content—most notably the trailing window controls—off-screen as the window is collapsed horizontally (#303222).
-	 * Overflow is measured against actual rendered widths so the toolbar stays visible whenever it fits.
+	 * Hides optional title bar toolbars when showing them would push the trailing window controls off-screen (#303222).
 	 */
-	private updateCenterAdjacentToolBarOverflow(): void {
-		const element = this.centerAdjacentToolBarElement;
-		if (!element) {
+	private updateTitleBarToolBarOverflow(): void {
+		const centerAdjacentToolBarElement = this.centerAdjacentToolBarElement?.classList.contains('has-no-actions') ? undefined : this.centerAdjacentToolBarElement;
+		const updateToolBarElement = this.updateToolBarElement?.classList.contains('has-no-actions') ? undefined : this.updateToolBarElement;
+
+		this.centerAdjacentToolBarElement?.classList.remove('overflowing');
+		this.updateToolBarElement?.classList.remove('overflowing');
+
+		if (this.rootContainer.scrollWidth <= this.rootContainer.clientWidth) {
 			return;
 		}
 
-		// Skip measuring (and its forced reflow) when the toolbar is empty, which is the common case.
-		if (element.classList.contains('has-no-actions')) {
-			element.classList.remove('overflowing');
-			return;
+		centerAdjacentToolBarElement?.classList.add('overflowing');
+		if (this.rootContainer.scrollWidth > this.rootContainer.clientWidth) {
+			updateToolBarElement?.classList.add('overflowing');
 		}
-
-		// Measure from the visible state, then hide again if the title bar content overflows its width.
-		element.classList.remove('overflowing');
-		const overflows = this.rootContainer.scrollWidth > this.rootContainer.clientWidth;
-		element.classList.toggle('overflowing', overflows);
 	}
 
 	private updateLayout(dimension: Dimension): void {

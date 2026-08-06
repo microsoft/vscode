@@ -96,27 +96,34 @@
 }
 
 /* Body row: description + actions inline */
-/* Markdown-rendered title: keep the title inline (no block <p> margins). */
-.chat-input-notification .chat-input-notification-title-markdown {
+/* Markdown-rendered title/description: keep the text inline (no block <p> margins). */
+.chat-input-notification .chat-input-notification-title-markdown,
+.chat-input-notification .chat-input-notification-description-markdown {
 	display: inline;
 }
 
-.chat-input-notification .chat-input-notification-title-markdown > p {
+.chat-input-notification .chat-input-notification-title-markdown > p,
+.chat-input-notification .chat-input-notification-description-markdown > p {
 	display: inline;
 	margin: 0;
 }
 
 .chat-input-notification .chat-input-notification-title-markdown a,
-.chat-input-notification .chat-input-notification-title-markdown a:visited {
+.chat-input-notification .chat-input-notification-title-markdown a:visited,
+.chat-input-notification .chat-input-notification-description-markdown a,
+.chat-input-notification .chat-input-notification-description-markdown a:visited {
 	color: var(--vscode-textLink-foreground);
 }
 
 .chat-input-notification .chat-input-notification-title-markdown a:hover,
-.chat-input-notification .chat-input-notification-title-markdown a:active {
+.chat-input-notification .chat-input-notification-title-markdown a:active,
+.chat-input-notification .chat-input-notification-description-markdown a:hover,
+.chat-input-notification .chat-input-notification-description-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.chat-input-notification .chat-input-notification-title-markdown code {
+.chat-input-notification .chat-input-notification-title-markdown code,
+.chat-input-notification .chat-input-notification-description-markdown code {
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 0 3px;

@@ -28,29 +28,33 @@
  * (not a child of the rows), so it stays pinned to the pane edge.
  *
  * The chat & agent-sessions UI is excluded: `ChatViewPane` adds the
- * `chat-viewpane` class directly onto its `.pane-body`.
+ * `chat-viewpane-container` class directly onto its `.pane`.
  */
 
 /* Header: inset the section title / actions to line up with the rows below. */
-.style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
-	padding-left: var(--vscode-spacing-size40, 4px);
+.style-override .monaco-pane-view .pane:not(.chat-viewpane-container) > .pane-header {
+	padding-left: var(--vscode-spacing-size40);
 	padding-right: 0;
-	margin: 0 var(--vscode-spacing-size40, 4px);
+	margin: 0 var(--vscode-spacing-size40);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
 .style-override .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
-	left: var(--vscode-spacing-size40, 4px);
-	right: var(--vscode-spacing-size40, 4px);
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
 	width: auto;
 }
 
-/* Tighten the part title bar gutters: flush-left, small right inset. Reduce height from 35px to 32px.
- * KEEP IN SYNC WITH: part.ts PartLayout.TITLE_HEIGHT_STYLE_OVERRIDE */
-.style-override.monaco-workbench .part > .title {
+/* Tighten part chrome from 35px to 32px.
+ * KEEP IN SYNC WITH: part.ts PartLayout.AREA_HEIGHT_STYLE_OVERRIDE */
+.style-override.monaco-workbench .part > .title,
+.style-override.monaco-workbench .part > .header-or-footer {
 	height: 32px;
-	padding-left: var(--vscode-spacing-size40, 4px);
-	padding-right: var(--vscode-spacing-size40, 4px);
+}
+
+.style-override.monaco-workbench .part > .title {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .part > .title > .title-label {
@@ -59,7 +63,7 @@
 
 .style-override.monaco-workbench .part > .title > .title-actions {
 	height: 32px;
-	padding-left: 4px;
+	padding-left: var(--vscode-spacing-size40);
 }
 
 /*
@@ -67,12 +71,12 @@
  * configuration dropdown) the extra room by letting the actions grow while the
  * title label stays non-greedy.
  */
-.style-override.monaco-workbench .part > .title:has(.start-debug-action-item) > .title-actions {
+.style-override.monaco-workbench .part > .title.has-start-debug-action-item > .title-actions {
 	flex: 2;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-	padding: 0 4px;
+	padding: 0 var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .actions-container > li:last-child,
@@ -96,15 +100,15 @@
  * except in the Run and Debug view where the header actions (play button +
  * launch configuration dropdown) need the horizontal space instead.
  */
-.style-override.monaco-workbench .part > .title:not(:has(.start-debug-action-item)) > .title-label {
+.style-override.monaco-workbench .part > .title:not(.has-start-debug-action-item) > .title-label {
 	flex: 2;
 }
 
 .style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
-	padding: 0 8px;
+	padding: 0 var(--vscode-spacing-size80);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row {
 	background-color: transparent;
 
 	> .monaco-tl-row {
@@ -112,27 +116,27 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:has(.agent-session-item) {
-	padding-bottom: var(--vscode-spacing-size40, 4px);
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-item-row {
+	padding-bottom: var(--vscode-spacing-size40);
 
 	.agent-session-item {
-		padding-block: var(--vscode-spacing-size60, 6px);
+		padding-block: var(--vscode-spacing-size60);
 
 		.agent-session-title-row {
-			padding-bottom: var(--vscode-spacing-size20, 2px);
+			padding-bottom: var(--vscode-spacing-size20);
 		}
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:has(.agent-session-section) {
-	padding-bottom: var(--vscode-spacing-size40, 4px);
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-section-row {
+	padding-bottom: var(--vscode-spacing-size40);
 
 	.agent-session-section {
 		line-height: 26px;
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:not(.drop-target).focused:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:not(.drop-target).focused {
 	background-color: transparent;
 	outline: none;
 
@@ -141,7 +145,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:not(.drop-target).selected:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:not(.drop-target).selected {
 	background-color: transparent;
 	outline: none;
 
@@ -150,7 +154,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row:not(.drop-target):hover:not(.selected):not(.focused):has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row.agent-session-list-row:not(.drop-target):hover:not(.selected):not(.focused) {
 	background-color: transparent;
 	outline: none;
 
@@ -159,7 +163,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row:not(.drop-target).focused:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row:not(.drop-target).focused {
 	background-color: transparent;
 	outline: none;
 
@@ -168,7 +172,7 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row:not(.drop-target).selected:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row:not(.drop-target).selected {
 	background-color: transparent;
 	outline: none;
 
@@ -177,61 +181,52 @@
 	}
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row:not(.drop-target).focused.selected:has(:is(.agent-session-item, .agent-session-section)) {
-	background-color: transparent;
-	outline: none;
-
-	> .monaco-tl-row {
-		background-color: var(--vscode-list-activeSelectionBackground);
-	}
-}
-
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:is(.focused, .selected):has(:is(.agent-session-item, .agent-session-section)),
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:hover:has(:is(.agent-session-item, .agent-session-section)) {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:is(.focused, .selected),
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:hover {
 	outline: none;
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.focused:has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
-	outline: 1px dotted var(--vscode-list-inactiveFocusOutline);
-	outline-offset: -1px;
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness) dotted var(--vscode-list-inactiveFocusOutline);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.focused.selected:has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.focused.selected > .monaco-tl-row {
 	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-list-inactiveFocusOutline));
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.focused:has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row,
-.context-menu-visible .style-override.monaco-workbench .agent-sessions-viewer .monaco-list.last-focused .monaco-list-row.focused:has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
-	outline: 1px solid var(--vscode-list-focusOutline);
-	outline-offset: -1px;
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row,
+.context-menu-visible .style-override.monaco-workbench .agent-sessions-viewer .monaco-list.last-focused .monaco-list-row.agent-session-list-row.focused > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.selected:not(.focused):has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
-	outline: 1px dotted var(--vscode-contrastActiveBorder);
-	outline-offset: -1px;
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row.selected:not(.focused) > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness) dotted var(--vscode-contrastActiveBorder);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row:hover:not(.focused):not(.selected):has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
-	outline: 1px dashed var(--vscode-contrastActiveBorder);
-	outline-offset: -1px;
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row:hover:not(.focused):not(.selected) > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.focused.selected:has(:is(.agent-session-item, .agent-session-section)) > .monaco-tl-row {
+.style-override.monaco-workbench .agent-sessions-viewer .monaco-list:focus .monaco-list-row.agent-session-list-row.focused.selected > .monaco-tl-row {
 	outline-color: var(--vscode-list-focusAndSelectionOutline, var(--vscode-contrastActiveBorder, var(--vscode-list-focusOutline)));
 }
 
 .style-override.monaco-workbench .chat-viewpane {
 	.agent-session-item .agent-session-title-toolbar .actions-container {
-		gap: 4px;
+		gap: var(--vscode-spacing-size40);
 	}
 	&.chat-view-location-auxiliarybar {
 		.chat-view-title-inner {
-			padding: var(--vscode-spacing-size40, 4px);
+			padding: var(--vscode-spacing-size40);
 		}
 	}
-	&.chat-view-location-sidebar, &.chat-view-location-panel {
+	&:is(.chat-view-location-sidebar, .chat-view-location-panel) {
 		.chat-view-title-inner {
-			padding: 0 var(--vscode-spacing-size40, 4px) 0 var(--vscode-spacing-size80, 8px);
+			padding: 0 var(--vscode-spacing-size40) 0 var(--vscode-spacing-size80);
 		}
 	}
 }
@@ -242,7 +237,7 @@
 
 .style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
 	.agent-sessions-title-container {
-		padding: 0 0 4px 12px;
+		padding: 0 0 var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 	}
 }
 
@@ -250,19 +245,20 @@
  * vertical activity bar a 4px bottom margin so they sit consistently above the
  * window edge, matching the pane header margins. */
 .style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
-	margin-bottom: calc(var(--vscode-spacing-size20, 2px) + var(--vscode-strokeThickness, 1px));
+	margin-bottom: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 }
 
-.style-override.monaco-workbench .part.basepanel.bottom .composite.title,
-.style-override.monaco-workbench .part.basepanel.top .composite.title,
-.style-override.monaco-workbench .part.basepanel.left .composite.title,
-.style-override.monaco-workbench .part.basepanel.right .composite.title {
-	padding-right: 4px;
+.style-override.monaco-workbench .part.basepanel:is(.bottom, .top, .left, .right) .composite.title {
+	padding-right: var(--vscode-spacing-size40);
 	overflow: visible;
 }
 
 .style-override.monaco-workbench .quick-input-titlebar {
-	padding: 2px 0 0;
+	padding: var(--vscode-spacing-size20) 0 0;
+}
+
+.style-override.monaco-workbench .quick-input-widget-overlay .quick-input-titlebar {
+	padding-top: 0;
 }
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar {
@@ -270,7 +266,7 @@
 }
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry {
-	padding: 0 4px;
+	padding: 0 var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-entry-keybinding {
@@ -279,31 +275,31 @@
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar .action-label:last-child {
 	margin-right: 0;
-	margin-left: 4px;
+	margin-left: var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
 	margin-right: 0;
-	margin-left: 4px;
+	margin-left: var(--vscode-spacing-size40);
 }
 .style-override.monaco-workbench .scm-view .monaco-tl-contents > div {
-	padding-right: 4px;
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .search-view .search-widgets-container {
-	margin: 0px 8px 0 2px;
+	margin: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size20);
 }
 
 .style-override.monaco-workbench .extensions-viewlet > .header {
-	padding: 4px 8px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 }
 
 .style-override.monaco-workbench .extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper {
-	margin-right: 6px;
+	margin-right: var(--vscode-spacing-size60);
 }
 
 .style-override.monaco-workbench .monaco-count-badge {
-	padding: 4px 6px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 	min-width: 19px;
 	min-height: 19px;
 }
@@ -325,20 +321,20 @@
  * padding).
  */
 .style-override.monaco-workbench .part.panel .pane-body.integrated-terminal .xterm {
-	padding-bottom: var(--vscode-spacing-size80, 8px);
+	padding-bottom: var(--vscode-spacing-size80);
 }
 
 .style-override.monaco-workbench .scm-view .monaco-list-row .resource-group .actions-container,
 .style-override.monaco-workbench .scm-view .monaco-list-row .resource .actions-container {
-	gap: 2px;
+	gap: var(--vscode-spacing-size20);
 }
 
 .style-override.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	margin-right: 4px;
+	margin-right: var(--vscode-spacing-size40);
 }
 
 .style-override.monaco-workbench .monaco-count-badge.long {
-	padding: 2px 4px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	min-height: 18px;
 }
 
@@ -347,7 +343,7 @@
 }
 
 .style-override.monaco-workbench .sidebar .has-composite-bar.header-or-footer .monaco-action-bar .actions-container {
-	gap: 2px;
+	gap: var(--vscode-spacing-size20);
 }
 
 .style-override.monaco-workbench .monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {

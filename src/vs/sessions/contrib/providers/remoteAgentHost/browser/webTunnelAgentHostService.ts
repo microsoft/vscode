@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -154,7 +155,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport, undefined, undefined,
+			RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 		);
 
 		// Keep an incompatible handshake from tearing down the relay: the
@@ -205,6 +206,20 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		if (connectError) {
 			throw connectError;
 		}
+	}
+
+	get canDeleteTunnels(): boolean {
+		return !!this._discoveryProvider?.deleteTunnel;
+	}
+
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
+		const provider = this._discoveryProvider;
+		if (!provider?.deleteTunnel) {
+			throw new Error('Deleting dev tunnels is not supported by the tunnel discovery provider.');
+		}
+
+		await provider.deleteTunnel(tunnel.tunnelId, tunnel.clusterId);
+		this.removeCachedTunnel(tunnel.tunnelId);
 	}
 
 	async disconnect(address: string): Promise<void> {

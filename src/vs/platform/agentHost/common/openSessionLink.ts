@@ -5,6 +5,8 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { AgentSession } from './agentService.js';
+import { SessionServerToolName } from './serverToolNames.js';
+import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
 
 /**
  * Dedicated URI scheme for "open this session" links surfaced in agent/tool
@@ -18,15 +20,6 @@ import { AgentSession } from './agentService.js';
  */
 export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
 
-/** Name of the `create_session` server tool. */
-export const CREATE_SESSION_TOOL_NAME = 'create_session';
-
-/** Name of the `create_chat` server tool. */
-export const CREATE_CHAT_TOOL_NAME = 'create_chat';
-
-/** Name of the `send_message` server tool. */
-export const SEND_MESSAGE_TOOL_NAME = 'send_message';
-
 /**
  * Whether {@link toolName} (as seen on a tool call) matches {@link bareName}.
  * Accepts the bare name and a transport prefix such as Claude's
@@ -38,20 +31,30 @@ function matchesToolName(toolName: string, bareName: string): boolean {
 
 /** Whether {@link toolName} refers to the `create_session` server tool. */
 export function isCreateSessionTool(toolName: string): boolean {
-	return matchesToolName(toolName, CREATE_SESSION_TOOL_NAME);
+	return matchesToolName(toolName, SessionServerToolName.CreateSession);
 }
 
 /** Whether {@link toolName} refers to the `create_chat` server tool. */
 export function isCreateChatTool(toolName: string): boolean {
-	return matchesToolName(toolName, CREATE_CHAT_TOOL_NAME);
+	return matchesToolName(toolName, SessionServerToolName.CreateChat);
 }
 
 /** Whether {@link toolName} refers to the `send_message` server tool. */
 export function isSendMessageTool(toolName: string): boolean {
-	return matchesToolName(toolName, SEND_MESSAGE_TOOL_NAME);
+	return matchesToolName(toolName, SessionServerToolName.SendMessage);
 }
 
-/** Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link for a backend session URI. */
+/**
+ * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link for a backend session URI.
+ *
+ * Normalizes the default chat: when {@link chatId} is {@link DEFAULT_CHAT_ID}
+ * the link is emitted **without** a `chat=` query param. The Agents window gives
+ * the default chat a resource with no URI fragment and the link opener selects a
+ * chat by exact URI equality, so a link carrying `chat=default` would open the
+ * session but match no chat. Omitting the id for the default chat is an
+ * ecosystem-wide invariant (an absent chat id already means "the default chat"),
+ * so it is enforced here once rather than at each call site.
+ */
 export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string): string {
 	const provider = AgentSession.provider(backendSession);
 	const rawId = AgentSession.id(backendSession);
@@ -59,7 +62,7 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
 		throw new Error(`Cannot build open-session link: missing provider in ${backendSession.toString()}`);
 	}
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
-	return chatId ? `${base}?chat=${encodeURIComponent(chatId)}` : base;
+	return chatId && chatId !== DEFAULT_CHAT_ID ? `${base}?chat=${encodeURIComponent(chatId)}` : base;
 }
 
 /**
@@ -81,6 +84,12 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 /**
  * Recovers the target chat id carried by an {@link AGENT_HOST_SESSION_LINK_SCHEME}
  * link (from `create_chat`), or `undefined` when the link targets a whole session.
+ *
+ * Defense in depth against externally-authored links: a `chat=default` param is
+ * treated as absent (returns `undefined`). The default chat is addressed by its
+ * session with no chat id, so surfacing `default` here would produce a chat
+ * resource that matches no open chat; collapsing it to `undefined` keeps such
+ * links resolving to the default chat.
  */
 export function parseOpenSessionLinkChatId(uri: URI | string): string | undefined {
 	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
@@ -88,5 +97,28 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 		return undefined;
 	}
 	const match = /(?:^|&)chat=([^&]+)/.exec(parsed.query);
-	return match ? decodeURIComponent(match[1]) : undefined;
+	const chatId = match ? decodeURIComponent(match[1]) : undefined;
+	return chatId === DEFAULT_CHAT_ID ? undefined : chatId;
+}
+
+/**
+ * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link that opens the chat
+ * identified by an AHP chat channel URI (`ahp-chat://...`) or a bare backend
+ * session URI. Peer chats carry their chat id so the link opens that specific
+ * chat; the default chat is normalized by {@link buildOpenSessionLinkUri} to a
+ * session-only link (no chat id). Returns `undefined` when {@link chatResource}
+ * cannot be parsed into a session link.
+ *
+ * This mirrors the link the host builds when resolving chat attachments so the
+ * chat-reference chip in the input opens the exact same target.
+ */
+export function buildOpenSessionLinkForChatResource(chatResource: URI | string): string | undefined {
+	try {
+		const resourceStr = typeof chatResource === 'string' ? chatResource : chatResource.toString();
+		const parsedChat = isAhpChatChannel(resourceStr) ? parseChatUri(resourceStr) : undefined;
+		const sourceSession = parsedChat ? parsedChat.session : URI.parse(resourceStr).toString();
+		return buildOpenSessionLinkUri(sourceSession, parsedChat?.chatId);
+	} catch {
+		return undefined;
+	}
 }

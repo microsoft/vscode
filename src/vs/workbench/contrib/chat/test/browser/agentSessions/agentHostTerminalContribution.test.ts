@@ -215,7 +215,7 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled) });
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
@@ -245,7 +245,7 @@ suite('AgentHostTerminalContribution', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not dispatch when chat.agentHost.enabled is false', async () => {
+	test('does not dispatch when Agent Host is unavailable', async () => {
 		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ false);
 
 		// Even with a fully-hydrated rootState, nothing should fire because
@@ -526,4 +526,3 @@ suite('AgentHostTerminalContribution', () => {
 		});
 	});
 });
-

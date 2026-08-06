@@ -28,6 +28,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { PendingNotificationToasts } from './pendingNotificationToasts.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -72,6 +74,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	private readonly pendingToasts: PendingNotificationToasts<INotificationViewItem>;
 
 	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
@@ -93,8 +96,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		super(themeService);
 
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
+		this.pendingToasts = this._register(new PendingNotificationToasts(
+			item => this.model.notifications.includes(item),
+			(item, other) => item.equals(other),
+			callback => scheduleAtNextAnimationFrame(getWindow(this.container), callback)
+		));
+		this._register(toDisposable(() => this.removeToasts()));
+		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 
 		this.registerListeners();
+	}
+
+	private updateNotificationHeights(): void {
+		this.mapNotificationToToast.forEach(({ list }) => list.updateNotificationHeights());
+
+		const maxDimensions = this.computeMaxDimensions();
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private registerListeners(): void {
@@ -192,6 +211,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			}
 		}
 
+		if (this.pendingToasts.tryReplace(item)) {
+			return;
+		}
+
 		// Optimization: it is possible that a lot of notifications are being
 		// added in a very short time. To prevent this kind of spam, we protect
 		// against showing too many notifications at once. Since they can always
@@ -202,15 +225,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			return;
 		}
 
-		// Optimization: showing a notification toast can be expensive
-		// because of the associated animation. If the renderer is busy
-		// doing actual work, the animation can cause a lot of slowdown
-		// As such we use `scheduleAtNextAnimationFrame` to push out
-		// the toast until the renderer has time to process it.
-		// (see also https://github.com/microsoft/vscode/issues/107935)
-		const itemDisposables = new DisposableStore();
-		this.mapNotificationToDisposable.set(item, itemDisposables);
-		itemDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.container), () => this.doAddToast(item, itemDisposables)));
+		this.pendingToasts.add(item, (pendingItem, itemDisposables) => {
+			this.mapNotificationToDisposable.set(pendingItem, itemDisposables);
+			this.doAddToast(pendingItem, itemDisposables);
+		});
 	}
 
 	private isElementInNotificationQuarter(element: HTMLElement): boolean {
@@ -395,6 +413,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private removeToast(item: INotificationViewItem): void {
 		let focusEditor = false;
 
+		this.pendingToasts.remove(item);
+
 		// UI
 		const notificationToast = this.mapNotificationToToast.get(item);
 		if (notificationToast) {
@@ -431,6 +451,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private removeToasts(): void {
+
+		// Pending
+		this.pendingToasts.clear();
 
 		// Toast
 		this.mapNotificationToToast.clear();

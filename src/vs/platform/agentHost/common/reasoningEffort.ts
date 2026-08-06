@@ -6,6 +6,20 @@
 import { localize } from '../../../nls.js';
 
 /**
+ * Every reasoning-effort / thinking-level value surfaced by any agent-host
+ * provider, ordered from least to most effort.
+ *
+ * Consumers that need to recognize *any* advertised tier — notably the Copilot
+ * launcher's `isCopilotReasoningEffort`, which decides what the model picker
+ * offers — must derive from this list rather than repeat it. A private copy
+ * silently drops newly-added tiers from the picker (see the missing `'max'` in
+ * https://github.com/microsoft/vscode/pull/329167), and a `satisfies` check
+ * does not prevent that: it only verifies each entry is a valid level, not that
+ * every level is present.
+ */
+export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+/**
  * Union of every reasoning-effort / thinking-level value surfaced by any
  * agent-host provider. Individual providers expose a subset:
  * - Codex: `'minimal' | 'low' | 'medium' | 'high'`
@@ -15,7 +29,7 @@ import { localize } from '../../../nls.js';
  * the localized picker strings so every provider renders the same value
  * consistently.
  */
-export type ReasoningEffortLevel = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ReasoningEffortLevel = typeof reasoningEffortLevels[number];
 
 /**
  * Localized, title-cased picker label for a reasoning-effort value.
@@ -55,4 +69,21 @@ export function getReasoningEffortDescription(level: string): string | undefined
 		case 'max': return localize('reasoningEffort.maxDescription', "Absolute maximum capability with no constraints");
 		default: return undefined;
 	}
+}
+
+/**
+ * Resolve the default reasoning effort for a model so the picker never renders an
+ * `undefined` selection. Prefers the declared default, then `'high'` for Claude/Kimi K3
+ * and `'medium'` otherwise, then the first supported level.
+ */
+export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[] | undefined, declaredDefault?: string, modelId?: string): string | undefined {
+	if (!supportedEfforts?.length) {
+		return undefined;
+	}
+	if (declaredDefault && supportedEfforts.includes(declaredDefault)) {
+		return declaredDefault;
+	}
+	const lowerId = modelId?.toLowerCase() ?? '';
+	const preferred = lowerId.startsWith('claude') || lowerId.includes('kimi-k3') ? 'high' : 'medium';
+	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
 }

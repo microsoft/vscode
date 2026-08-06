@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { IProductService } from '../../product/common/productService.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
@@ -18,15 +21,23 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
+import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../common/remoteAgentHostLocationPreference.js';
+import { promptRemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreferenceDialog.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
+	computeSSHConnectionKey,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHConnectResult,
+	type ISSHEndpointCandidate,
+	type ISSHEndpointSelection,
+	type ISSHEndpointSelectionRequest,
 	type ISSHKeyboardInteractiveRequest,
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
@@ -56,7 +67,7 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
 	}
 }
 
@@ -77,6 +88,17 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
 
+	/**
+	 * The server type ('editor' or 'standalone') of the last successfully
+	 * established connection for a given (stable) connection address.
+	 * Deliberately NOT cleared when a connection closes (see
+	 * `onDidCloseConnection` below) — it needs to survive disconnect cleanup
+	 * so a later automatic reconnect can detect an editor→standalone
+	 * failover and surface a one-time notification. Only ever updated after
+	 * a connection has fully and successfully registered.
+	 */
+	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -84,6 +106,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -128,6 +154,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._register(this._mainService.onDidRequestKeyboardInteractive(request => {
 			this._handleKeyboardInteractiveRequest(request);
 		}));
+
+		// Bridge endpoint-selection requests (multiple live remote agent
+		// hosts found on the remote) to the stored per-host location
+		// preference, prompting with the shared preference modal only when
+		// no preference is stored and an editor-owned endpoint is live.
+		this._register(this._mainService.onDidRequestEndpointSelection(request => {
+			this._handleEndpointSelectionRequest(request);
+		}));
 	}
 
 	get connections(): readonly ISSHAgentHostConnection[] {
@@ -143,7 +177,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
-		return this._setupConnection(result);
+		return this._setupConnection(result, config.userInitiated ?? true);
 	}
 
 	async disconnect(host: string): Promise<void> {
@@ -166,16 +200,17 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		return this._mainService.resolveSSHConfig(host);
 	}
 
-	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
+	async reconnect(sshConfigHost: string, name: string, userInitiated?: boolean): Promise<ISSHAgentHostConnection> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
-		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward);
-		return this._setupConnection(result);
+		const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost }));
+		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated, preferredAgentLocation);
+		return this._setupConnection(result, userInitiated ?? true);
 	}
 
 	/**
@@ -183,7 +218,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * with IRemoteAgentHostService. Any failure after the shared-process tunnel
 	 * was established tears it back down so we don't leak it.
 	 */
-	private async _setupConnection(result: ISSHConnectResult): Promise<ISSHAgentHostConnection> {
+	private async _setupConnection(result: ISSHConnectResult, userInitiated: boolean): Promise<ISSHAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
 			// Reuse the existing handle only if the managed entry is still
@@ -233,6 +268,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			result.config,
 			result.address,
 			result.name,
+			result.serverType,
+			result.instanceId,
+			result.primary,
+			result.lifecycle,
 			() => this._mainService.disconnect(result.connectionId),
 		);
 
@@ -269,7 +308,40 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw connectError;
 		}
 
+		// Only track/notify for a fully successful setup — an incompatible
+		// handshake (connectError above) still registers a managed entry
+		// but isn't a usable connection, so it must not count as "reconnect
+		// succeeded" for failover-detection purposes.
+		this._recordEndpointSelection(result, userInitiated);
+
 		return handle;
+	}
+
+	/**
+	 * Update the last-known server type for {@link result.address}, and — if
+	 * this was an automatic/background reconnect (`userInitiated === false`)
+	 * that moved this stable remote address from a previously connected
+	 * `editor`-owned endpoint to a newly selected `standalone` endpoint —
+	 * surface a single informational notification. Never fires for the
+	 * initial connect to a remote (no prior recorded server type), a
+	 * user-initiated reconnect, or a same-kind transition
+	 * (editor→editor/standalone→standalone).
+	 */
+	private _recordEndpointSelection(result: ISSHConnectResult, userInitiated: boolean): void {
+		if (!result.serverType) {
+			return;
+		}
+		const previousServerType = this._lastConnectedServerTypeByAddress.get(result.address);
+		const isUnattendedFailoverFromEditor = userInitiated === false
+			&& previousServerType === 'editor'
+			&& result.serverType === 'standalone';
+		this._lastConnectedServerTypeByAddress.set(result.address, result.serverType);
+		if (isUnattendedFailoverFromEditor) {
+			this._notificationService.info(localize(
+				'sshEditorAgentHostReplacedByStandalone',
+				"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted."
+			));
+		}
 	}
 
 	/**
@@ -312,6 +384,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		// and the per-host SSH config `ForwardAgent yes` to be enabled.
 		if (this._isSSHAgentForwardingEnabled() && config.agentForward) {
 			result.agentForward = true;
+		}
+		// Thread the stored per-host location preference through to the main
+		// process so `selectEndpoint` can honor it directly — without ever
+		// emitting an endpoint-selection request — for both user-initiated
+		// and silent/background connects (see `ISSHAgentHostConfig.preferredAgentLocation`).
+		const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey(config));
+		if (preferredAgentLocation) {
+			result.preferredAgentLocation = preferredAgentLocation;
 		}
 		return result;
 	}
@@ -397,6 +477,96 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			cts.dispose();
 		}
 	}
+
+	/**
+	 * Resolve which live remote agent host endpoint (or "start a new one")
+	 * to connect to and forward the choice (or cancellation) back to the
+	 * main service. Consults the stored per-host {@link IRemoteAgentHostLocationPreferenceService}
+	 * preference for `request.connectionKey` first; only opens the shared
+	 * preference modal ({@link promptRemoteAgentHostLocationPreference})
+	 * when no preference is stored and an `editor`-owned endpoint is live,
+	 * since otherwise there's no ambiguity worth interrupting the user for.
+	 */
+	private async _handleEndpointSelectionRequest(request: ISSHEndpointSelectionRequest): Promise<void> {
+		this._logService.info(`[SSHRemoteAgentHost] Endpoint selection requested for ${request.displayHost} (${request.candidates.length} candidate(s))`);
+
+		const cts = new CancellationTokenSource();
+		const cancelListener = this._mainService.onDidCancelEndpointSelection(requestId => {
+			if (requestId === request.requestId) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const selection = await this._resolveEndpointSelection(request, cts.token);
+			await this._mainService.respondEndpointSelection(request.requestId, selection);
+		} catch (err) {
+			this._logService.error('[SSHRemoteAgentHost] Failed handling endpoint selection prompt', err);
+			try {
+				await this._mainService.respondEndpointSelection(request.requestId, undefined);
+			} catch { /* swallow */ }
+		} finally {
+			cancelListener.dispose();
+			cts.dispose();
+		}
+	}
+
+	/**
+	 * Apply the preference-resolution rules described on
+	 * {@link _handleEndpointSelectionRequest}. Returns `undefined` only when
+	 * the shared preference modal was shown and the user cancelled it.
+	 */
+	private async _resolveEndpointSelection(request: ISSHEndpointSelectionRequest, token: CancellationToken): Promise<ISSHEndpointSelection | undefined> {
+		const hasLiveEditor = request.candidates.some(candidate => candidate.type === 'editor');
+		const preference = this._locationPreferenceService.getPreference(request.connectionKey);
+
+		if (preference === 'editor') {
+			// Explicit consent to run in an editor. If none is live right
+			// now, fall back to a dedicated selection without touching the
+			// saved preference — see the class-level comment on
+			// `_lastConnectedServerTypeByAddress` for why a future connect
+			// should still be able to prefer an editor again.
+			return hasLiveEditor ? this._deterministicSelection(request.candidates, 'editor') : this._dedicatedSelection(request.candidates);
+		}
+
+		if (preference === 'dedicated') {
+			return this._dedicatedSelection(request.candidates);
+		}
+
+		if (!hasLiveEditor) {
+			// No stored preference and no editor to disambiguate against —
+			// nothing here can steal a session from another open window,
+			// so resolve silently without prompting.
+			return this._dedicatedSelection(request.candidates);
+		}
+
+		const chosen = await promptRemoteAgentHostLocationPreference(this._dialogService, request.displayHost, this._productService.nameShort, undefined, token);
+		if (token.isCancellationRequested || !chosen) {
+			return undefined;
+		}
+		this._locationPreferenceService.setPreference(request.connectionKey, chosen);
+		return chosen === 'editor' ? this._deterministicSelection(request.candidates, 'editor') : this._dedicatedSelection(request.candidates);
+	}
+
+	/** Reuse a live standalone endpoint if one exists, or spawn a new dedicated one. */
+	private _dedicatedSelection(candidates: readonly ISSHEndpointCandidate[]): ISSHEndpointSelection {
+		return this._deterministicSelection(candidates, 'standalone') ?? { kind: 'spawn' };
+	}
+
+	/**
+	 * Pick the candidate of `type` deterministically when several are live,
+	 * by sorting on `instanceId` so every renderer resolving the same
+	 * request (e.g. multiple open editor windows) converges on the same
+	 * choice without needing to coordinate.
+	 */
+	private _deterministicSelection(candidates: readonly ISSHEndpointCandidate[], type: AgentHostServerType): ISSHEndpointSelection | undefined {
+		const matching = candidates.filter(candidate => candidate.type === type);
+		if (matching.length === 0) {
+			return undefined;
+		}
+		const [chosen] = matching.slice().sort((a, b) => a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0);
+		return { kind: 'candidate', type: chosen.type, pid: chosen.pid, instanceId: chosen.instanceId };
+	}
 }
 
 /**
@@ -413,6 +583,10 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 		readonly config: ISSHAgentHostConnection['config'],
 		readonly localAddress: string,
 		readonly name: string,
+		readonly serverType: ISSHAgentHostConnection['serverType'],
+		readonly instanceId: ISSHAgentHostConnection['instanceId'],
+		readonly primary: ISSHAgentHostConnection['primary'],
+		readonly lifecycle: ISSHAgentHostConnection['lifecycle'],
 		disconnectFn: () => Promise<void>,
 	) {
 		super();

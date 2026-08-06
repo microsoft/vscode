@@ -6,14 +6,91 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
+
+/**
+ * Computes the ordered working-directory set for a new agent-host session:
+ * `[primary, …otherWorkspaceFolders]`, with the primary at index 0. The other
+ * workspace folders are included only when the primary is itself a workspace
+ * folder and `provider` advertises the `multipleWorkingDirectories` capability
+ * in `rootState`; otherwise (single-folder workspace, a standalone primary,
+ * unadvertised capability, or an unavailable root state) just `[primary]` is
+ * returned. Support is opt-in per the {@link AgentCapabilities} convention, and
+ * the node-side guard remains the authoritative backstop. Returns `undefined`
+ * when no primary was chosen.
+ */
+export function computeWorkingDirectories(primary: URI | undefined, workspaceFolders: readonly URI[], rootState: RootState | Error | undefined, provider: string): readonly URI[] | undefined {
+	if (!primary) {
+		return undefined;
+	}
+	const supportsMultiple = supportsMultipleWorkingDirectories(rootState, provider);
+	if (!supportsMultiple || !workspaceFolders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, primary))) {
+		return [primary];
+	}
+	return computeDesiredWorkingDirectories(primary, [primary], workspaceFolders);
+}
+
+export function supportsMultipleWorkingDirectories(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return !!agent?.capabilities?.multipleWorkingDirectories;
+}
+
+/**
+ * Whether `provider` pins its first working directory as a fixed process root
+ * (`multipleWorkingDirectories.immutablePrimary`). Agents without it treat every
+ * working directory as an equal peer.
+ */
+export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * Computes the working-directory set a session should have for the current
+ * workspace, as `[primary, ...secondaries]`.
+ *
+ * A secondary is kept only while it remains a workspace folder, so folders the
+ * user removed drop out. Folders the user added are appended. The primary is
+ * never dropped, even when it is no longer a workspace folder — an agent's
+ * process root is fixed once the session starts.
+ *
+ * Ordering is stable rather than meaningful: retained secondaries keep their
+ * existing order and newly added folders follow workspace order, so an
+ * unchanged workspace always recomputes an identical set.
+ */
+export function computeDesiredWorkingDirectories(
+	primary: URI,
+	currentWorkingDirectories: readonly URI[],
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri = extUriBiasedIgnorePathCase,
+): readonly URI[] {
+	const desired: URI[] = [primary];
+	const addIfWorkspaceSecondary = (candidate: URI) => {
+		const alreadyIncluded = desired.some(existing => extUri.isEqual(existing, candidate));
+		if (alreadyIncluded || !workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+			return;
+		}
+		desired.push(candidate);
+	};
+
+	// Retained secondaries first so their existing order survives, then any
+	// folder the workspace gained since the set was last computed.
+	for (const currentSecondary of currentWorkingDirectories.slice(1)) {
+		addIfWorkspaceSecondary(currentSecondary);
+	}
+	for (const folder of workspaceFolders) {
+		addIfWorkspaceSecondary(folder);
+	}
+	return desired;
+}
 
 /**
  * Per-window store of the working directory a user picked for a not-yet-started
