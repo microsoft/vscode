@@ -650,6 +650,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		}));
 
+		this._register(this.tree.onMouseMiddleClick(e => {
+			// If empty space is middle-clicked -> create a new folder
+			if (e.element === null) {
+				e.browserEvent.preventDefault();
+				this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
+			}
+		}));
+
 		// save view state
 		this._register(this.storageService.onWillSaveState(() => {
 			this.storeTreeViewState();
