@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { IModelDecorationOptions, IModelDecorationsChangeAccessor, MinimapPosition, TrackedRangeStickiness } from '../../../common/model.js';
+import { IModelDecorationOptions, IModelDecorationsChangeAccessor, InjectedTextCursorStops, MinimapPosition, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IDecorationProvider } from './foldingModel.js';
 import { localize } from '../../../../nls.js';
@@ -138,25 +138,50 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, lineCount?: number): IModelDecorationOptions {
 		if (isHidden) { // is inside another collapsed region
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
-		if (this.showFoldingControls === 'never') {
-			if (isCollapsed) {
-				return this.showFoldingHighlights ? FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION : FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_RANGE_DECORATION;
-			}
-			return FoldingDecorationProvider.NO_CONTROLS_EXPANDED_RANGE_DECORATION;
-		}
 		if (isCollapsed) {
-			return isManual ?
-				(this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION)
-				: (this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION);
+			return this._createCollapsedDecoration(lineCount ?? 0, this.showFoldingHighlights, isManual);
+		}
+		if (this.showFoldingControls === 'never') {
+			return FoldingDecorationProvider.NO_CONTROLS_EXPANDED_RANGE_DECORATION;
 		} else if (this.showFoldingControls === 'mouseover') {
 			return isManual ? FoldingDecorationProvider.MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
 			return isManual ? FoldingDecorationProvider.MANUALLY_EXPANDED_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
+	}
+
+	private _createCollapsedDecoration(lineCount: number, showHighlight: boolean, isManual: boolean): IModelDecorationOptions {
+		const text = lineCount === 1
+			? `\u22EF ${localize('1LineCollapsed', "(1 line)")}`
+			: `\u22EF ${localize('nLinesCollapsed', "({0} lines)", lineCount)}`;
+
+		const options: IModelDecorationOptions = {
+			description: 'folding-collapsed-visual-decoration',
+			stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+			after: {
+				content: text,
+				inlineClassName: 'inline-folded',
+				cursorStops: InjectedTextCursorStops.None,
+			},
+			isWholeLine: true,
+			linesDecorationsTooltip: collapsed,
+		};
+
+		if (this.showFoldingControls !== 'never') {
+			const icon = isManual ? foldingManualCollapsedIcon : foldingCollapsedIcon;
+			options.firstLineDecorationClassName = ThemeIcon.asClassName(icon);
+		}
+
+		if (showHighlight) {
+			options.className = 'folded-background';
+			options.minimap = foldedBackgroundMinimap;
+		}
+
+		return options;
 	}
 
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
