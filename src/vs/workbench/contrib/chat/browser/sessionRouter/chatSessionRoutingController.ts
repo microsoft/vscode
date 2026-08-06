@@ -74,6 +74,7 @@ type NewSessionTarget = {
 interface IDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
 	readonly resource?: URI;
+	readonly reason?: string;
 	readonly completion?: Promise<IDispatchResult>;
 }
 
@@ -923,7 +924,9 @@ export class ChatSessionRoutingController extends Disposable {
 					trackActivity();
 				} else {
 					mark.replaceChildren(renderIcon(Codicon.error));
-					labelEl.textContent = localize('chatSessionRouting.queuedRejected', "{0} rejected the queued request", label);
+					labelEl.textContent = completion.reason === 'Request was removed from queue'
+						? localize('chatSessionRouting.queuedRemoved', "Queued request to {0} was removed", label)
+						: localize('chatSessionRouting.queuedNotSent', "Queued request to {0} was not sent", label);
 					ariaAlert(labelEl.textContent);
 				}
 			});
@@ -1140,7 +1143,7 @@ export class ChatSessionRoutingController extends Disposable {
 	private async _sendRequest(resource: URI, utterance: string, options: IChatSendRequestOptions): Promise<IDispatchResult> {
 		const result = await this.chatService.sendRequest(resource, utterance, options);
 		if (result.kind === 'rejected') {
-			return { status: 'rejected' };
+			return { status: 'rejected', reason: result.reason };
 		}
 		if (result.kind === 'queued') {
 			return {
@@ -1160,10 +1163,10 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			return result.kind === 'sent'
 				? { status: 'sent', resource: result.newSessionResource ?? resource }
-				: { status: 'rejected', resource: result.newSessionResource ?? resource };
+				: { status: 'rejected', resource: result.newSessionResource ?? resource, reason: result.reason };
 		} catch (error) {
 			this.logService.warn('[chatSessionRouting] queued request failed:', error);
-			return { status: 'rejected', resource };
+			return { status: 'rejected', resource, reason: error instanceof Error ? error.message : String(error) };
 		}
 	}
 
