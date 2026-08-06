@@ -759,10 +759,6 @@
 
 .interactive-item-container .value > .chat-tool-invocation-part,
 .interactive-item-container .value > .completed-response-disclosure > .chat-tool-invocation-part {
-	.rendered-markdown p {
-		margin: 0 0 6px 0;
-	}
-
 	.disclaimer {
 		margin-top: 6px;
 		margin-bottom: -6px;

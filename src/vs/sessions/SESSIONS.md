@@ -373,14 +373,18 @@ aquarium-specific lifecycle calls must first narrow the wrapped widget to
 `NewChatWidget`. The pet's sprites are scheduled at their source frame
 boundaries instead of polling at the display refresh rate, and scheduling pauses
 while the document is hidden. In both the shared chat input and new-session
-composer, the pet is anchored above the complete input stack so confirmations,
-notifications, and onboarding tips remain below it. Its optical bottom edge sits
-against the topmost visible input surface rather than the transparent stack
-boundary; the offset follows the bare input's actual top inset and caps at the
-slightly deeper confirmation/question alignment. When the pet approaches the
-input's right edge while rendering, its speech bubble moves to the pet's left
+composer, the pet host spans the complete input stack while its optical bottom
+edge aligns to the topmost visible surface in that stack. Placement follows the
+measured input-to-host inset up to the confirmation alignment, so persistent
+content above the input becomes the active platform. The new-session composer
+uses its root as the pet's movement bounds rather than the nested input area so
+pickup and falling remain valid across the view. When the pet approaches the input's
+right edge while rendering, its speech bubble moves to the pet's left
 so the ellipsis remains visible without changing the pet's direction. Other pet
-states keep their standard presentation.
+states keep their standard presentation. Dragging uses a subtle wiggle while the
+current drop target lands on the input and a stronger wiggle when it will fall
+off. Falls accelerate with distance; revival returns the pet to its default
+position 32px from the active platform's right edge.
 
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated

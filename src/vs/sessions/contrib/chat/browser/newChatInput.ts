@@ -505,7 +505,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, parent, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, chatInputContainer, inputArea, root, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
