@@ -2985,10 +2985,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * Whether this controller's window currently has OS focus. In multi-window
 	 * setups (e.g. an editor window + the agents window) each window has its own
 	 * controller/WebSocket, so without this gate every open window would re-arm
-	 * hands-free auto-listen and reply simultaneously. Only the focused window
-	 * should keep listening (#8507).
+	 * hands-free auto-listen and reply simultaneously. An explicitly active omni
+	 * window remains the voice surface while visible even when focus moves away;
+	 * otherwise only the focused window listens (#8507).
 	 */
 	private _isWindowFocused(): boolean {
+		if (this._omniInputActive.get()) {
+			return true;
+		}
 		try {
 			return this._window?.document.hasFocus() ?? false;
 		} catch {
@@ -2996,10 +3000,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	/** Called when this controller's window loses OS focus. Aborts any open
-	 *  passive turn so the background window stops recording while the newly
-	 *  focused window can take over hands-free listening (#8507). */
+	/** Called when this controller's window loses OS focus. Ordinary chat
+	 *  surfaces abort passive capture so the newly focused window can take over;
+	 *  an explicitly active omni surface remains available while visible. */
 	private _onWindowBlur(): void {
+		if (this._omniInputActive.get()) {
+			return;
+		}
 		if (this._pttHeld && this._pttCurrentTurnPassive) {
 			this.logService.trace('[voice] window blur: aborting passive turn (multi-window hands-free #8507)');
 			this._finishPtt('discard', 'internal');

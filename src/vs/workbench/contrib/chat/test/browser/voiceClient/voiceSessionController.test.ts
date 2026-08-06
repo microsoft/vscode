@@ -4729,6 +4729,20 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(mic.pttDownCalls.length, 0);
 	});
 
+	test('open omni keeps auto-listening when focus moves to another window', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => false } });
+		controller.setOmniInputActive(true);
+
+		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
+		enterAutoListen.call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+	});
+
 	test('window blur aborts an open passive turn so the background window stops recording', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
@@ -4743,6 +4757,27 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.abortCalls, 1);
 		assert.strictEqual(Reflect.get(controller, '_pttHeld'), false);
+	});
+
+	test('open omni preserves a passive reply turn after window blur', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		controller.setOmniInputActive(true);
+		Reflect.set(controller, '_pttCurrentTurnId', 'omni-passive-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_onWindowBlur') as () => void).call(controller);
+
+		assert.deepStrictEqual({
+			abortCalls: mic.abortCalls,
+			pttHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			abortCalls: 0,
+			pttHeld: true,
+		});
 	});
 
 	test('window blur does not abort a deliberate (non-passive) turn', () => {
