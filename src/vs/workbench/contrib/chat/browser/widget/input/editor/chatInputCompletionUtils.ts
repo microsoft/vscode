@@ -3,19 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isPatternInWord } from '../../../../../../../base/common/filters.js';
+import { fuzzyScore, FuzzyScoreOptions, fuzzyScoreGracefulAggressive } from '../../../../../../../base/common/filters.js';
+import { InternalSuggestOptions } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 
 export const attachedContextCompletionSortText = '\u0000';
+export const attachedContextCompletionAdditionalTriggerCharacters = [':', '-'] as const;
 
-export function getAttachedContextCompletionFilterText(typedWord: string, leader: string, name: string, kind: string): string | undefined {
+export function getAttachedContextCompletionSortText(score: number): string {
+	return `${attachedContextCompletionSortText}${(0x7FFFFFFF - score).toString(16).padStart(8, '0')}`;
+}
+
+export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
+	if (!typedWord) {
+		return { filterText: typedWord, score: 0 };
+	}
+
 	const searchableText = `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
-	const pattern = typedWord.toLowerCase();
-	const word = searchableText.toLowerCase();
-	return isPatternInWord(pattern, 0, pattern.length, word, 0, word.length) ? typedWord : undefined;
+	const scoreFn = suggestOptions.filterGraceful ? fuzzyScoreGracefulAggressive : fuzzyScore;
+	const score = scoreFn(
+		typedWord,
+		typedWord.toLowerCase(),
+		0,
+		searchableText,
+		searchableText.toLowerCase(),
+		0,
+		{ ...FuzzyScoreOptions.default, firstMatchCanBeWeak: !suggestOptions.matchOnWordStartOnly }
+	);
+	return score ? { filterText: typedWord, score: score[0] } : undefined;
 }
 
 export function escapeForCharClass(text: string): string {
@@ -26,6 +44,10 @@ export interface IChatCompletionRangeResult {
 	insert: Range;
 	replace: Range;
 	varWord: IWordAtPosition | null;
+}
+
+export function getCompletionRangeWord(rangeResult: IChatCompletionRangeResult): string | undefined {
+	return rangeResult.varWord?.word.slice(0, rangeResult.insert.endColumn - rangeResult.insert.startColumn);
 }
 
 export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {

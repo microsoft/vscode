@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../../../../base/common/cancellat
 import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { EditorOptions } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
@@ -17,7 +18,7 @@ import { createTextModel } from '../../../../../../../../editor/test/common/test
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
@@ -258,23 +259,79 @@ suite('escapeForCharClass', () => {
 suite('attached context completion ranking', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const suggestOptions = EditorOptions.suggest.defaultValue;
+
 	test('sorts before other chat input completions', () => {
 		assert.ok(attachedContextCompletionSortText < ' ');
 	});
 
 	test('filters attachments before matching the current token exactly', () => {
 		assert.deepStrictEqual({
-			at: getAttachedContextCompletionFilterText('@', '@', 'Screen Recording.mov', 'file'),
-			atAttachment: getAttachedContextCompletionFilterText('@att', '@', 'Screen Recording.mov', 'file'),
-			hashName: getAttachedContextCompletionFilterText('#screen', '#', 'Screen Recording.mov', 'file'),
-			hashAttachment: getAttachedContextCompletionFilterText('#att', '#', 'Screen Recording.mov', 'file'),
-			unmatched: getAttachedContextCompletionFilterText('#xyz', '#', 'Screen Recording.mov', 'file'),
+			at: getAttachedContextCompletionMatch('@', '@', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			atAttachment: getAttachedContextCompletionMatch('@att', '@', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hashName: getAttachedContextCompletionMatch('#screen', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hashAttachment: getAttachedContextCompletionMatch('#att', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			unmatched: getAttachedContextCompletionMatch('#xyz', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
 		}, {
 			at: '@',
 			atAttachment: '@att',
 			hashName: '#screen',
 			hashAttachment: '#att',
 			unmatched: undefined,
+		});
+	});
+
+	test('honors graceful Suggest filtering', () => {
+		assert.deepStrictEqual({
+			graceful: getAttachedContextCompletionMatch('#attahcment', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			strict: getAttachedContextCompletionMatch('#attahcment', '#', 'Screen Recording.mov', 'file', { ...suggestOptions, filterGraceful: false })?.filterText,
+		}, {
+			graceful: '#attahcment',
+			strict: undefined,
+		});
+	});
+
+	test('refreshes across supported punctuation', () => {
+		assert.deepStrictEqual({
+			triggerCharacters: attachedContextCompletionAdditionalTriggerCharacters,
+			colon: getAttachedContextCompletionMatch('#attachment:', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hyphen: getAttachedContextCompletionMatch('#attachment:screen-', '#', 'Screen-Recording.mov', 'file', suggestOptions)?.filterText,
+		}, {
+			triggerCharacters: [':', '-'],
+			colon: '#attachment:',
+			hyphen: '#attachment:screen-',
+		});
+	});
+
+	test('uses only the token prefix through an interior cursor', () => {
+		const range = {
+			insert: new Range(1, 1, 1, 5),
+			replace: new Range(1, 1, 1, 8),
+			varWord: { word: '#attxyz', startColumn: 1, endColumn: 8 },
+		};
+		const typedWord = getCompletionRangeWord(range);
+
+		assert.deepStrictEqual({
+			typedWord,
+			filterText: typedWord === undefined ? undefined : getAttachedContextCompletionMatch(typedWord, '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+		}, {
+			typedWord: '#att',
+			filterText: '#att',
+		});
+	});
+
+	test('preserves fuzzy relevance between attached contexts', () => {
+		const strongMatch = getAttachedContextCompletionMatch('#readme', '#', 'README.md', 'file', suggestOptions);
+		const weakMatch = getAttachedContextCompletionMatch('#readme', '#', 'Areadme-copy.txt', 'file', suggestOptions);
+
+		assert.deepStrictEqual({
+			matches: !!strongMatch && !!weakMatch,
+			strongBeforeWeak: !!strongMatch && !!weakMatch && getAttachedContextCompletionSortText(strongMatch.score) < getAttachedContextCompletionSortText(weakMatch.score),
+			weakBeforeAgentHost: !!weakMatch && getAttachedContextCompletionSortText(weakMatch.score) < '000000',
+		}, {
+			matches: true,
+			strongBeforeWeak: true,
+			weakBeforeAgentHost: true,
 		});
 	});
 });
