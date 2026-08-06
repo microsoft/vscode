@@ -43,6 +43,7 @@ export interface IManagedSettingsResponse {
 	readonly strictPluginOnlyCustomization?: boolean;
 	readonly allowManagedMcpServersOnly?: boolean;
 	readonly allowManagedHooksOnly?: boolean;
+	readonly forceRemoteSettingsRefresh?: boolean;
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;

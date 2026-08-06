@@ -476,6 +476,10 @@ suite('AccountPolicyService', () => {
 
 		constructor(public managedSettings: ManagedSettingsData = {}) { }
 
+		async initialize(): Promise<ManagedSettingsData> {
+			return this.managedSettings;
+		}
+
 		async updatePolicyDefinitions(policyDefinitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
 			this.registeredManagedSettings = {};
 			for (const policyName in policyDefinitions) {

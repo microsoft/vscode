@@ -41,6 +41,7 @@ Defines the foundational interfaces that all providers and consumers share:
 - **`ISession`** (`session.ts`) — Universal session facade. A self-contained observable object representing a session; consumers never reach back to provider internals. Each session has a globally unique ID built via `toSessionId(providerId, resource)` and groups one or more `IChat` instances.
 - **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, model enumeration/selection/presentation (`getModelsSnapshot`, `getModelPickerOptions`, `onDidChangeModels`, `setModel`), and firing change events.
 - **`ISessionsManagementService`** (`sessionsManagement.ts`) — The session **model** service. Aggregates sessions from all providers, owns the pending new-session draft (`createNewSession`/`newSession`), send (`sendNewChatRequest`/`createAndSendNewChatRequest`/`sendRequest`), CRUD (archive/delete/rename), and recency history. It performs **no** view/layout mutation and never imports the view or part service. It does **not** own the active session — that lives in the view service.
+  The Automation dialog uses a separate `automationSession` draft lifecycle so changing or closing the dialog never replaces the regular new-session draft.
 
 > **Model vs view.** The active session (`activeSession`), the visible-session slots and their arrangement, opening sessions, focus, Back/Forward navigation, and per-session view persistence live in **`ISessionsService`** (services — see `services/sessions/browser/sessionsService.ts`), not the management service. The split mirrors `IEditorService.activeEditor` (the active item is owned by the view-facing service) rather than the underlying model. See [Model vs View](#model-vs-view-session-services).
 
@@ -82,6 +83,14 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 ```
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
+
+The Agents Window overrides the shared `IWorkspaceFolderLabelService` with a session-aware
+implementation. It matches projected workspace-folder URIs against the active session exposed by
+`ISessionsService` so editor breadcrumbs can use repository identity while the Files workspace root
+retains its verbose repository-and-branch label. The label service is delayed and consumed when
+`BreadcrumbsControl.update()` creates a model for an active file, after editor-part construction.
+When the active session does not own the projected folder, it falls back to sessions aggregated by
+`ISessionsManagementService`.
 
 User selections in the Agents-window mode picker report the shared `chat.modeChange` telemetry event. Agent Host execution-mode transitions (`interactive`, `plan`, and `autopilot`) are reported separately as `agentHost.executionModeChanged`.
 
@@ -205,6 +214,8 @@ Agent-host chat input completions preserve the host's result order through Monac
 
 Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
 
+Agent-host sessions retain up to ten deduplicated pull request URLs in most-recent-first order. Rediscovering a PR moves it to the front; legacy metadata containing a singular `pullRequestUrl` is read as a one-item list. The client projects the first entry as `IGitHubInfo.pullRequest`, so CI, review comments, session-list status, context actions, and all other existing PR behavior continue to target only the most recent PR. `IGitHubInfo.pullRequests` exposes the ordered history solely for the session-header pill: one PR renders `#N`, while multiple render `N Pull Requests` and open the same keyboard-accessible icon/number/title list used for referenced issues. The header keeps every retained PR's core state, CI checks, and review threads live so each row's icon and title stay current.
+
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders. Folders below a path segment ending in `.worktrees` or named `copilot-worktrees` appear only when the user previously selected them in an Agents picker; they are excluded from VS Code's general recents and never automatically preselected. For other folders, the picker restores the last explicitly selected workspace first, then other Agents-owned recents, and finally the most recent resolvable workspace from VS Code's general history.
 
 Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
@@ -318,7 +329,10 @@ below.
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. Each `lastTurnChanges` entry carries
+confirmation does not end the active turn. Opening the changes pill labels its
+multi-diff editor **Current Turn Changes** while the turn is active, including
+`NeedsInput`, and updates the open editor to **Last Turn Changes** as soon as the
+turn completes. Each `lastTurnChanges` entry carries
 `isOutsideWorkspace`, derived from the owning session's workspace folder,
 working directory, and worktree roots. `AgentHostSessionAdapter` caches that
 classification in its generic session-output cache under
@@ -356,7 +370,17 @@ through the **Developer: Toggle Aquarium Action Visibility** command.
 hidden composer cannot leave the aquarium rendering behind the visible chat
 surface. Since `NewChatView` also hosts the peer-chat composer,
 aquarium-specific lifecycle calls must first narrow the wrapped widget to
-`NewChatWidget`.
+`NewChatWidget`. The pet's sprites are scheduled at their source frame
+boundaries instead of polling at the display refresh rate, and scheduling pauses
+while the document is hidden. In both the shared chat input and new-session
+composer, the pet is anchored above the complete input stack so confirmations,
+notifications, and onboarding tips remain below it. Its optical bottom edge sits
+against the topmost visible input surface rather than the transparent stack
+boundary; the offset follows the bare input's actual top inset and caps at the
+slightly deeper confirmation/question alignment. When the pet approaches the
+input's right edge while rendering, its speech bubble moves to the pet's left
+so the ellipsis remains visible without changing the pet's direction. Other pet
+states keep their standard presentation.
 
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated
@@ -876,7 +900,7 @@ On the first handoff in a window, `SelectAgentsFolderContribution` starts `Sessi
 
 `AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves
 dispatch after recording the committed session resource on the run row, then
-observes `ISession.status` until it reaches a terminal state. `InProgress`,
+observes the session's main chat status until it reaches a terminal state. `InProgress`,
 `Untitled`, and `NeedsInput` all keep the automation run `running`; `Completed`
 completes the run and `Error` fails it.
 Scheduler cancellation also stops the observation and fails the run. On timeout,

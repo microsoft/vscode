@@ -29,7 +29,7 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
@@ -410,7 +410,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		const toolReadyEnvelope = getActionEnvelope(toolReadyNotif);
 		const toolReadyAction = toolReadyEnvelope.action as ChatToolCallReadyAction;
-		const toolInput = toolReadyAction.toolInput!;
+		const toolInput = getInlineToolInput(toolReadyAction.toolInput);
+		assert.ok(toolInput);
 
 		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		const redundantWorkingDirCdPrefix = new RegExp(

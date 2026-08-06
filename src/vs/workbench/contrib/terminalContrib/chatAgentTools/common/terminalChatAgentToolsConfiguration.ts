@@ -10,6 +10,7 @@ import { type IConfigurationPropertySchema } from '../../../../../platform/confi
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
+import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -85,6 +86,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
+		restricted: true,
 		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 		type: 'boolean',
 		default: true,
@@ -102,6 +104,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		restricted: true,
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
@@ -298,26 +301,33 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
+			// - standalone `e`: Execute a shell command from the sed script
+			// - standalone `r`/`R`: Read arbitrary files into the stream
+			// - standalone `w`/`W`: Write pattern space to arbitrary files
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
-			// - `;W` Write first line of pattern space to file
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
+			// - These patterns are conservative: a literal `;e ` or `{e ` inside a replacement
+			//   string also matches, which asks for confirmation rather than auto-approving.
+			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-			'/^sed\\b.*;W/': false,
+			// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+			// captured so the closing quote must match it, and whitespace and `!` are allowed
+			// around the optional address since sed ignores them. The option prefix also skips
+			// the separate operand consumed by -l/--line-length.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+			// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+			// Escaped characters are consumed before testing for the matching closing quote.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 
-			// sort
-			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
-			//   blocked currently
-			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
-			//   of service.
-			'/^sort\\b(?!-)/': true,
-			'/^sort\\b.*\\s-(o|S)\\b/': false,
+			...sortAutoApproveRules,
 
 			// tree
 			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
@@ -386,6 +396,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
+		restricted: true,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
@@ -401,6 +412,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
+		restricted: true,
 		type: 'string',
 		enum: ['never', 'outsideWorkspace', 'all'],
 		enumDescriptions: [
@@ -806,6 +818,7 @@ for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {
+		...(id === TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible ? { restricted: true } : {}),
 		deprecated: true,
 		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
 	};

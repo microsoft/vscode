@@ -10,6 +10,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownStrin
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -1089,11 +1090,9 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 }
 
 /**
- * Returns a rendering hint for the given tool. Currently 'terminal', 'subagent',
- * and 'search' are supported, which tell the renderer to display the tool with
- * a terminal command block, a subagent widget, or a search icon respectively.
+ * Returns a rendering hint for the given tool.
  */
-export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search' | undefined {
+export function getToolKind(toolName: string, parameters?: Record<string, unknown>): ToolKind | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
 	}
@@ -1102,6 +1101,10 @@ export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search
 	}
 	if (SEARCH_TOOL_NAMES.has(toolName)) {
 		return 'search';
+	}
+	if (toolName === CopilotToolName.View
+		|| (toolName === CopilotToolName.StrReplaceEditor && parameters?.['command'] === 'view')) {
+		return 'read';
 	}
 	return undefined;
 }
