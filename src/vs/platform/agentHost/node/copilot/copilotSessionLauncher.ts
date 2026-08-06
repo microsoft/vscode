@@ -32,7 +32,7 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import type { ReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { isGpt56Model } from './modelIdentifiers.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -53,8 +53,12 @@ export const ContextTierConfigKey = 'contextTier';
  * `supportedReasoningEfforts`. This is intentionally broader than the SDK's
  * `SessionConfig['reasoningEffort']` union, which lags behind newly-introduced
  * tiers such as `'max'`; values are passed through to the runtime as-is.
+ *
+ * Aliased from the canonical list rather than re-declared: a private copy that
+ * misses a tier silently drops it from the model picker, which is exactly how
+ * `'max'` went missing.
  */
-const ReasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ReasoningEffortLevel[];
+const ReasoningEfforts = reasoningEffortLevels;
 type ReasoningEffort = ReasoningEffortLevel;
 
 /**
@@ -660,6 +664,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			additionalDirectories,
 			systemMessage,
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
+			largeOutput: {
+				maxSizeBytes: 8 * 1024,
+			},
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

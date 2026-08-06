@@ -28,7 +28,7 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { observeUsableWithoutGitHub } from './sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, observeUsableWithoutGitHub } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -76,6 +76,15 @@ class SessionsSetUpWidget extends Disposable {
 	private _initialSetupFlow = true;
 	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
+	/**
+	 * Set once the initial default-account resolution has completed. Until then
+	 * the synchronous {@link IDefaultAccountService.currentDefaultAccount} snapshot
+	 * is `null` even for a signed-in user, so a `null` reading means "not known
+	 * yet", not "signed out". The conditional-auth reaction stays inert until this
+	 * flips, otherwise it forces a sign-in modal on a signed-in user during the
+	 * startup gap — one nothing can retire, since the account resolves silently.
+	 */
+	private _accountResolved = false;
 	/** Whether a signed-out user can work without GitHub right now. */
 	private readonly _usableWithoutGitHub: IObservable<boolean>;
 
@@ -112,13 +121,17 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * The last-resort gate's answer changed while the window is open. Signed-in
-	 * users are unaffected. Becoming usable retires an already-open sign-in
-	 * modal (it was raised before the answer resolved); becoming unusable falls
-	 * back to demanding sign-in.
+	 * The last-resort gate's answer changed while the window is open. Ignored
+	 * until the account has resolved (see {@link _accountResolved}) and for
+	 * signed-in users. For a signed-out user, becoming usable retires an
+	 * already-open sign-in modal (it was raised before the answer resolved);
+	 * becoming unusable falls back to demanding sign-in.
 	 */
 	private _onUsableWithoutGitHubChanged(usable: boolean): void {
-		if (this.defaultAccountService.currentDefaultAccount !== null) {
+		// Only act once the account has resolved AND the user is signed out; while
+		// unresolved or signed in, the sign-in watch owns the decision.
+		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
+		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
 			return;
 		}
 		if (!usable) {
@@ -140,6 +153,27 @@ class SessionsSetUpWidget extends Disposable {
 			this.onCompleted();
 			return;
 		}
+
+		// Learn when the default account resolves so the conditional-auth reaction
+		// can tell "signed out" from "not resolved yet". On first load the account
+		// is populated silently (no change event fires), so awaiting it once is the
+		// only signal that resolution has happened.
+		this.defaultAccountService.getDefaultAccount().then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._accountResolved = true;
+			// A `_usableWithoutGitHub` change during the unresolved window was
+			// ignored above. If the agent ended up usable, replay it now so a
+			// signed-out user is let in rather than stranded on a sign-in dialog
+			// nothing else retires — the web path has no post-resolution re-check
+			// of its own (the native paths re-read usability after they await the
+			// account). While not usable, the initial setup flow still owns the
+			// dialog, so there is nothing to replay.
+			if (this._usableWithoutGitHub.get()) {
+				this._onUsableWithoutGitHubChanged(true);
+			}
+		});
 
 		if (isWeb) {
 			void this._checkWebAuth().finally(() => this._initialSetupFlow = false);
