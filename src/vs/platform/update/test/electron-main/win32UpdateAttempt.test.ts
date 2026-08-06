@@ -4,16 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter } from 'events';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import * as sinon from 'sinon';
 import * as path from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { completeWin32UpdateAttempt, Win32UpdateAttempt } from '../../electron-main/win32UpdateAttempt.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Win32UpdateAttempt } from '../../electron-main/win32UpdateAttempt.js';
+
+class TestUpdateChildProcess extends EventEmitter {
+	readonly pid = 123;
+	exitCode: number | null = null;
+
+	exit(code: number | null): void {
+		this.exitCode = code;
+		this.emit('exit', code, null);
+	}
+}
 
 suite('Win32UpdateAttempt', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const logService = new NullLogService();
+	const testDirectories: string[] = [];
+
+	async function createTestDirectory(): Promise<string> {
+		const testDirectory = await mkdtemp(path.join(tmpdir(), 'vscode-update-attempt-'));
+		testDirectories.push(testDirectory);
+		return testDirectory;
+	}
+
+	teardown(async () => {
+		sinon.restore();
+		await Promise.all(testDirectories.splice(0).map(testDirectory => rm(testDirectory, { recursive: true, force: true })));
+	});
 
 	test('uses isolated control files for each attempt', () => {
-		const firstProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'first-process-id');
-		const nextProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'next-process-id');
+		const firstProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'C:\\update-cache\\setup.exe', 'insider', 'next', 'first-process-id', logService);
+		const nextProcessAttempt = new Win32UpdateAttempt('C:\\update-cache', 'C:\\update-cache\\setup.exe', 'insider', 'next', 'next-process-id', logService);
 
 		assert.deepStrictEqual({
 			firstProcessControlFiles: [
@@ -44,7 +72,7 @@ suite('Win32UpdateAttempt', () => {
 	});
 
 	test('completion is idempotent and cancels the attempt', () => {
-		const attempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'attempt-id');
+		const attempt = new Win32UpdateAttempt('C:\\update-cache', 'C:\\update-cache\\setup.exe', 'insider', 'next', 'attempt-id', logService);
 		let cancellationCount = 0;
 		store.add(attempt.cancellationTokenSource.token.onCancellationRequested(() => cancellationCount++));
 
@@ -66,28 +94,170 @@ suite('Win32UpdateAttempt', () => {
 		});
 	});
 
-	test('only the current attempt can be completed', () => {
-		const currentAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'current-id');
-		const staleAttempt = new Win32UpdateAttempt('C:\\update-cache', 'insider', 'next', 'stale-id');
+	test('prepares and starts the installer with attempt control files and additional arguments', async () => {
+		const cachePath = await createTestDirectory();
+		const packagePath = path.join(cachePath, 'setup.exe');
+		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
+		const attempt = new Win32UpdateAttempt(cachePath, packagePath, 'insider', 'next', 'attempt-id', logService);
+		const childProcess = new TestUpdateChildProcess();
+		let spawnCall: { command: string; args: readonly string[]; windowsVerbatimArguments: boolean | undefined } | undefined;
 
-		const staleCompleted = completeWin32UpdateAttempt(currentAttempt, staleAttempt);
-		const missingCompleted = completeWin32UpdateAttempt(undefined, currentAttempt);
-		const currentCompleted = completeWin32UpdateAttempt(currentAttempt, currentAttempt);
-
-		assert.deepStrictEqual({
-			staleCompleted,
-			missingCompleted,
-			currentCompleted,
-			currentActive: currentAttempt.isActive,
-			staleActive: staleAttempt.isActive
-		}, {
-			staleCompleted: false,
-			missingCompleted: false,
-			currentCompleted: true,
-			currentActive: false,
-			staleActive: true
+		await attempt.prepare();
+		attempt.startProcess(sessionEndFlagPath, ['/relaunchargs="relaunch-args"'], (command, args, options) => {
+			spawnCall = { command, args, windowsVerbatimArguments: options.windowsVerbatimArguments };
+			return childProcess;
 		});
 
-		staleAttempt.complete();
+		assert.deepStrictEqual({
+			flagContents: await readFile(attempt.updateFilePath, 'utf8'),
+			spawnCall
+		}, {
+			flagContents: 'flag',
+			spawnCall: {
+				command: packagePath,
+				args: [
+					'/verysilent',
+					'/log',
+					`/update="${attempt.updateFilePath}"`,
+					`/progress="${attempt.progressFilePath}"`,
+					`/sessionend="${sessionEndFlagPath}"`,
+					`/cancel="${attempt.cancelFilePath}"`,
+					'/nocloseapplications',
+					'/mergetasks=runcode,!desktopicon,!quicklaunchicon',
+					'/relaunchargs="relaunch-args"'
+				],
+				windowsVerbatimArguments: true
+			}
+		});
+
+		attempt.complete();
+		childProcess.exit(0);
+		await attempt.cleanup();
+	});
+
+	test('rejects starting the installer twice', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+		const childProcess = new TestUpdateChildProcess();
+		const spawnProcess = () => childProcess;
+
+		attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], spawnProcess);
+
+		assert.throws(
+			() => attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], spawnProcess),
+			/Update process already started/
+		);
+
+		attempt.complete();
+		childProcess.exit(0);
+	});
+
+	test('releases the process after termination', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+		const childProcess = new TestUpdateChildProcess();
+		const updateProcess = attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], () => childProcess);
+
+		childProcess.exit(0);
+		await updateProcess.whenTerminated;
+
+		assert.strictEqual(attempt.process, undefined);
+		attempt.complete();
+	});
+
+	test('reads valid progress and ignores missing or malformed progress', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+
+		const missingProgress = await attempt.readProgress();
+		await writeFile(attempt.progressFilePath, '1024,8192');
+		const validProgress = await attempt.readProgress();
+		await writeFile(attempt.progressFilePath, 'invalid');
+		const malformedProgress = await attempt.readProgress();
+
+		assert.deepStrictEqual({ missingProgress, validProgress, malformedProgress }, {
+			missingProgress: undefined,
+			validProgress: { current: 1024, total: 8192 },
+			malformedProgress: undefined
+		});
+
+		attempt.complete();
+	});
+
+	test('stopping the installer writes the attempt cancellation file', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+		const childProcess = new TestUpdateChildProcess();
+		attempt.startProcess(path.join(cachePath, 'session-ending.flag'), [], () => childProcess);
+
+		const stopPromise = attempt.stopProcess();
+		childProcess.exit(0);
+		await stopPromise;
+
+		assert.strictEqual(await readFile(attempt.cancelFilePath, 'utf8'), 'cancel');
+
+		attempt.complete();
+		await attempt.cleanup();
+	});
+
+	test('cleans control files and optionally the installer package', async () => {
+		const cachePath = await createTestDirectory();
+		const packagePath = path.join(cachePath, 'setup.exe');
+		const attempt = new Win32UpdateAttempt(cachePath, packagePath, 'insider', 'next', 'attempt-id', logService);
+
+		await Promise.all([
+			writeFile(packagePath, 'installer'),
+			writeFile(attempt.updateFilePath, 'flag'),
+			writeFile(attempt.cancelFilePath, 'cancel'),
+			writeFile(attempt.progressFilePath, '10,100')
+		]);
+		await attempt.cleanup();
+		const filesAfterControlCleanup = await readdir(cachePath);
+		await attempt.cleanup(true);
+		const filesAfterPackageCleanup = await readdir(cachePath);
+
+		assert.deepStrictEqual({ filesAfterControlCleanup, filesAfterPackageCleanup }, {
+			filesAfterControlCleanup: ['setup.exe'],
+			filesAfterPackageCleanup: []
+		});
+
+		attempt.complete();
+	});
+
+	test('reports cleanup failures and continues removing other files', async () => {
+		const cachePath = await createTestDirectory();
+		const packagePath = path.join(cachePath, 'setup.exe');
+		const attempt = new Win32UpdateAttempt(cachePath, packagePath, 'insider', 'next', 'attempt-id', logService);
+		const warn = sinon.spy(logService, 'warn');
+
+		await Promise.all([
+			writeFile(packagePath, 'installer'),
+			mkdir(attempt.updateFilePath),
+			writeFile(attempt.cancelFilePath, 'cancel'),
+			writeFile(attempt.progressFilePath, '10,100')
+		]);
+		await attempt.cleanup(true);
+
+		assert.deepStrictEqual({
+			warnings: warn.getCalls().map(call => call.args[0]),
+			remainingFiles: await readdir(cachePath)
+		}, {
+			warnings: [`update#cleanupUpdateAttempt: failed to remove ${path.basename(attempt.updateFilePath)}`],
+			remainingFiles: [path.basename(attempt.updateFilePath)]
+		});
+
+		attempt.complete();
+	});
+
+	test('accepting the update synchronously removes the update flag', async () => {
+		const cachePath = await createTestDirectory();
+		const attempt = new Win32UpdateAttempt(cachePath, path.join(cachePath, 'setup.exe'), 'insider', 'next', 'attempt-id', logService);
+		await attempt.prepare();
+
+		attempt.acceptForInstall();
+		attempt.acceptForInstall();
+
+		assert.deepStrictEqual(await readdir(cachePath), []);
+		attempt.complete();
 	});
 });
