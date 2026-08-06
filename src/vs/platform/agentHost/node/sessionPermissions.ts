@@ -67,6 +67,7 @@ const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/.vscode/*.json': false,
 	'**/.git/**': false,
 	'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+	'**/{.npmrc,.yarnrc,.yarnrc.yml,.pnpmfile.js,.pnpmfile.cjs}': false,
 	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
 	'**/*.lock': false,
 	'**/*-lock.{yaml,json}': false,
