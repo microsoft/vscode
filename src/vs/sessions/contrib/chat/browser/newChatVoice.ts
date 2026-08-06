@@ -252,11 +252,18 @@ export class NewChatVoiceController extends Disposable {
 		}));
 		if (options.onDidChangeActions) {
 			const onDidChangeActions = () => {
-				let actionCount = 0;
-				while (toolbar.getItemAction(actionCount)) {
-					actionCount++;
+				let voiceInputActionCount = 0;
+				for (let i = 0; i < toolbar.getItemsLength(); i++) {
+					switch (toolbar.getItemAction(i)?.id) {
+						case 'agentsVoice.connecting':
+						case 'agentsVoice.startVoiceInChat':
+						case 'agentsVoice.pttStopInChat':
+						case 'agentsVoice.disconnect':
+							voiceInputActionCount++;
+							break;
+					}
 				}
-				options.onDidChangeActions?.(actionCount);
+				options.onDidChangeActions?.(voiceInputActionCount);
 			};
 			this._register(toolbar.onDidChangeMenuItems(onDidChangeActions));
 			onDidChangeActions();
