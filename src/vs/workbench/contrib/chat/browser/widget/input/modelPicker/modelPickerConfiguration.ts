@@ -19,11 +19,11 @@ import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 
 type ChatThinkingEffortChangeClassification = {
 	owner: 'lramos15';
-	comment: 'Reporting when the thinking effort is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
+	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the configuration was changed for' };
 	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The first-party configuration property that was changed (reasoningEffort, or tier for the Auto model); "unknown" for third-party providers, which choose their own keys' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous value of the configuration property' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new value of the configuration property' };
 };
 
 type ChatThinkingEffortChangeEvent = {

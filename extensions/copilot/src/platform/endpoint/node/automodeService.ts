@@ -230,6 +230,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _pickerTokenBank = this._register(new MutableDisposable<AutoModeTokenBank>());
 	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
 	readonly onDidChangeAutoModeTierSupport = this._onDidChangeAutoModeTierSupport.event;
+	/** Last announced {@link areAutoModeTiersSupported}. See {@link _updateAutoModeTierSupport}. */
+	private _tierSupportAnnounced = false;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -245,6 +247,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	) {
 		super();
 		this._lastAutoV2Discounts = this._extensionContext.globalState.get<Record<string, number>>(AutomodeService.AUTO_V2_DISCOUNTS_STORAGE_KEY);
+		this._tierSupportAnnounced = this.areAutoModeTiersSupported();
+		// Covers both settings and their experiment treatments: a treatment
+		// refresh is published as a configuration change.
+		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateAutoModeTierSupport()));
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			for (const entry of this._autoModelCache.values()) {
 				entry.tokenBank.dispose();
@@ -256,6 +262,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// models on this same event, so there is nothing to announce here.
 			this._setLastAutoV2Discounts(undefined);
 			this._autoV2Unavailable = false;
+			this._tierSupportAnnounced = this.areAutoModeTiersSupported();
 			this._autoV2DiscountProbe = undefined;
 			this._pickerTokenBank.clear();
 			const keys = Array.from(this._reserveTokens.keys());
@@ -287,12 +294,14 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	/**
 	 * Records the discounts shown on the Auto row in the picker. `tier` is the
-	 * profile the discounts came from; the picker only ever represents a
-	 * selectable tier, so a routing pass at the internal `fast` tier (inline
-	 * chat) must not overwrite the label panel chat displays.
+	 * profile the discounts came from: tiers route to different model pools and
+	 * so carry different discounts, while the picker has a single Auto row and no
+	 * tier context to qualify it with. Scope the label to the profile the picker
+	 * represents, so neither the internal `fast` tier (inline chat) nor another
+	 * tier's routing pass overwrites it.
 	 */
 	private _setLastAutoV2Discounts(discounts: Record<string, number> | undefined, tier?: AutoModeTier): void {
-		if (tier !== undefined && !isSelectableAutoModeTier(tier)) {
+		if (tier !== undefined && tier !== defaultAutoModeTier) {
 			return;
 		}
 		if (JSON.stringify(this._lastAutoV2Discounts) === JSON.stringify(discounts)) {
@@ -314,9 +323,18 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (!this._autoV2DiscountProbe) {
 			this._autoV2DiscountProbe = (async () => {
 				try {
-					const result = await this._autoV2Fetcher.getAutoDecision(AutomodeService.DISCOUNT_PROBE_PROMPT, { isDiscountProbe: true });
+					const result = await this._autoV2Fetcher.getAutoDecision(AutomodeService.DISCOUNT_PROBE_PROMPT, {
+						isDiscountProbe: true,
+						// Read the same profile the label represents; see `_setLastAutoV2Discounts`.
+						tier: this.areAutoModeTiersSupported() ? defaultAutoModeTier : undefined,
+					});
 					this._setLastAutoV2Discounts(result.discounted_costs);
 				} catch (e) {
+					// A 404 is a capability result, not a metadata failure: the
+					// routing path treats it the same way.
+					if (e instanceof AutoV2Error && e.status === 404) {
+						this._markAutoV2Unavailable();
+					}
 					this._logService.warn(`[AutomodeService] Failed to probe auto discounts: ${(e as Error).message}`);
 				}
 			})();
@@ -335,6 +353,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// its display metadata only. The picker hides per-model pricing for
 		// Auto, so the wrapped model is not user-visible.
 		const metadata = await this.getAutoPickerMetadata();
+		// The probe above can latch V2 off (404), which changes what the picker
+		// may advertise.
+		if (!this.isAutoV2Enabled()) {
+			return this.resolveAutoModeEndpoint(undefined, knownEndpoints);
+		}
 		const discountRange = metadata?.discountRange ?? { low: 0, high: 0 };
 		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
 		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, discountRange);
@@ -542,9 +565,19 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (this._autoV2Unavailable) {
 			return;
 		}
-		const wasSupported = this.areAutoModeTiersSupported();
 		this._autoV2Unavailable = true;
-		if (wasSupported) {
+		this._updateAutoModeTierSupport();
+	}
+
+	/**
+	 * Announces a change in {@link areAutoModeTiersSupported}. Its inputs are the
+	 * two settings (and their experiment treatments) plus the V2 latch, so this
+	 * runs on every configuration change as well as after the latch flips.
+	 */
+	private _updateAutoModeTierSupport(): void {
+		const supported = this.areAutoModeTiersSupported();
+		if (supported !== this._tierSupportAnnounced) {
+			this._tierSupportAnnounced = supported;
 			this._onDidChangeAutoModeTierSupport.fire();
 		}
 	}
@@ -563,6 +596,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * published per model rather than per surface, so the tier chip renders in
 	 * inline chat as well; unconditionally pinning `fast` there would leave the
 	 * user a visible, persisted control that silently does nothing.
+	 *
+	 * Only a non-default selection counts as explicit: the workbench materializes
+	 * the schema default into `modelConfiguration` and strips a pick of the
+	 * default back out when storing it, so a `balanced` entry cannot be told
+	 * apart from "never picked" — reading it as a selection would make the inline
+	 * pin below unreachable.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
@@ -577,7 +616,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return undefined;
 		}
 		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
-		if (isSelectableAutoModeTier(configured)) {
+		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
 			return configured;
 		}
 		if (chatRequest?.location !== undefined && inlineChatLocations.has(chatRequest.location)) {
@@ -646,11 +685,16 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				return undefined;
 			}
 
-			const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model)
+			const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 				? entry.endpoint
 				: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(result.discounted_costs));
 
-			this._evictOldestAutoV2Sessions();
+			// Only a genuinely new conversation needs room made for it; the `set`
+			// below otherwise replaces an entry, and evicting would cost an
+			// unrelated session.
+			if (!this._autoV2Cache.has(conversationId)) {
+				this._evictOldestAutoV2Sessions();
+			}
 			this._autoV2Cache.set(conversationId, {
 				endpoint,
 				sessionToken: result.session_token,
