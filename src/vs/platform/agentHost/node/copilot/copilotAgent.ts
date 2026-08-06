@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -65,7 +65,7 @@ import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState }
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 
 interface ICopilotRuntimeManagedSettingsSdk {
-	getManagedSettings(input?: { token?: string; host?: string }): Promise<{ account?: string; resolved: IAgentHostManagedSettingsSnapshot }>;
+	getManagedSettings(input?: { token?: string; host?: string }): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }>;
 }
 
 function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
@@ -75,7 +75,7 @@ function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRu
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
-import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
+import { CopilotAgentSession } from './copilotAgentSession.js';
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -400,45 +400,11 @@ function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | u
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
 
-type ModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
+type CopilotModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
 
 interface ISerializedModelSelection {
 	id?: unknown;
 	config?: unknown;
-}
-
-/**
- * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's private `connection` field to wire plan mode.
- * See {@link CopilotAgent._enablePlanModeOnClient}.
- */
-interface IExitPlanModeConnection {
-	sendRequest(method: string, params: unknown): Promise<unknown>;
-	onRequest(method: string, handler: (params: IExitPlanModeRequestParams) => Promise<IExitPlanModeResponse>): { dispose(): void };
-}
-
-/**
- * Payload of the CLI's `exitPlanMode.request` RPC. The CLI dispatches one
- * per `exit_plan_mode` tool invocation when the session was created with
- * `requestExitPlanMode: true`.
- */
-export interface IExitPlanModeRequestParams {
-	readonly sessionId: string;
-	readonly summary: string;
-	readonly planContent: string;
-	readonly actions: readonly string[];
-	readonly recommendedAction: string;
-}
-
-/**
- * Response for the CLI's `exitPlanMode.request` RPC. The CLI feeds this
- * directly into `session.respondToExitPlanMode`, which resolves the
- * pending tool call and (when approved) updates the SDK's `currentMode`.
- */
-export interface IExitPlanModeResponse {
-	readonly approved: boolean;
-	readonly selectedAction?: string;
-	readonly autoApproveEdits?: boolean;
-	readonly feedback?: string;
 }
 
 /**
@@ -1489,44 +1455,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return stopping;
 	}
 
-	/**
-	 * Enables plan mode by injecting `requestExitPlanMode: true` into the
-	 * payload of every `session.create` / `session.resume` JSON-RPC request,
-	 * and registers a connection-level handler for the resulting
-	 * `exitPlanMode.request` RPC the CLI sends back.
-	 *
-	 * The SDK (`@github/copilot-sdk@^0.3.0`) does not expose `onExitPlanMode`
-	 * in its public {@link SessionConfig} surface, so both the wire flag and
-	 * the response handler are wired through the SDK's private
-	 * `MessageConnection`. Once the SDK adds first-class support, this shim
-	 * should be removed.
-	 */
-	protected _enablePlanModeOnClient(client: CopilotClient): void {
-		// `connection` is declared private on `CopilotClient` at the type
-		// level but is a plain field at runtime — see the SDK's compiled
-		// `dist/client.js`.
-		const connection = (client as unknown as { connection?: IExitPlanModeConnection }).connection;
-		if (!connection) {
-			this._logService.warn('[Copilot] Could not enable plan mode: client.connection is null');
-			return;
-		}
-		if (typeof connection.sendRequest !== 'function') {
-			this._logService.warn(`[Copilot] Could not enable plan mode: client.connection.sendRequest is ${typeof connection.sendRequest}`);
-			return;
-		}
-		if (typeof connection.onRequest !== 'function') {
-			this._logService.warn(`[Copilot] Could not enable plan mode: client.connection.onRequest is ${typeof connection.onRequest}`);
-			return;
-		}
-		const originalSendRequest = connection.sendRequest.bind(connection);
-		connection.sendRequest = (method: string, params: unknown) => {
-			if ((method === 'session.create' || method === 'session.resume') && params && typeof params === 'object') {
-				return originalSendRequest(method, { ...params as Record<string, unknown>, requestExitPlanMode: true });
-			}
-			return originalSendRequest(method, params);
-		};
-	}
-
 	// ---- client lifecycle ---------------------------------------------------
 
 	private async _ensureClient(): Promise<CopilotClient> {
@@ -1677,7 +1605,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error('Copilot startup config changed while the client was starting');
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
-			this._enablePlanModeOnClient(client);
 			this._client = client;
 			this._clientStarting = undefined;
 			return client;
@@ -1785,11 +1712,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Builds the open `_meta` model picker bag from the SDK's billing and picker metadata.
 	 */
-	private _createModelPickerMeta(modelInfo: ModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
+	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
 		return createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
 	}
 
-	private _createModelConfigSchema(m: ModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
+	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
 		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, m.id);
 		if (thinkingLevel) {

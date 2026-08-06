@@ -207,6 +207,33 @@ suite('codexMapAppServerEvents', () => {
 		}]);
 	});
 
+	test('contextCompaction item maps to visible running and completed progress', () => {
+		const state = createCodexSessionMapState();
+		const started = mapItemStarted(state, {
+			item: { type: 'contextCompaction', id: 'compact_1' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('compact_1')?.toolCallId;
+		const completed = mapItemCompleted(state, {
+			item: { type: 'contextCompaction', id: 'compact_1' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 1,
+		});
+
+		assert.deepStrictEqual({ started, completed, remaining: state.itemToToolCall.size }, {
+			started: [
+				{ type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'compact', displayName: 'Compact conversation' },
+				{ type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Compacting conversation', confirmed: ToolCallConfirmationReason.NotNeeded },
+			],
+			completed: [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: { success: true, pastTenseMessage: 'Compacted conversation' },
+			}],
+			remaining: 0,
+		});
+	});
+
 	test('item/completed for agentMessage clears the mapping', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {

@@ -898,7 +898,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
-			{ type: 'skill.invoked', agentId: 'agent-1', data: { name: 'research', path: '/skills/research' } },
+			{ type: 'skill.invoked', agentId: 'agent-1', data: { name: 'research', path: '/skills/research', content: '' } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
 			{ type: 'assistant.message', data: { messageId: 'm3', content: 'The subagent finished.' } },
 		];

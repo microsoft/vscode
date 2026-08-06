@@ -55,7 +55,6 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
-const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
 const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
 const COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID = 'chat.editor.copilotCli.hideExtensionHost';
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
@@ -191,7 +190,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
 			}
-			if (e.affectsConfiguration(AGENT_HOST_ENABLED_SETTING_ID) || e.affectsConfiguration(this.sessionFileMonitoringDisabledSettingId)) {
+			if (e.affectsConfiguration(this.sessionFileMonitoringDisabledSettingId)) {
 				this.updateSessionFileMonitoring();
 			}
 		}));
@@ -240,10 +239,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private shouldMonitorSessionFiles(): boolean {
-		if (this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true) {
-			return true;
-		}
-
 		return this.configurationService.getNonExtensionConfig<boolean>(this.sessionFileMonitoringDisabledSettingId) !== true;
 	}
 
