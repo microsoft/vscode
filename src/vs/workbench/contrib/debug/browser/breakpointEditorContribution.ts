@@ -263,6 +263,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				|| !model
 				|| e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
 				|| e.target.detail.isAfterLines
+				// Defer to the testing gutter's run/debug action, including its Alt-click gesture (#326724).
+				|| e.target.element?.className.includes('testing-run-glyph')
 				|| !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)
 				// don't return early if there's a breakpoint
 				&& !e.target.element?.className.includes('breakpoint')
