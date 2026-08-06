@@ -302,6 +302,39 @@ export class Sequencer {
 	}
 }
 
+/**
+ * A {@link Throttler} per key. Calls for the same key coalesce (only the most
+ * recently queued task runs after the active one settles); calls for different
+ * keys are independent. Idle keys are cleaned up automatically.
+ */
+export class ThrottlerByKey<TKey> implements IDisposable {
+
+	private readonly throttlers = new Map<TKey, { throttler: Throttler; count: number }>();
+
+	queue<T>(key: TKey, task: ITask<Promise<T>>): Promise<T> {
+		let entry = this.throttlers.get(key);
+		if (!entry) {
+			entry = { throttler: new Throttler(), count: 0 };
+			this.throttlers.set(key, entry);
+		}
+
+		entry.count++;
+		return entry.throttler.queue(task).finally(() => {
+			if (--entry!.count === 0) {
+				entry!.throttler.dispose();
+				this.throttlers.delete(key);
+			}
+		});
+	}
+
+	dispose(): void {
+		for (const { throttler } of this.throttlers.values()) {
+			throttler.dispose();
+		}
+		this.throttlers.clear();
+	}
+}
+
 export class SequencerByKey<TKey> {
 
 	private promiseMap = new Map<TKey, Promise<unknown>>();
@@ -588,6 +621,52 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 		clearTimeout(timer);
 		store?.delete(disposable);
 	});
+	store?.add(disposable);
+	return disposable;
+}
+
+/**
+ * The largest delay (in milliseconds) a single `setTimeout` can represent.
+ * Larger values overflow its internal 32-bit signed integer and fire (almost)
+ * immediately instead of waiting.
+ */
+export const MAX_TIMEOUT_DELAY = 2 ** 31 - 1; // ~24.8 days
+
+/**
+ * Like {@link disposableTimeout}, but supports delays larger than
+ * {@link MAX_TIMEOUT_DELAY} (~24.8 days), which a single `setTimeout` cannot
+ * represent. The wait is split into chunks and re-armed until the target time is
+ * reached, so the handler fires at approximately `Date.now() + timeout`.
+ *
+ * Note: like `setTimeout`, firing is best-effort and may drift across system
+ * sleep or wall-clock changes; do not rely on it for precise scheduling.
+ *
+ * @param handler The timeout handler.
+ * @param timeout The timeout in milliseconds. May exceed {@link MAX_TIMEOUT_DELAY}.
+ * @param store An optional {@link DisposableStore} that will have the timeout disposable managed automatically.
+ */
+export function disposableLongTimeout(handler: () => void, timeout: number, store?: DisposableStore): IDisposable {
+	const target = Date.now() + timeout;
+	let timer: Timeout;
+
+	const arm = () => {
+		const remaining = target - Date.now();
+		if (remaining <= 0) {
+			handler();
+			if (store) {
+				disposable.dispose();
+			}
+			return;
+		}
+		timer = setTimeout(arm, Math.min(remaining, MAX_TIMEOUT_DELAY));
+	};
+
+	const disposable = toDisposable(() => {
+		clearTimeout(timer);
+		store?.delete(disposable);
+	});
+
+	timer = setTimeout(arm, Math.min(Math.max(0, timeout), MAX_TIMEOUT_DELAY));
 	store?.add(disposable);
 	return disposable;
 }
@@ -2050,9 +2129,11 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 			} catch (err) {
 				this.reject(err);
 			} finally {
-				writer.emitOne = undefined!;
-				writer.emitMany = undefined!;
-				writer.reject = undefined!;
+				// The executor has settled; emitting afterwards must be a no-op per the
+				// documented "no effect after resolve()/reject()" contract (see emitOne).
+				writer.emitOne = () => { };
+				writer.emitMany = () => { };
+				writer.reject = () => { };
 			}
 		});
 	}

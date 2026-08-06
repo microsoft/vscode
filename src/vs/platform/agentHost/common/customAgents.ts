@@ -26,6 +26,9 @@ export function getEffectiveAgents(
 	const seen = new Map<string, AgentCustomization>();
 	if (sessionCustomizations) {
 		for (const container of sessionCustomizations) {
+			if (container.type === CustomizationType.McpServer) {
+				continue;
+			}
 			if (container.enabled === false || !container.children) {
 				continue;
 			}

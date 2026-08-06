@@ -98,11 +98,25 @@ export interface IGitHubPullRequestReview {
 }
 
 /**
+ * Additional live status used to refine the icon of an open pull request.
+ */
+export interface IPullRequestIconStatus {
+	/** Whether the pull request has at least one failing CI check. */
+	readonly hasFailingChecks?: boolean;
+	/** Whether the pull request has at least one unresolved review comment thread. */
+	readonly hasUnresolvedComments?: boolean;
+}
+
+/**
  * Compute the PR status icon from a state value.
  * Accepts both the `GitHubPullRequestState` enum values and the
  * metadata-only `'draft'` value the extension writes to session metadata.
+ *
+ * For open (non-draft) pull requests the optional {@link IPullRequestIconStatus}
+ * refines the icon: a failing CI check shows an error variant (orange), while an
+ * unresolved review comment shows a comment variant (using the open PR green).
  */
-export function computePullRequestIcon(state: GitHubPullRequestState | 'draft'): ThemeIcon {
+export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', status?: IPullRequestIconStatus): ThemeIcon {
 	switch (state) {
 		case GitHubPullRequestState.Merged:
 			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
@@ -111,8 +125,74 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft'):
 		case 'draft':
 			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
 		case GitHubPullRequestState.Open:
+			if (status?.hasFailingChecks) {
+				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
+			}
+			if (status?.hasUnresolvedComments) {
+				return { ...Codicon.gitPullRequestComment, color: themeColorFromId('charts.green') };
+			}
 			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
 	}
+}
+
+//#endregion
+
+//#region Issues
+
+export const enum GitHubIssueState {
+	Open = 'open',
+	Closed = 'closed',
+}
+
+/** Why an issue was closed (GitHub's `state_reason` on the REST issue payload). */
+export const enum GitHubIssueStateReason {
+	Completed = 'completed',
+	NotPlanned = 'not_planned',
+	Duplicate = 'duplicate',
+	Reopened = 'reopened',
+}
+
+export interface IGitHubIssue {
+	readonly number: number;
+	readonly title: string;
+	readonly body: string;
+	readonly state: GitHubIssueState;
+	readonly stateReason: GitHubIssueStateReason | undefined;
+	readonly author: IGitHubUser;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+	readonly closedAt: string | undefined;
+}
+
+/**
+ * Compute the issue status icon, mirroring how github.com colors issues: open is
+ * green, closed-as-completed is purple, and closed as not planned or duplicate is
+ * muted (the work was never done).
+ */
+export function computeIssueIcon(state: GitHubIssueState, stateReason: GitHubIssueStateReason | undefined): ThemeIcon {
+	if (state === GitHubIssueState.Open) {
+		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
+	}
+	if (stateReason === GitHubIssueStateReason.NotPlanned || stateReason === GitHubIssueStateReason.Duplicate) {
+		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
+	}
+	return { ...Codicon.issueClosed, color: themeColorFromId('charts.purple') };
+}
+
+/**
+ * Compute a single icon summarizing a set of issues: open wins over closed, and
+ * closed-as-completed wins over closed as not planned or duplicate. Issues whose
+ * live state is not loaded yet count as open, so the icon starts optimistic and
+ * only settles once every issue is known to be closed.
+ */
+export function computeAggregateIssueIcon(issues: readonly (IGitHubIssue | undefined)[]): ThemeIcon {
+	if (issues.length === 0 || issues.some(issue => !issue || issue.state === GitHubIssueState.Open)) {
+		return computeIssueIcon(GitHubIssueState.Open, undefined);
+	}
+
+	const allDiscarded = issues.every(issue =>
+		issue!.stateReason === GitHubIssueStateReason.NotPlanned || issue!.stateReason === GitHubIssueStateReason.Duplicate);
+	return computeIssueIcon(GitHubIssueState.Closed, allDiscarded ? GitHubIssueStateReason.NotPlanned : GitHubIssueStateReason.Completed);
 }
 
 //#endregion

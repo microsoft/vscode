@@ -49,7 +49,7 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 	touch-action: manipulation;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	padding: 0;
 }
 
@@ -73,9 +73,9 @@
 	width: auto;
 	height: 28px;
 	padding: 0 10px;
-	border-radius: 14px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
@@ -115,7 +115,7 @@
 	min-width: 0;
 	text-align: center;
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -203,7 +203,7 @@
 /* Remove card appearance from ALL parts on phone.
 	Specificity wins over the desktop card rule in style.css without !important;
 	width/height match what the mobile Part.layout() already inlines. */
-.agent-sessions-workbench.phone-layout .part.sessionspart,
+.agent-sessions-workbench.phone-layout .agents-part-card,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
@@ -222,7 +222,7 @@
 	policy above). Without this, opening the sidebar — which makes the
 	splitview share space between sidebar and sessions part — would shrink the
 	sessions part's content during the drawer slide animation. */
-.agent-sessions-workbench.phone-layout .part.sessionspart > .content,
+.agent-sessions-workbench.phone-layout .agents-part-card > .content,
 .agent-sessions-workbench.phone-layout .part.sidebar > .content,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
 .agent-sessions-workbench.phone-layout .part.panel > .content {
@@ -415,7 +415,7 @@
 	min-height: 36px;
 	padding: 2px 6px;
 	font-size: 17px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
 	gap: 4px;
@@ -574,6 +574,12 @@
 	min-width: max-content;
 }
 
+/* Keep phone chips unconstrained so long labels scroll horizontally instead of clipping. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .sessions-chat-session-type-picker,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: none;
+}
+
 /* Chip-pill style for each picker / toolbar action item in the chip row.
  * Each chip is a rounded, touch-friendly pill with a subtle background,
  * styled to match the iOS reference: compact padding, no visible border,
@@ -591,7 +597,7 @@
 	min-height: 30px;
 	min-width: 0;
 	padding: 2px 6px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid transparent;
 	color: var(--vscode-foreground);
@@ -844,7 +850,7 @@
 	min-height: 52px;
 	padding: 0 4px;
 	border: none;
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	background: none;
 	color: var(--vscode-foreground);
 	font-size: 16px;
@@ -955,7 +961,7 @@
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter
 	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
 	min-height: 36px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	padding: 0 12px;
 	font-size: 14px;
 	width: 100%;

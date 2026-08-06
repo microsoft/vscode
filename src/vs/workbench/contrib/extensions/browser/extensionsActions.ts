@@ -7,7 +7,6 @@ import './media/extensionActions.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
-import * as DOM from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -27,9 +26,10 @@ import { IExtensionService, toExtension, toExtensionDescription } from '../../..
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -75,6 +75,7 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1087,7 +1088,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'on' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -1222,10 +1223,8 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			const elementPosition = DOM.getDomNodePagePosition(this.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				...getWorkbenchMenuMotionContextMenuOptions(this.element),
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)
@@ -1793,8 +1792,6 @@ export class DisableGloballyAction extends ExtensionAction {
 	}
 }
 
-const CHAT_AI_DISABLED_SETTING = 'chat.disableAIFeatures';
-
 class EnableAIFeaturesGloballyAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.enableAIGlobally';
@@ -1808,7 +1805,7 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 		this.tooltip = localize('enableAIGloballyActionToolTip', "Enable AI features");
 		this.update();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this.update();
 			}
 		}));
@@ -1828,7 +1825,7 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
 			return;
 		}
-		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
 		if (inspect?.workspaceValue === true) {
 			return;
 		}
@@ -1836,7 +1833,7 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<void> {
-		await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false);
+		await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
 	}
 }
 
@@ -1855,7 +1852,7 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		this.tooltip = localize('enableAIInWorkspaceActionToolTip', "Enable AI features in this workspace");
 		this.update();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this.update();
 			}
 		}));
@@ -1872,7 +1869,7 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
 			return;
 		}
-		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
 		if (inspect.value === false) {
 			return;
 		}
@@ -1892,8 +1889,8 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 			return;
 		}
 		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
-		if (this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) === true) {
-			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false, ConfigurationTarget.WORKSPACE);
+		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.WORKSPACE);
 		}
 	}
 }
@@ -1911,7 +1908,7 @@ class DisableAIFeaturesGloballyAction extends ExtensionAction {
 		this.tooltip = localize('disableAIGloballyActionToolTip', "Disable AI features");
 		this.update();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this.update();
 			}
 		}));
@@ -1921,13 +1918,13 @@ class DisableAIFeaturesGloballyAction extends ExtensionAction {
 		this.enabled = false;
 		if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
 			this.enabled = this.extension.state === ExtensionState.Installed
-				&& this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) !== true
+				&& this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
 				&& this.extension.enablementState !== EnablementState.DisabledWorkspace;
 		}
 	}
 
 	override async run(): Promise<void> {
-		await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, true);
+		await this.configurationService.updateValue(ChatAIDisabledSettingId, true);
 	}
 }
 
@@ -2861,9 +2858,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
 			}
 			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const delay = fromNow(Date.now() - this.extensionsWorkbenchService.getAutoUpdateDelay(), false, true);
 				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
 				// Do not override the higher-priority warning class with the info class.
-				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated 2 hours after they are published. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated {0} after they are published. It will be auto updated {1}.", delay, updateAt)) }, !hasConsentWarning);
 			}
 		}
 
@@ -3441,10 +3439,10 @@ registerColor('extensionButton.hoverBackground', {
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
 registerColor('extensionButton.border', {
-	dark: buttonBorder,
-	light: buttonBorder,
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));

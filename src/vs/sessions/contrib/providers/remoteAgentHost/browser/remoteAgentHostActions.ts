@@ -5,11 +5,15 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -17,23 +21,27 @@ import { EndOfLinePreference } from '../../../../../editor/common/model.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { runServerUpgrade } from './remoteHostOptions.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -42,7 +50,9 @@ export const RemoteAgentHostCommandIds = {
 	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
 	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
+	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
+	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
 
 registerAction2(class extends Action2 {
@@ -571,7 +581,7 @@ async function promptForRemoteFolder(
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
@@ -596,8 +606,8 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -812,6 +822,7 @@ async function promptToConnectViaTunnel(
 	const authenticationService = accessor.get(IAuthenticationService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
+	const dialogService = accessor.get(IDialogService);
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -855,15 +866,29 @@ async function promptToConnectViaTunnel(
 		return;
 	}
 
-	tunnelPicker.items = tunnels.map(t => ({
-		label: t.name,
-		description: `${t.tunnelId} · protocol v${t.protocolVersion}`,
-		tunnel: t,
+	const deleteTunnelButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+	};
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos.map(tunnel => ({
+		label: tunnel.name,
+		description: tunnel.hostConnectionCount > 0
+			? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+			: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+		buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
+		tunnel,
 	}));
+
+	tunnelPicker.items = toTunnelPickItems(tunnels);
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection
 	const picked = await new Promise<'back' | ITunnelPickItem | undefined>(resolve => {
+		// While the modal delete confirmation is up the picker loses focus and
+		// may hide itself. `isDeleting` suppresses the hide handler for that
+		// window so the pick isn't cancelled, and the picker is re-shown once
+		// the confirmation resolves.
+		let isDeleting = false;
 		store.add(tunnelPicker.onDidTriggerButton(button => {
 			if (button === quickInputService.backButton) {
 				resolve('back');
@@ -871,10 +896,64 @@ async function promptToConnectViaTunnel(
 			}
 		}));
 		store.add(tunnelPicker.onDidAccept(() => {
+			if (isDeleting) {
+				return;
+			}
 			resolve(tunnelPicker.selectedItems[0]);
 			tunnelPicker.hide();
 		}));
+		store.add(tunnelPicker.onDidTriggerItemButton(async event => {
+			if (event.button !== deleteTunnelButton || isDeleting) {
+				return;
+			}
+
+			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
+			isDeleting = true;
+			tunnelPicker.ignoreFocusOut = true;
+			let keepOpen = true;
+			try {
+				const confirmation = await dialogService.confirm({
+					type: 'warning',
+					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
+					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
+					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+				});
+				if (!confirmation.confirmed) {
+					return;
+				}
+
+				tunnelPicker.busy = true;
+				await tunnelService.deleteTunnel(event.item.tunnel);
+				const refreshedTunnels = await tunnelService.listTunnels();
+				if (refreshedTunnels.length === 0) {
+					keepOpen = false;
+					notificationService.info(localize('tunnelNoneFoundAfterDelete', "No dev tunnels with agent host support were found. Start a tunnel with 'code tunnel' on another machine."));
+					return;
+				}
+
+				tunnelPicker.items = toTunnelPickItems(refreshedTunnels);
+			} catch (err) {
+				notificationService.error(localize('tunnelDeleteFailed', "Failed to delete dev tunnel '{0}': {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
+			} finally {
+				tunnelPicker.busy = false;
+				tunnelPicker.ignoreFocusOut = previousIgnoreFocusOut;
+				isDeleting = false;
+				if (keepOpen) {
+					tunnelPicker.show();
+				} else {
+					// The picker may already be hidden behind the confirmation
+					// dialog, in which case `hide()` is a no-op and would never
+					// fire `onDidHide`, so settle the pick explicitly here.
+					resolve(undefined);
+					tunnelPicker.hide();
+					store.dispose();
+				}
+			}
+		}));
 		store.add(tunnelPicker.onDidHide(() => {
+			if (isDeleting) {
+				return;
+			}
 			resolve(undefined);
 			store.dispose();
 		}));
@@ -918,7 +997,7 @@ async function promptForTunnelFolder(
 	tunnel: ITunnelInfo,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -945,8 +1024,8 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
@@ -972,5 +1051,273 @@ registerAction2(class extends Action2 {
 		if (result === 'back') {
 			onBack?.();
 		}
+	}
+});
+
+// ---- Connect via WSL -------------------------------------------------------
+
+interface IWSLDistroPickItem extends IQuickPickItem {
+	readonly distro: IWSLDistro;
+}
+
+async function promptToConnectViaWSL(
+	accessor: ServicesAccessor,
+	options: { showBackButton?: boolean } = {},
+): Promise<'back' | void> {
+	const wslService = accessor.get(IWSLRemoteAgentHostService);
+	const notificationService = accessor.get(INotificationService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const openerService = accessor.get(IOpenerService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+
+	const installAction = new Action(
+		'wsl.openDocs',
+		localize('wslInstallDocsAction', "Install WSL"),
+		undefined,
+		true,
+		() => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
+	);
+
+	if (!(await wslService.isWSLAvailable())) {
+		notificationService.notify({
+			severity: Severity.Info,
+			message: localize('wslNotInstalled', "Windows Subsystem for Linux is not installed or not enabled."),
+			actions: { primary: [installAction] },
+		});
+		return;
+	}
+
+	let distros: IWSLDistro[];
+	try {
+		distros = await wslService.listDistros();
+	} catch (err) {
+		logService.error('[WSL] listDistros failed', err);
+		notificationService.error(localize('wslListFailed', "Failed to list WSL distributions: {0}", toErrorMessage(err)));
+		return;
+	}
+
+	if (distros.length === 0) {
+		notificationService.notify({
+			severity: Severity.Info,
+			message: localize('wslNoDistros', "No WSL 2 distributions are installed."),
+			actions: { primary: [installAction] },
+		});
+		return;
+	}
+
+	const items: IWSLDistroPickItem[] = distros.map(d => ({
+		label: d.name,
+		description: d.isRunning ? localize('wslDistroRunning', "Running") : localize('wslDistroStopped', "Stopped"),
+		detail: d.isDefault ? localize('wslDistroDefault', "Default distribution") : undefined,
+		distro: d,
+	}));
+
+	let picked: IWSLDistroPickItem | undefined;
+	if (items.length === 1 && !options.showBackButton) {
+		picked = items[0];
+	} else {
+		const result = await new Promise<'back' | IWSLDistroPickItem | undefined>(resolve => {
+			const store = new DisposableStore();
+			const picker = store.add(quickInputService.createQuickPick<IWSLDistroPickItem>());
+			picker.title = localize('wslPickTitle', "Connect via WSL");
+			picker.placeholder = localize('wslPickPlaceholder', "Select a WSL distribution to connect to");
+			picker.items = items;
+			if (options.showBackButton) {
+				picker.buttons = [quickInputService.backButton];
+			}
+			store.add(picker.onDidTriggerButton(button => {
+				if (button === quickInputService.backButton) {
+					resolve('back');
+					picker.hide();
+				}
+			}));
+			store.add(picker.onDidAccept(() => {
+				resolve(picker.selectedItems[0]);
+				picker.hide();
+			}));
+			store.add(picker.onDidHide(() => {
+				resolve(undefined);
+				store.dispose();
+			}));
+			picker.show();
+		});
+
+		if (result === 'back') {
+			return 'back';
+		}
+		if (!result) {
+			return;
+		}
+		picked = result;
+	}
+
+	const handle = notificationService.notify({
+		severity: Severity.Info,
+		message: localize('wslConnecting', "Connecting to WSL distribution '{0}'...", picked.distro.name),
+		progress: { infinite: true },
+	});
+
+	const expectedKey = `wsl:${picked.distro.name}`;
+	const progressListener = wslService.onDidReportConnectProgress?.(progress => {
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
+	});
+
+	try {
+		await wslService.connect({ distro: picked.distro.name, name: picked.distro.name });
+		handle.close();
+	} catch (err) {
+		handle.close();
+		if (isCancellationError(err)) {
+			return;
+		}
+		logService.error(`[WSL] Connect to '${picked.distro.name}' failed`, err);
+		notificationService.error(localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)));
+		return;
+	} finally {
+		progressListener?.dispose();
+	}
+
+	await instantiationService.invokeFunction(accessor => promptForWSLFolder(accessor, picked.distro.name));
+}
+
+/**
+ * After a successful WSL connection, show the remote folder picker and
+ * pre-select the chosen folder in the workspace picker.
+ */
+async function promptForWSLFolder(
+	accessor: ServicesAccessor,
+	distro: string,
+): Promise<void> {
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionsService = accessor.get(ISessionsService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
+
+	const wslAddress = `wsl:${distro}`;
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === wslAddress);
+	if (!provider) {
+		return;
+	}
+
+	const browseAction = provider.browseActions[0];
+	if (!browseAction) {
+		return;
+	}
+
+	const workspace = await browseAction.run();
+	if (!workspace) {
+		return;
+	}
+	const folderUri = workspace.folders[0]?.root;
+	if (!folderUri) {
+		return;
+	}
+
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.connectViaWSL,
+			title: localize2('connectViaWSL', "Connect to Remote Agent Host via WSL"),
+			shortTitle: localize2('connectViaWSLShort', "WSL..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			icon: Codicon.terminalLinux,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('isWindows', true),
+				ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+			),
+			menu: {
+				id: Menus.SessionWorkspaceManage,
+				order: 15,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isWindows', true),
+					SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<void> {
+		const result = await promptToConnectViaWSL(accessor, { showBackButton: !!onBack });
+		if (result === 'back') {
+			onBack?.();
+		}
+	}
+});
+
+/**
+ * Force-update a remote agent host server that rejected our protocol
+ * version because it is running an old build. Connecting to such a host
+ * leaves it in the `incompatible` state; when the host was spawned by a
+ * VS Code CLI willing to receive upgrade signals it advertises an upgrade
+ * method, which this command invokes via the shared {@link runServerUpgrade}
+ * flow. Exposed in the command palette so the update is reachable without
+ * first opening the host's options quickpick.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.updateRemoteAgentHost,
+			title: localize2('updateRemoteAgentHost', "Update Remote Agent Host Server..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const remoteHosts = sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !!provider.remoteAddress);
+		let incompatibleCount = 0;
+		const upgradable = remoteHosts
+			.map(provider => {
+				const status = provider.connectionStatus?.get();
+				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					return undefined;
+				}
+				incompatibleCount++;
+				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
+			})
+			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
+
+		if (upgradable.length === 0) {
+			// Distinguish "nothing is incompatible" from "incompatible hosts exist
+			// but none was spawned by a VS Code CLI that can update it in place".
+			notificationService.info(incompatibleCount > 0
+				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+			return;
+		}
+
+		let target = upgradable[0];
+		if (upgradable.length > 1) {
+			type UpdateHostPickItem = IQuickPickItem & { entry: { provider: IAgentHostSessionsProvider; method: string } };
+			const picked = await quickInputService.pick<UpdateHostPickItem>(
+				upgradable.map(entry => ({
+					label: entry.provider.label,
+					description: entry.provider.remoteAddress,
+					entry,
+				})),
+				{ placeHolder: localize('updateRemoteAgentHost.pick', "Select a remote agent host to update") },
+			);
+			if (!picked) {
+				return;
+			}
+			target = picked.entry;
+		}
+
+		await instantiationService.invokeFunction(runServerUpgrade, target.provider, target.method);
 	}
 });

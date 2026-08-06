@@ -5,16 +5,18 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../platform/chat/common/chatSettings.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -47,6 +49,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { localize } from '../../nls.js';
 
 //#region Layout Implementation
 
@@ -97,11 +100,22 @@ enum LayoutClasses {
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
+	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
+	// Set when no grid row sits above the middle section (both the title bar and the
+	// banner are hidden), so the floating cards abut the top window edge.
+	TOP_WINDOW_EDGE = 'top-window-edge',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
-	NO_SHADOWS = 'no-shadows'
+	NO_SHADOWS = 'no-shadows',
+	FLOATING_PANELS = 'floating-panels',
+	// Presentation class for the Modern UI Update experiment, owned/toggled at
+	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
+	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
+	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
+	// height) via `.closest('.style-override')`.
+	STYLE_OVERRIDE = 'style-override'
 }
 
 interface IPathToOpen extends IPath {
@@ -437,6 +451,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
+			// Modern UI Update (floating panels presentation)
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this.updateFloatingPanels();
+			}
+
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -609,6 +628,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
 		}
+	}
+
+	isFloatingPanelsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
+	}
+
+	private updateFloatingPanels(): void {
+		// Floating panels is a main-window concept: only the main container hosts
+		// the side bars and bottom panel. Scope the class (and therefore the CSS
+		// card margins) to the main container so auxiliary windows — whose parts do
+		// not apply the matching content insets in code — are left untouched.
+		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1669,6 +1700,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
+		// The floating cards abut the top window edge only while neither of the two grid rows
+		// above the middle section is showing, so track both rather than the title bar alone.
+		this._register(this.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.TITLEBAR_PART || partId === Parts.BANNER_PART) {
+				this.updateTopWindowEdgeClass();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(() => {
 
 			// Side Bar Size
@@ -1843,6 +1882,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
@@ -1880,9 +1920,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
+			isFloatingTopEdgeExposed(this, mainWindow) ? LayoutClasses.TOP_WINDOW_EDGE : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
+			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			`panel-position-${positionToString(this.getPanelPosition())}`,
+			`panel-alignment-${this.getPanelAlignment()}`
 		]);
 	}
 
@@ -2014,7 +2061,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// panel alignment requires the editor part to be visible
 		this.setAuxiliaryBarMaximized(false);
 
+		// Adjust CSS — capture old value before updating state model
+		const oldAlignmentValue = this.getPanelAlignment();
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
+		this.mainContainer.classList.remove(`panel-alignment-${oldAlignmentValue}`);
+		this.mainContainer.classList.add(`panel-alignment-${alignment}`);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
@@ -2282,6 +2333,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	toggleSecondarySideBar(): void {
+		const visible = !this.isSecondarySideBarVisible();
+		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
+		alert(visible
+			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
+			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
+	}
+
 	hasMainWindowBorder(): boolean {
 		return this.state.runtime.mainWindowBorder;
 	}
@@ -2311,6 +2374,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
+	}
+
+	private updateTopWindowEdgeClass(): void {
+		this.mainContainer.classList.toggle(LayoutClasses.TOP_WINDOW_EDGE, isFloatingTopEdgeExposed(this, mainWindow));
 	}
 
 	toggleMenuBar(): void {
@@ -2346,6 +2413,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
+		this.mainContainer.classList.remove(`panel-position-${oldPositionValue}`);
+		this.mainContainer.classList.add(`panel-position-${newPositionValue}`);
 
 		// Update Styles
 		panelPart.updateStyles();
@@ -2966,7 +3035,7 @@ class LayoutStateModel extends Disposable {
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
 				configuration.value !== 'hidden' &&
-				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+				!this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)
 			) {
 				return false;
 			}

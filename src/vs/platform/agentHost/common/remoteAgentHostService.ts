@@ -10,7 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
-import type { UnsupportedProtocolVersionErrorMeta, IVscodeUpgradeResult } from './state/protocolUpgrade.js';
+import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
 /**
@@ -80,9 +80,9 @@ export namespace RemoteAgentHostConnectionStatus {
 	 */
 	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
 		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
-			const data = err.data as (Partial<UnsupportedProtocolVersionErrorData> & { _meta?: UnsupportedProtocolVersionErrorMeta }) | undefined;
+			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
 			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
-			const vscodeUpgradeMethod = typeof data?._meta?.vscodeUpgradeMethod === 'string' ? data._meta.vscodeUpgradeMethod : undefined;
+			const vscodeUpgradeMethod = readUnsupportedProtocolVersionErrorMeta(err.data)?.vscodeUpgradeMethod;
 			return incompatible(err.message, supportedByClient, offeredByServer, vscodeUpgradeMethod);
 		}
 		return undefined;
@@ -104,7 +104,9 @@ export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoCon
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',
+	WSL = 'wsl',
 	Tunnel = 'tunnel',
+	CloudSandbox = 'cloudSandbox',
 }
 
 export interface IRemoteAgentHostWebSocketConnection {
@@ -157,7 +159,31 @@ export interface IRemoteAgentHostTunnelConnection {
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
+export interface IRemoteAgentHostWSLConnection {
+	readonly type: RemoteAgentHostEntryType.WSL;
+	/** Display address: `wsl:<distro>`. */
+	readonly address: string;
+	/** WSL distro name (e.g. `Ubuntu-22.04`). */
+	readonly distro: string;
+}
+
+/**
+ * A connection to a Copilot cloud "sandbox" environment (agent integration slug
+ * `copilot-developer-cli`), reached over a Mission Control-brokered Azure Web
+ * PubSub relay. Not persisted to settings — the connection is established
+ * on demand with freshly-minted, short-lived credentials.
+ */
+export interface IRemoteAgentHostCloudSandboxConnection {
+	readonly type: RemoteAgentHostEntryType.CloudSandbox;
+	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
+	readonly address: string;
+	/** Stable Mission Control environment identifier (`env_<uuid>`). */
+	readonly environmentId: string;
+	/** The cloud session/task id this connection is for, when known. */
+	readonly sessionId?: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -170,6 +196,8 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.WebSocket:
 		case RemoteAgentHostEntryType.SSH:
+		case RemoteAgentHostEntryType.WSL:
+		case RemoteAgentHostEntryType.CloudSandbox:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
@@ -179,6 +207,13 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
+
+/**
+ * Output channel id for the local agent host process logger (forwarded
+ * from the utility process via `RemoteLoggerChannelClient`). Matches the
+ * logger id registered in `agentHostMain.ts`.
+ */
+export const AGENT_HOST_LOG_OUTPUT_CHANNEL_ID = 'agenthost';
 
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
@@ -222,6 +257,16 @@ export interface IRemoteAgentHostService {
 	 * Returns `undefined` if no active connection exists for the address.
 	 */
 	getConnection(address: string): IAgentConnection | undefined;
+
+	/**
+	 * Get a per-connection {@link IAgentConnection} by its sanitized
+	 * connection authority (as produced by `agentHostAuthority`), rather than
+	 * its raw address. Useful for callers that only have the authority
+	 * component of a remote session URI scheme (`remote-<authority>-<provider>`).
+	 *
+	 * Returns `undefined` if no active connection matches the authority.
+	 */
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
 
 	/**
 	 * Adds or updates a configured remote host and resolves once a connection
@@ -318,6 +363,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	getConnection(): IAgentConnection | undefined { return undefined; }
+	getConnectionByAuthority(): IAgentConnection | undefined { return undefined; }
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
@@ -458,7 +504,9 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 			};
+		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
+		case RemoteAgentHostEntryType.CloudSandbox:
 			return undefined;
 	}
 }

@@ -51,6 +51,12 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
 	supportsCheckpoints?: boolean;
+	/**
+	 * The prefix (e.g. `!`) that marks a message in this
+	 * session type as a terminal command rather than a message to the agent.
+	 * Undefined when the session type has no terminal command support.
+	 */
+	terminalCommandPrefix?: string;
 }
 
 export interface IChatAgentData {
@@ -169,6 +175,10 @@ export interface IChatAgentRequest {
 	 * Whether any hooks are enabled for this request.
 	 */
 	hasHooksEnabled?: boolean;
+	/**
+	 * Whether this request was submitted through Agents Voice Mode.
+	 */
+	isVoiceModeInput?: boolean;
 	/**
 	 * The permission level for tool auto-approval in this request.
 	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.

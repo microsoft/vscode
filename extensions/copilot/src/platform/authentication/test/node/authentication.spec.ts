@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterEach, beforeEach, expect, suite, test } from 'vitest';
+import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
@@ -87,8 +87,10 @@ suite('AuthenticationService', function () {
 		expect(staticWithoutSession.hasCopilotTokenSource).toBe(true);
 	});
 
-	test('Emits onDidAuthenticationChange when a Copilot Token change is notified', async () => {
-		const promise = Event.toPromise(authenticationService.onDidAuthenticationChange);
+	test('Emits onDidCopilotTokenChange but not onDidAuthenticationChange when a Copilot Token change is notified', async () => {
+		const authChangeSpy = vi.fn();
+		authenticationService.onDidAuthenticationChange(authChangeSpy);
+		const promise = Event.toPromise(authenticationService.onDidCopilotTokenChange);
 		const newToken = 'tid=new';
 		authenticationService.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo({
 			token: newToken,
@@ -97,10 +99,11 @@ suite('AuthenticationService', function () {
 		})));
 		await promise;
 		expect(authenticationService.copilotToken?.token).toBe(newToken);
+		expect(authChangeSpy).not.toHaveBeenCalled();
 	});
 
-	test.skip('Emits onDidAuthenticationChange when a Copilot Token change is notified from the manager', async () => {
-		const promise = Event.toPromise(authenticationService.onDidAuthenticationChange);
+	test.skip('Emits onDidCopilotTokenChange when a Copilot Token change is notified from the manager', async () => {
+		const promise = Event.toPromise(authenticationService.onDidCopilotTokenChange);
 		const newToken = 'tid=new';
 		copilotTokenManager.completionsToken = newToken;
 		await promise;

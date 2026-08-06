@@ -112,6 +112,15 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 */
 	readonly when?: ContextKeyExpression;
 	/**
+	 * Command IDs that must be registered for this tip to be eligible.
+	 */
+	readonly requiresCommands?: readonly string[];
+	/**
+	 * Chat mode names that must be available in the current widget for this tip to
+	 * be eligible.
+	 */
+	readonly requiresModeNames?: readonly string[];
+	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
 	readonly onlyWhenModelIds?: readonly string[];
@@ -244,13 +253,14 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.open?%5B%7B%22mode%22%3A%22Plan%22%7D%5D \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		requiresModeNames: ['Plan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
@@ -328,25 +338,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			'workbench.action.chat.forkConversation',
 			TipTrackingCommands.ForkConversationUsed,
 		],
-	},
-	{
-		id: 'tip.agenticBrowser',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
-					'agentic browser integration'
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
-		),
-		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.mermaid',

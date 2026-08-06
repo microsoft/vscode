@@ -1,0 +1,200 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_TEST_UNIT
+    type: boolean
+  - name: VSCODE_TEST_INTEGRATION
+    type: boolean
+  - name: VSCODE_TEST_SMOKE
+    type: boolean
+  - name: iterations
+    type: object
+
+jobs:
+  - template: ../common/product-smoke-flaky-build.yml@self
+    parameters:
+      jobName: WindowsSmokeFlakyBuild
+      displayName: Windows Build (shared)
+      platform: windows
+      arch: x64
+      archiveExt: zip
+      artifactPrefix: smoke-flaky-windows-x64
+      testIntegration: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+      testSmoke: ${{ parameters.VSCODE_TEST_SMOKE }}
+      compileSteps:
+        - template: ./steps/product-build-win32-compile.yml@self
+          parameters:
+            VSCODE_ARCH: x64
+            VSCODE_CIBUILD: true
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
+      archiveWorkspaceSteps:
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            # The source path must be quoted: unquoted, PowerShell expands the `\*`
+            # wildcard against the filesystem itself (unlike cmd.exe) before 7z.exe
+            # ever runs, turning it into one argument per file under the sources
+            # directory and blowing past the command-line length limit, which
+            # truncates and corrupts the trailing -xr!.git switch.
+            exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
+          displayName: Archive built workspace for reuse by test jobs
+      archiveAppSteps:
+        - powershell: |
+            # This step's workingDirectory is Agent.BuildDirectory (the parent of
+            # the sources folder), so exec.ps1 must be sourced via an absolute
+            # path rather than one relative to the sources root.
+            . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\app.zip VSCode-win32-x64 }
+          workingDirectory: $(Agent.BuildDirectory)
+          displayName: Archive packaged app for reuse by test jobs
+      archiveServerSteps:
+        - powershell: |
+            # This step's workingDirectory is Agent.BuildDirectory (the parent of
+            # the sources folder), so exec.ps1 must be sourced via an absolute
+            # path rather than one relative to the sources root.
+            . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\server.zip vscode-server-win32-x64 }
+          workingDirectory: $(Agent.BuildDirectory)
+          displayName: Archive packaged server for reuse by test jobs
+
+  - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: WindowsSmokeFlakyUnit
+        buildJobName: WindowsSmokeFlakyBuild
+        displayName: Windows Unit Tests
+        platform: windows
+        arch: x64
+        testName: unit
+        artifactPrefix: smoke-flaky-windows-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+        extractArtifactSteps:
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+              # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+            displayName: Extract built workspace
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+              env:
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 15
+          - ${{ each i in parameters.iterations }}:
+            - powershell: |
+                New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
+                npm run test-node -- --build
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+              continueOnError: true
+              timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: WindowsSmokeFlakyIntegration
+        buildJobName: WindowsSmokeFlakyBuild
+        displayName: Windows Integration Tests
+        platform: windows
+        arch: x64
+        testName: integration
+        artifactPrefix: smoke-flaky-windows-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+        extractArtifactSteps:
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+              # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
+            displayName: Extract built workspace, app and server
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - powershell: |
+                . build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+                $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+                $AppNameShort = $AppProductJson.nameShort
+                $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+                $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+                exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+              env:
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20
+
+          # Force-kill any lingering test processes that still hold integration-test
+          # log files open and would otherwise break the 1ES "Publish Log Files" output.
+          - powershell: |
+              $ErrorActionPreference = "Continue"
+              $appRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+              $serverRoot = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+              Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
+                Where-Object { $_.ExecutablePath -like "$appRoot\*" -or $_.ExecutablePath -like "$serverRoot\*" } |
+                ForEach-Object {
+                  Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
+                  try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+                  catch { Write-Host "  failed: $($_.Exception.Message)" }
+                }
+            displayName: Kill lingering integration test processes
+            continueOnError: true
+            condition: succeededOrFailed()
+
+  - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: WindowsSmokeFlakySmoke
+        buildJobName: WindowsSmokeFlakyBuild
+        displayName: Windows Smoke Tests
+        platform: windows
+        arch: x64
+        testName: smoke
+        artifactPrefix: smoke-flaky-windows-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+        extractArtifactSteps:
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+              # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
+              if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
+            displayName: Extract built workspace and app
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - powershell: |
+                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                $status = $LASTEXITCODE
+                if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
+                  Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
+                }
+                exit $status
+              displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20

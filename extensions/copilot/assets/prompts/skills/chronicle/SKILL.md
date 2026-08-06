@@ -13,11 +13,10 @@ Sessions may be stored locally (SQLite) and optionally synced to the cloud for c
 
 ## Available Tool Actions
 
-The `copilot_sessionStoreSql` tool supports three actions:
+The `copilot_sessionStoreSql` tool supports two actions:
 
 | Action | Purpose | `query` param |
 |--------|---------|---------------|
-| `standup` | Pre-fetch last 24h sessions, turns, files, refs | Not needed |
 | `query` | Execute a read-only SQL query | Required |
 | `reindex` | Rebuild local session index + cloud sync | Not needed |
 
@@ -25,13 +24,30 @@ The `copilot_sessionStoreSql` tool supports three actions:
 
 ### Standup
 
-When the user asks for a standup, daily summary, or "what did I do":
+When the user asks for a standup, daily summary, or "what did I do" (e.g. `/chronicle standup`):
 
-1. Call `copilot_sessionStoreSql` with `action: "standup"` and `description: "Generate standup"`.
-2. The tool returns pre-fetched session data (sessions, turns, files, refs from the last 24 hours).
-3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle reindex`, and stop — do not fabricate a standup.
-4. For any PR references in the data, check their current status (open, merged, draft) if possible.
-5. Format the returned data as a standup report grouped by work stream (branch/feature):
+**Step 1: Gather the last 24h of activity**
+
+Use `copilot_sessionStoreSql` with `action: "query"` and follow the SQL dialect shown in the tool description (SQLite locally, DuckDB on cloud — see the **Database Schema** and **Query Guidelines** sections below).
+
+Query the `sessions` table for rows where `updated_at` falls within the last 24 hours, ordered by `updated_at` descending. Recent-window predicate by backend:
+
+- **Local SQLite**: `WHERE updated_at >= datetime('now', '-1 day')`
+- **Cloud DuckDB**: `WHERE updated_at >= now() - INTERVAL '1 day'`
+
+Then, for those session ids, pull related references from `session_refs` (PRs, issues, commits). If you need more detail on a particular session, query `turns` (and `session_files`, or `checkpoints` on cloud) further — don't dump every turn for every session up front.
+
+If no sessions are found in the last 24 hours, tell the user there's no recent activity to report, suggest a longer window or `/chronicle reindex`, and stop. Do not fabricate a standup.
+
+**Step 2: Include PR-less work**
+
+Treat every recent session as a candidate work item, even when it has no PR, issue, or commit reference. PRs are supporting evidence, not the source of truth. Do not omit a session or branch solely because it has no PR — use session summaries and turn content to decide what to include.
+
+**Step 3: Check PR status and format**
+
+For any PR references found, use the GitHub CLI or MCP tools to check current status (open, merged, draft, closed). For each work item, include either a PR status line or a "No PR found" line — never invent a PR.
+
+Format the result grouped by work stream (branch/feature). Use exactly this structure:
 
 ```
 Standup for <date>:
@@ -41,26 +57,27 @@ Standup for <date>:
 **Feature name** (`branch-name` branch, `repo-name`)
   - 3-7 words describing the status
   - Key files: 2-3 most important files changed
-  - Merged: [#123](link)
-  - Session: `session-id`
+  - Merged: [#123](https://github.com/owner/repo/pull/123) or No PR found
+  - Session: `full-session-id`
 
 **🚧 In Progress**
 
 **Feature name** (`branch-name` branch, `repo-name`)
   - 3-7 words describing the current state of work
   - Key files: 2-3 most important files being worked on
-  - Draft: [#789](link)
-  - Session: `session-id`
+  - Draft: [#789](https://github.com/owner/repo/pull/789) or No PR found
+  - Session: `full-session-id`
 ```
 
 Rules:
 - Keep it concise and succinct — the user can always ask follow-up questions
 - Use turn data (user messages AND assistant responses) to understand WHAT was done
-- Use file paths to identify which components/areas were affected
+- Use file paths from `session_files` to identify which components/areas were affected
 - Group related sessions on the same branch into one entry
 - For sessions, only show the most recent session per feature/branch
 - Link PRs and issues using markdown link syntax
 - Classify as Done if work appears complete, In Progress otherwise
+- If a session has no branch or repo, include it under an "Other" section
 
 ### Tips
 
@@ -235,20 +252,20 @@ Escape single quotes in the user's query by doubling them (`it's` → `it''s`). 
 
 `ILIKE '%X%'` on `turns` is a full table scan. Cloud queries that run too long return `context deadline exceeded`. To stay under the budget:
 
-- Collect matching session IDs into a single CTE (`WITH hits AS (...)`) and then **`JOIN`** back to `sessions` once. Don't use correlated subqueries in the SELECT list — they re-scan the CTE per row.
-- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries.
-- On cloud, default to a **90-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '90 days'` on `turns`, same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; widen it if the user asks for "all time" or no results come back.
+- **Use the two-step pattern** (recommended): First, collect matching `session_id`s from `turns` with a narrow time window and `GROUP BY session_id` in a CTE. Then enrich from `sessions` using `WHERE id IN (...)`. This avoids the expensive JOIN on a large scan result that causes timeouts.
+- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries or correlated subqueries.
+- On cloud, default to a **7-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '7 days'` on `turns`, same on `checkpoints` via `created_at`). If no results come back, **progressively widen**: 7 days → 30 days → 90 days. Mention the window in your summary line so the user knows it's bounded.
 - Keep `LIMIT 50` on the final SELECT.
-- If a query times out, retry with a tighter window (30 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
+- If a query times out, narrow the window (not widen it) or drop the heaviest table (usually `turns`) and tell the user what you trimmed. Do NOT retry with the same window — always reduce scope first.
 
 **Output format**
 
 For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
 
-If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+If you applied a time window (e.g. the cloud 7-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
 
 ```
-**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 7 days" / "all time">)
 
 _owner/repo_
 - `session-id` — **<summary or snippet>**

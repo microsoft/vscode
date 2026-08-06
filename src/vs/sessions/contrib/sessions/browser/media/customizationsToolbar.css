@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /* AI Customization section - pinned to bottom */
+.ai-customization-shortcuts-widget {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
 .ai-customization-toolbar {
 	display: flex;
 	flex-direction: column;
-	flex-shrink: 0;
+	height: 100%;
+	min-height: 0;
 	position: relative;
-	padding: 6px 0;
-}
-
-.ai-customization-toolbar::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 10px;
-	right: 10px;
-	height: 1px;
-	background-color: var(--vscode-agentsPanel-border, transparent);
-	pointer-events: none;
+	box-sizing: border-box;
+	overflow: hidden;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 }
 
 /* Make the toolbar, action bar, and items fill full width and stack vertically */
@@ -43,40 +41,81 @@
 	width: 100%;
 }
 
-/* Customization header - clickable for collapse */
+/* Customization header */
 .ai-customization-toolbar .ai-customization-header {
 	display: flex;
 	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40, 4px);
 	-webkit-user-select: none;
 	user-select: none;
+	padding: 6px 10px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+}
+
+.ai-customization-toolbar .ai-customization-header:hover .ai-customization-header-label,
+.ai-customization-toolbar .ai-customization-header:focus-visible .ai-customization-header-label {
+	color: var(--vscode-strongForeground);
+}
+
+.ai-customization-toolbar .ai-customization-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-toolbar .ai-customization-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+.ai-customization-toolbar .ai-customization-header-label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-toolbar .ai-customization-header-total-count {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	line-height: 1;
+}
+
+.ai-customization-toolbar .ai-customization-header-total-count.hidden {
+	display: none;
 }
 
 .ai-customization-toolbar .ai-customization-chevron {
 	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
+	visibility: hidden;
+	opacity: 0;
+}
+
+.ai-customization-toolbar .ai-customization-header:hover .ai-customization-chevron,
+.ai-customization-toolbar .ai-customization-header:focus-visible .ai-customization-chevron,
+.ai-customization-toolbar .ai-customization-header.collapsed .ai-customization-chevron {
+	visibility: visible;
 	opacity: 0.7;
 }
 
-.ai-customization-toolbar .ai-customization-header-total {
-	display: none;
-	opacity: 0.7;
-	font-size: 11px;
-	line-height: 1;
-	margin-left: auto;
+.ai-customization-toolbar .ai-customization-chevron:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.ai-customization-toolbar .ai-customization-header-total + .ai-customization-chevron {
-	margin-left: 6px;
-}
-
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button .ai-customization-header-total:not(.hidden) {
-	display: inline;
-}
-
-/* Button container - fills available space.
-	Per-item containers are inset 10px so they sit inside the toolbar's
-	rounded edge. The header container intentionally overrides this to
-	span the full panel width so its hover background extends edge to
-	edge — see the override directly below. */
+/* Button container - fills available space. Per-item containers are inset
+	10px so they sit inside the toolbar's rounded edge. */
 .ai-customization-toolbar .customization-link-button-container {
 	overflow: hidden;
 	min-width: 0;
@@ -84,40 +123,21 @@
 	margin: 0 10px;
 }
 
-/* Header container spans full width so the hover background reaches the
-	panel edges. The header button itself re-introduces matching internal
-	padding so its label and chevron align with the per-item icons and
-	counts below. */
-.ai-customization-toolbar .ai-customization-header .customization-link-button-container {
-	margin: 0;
-	border-radius: 0;
-}
-
 /* Button needs relative positioning for counts overlay */
 .ai-customization-toolbar .customization-link-button {
 	position: relative;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+}
+
+/* Icons use the standard icon foreground color. */
+.ai-customization-toolbar .customization-link-button .codicon {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 /* Match hover color used by session list items rather than the
 	default toolbar hover used by `.sidebar-action-button`. */
 .ai-customization-toolbar .customization-link-button.sidebar-action-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
-}
-
-/* Customizations header label uses heavier weight and lays out the
-	label on the left with the chevron pushed to the right. The header
-	button spans the full panel width (see container override above) so
-	its internal `padding-left: 10px` matches the per-item container's
-	`margin-left: 10px` — keeping the "Customizations" label aligned
-	with the per-item icons. The right padding is tuned visually so the
-	chevron lines up with the per-item count numbers (which use
-	`right: 14px` inside their 10px-inset container). */
-.ai-customization-toolbar .ai-customization-header .customization-link-button {
-	font-weight: 500;
-	justify-content: space-between;
-	gap: 0;
-	padding: 6px 16px 6px 10px;
-	border-radius: 0;
 }
 
 /* Counts - floating right inside the per-item link button. Tuned to
@@ -144,39 +164,29 @@
 }
 
 .ai-customization-toolbar .source-count-icon {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label2, 12px);
 	opacity: 0.6;
 }
 
 .ai-customization-toolbar .source-count-num {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.8;
 }
 
-/* Collapsed state */
-.ai-customization-toolbar .ai-customization-toolbar-content {
-	max-height: 500px;
+.ai-customization-toolbar > .monaco-scrollable-element {
+	flex: 1;
+	min-height: 0;
+}
+
+.ai-customization-toolbar .ai-customization-toolbar-content-scrollable {
+	height: 100%;
+	min-height: 100%;
 	overflow: hidden;
-	transition: max-height 0.2s ease-out;
+	width: 100%;
+}
+
+.ai-customization-toolbar .ai-customization-toolbar-content {
+	overflow: hidden;
 	padding-bottom: 2px;
-}
-
-.ai-customization-toolbar.collapsed .ai-customization-toolbar-content {
-	max-height: 0;
-	padding-bottom: 0;
-}
-
-/* Single-entry mode: a single "Customizations" sidebar link replaces the
-	per-subtype toolbar list. Reuses .customization-link-button-container /
-	.customization-link-button styles for visual parity with the per-link rows. */
-.ai-customization-toolbar.single-entry {
-	padding: 6px 0 10px 0;
-}
-
-/* Disable the shared `flex: 1` so the single entry doesn't stretch to fill
-	the flex-column toolbar. Width is handled by the inherited `margin: 0 10px`
-	and the parent's default `align-items: stretch`. */
-.ai-customization-toolbar.single-entry .customization-link-button-container {
-	flex: none;
 }

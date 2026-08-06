@@ -4,9 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+
+type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
+type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
+
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+	return {
+		kind: 'shell',
+		canOfferSessionApproval: false,
+		commands: [],
+		fullCommandText,
+		hasWriteFileRedirection: false,
+		intention: '',
+		possiblePaths: [],
+		possibleUrls: [],
+		requestSandboxBypass,
+	};
+}
+
+function customToolPermissionRequest(toolName: string, args: Record<string, unknown>): CopilotCustomToolPermissionRequest {
+	return {
+		kind: 'custom-tool',
+		toolName,
+		toolDescription: '',
+		args,
+	};
+}
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -66,6 +93,11 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['tool_search_tool_regex', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
+			['addComment', 'Add Comment'],
+			['listComments', 'List Comments'],
+			['deleteComments', 'Delete Comments'],
+			['resolveComments', 'Resolve Comments'],
+			['viewUnreviewedComments', 'View Comments'],
 		];
 
 		for (const [toolName, displayName] of cases) {
@@ -98,6 +130,32 @@ suite('copilotToolDisplay — edit tool classification', () => {
 	});
 });
 
+suite('copilotToolDisplay — markdown-rendered tools', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('task_complete renders as markdown, other tools do not', () => {
+		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
+		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
+		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
+	});
+
+	test('getToolMarkdownContent returns the task_complete summary when present', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+	});
+
+	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
+	});
+
+	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
+		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,50 +163,33 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	const wd = URI.file('/repo/project');
 
 	test('strips redundant cd from shell permission request fullCommandText', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'npm test');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('leaves shell command alone when cd target differs from working directory', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /tmp && ls',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /tmp && ls');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'cd /tmp && ls');
 	});
 
 	test('leaves shell command alone when no working directory provided', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, undefined);
 		assert.strictEqual(display.toolInput, 'cd /repo/project && npm test');
 	});
 
 	test('strips redundant cd from custom-tool shell permission request', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'bash',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('bash', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'echo hi');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('does not affect non-shell custom-tool requests', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'some_other_tool',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('some_other_tool', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		// Falls through to the generic branch — toolInput is the JSON-stringified args.
 		assert.ok(display.toolInput?.includes('cd /repo/project'), `expected unrewritten args, got: ${display.toolInput}`);
@@ -156,13 +197,78 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	});
 
 	test('handles powershell custom-tool with semicolon separator', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'powershell',
-			args: { command: 'cd /repo/project; dir' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('powershell', { command: 'cd /repo/project; dir' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
+	});
+
+	test('confirmation title reflects sandbox bypass for shell requests', () => {
+		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
+		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
+
+		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
+});
+
+suite('getPermissionDisplay — read permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the view-tool invocation message for read permissions', () => {
+		const display = getPermissionDisplay({
+			kind: 'read',
+			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
+		}, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			invocationMessage: display.invocationMessage,
+			toolInput: display.toolInput,
+			permissionKind: display.permissionKind,
+			permissionPath: display.permissionPath,
+		}, {
+			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			toolInput: undefined,
+			permissionKind: 'read',
+			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+		});
+	});
+});
+
+suite('getPermissionDisplay — write permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes creating a file from editing one', () => {
+		const request = {
+			kind: 'write',
+			canOfferSessionApproval: false,
+			diff: '',
+			fileName: '/repo/project/package.json',
+			intention: '',
+		} satisfies PermissionRequest;
+
+		assert.deepStrictEqual({
+			create: getPermissionDisplay(request, URI.file('/repo/project'), true),
+			edit: getPermissionDisplay(request, URI.file('/repo/project'), false),
+		}, {
+			create: {
+				confirmationTitle: 'Create file?',
+				invocationMessage: { markdown: 'Creating [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
+			edit: {
+				confirmationTitle: 'Write file?',
+				invocationMessage: { markdown: 'Editing [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
+		});
 	});
 });
 
@@ -215,6 +321,156 @@ suite('view tool — view_range display', () => {
 	});
 });
 
+suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function invocation(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getInvocationMessage(toolName, getToolDisplayName(toolName), parameters);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function pastTense(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getPastTenseMessage(toolName, getToolDisplayName(toolName), parameters, true);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	test('agent-coordination tools use a single message (past tense) for both invocation and completion', () => {
+		// read/write agents surface the agent id, and the invocation message
+		// matches the past-tense message (these tools are fast).
+		assert.strictEqual(invocation('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+	});
+
+	test('agent tools fall back to a generic phrase without an agent id', () => {
+		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', undefined), 'Wrote to agent');
+	});
+
+	test('agent tools ignore a malformed (non-string) agent id instead of throwing', () => {
+		// agent_id comes from untrusted JSON, so a non-string must not reach the
+		// markdown inline-code formatter (which would throw).
+		assert.strictEqual(invocation('read_agent', { agent_id: 123 }), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Wrote to agent');
+	});
+
+	test('list_agents shares one message; task keeps distinct present/past phrases', () => {
+		// list_agents is a fast agent-coordination tool: one message.
+		assert.strictEqual(invocation('list_agents', {}), 'Listed agents');
+		assert.strictEqual(pastTense('list_agents', {}), 'Listed agents');
+		// task delegates to a (possibly slow) subagent, so it keeps a present-tense invocation.
+		assert.strictEqual(invocation('task', {}), 'Delegating task');
+		assert.strictEqual(pastTense('task', {}), 'Delegated task');
+	});
+
+	test('unhandled tools fall back to just the display name', () => {
+		// Known tool with no tailored message: uses its friendly display name.
+		assert.strictEqual(invocation('store_memory', {}), 'Store Memory');
+		assert.strictEqual(pastTense('store_memory', {}), 'Store Memory');
+		// Unknown tool: display name is the raw tool name.
+		assert.strictEqual(invocation('some_new_tool', {}), 'some_new_tool');
+		assert.strictEqual(pastTense('some_new_tool', {}), 'some_new_tool');
+	});
+});
+
+suite('copilotToolDisplay — streaming edit messages', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function streaming(toolName: string, parameters: unknown, resolvePath?: (path: string) => string): string {
+		const result = getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), parameters, resolvePath);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function invocation(toolName: string, parameters: Record<string, unknown>): string {
+		const result = getInvocationMessage(toolName, getToolDisplayName(toolName), parameters);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function completed(toolName: string, parameters: Record<string, unknown>): string {
+		const result = getPastTenseMessage(toolName, getToolDisplayName(toolName), parameters, true);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	test('streams replacement line counts and the target file', () => {
+		assert.deepStrictEqual([
+			streaming('edit', { path: '/repo/file.ts' }),
+			streaming('edit', { path: '/repo/file.ts', old_str: 'one\ntwo' }),
+			streaming('edit', { path: '/repo/file.ts', old_str: 'one\ntwo', new_str: 'one\nupdated\nthree' }),
+		], [
+			'Editing [file.ts](file:///repo/file.ts)',
+			'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
+			'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('streams create and insert line counts', () => {
+		assert.deepStrictEqual([
+			streaming('create', { path: '/repo/new.ts', file_text: 'one\r\ntwo\r\nthree' }),
+			streaming('insert', { path: '/repo/file.ts', new_str: 'one\rtwo' }),
+		], [
+			'Creating [new.ts](file:///repo/new.ts) (3 lines)',
+			'Inserting 2 lines in [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('uses the str_replace_editor command shape', () => {
+		assert.deepStrictEqual([
+			streaming('str_replace_editor', { command: 'create', path: '/repo/new.ts', file_text: 'one\ntwo' }),
+			streaming('str_replace_editor', { command: 'str_replace', path: '/repo/file.ts', old_str: 'old', new_str: 'new\nvalue' }),
+			streaming('str_replace_editor', { command: 'view', path: '/repo/file.ts' }),
+		], [
+			'Creating [new.ts](file:///repo/new.ts) (2 lines)',
+			'Replacing 1 line with 2 lines in [file.ts](file:///repo/file.ts)',
+			'Reading [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('preserves file context after streaming aliases become ready and complete', () => {
+		const cases: Array<[toolName: string, parameters: Record<string, unknown>, ready: string, complete: string]> = [
+			['str_replace', { path: '/repo/file.ts' }, 'Editing [file.ts](file:///repo/file.ts)', 'Edited [file.ts](file:///repo/file.ts)'],
+			['insert', { path: '/repo/file.ts' }, 'Inserting text in [file.ts](file:///repo/file.ts)', 'Inserted text in [file.ts](file:///repo/file.ts)'],
+			['str_replace_editor', { command: 'create', path: '/repo/new.ts' }, 'Creating [new.ts](file:///repo/new.ts)', 'Created [new.ts](file:///repo/new.ts)'],
+			['str_replace_editor', { command: 'str_replace', path: '/repo/file.ts' }, 'Editing [file.ts](file:///repo/file.ts)', 'Edited [file.ts](file:///repo/file.ts)'],
+		];
+		assert.deepStrictEqual(cases.map(([toolName, parameters]) => ({
+			ready: invocation(toolName, parameters),
+			complete: completed(toolName, parameters),
+		})), cases.map(([, , ready, complete]) => ({ ready, complete })));
+	});
+
+	test('streams raw patch line counts and resolves discovered file paths', () => {
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: src/file.ts',
+			'@@',
+			'-old',
+			'+new',
+			'*** End Patch',
+		].join('\n');
+		assert.strictEqual(
+			streaming('apply_patch', patch, path => `/workspace/${path}`),
+			'Generating patch (6 lines) in [file.ts](file:///workspace/src/file.ts)',
+		);
+	});
+
+	test('ignores malformed partial paths', () => {
+		assert.strictEqual(
+			streaming('edit', { path: 42, old_str: 'one' }),
+			'Replacing 1 line',
+		);
+	});
+
+	test('falls back to the normal invocation formatter for non-edit tools', () => {
+		assert.strictEqual(
+			streaming('bash', { command: 'npm test' }),
+			'Running `npm test`',
+		);
+	});
+});
+
 // ---- write_/read_ shell tool display ---------------------------------------
 //
 // Coverage for the secondary shell helpers (write_bash, read_bash, and their
@@ -256,8 +512,16 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 			assert.strictEqual(getToolKind('task'), 'subagent');
 		});
 
-		test('returns undefined for view', () => {
-			assert.strictEqual(getToolKind('view'), undefined);
+		test('returns read for file reads', () => {
+			assert.deepStrictEqual([
+				getToolKind('view'),
+				getToolKind('str_replace_editor', { command: 'view' }),
+				getToolKind('str_replace_editor', { command: 'str_replace' }),
+			], [
+				'read',
+				'read',
+				undefined,
+			]);
 		});
 
 		test('returns search for glob', () => {
@@ -364,6 +628,34 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		});
 	});
 
+	suite('feedback comment tools (delegated to the shared server-tool group)', () => {
+
+		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		// Exhaustive per-tool/count coverage lives in serverToolGroups.test.ts.
+		// These smoke checks only assert that the Copilot display functions
+		// delegate to the shared group instead of falling through to the
+		// generic `Using/Used "<tool>"` fallback.
+		test('Copilot display delegates to the shared group', () => {
+			const listResult = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] });
+			assert.deepStrictEqual({
+				displayName: getToolDisplayName('listComments'),
+				invoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
+			}, {
+				displayName: 'List Comments',
+				invoke: 'Checking comments',
+				past: 'Checked 2 comments',
+			});
+		});
+
+		test('failed feedback tool still uses the generic failure message', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, false)), '"List Comments" failed');
+		});
+	});
+
 	suite('getToolInputString', () => {
 
 		test('write_bash extracts command field', () => {
@@ -394,11 +686,11 @@ suite('skill events', () => {
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(
-			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			'evt-123',
 		);
-		const noPath = synthesizeSkillToolCall(
-			{ name: 'plan' },
+		const withoutEventId = synthesizeSkillToolCall(
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			undefined,
 		);
 
@@ -409,9 +701,9 @@ suite('skill events', () => {
 			withPathDisplayName: withPath.displayName,
 			withPathInvocation: withPath.invocationMessage,
 			withPathPastTense: withPath.pastTenseMessage,
-			noPathToolCallId: noPath.toolCallId,
-			noPathInvocation: noPath.invocationMessage,
-			noPathPastTense: noPath.pastTenseMessage,
+			withoutEventIdToolCallId: withoutEventId.toolCallId,
+			withoutEventIdInvocation: withoutEventId.invocationMessage,
+			withoutEventIdPastTense: withoutEventId.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
@@ -419,9 +711,9 @@ suite('skill events', () => {
 			withPathDisplayName: 'Read Skill',
 			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
-			noPathToolCallId: 'synth-skill-2108d652',
-			noPathInvocation: 'Reading skill plan',
-			noPathPastTense: 'Read skill plan',
+			withoutEventIdToolCallId: 'synth-skill--15753539',
+			withoutEventIdInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withoutEventIdPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 		});
 	});
 });
@@ -608,5 +900,31 @@ suite('apply_patch tool display', () => {
 		// not as a JSON object — exercise the string fallback path.
 		assert.deepStrictEqual(getEditFilePaths(multiFilePatch), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
 		assert.deepStrictEqual(getEditFilePaths(singleFilePatch), ['/repo/src/foo.ts']);
+	});
+});
+
+suite('getShellIntention', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads the description argument of shell tools, and ignores non-shell tools', () => {
+		assert.deepStrictEqual({
+			bash: getShellIntention('bash', { command: 'ls', description: 'List files' }),
+			powershell: getShellIntention('powershell', { command: 'Get-ChildItem', description: 'List files' }),
+			shellNoDescription: getShellIntention('bash', { command: 'ls' }),
+			shellEmptyDescription: getShellIntention('bash', { command: 'ls', description: '' }),
+			// The `task` (subagent) tool also has a `description` argument, but it is
+			// the subagent task description, not a shell intention — must be ignored.
+			taskTool: getShellIntention('task', { description: 'Explore the codebase' }),
+			viewTool: getShellIntention('view', { path: '/repo/file.ts', description: 'why' }),
+			noArgs: getShellIntention('bash', undefined),
+		}, {
+			bash: 'List files',
+			powershell: 'List files',
+			shellNoDescription: undefined,
+			shellEmptyDescription: undefined,
+			taskTool: undefined,
+			viewTool: undefined,
+			noArgs: undefined,
+		});
 	});
 });

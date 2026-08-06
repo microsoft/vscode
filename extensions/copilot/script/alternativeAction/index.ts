@@ -46,7 +46,7 @@ async function extractFromCsv(csvContents: string): Promise<(Scoring.t | undefin
 		if (!altAction || !altAction.recording) {
 			return undefined;
 		}
-		return Processor.createScoringForAlternativeAction(altAction, coalesce([parseSuggestedEdit(obj.postProcessingOutcome.suggestedEdit)]), false);
+		return Processor.createScoring(altAction.recording.entries ?? [], altAction.recording.requestTime, coalesce([parseSuggestedEdit(obj.postProcessingOutcome.suggestedEdit)]), false);
 	});
 
 	return scoredEdits;
@@ -113,7 +113,12 @@ async function handleAlternativeActionJson(inputFilePath: string) {
 		}
 		isAccepted = data.suggestionStatus === 'accepted';
 	}
-	const scoring = Processor.createScoringForAlternativeAction(altAction, edits, isAccepted);
+	const altActionRecording = altAction.recording;
+	if (!altActionRecording) {
+		console.error('Alternative action has no recording');
+		return;
+	}
+	const scoring = Processor.createScoring(altActionRecording.entries ?? [], altActionRecording.requestTime, edits, isAccepted);
 	if (!scoring) {
 		console.error('Failed to create scoring from alternative action');
 		return;

@@ -158,7 +158,7 @@ export class SparseTokensStore {
 		let lastEndOffset = 0;
 
 		const emitToken = (endOffset: number, metadata: number) => {
-			if (endOffset === lastEndOffset) {
+			if (endOffset <= lastEndOffset) {
 				return;
 			}
 			lastEndOffset = endOffset;

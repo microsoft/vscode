@@ -176,6 +176,9 @@ export interface IEditorPane extends IComposite {
 	 */
 	getViewState(): object | undefined;
 
+	/** An optional instantiation service scoped to the editor pane. */
+	readonly scopedInstantiationService?: IInstantiationService;
+
 	/**
 	 * An optional method to return the current selection in
 	 * the editor pane in case the editor pane has a selection
@@ -859,9 +862,17 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor must be opened in a modal editor
-	 * part, overriding the `workbench.editor.useModal` setting.
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -938,6 +949,19 @@ export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
 	const candidate = editor as IDiffEditorInput | undefined;
 
 	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+}
+
+export interface IEditorInputWithDiffResources extends EditorInput {
+	readonly diffResources: {
+		readonly original: URI;
+		readonly modified: URI;
+	};
+}
+
+export function isEditorInputWithDiffResources(editor: unknown): editor is IEditorInputWithDiffResources {
+	const candidate = editor as IEditorInputWithDiffResources | undefined;
+
+	return URI.isUri(candidate?.diffResources?.original) && URI.isUri(candidate.diffResources.modified);
 }
 
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {

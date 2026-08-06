@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ::http::{Request, Response};
+use futures::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use hyper::service::service_fn;
@@ -20,25 +21,33 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use tokio_tungstenite::tungstenite::protocol::Role;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::async_pipe::{get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipeListener};
+use crate::async_pipe::{
+	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe, AsyncPipeListener,
+};
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::Quality;
+use crate::state::LauncherPaths;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
-use crate::util::errors::{AnyError, CodeError};
+use crate::util::command::{kill_tree, new_script_command};
+use crate::util::errors::{wrap, AnyError, CodeError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::http::{empty_body, full_body, HyperBody};
 use crate::util::io::SilentCopyProgress;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
-use super::agent_host_metadata::{
-	remove_agent_host_metadata_for_pid, write_agent_host_metadata, AgentHostMetadata,
+use super::agent_host_registry::{
+	self, AgentHostEndpointAddress, AgentHostEndpointIdentity, AgentHostEndpointMetadata,
+	AgentHostServerType, AGENT_HOST_PROTOCOL_VERSION,
 };
+use super::idle_timeout;
 use super::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use super::shutdown_signal::ShutdownSignal;
 
@@ -562,10 +571,35 @@ impl AgentHostManager {
 	}
 
 	/// Kills the currently running server, if any.
+	///
+	/// The server is launched via a bash/cmd shim (`<server>/bin/code-server-<quality>`)
+	/// which `spawn`s the underlying `node ... server-main.js` child. A plain
+	/// `child.kill()` only terminates the shim and reparents the node child to
+	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
+	/// the node process is reaped along with the launcher. See issue #319516.
 	pub async fn kill_running_server(&self) {
 		let mut running = self.running.lock().await;
 		if let Some(mut server) = running.take() {
-			let _ = server.child.kill().await;
+			if let Some(pid) = server.child.id() {
+				let _ = kill_tree(pid).await;
+			}
+			// Reap the child so we don't leave a zombie. Bound the wait so a
+			// process that ignores SIGTERM can't wedge the supervisor's
+			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
+			// the graceful shutdown doesn't land in time.
+			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
+				.await
+				.is_err()
+			{
+				warning!(
+					self.log,
+					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
+					REAP_TIMEOUT.as_secs()
+				);
+				let _ = server.child.kill().await;
+				let _ = server.child.wait().await;
+			}
 		}
 	}
 
@@ -609,13 +643,21 @@ impl AgentHostManager {
 		let mut listener = match listen_socket_rw_stream(path).await {
 			Ok(l) => l,
 			Err(e) => {
-				warning!(self.log, "Failed to bind management socket {:?}: {}", path, e);
+				warning!(
+					self.log,
+					"Failed to bind management socket {:?}: {}",
+					path,
+					e
+				);
 				self.management_listener_started
 					.store(false, Ordering::SeqCst);
 				return;
 			}
 		};
-		debug!(self.log, "Listening for agent host management requests on {:?}", path);
+		debug!(
+			self.log,
+			"Listening for agent host management requests on {:?}", path
+		);
 		self.run_management_accept_loop(&mut listener).await;
 	}
 
@@ -679,7 +721,11 @@ impl AgentHostManager {
 		let new_release = match self.get_latest_release().await {
 			Ok(r) => r,
 			Err(e) => {
-				warning!(self.log, "Upgrade request: latest release lookup failed: {}", e);
+				warning!(
+					self.log,
+					"Upgrade request: latest release lookup failed: {}",
+					e
+				);
 				return json_response(
 					503,
 					&UpgradeResponse {
@@ -737,7 +783,12 @@ impl AgentHostManager {
 		// `upgradeStarted`. The background update loop usually pre-fetches
 		// this, so the common path is a no-op.
 		if let Err(e) = self.ensure_downloaded(&new_release).await {
-			warning!(self.log, "Failed to download upgrade {}: {}", new_release, e);
+			warning!(
+				self.log,
+				"Failed to download upgrade {}: {}",
+				new_release,
+				e
+			);
 			self.upgrade_in_progress.store(false, Ordering::SeqCst);
 			return json_response(
 				503,
@@ -766,9 +817,15 @@ impl AgentHostManager {
 			// ready endpoint instead of paying for startup again.
 			match self_clone.start_server().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
-				Err(e) => warning!(self_clone.log, "Failed to restart agent host after upgrade: {}", e),
+				Err(e) => warning!(
+					self_clone.log,
+					"Failed to restart agent host after upgrade: {}",
+					e
+				),
 			}
-			self_clone.upgrade_in_progress.store(false, Ordering::SeqCst);
+			self_clone
+				.upgrade_in_progress
+				.store(false, Ordering::SeqCst);
 		});
 
 		json_response(
@@ -975,21 +1032,49 @@ pub struct AgentHostSidecar {
 	listener: TcpListener,
 	bound_addr: SocketAddr,
 	public_token: Option<String>,
-	lockfile_path: PathBuf,
+	/// The host label published to the registry for this sidecar (see
+	/// [`Self::bind_tcp`]'s `host_label` parameter). Kept so
+	/// [`Self::active_agent_host`] can hand back exactly the identity
+	/// this sidecar published, without re-deriving it from `bound_addr`.
+	host_label: String,
+	user_data_path: PathBuf,
+	instance_id: String,
 	pid: u32,
+	/// Set once registry cleanup for this instance's identity has been
+	/// performed (successfully or not — a best-effort attempt counts), so
+	/// `Drop` never redundantly repeats it after an explicit [`Self::shutdown`].
+	registry_cleaned_up: AtomicBool,
+	/// Reports connection activity for `--idle-timeout`, when opted into.
+	/// `None` (the default) means idle-timeout is disabled and no activity
+	/// bookkeeping happens at all.
+	activity: Option<idle_timeout::ActivityTracker>,
 }
 
 impl AgentHostSidecar {
-	/// Binds a TCP listener at `addr`, writes the canonical agent host
-	/// lockfile pointing at the bound port, and returns a sidecar ready to
-	/// [`serve`](Self::serve) connections. The agent host backend is *not*
-	/// started here — the wrapped [`AgentHostManager`] starts it on demand
-	/// when the first request arrives.
+	/// Binds a TCP listener at `addr`, publishes a `standalone` entry to the
+	/// shared local agent-host endpoint registry (schema v2, see
+	/// [`agent_host_registry`]) pointing at the bound port, and returns a
+	/// sidecar ready to [`serve`](Self::serve) connections. The agent host
+	/// backend is *not* started here — the wrapped [`AgentHostManager`]
+	/// starts it on demand when the first request arrives.
 	///
 	/// `loopback_auth` decides whether the local TCP accept loop enforces a
 	/// connection token. The caller MUST make this choice deliberately:
 	/// loopback is reachable from any local process, so binding without a
 	/// token must be a conscious user opt-in (e.g. `--without-connection-token`).
+	///
+	/// `user_data_path` is the resolved user data directory that homes the
+	/// registry (see [`super::user_data_path`]); `instance_id` is this
+	/// process's stable identity within the registry, used to disambiguate
+	/// PID reuse and to scope `--replace`/removal to exactly this entry.
+	///
+	/// `activity` opts this sidecar into `--idle-timeout` connection
+	/// bookkeeping: pass `Some` (paired with the receiver half raced
+	/// against [`Self::serve`] by the caller, see
+	/// [`idle_timeout::wait_for_idle_timeout`]) to have every accepted
+	/// connection reported to it, or `None` to disable idle-timeout
+	/// bookkeeping entirely (the default for manually started local hosts).
+	#[allow(clippy::too_many_arguments)]
 	pub async fn bind_tcp(
 		log: log::Logger,
 		manager: Arc<AgentHostManager>,
@@ -997,7 +1082,9 @@ impl AgentHostSidecar {
 		host_label: Option<String>,
 		loopback_auth: LoopbackAuth,
 		tunnel_name: Option<String>,
-		lockfile_path: PathBuf,
+		user_data_path: PathBuf,
+		instance_id: String,
+		activity: Option<idle_timeout::ActivityTracker>,
 	) -> Result<Arc<Self>, AnyError> {
 		let public_token = loopback_auth.into_token();
 		let listener = TcpListener::bind(addr)
@@ -1014,15 +1101,44 @@ impl AgentHostSidecar {
 		// character-equal without spuriously flagging hostname-vs-IP
 		// equivalents as a config conflict.
 		let host = host_label.unwrap_or_else(|| bound_addr.ip().to_string());
-		let metadata = build_metadata(
+		let entry = AgentHostEndpointMetadata::new_standalone(
 			pid,
-			host,
+			instance_id.clone(),
+			host.clone(),
 			bound_addr.port(),
-			public_token.clone(),
-			tunnel_name.as_deref(),
+			public_token.clone().unwrap_or_default(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			VSCODE_CLI_QUALITY.map(str::to_string),
+			tunnel_name,
 		);
-		if let Err(e) = write_agent_host_metadata(&lockfile_path, &metadata) {
-			warning!(log, "Failed to write agent host lockfile: {}", e);
+
+		// Registry publish does blocking filesystem I/O (write a temp file and
+		// atomically rename it into place); run it on a blocking-safe thread so
+		// it never stalls the tokio runtime.
+		{
+			let publish_log = log.clone();
+			let publish_path = user_data_path.clone();
+			match tokio::task::spawn_blocking(move || {
+				agent_host_registry::publish_agent_host_endpoint(
+					&publish_log,
+					&publish_path,
+					&entry,
+				)
+			})
+			.await
+			{
+				Ok(Ok(())) => {}
+				Ok(Err(e)) => warning!(
+					log,
+					"Failed to publish agent host endpoint registry entry: {}",
+					e
+				),
+				Err(e) => warning!(
+					log,
+					"Agent host endpoint registry publish task failed: {}",
+					e
+				),
+			}
 		}
 
 		Ok(Arc::new(Self {
@@ -1031,9 +1147,33 @@ impl AgentHostSidecar {
 			listener,
 			bound_addr,
 			public_token,
-			lockfile_path,
+			host_label: host,
+			user_data_path,
+			instance_id,
 			pid,
+			registry_cleaned_up: AtomicBool::new(false),
+			activity,
 		}))
+	}
+
+	/// This sidecar's identity in the same shape as
+	/// [`super::control_server::SharedActiveAgentHost`]'s resolved value,
+	/// exactly matching what [`Self::bind_tcp`] published to the shared
+	/// endpoint registry (pid, host, port, token). Lets a caller that
+	/// already *is* the running supervisor (e.g. `code agent host
+	/// --tunnel` routing its own tunneled `/agent-host` port) build a
+	/// ready [`super::control_server::SharedActiveAgentHost`] -- see
+	/// [`super::control_server::ready_active_agent_host`] -- without going
+	/// through `ensure_supervisor_running`'s registry lookup/spawn path,
+	/// which exists for callers that do *not* already know whether a
+	/// supervisor is running.
+	pub fn active_agent_host(&self) -> crate::commands::agent_host::ActiveAgentHost {
+		crate::commands::agent_host::ActiveAgentHost {
+			pid: self.pid,
+			host: Some(self.host_label.clone()),
+			port: self.bound_addr.port(),
+			token: self.public_token.clone(),
+		}
 	}
 
 	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
@@ -1064,7 +1204,13 @@ impl AgentHostSidecar {
 					};
 					let mgr = self.manager.clone();
 					let token = self.public_token.clone();
+					// Held for the connection task's whole lifetime so
+					// `--idle-timeout` bookkeeping (when enabled) sees
+					// exactly one Connected/Disconnected pair per
+					// accepted connection.
+					let activity_guard = self.activity.as_ref().map(|a| a.client_connected());
 					tokio::spawn(async move {
+						let _activity_guard = activity_guard;
 						let io = TokioIo::new(stream);
 						let svc = service_fn(move |req| {
 							let mgr = mgr.clone();
@@ -1092,6 +1238,10 @@ impl AgentHostSidecar {
 		RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 	{
 		debug!(self.log, "Serving tunnel agent host connection");
+		// Held for this connection's whole lifetime, same as the local
+		// accept loop in `serve`, so a tunnel-relayed client also counts
+		// as activity for `--idle-timeout` bookkeeping.
+		let _activity_guard = self.activity.as_ref().map(|a| a.client_connected());
 		let mgr = self.manager.clone();
 		let svc = service_fn(move |req| {
 			let mgr = mgr.clone();
@@ -1106,37 +1256,78 @@ impl AgentHostSidecar {
 		}
 	}
 
-	/// Stops the agent host backend and removes the lockfile if it still
-	/// belongs to this process. Safe to call multiple times.
+	/// Stops the agent host backend and removes this instance's entry from
+	/// the shared local agent-host endpoint registry. Safe to call multiple
+	/// times: only the first call performs registry cleanup, and `Drop`
+	/// will not repeat it afterwards (see `registry_cleaned_up`).
 	pub async fn shutdown(&self) {
 		self.manager.kill_running_server().await;
-		if let Err(e) = remove_agent_host_metadata_for_pid(&self.lockfile_path, self.pid) {
-			warning!(self.log, "Failed to clean up agent host lockfile: {}", e);
+		if self.registry_cleaned_up.swap(true, Ordering::SeqCst) {
+			return;
+		}
+		let identity = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
+			pid: self.pid,
+			instance_id: self.instance_id.clone(),
+		};
+		let log = self.log.clone();
+		let user_data_path = self.user_data_path.clone();
+		if let Err(e) = tokio::task::spawn_blocking(move || {
+			agent_host_registry::remove_agent_host_endpoint(&log, &user_data_path, &identity);
+		})
+		.await
+		{
+			warning!(
+				self.log,
+				"Agent host endpoint registry cleanup task failed: {}",
+				e
+			);
 		}
 	}
 }
 
 impl Drop for AgentHostSidecar {
 	fn drop(&mut self) {
-		// Best-effort cleanup if the caller forgot to call `shutdown`. Only
-		// removes the lockfile when the recorded PID still matches us.
-		let _ = remove_agent_host_metadata_for_pid(&self.lockfile_path, self.pid);
-	}
-}
+		// If `shutdown` already performed (or is performing) registry
+		// cleanup, don't repeat it here.
+		if self.registry_cleaned_up.swap(true, Ordering::SeqCst) {
+			return;
+		}
 
-fn build_metadata(
-	pid: u32,
-	host: String,
-	port: u16,
-	connection_token: Option<String>,
-	tunnel_name: Option<&str>,
-) -> AgentHostMetadata {
-	let mut metadata = AgentHostMetadata::new(pid, port);
-	metadata.host = Some(host);
-	metadata.connection_token = connection_token;
-	metadata.quality = VSCODE_CLI_QUALITY.map(str::to_string);
-	metadata.tunnel_name = tunnel_name.map(str::to_string);
-	metadata
+		// Best-effort cleanup for the case where the caller forgot to call
+		// `shutdown`. `remove_agent_host_endpoint` only removes the entry
+		// that exactly matches our own `(type, pid, instanceId)` identity.
+		let identity = AgentHostEndpointIdentity {
+			server_type: AgentHostServerType::Standalone,
+			pid: self.pid,
+			instance_id: self.instance_id.clone(),
+		};
+		let log = self.log.clone();
+		let user_data_path = self.user_data_path.clone();
+
+		// `drop` is synchronous and must not block a Tokio worker thread
+		// with this call's blocking filesystem I/O (removing our own entry
+		// file). If a runtime is reachable from here, hand the
+		// cleanup off to a blocking-safe thread and don't wait for it —
+		// this is already a best-effort fallback, so fire-and-forget is
+		// acceptable. If no runtime is available (e.g. this sidecar
+		// outlived it), there is no worker thread left to protect, so it's
+		// safe to just do the blocking removal inline.
+		match tokio::runtime::Handle::try_current() {
+			Ok(handle) => {
+				handle.spawn_blocking(move || {
+					agent_host_registry::remove_agent_host_endpoint(
+						&log,
+						&user_data_path,
+						&identity,
+					);
+				});
+			}
+			Err(_) => {
+				agent_host_registry::remove_agent_host_endpoint(&log, &user_data_path, &identity);
+			}
+		}
+	}
 }
 
 /// How the loopback TCP accept loop authenticates incoming connections.
@@ -1185,104 +1376,157 @@ async fn handle_request_with_auth(
 	handle_request(manager, req).await
 }
 
-// ---- Lockfile-aware reuse ---------------------------------------------------
+// ---- Registry-based reuse ---------------------------------------------------
 
-/// Decision derived from inspecting `agent-host-<quality>.lock`. Used by
-/// CLI entry points (e.g. `code tunnel`, `code agent host`) to decide
-/// whether they may safely own the agent host lockfile or should forward
-/// to / share the existing one.
+/// Decision derived from consulting the shared local agent-host endpoint
+/// registry (schema v2; see [`agent_host_registry`]). Used by CLI entry
+/// points (e.g. `code tunnel`, `code agent host`) to decide whether they
+/// may safely start their own supervisor or should forward to / share an
+/// existing one.
 ///
 /// The agent host server is downloaded on demand and may speak a newer
 /// protocol than the CLI itself is built with, so we deliberately do NOT
 /// check the protocol version: any live registered supervisor is always
 /// considered reusable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AgentHostLockfileDecision {
-	/// No live agent host registered; the caller may start its own sidecar.
+pub enum AgentHostReuseDecision {
+	/// No live standalone agent host registered; the caller may start its
+	/// own sidecar.
 	SpawnFresh,
-	/// A live agent host supervisor owns the lockfile. Tunnel callers
-	/// should forward to `127.0.0.1:port` instead of binding a second
-	/// listener / clobbering the lockfile. `host` and `tunnel_name`
-	/// expose the supervisor's effective config so foreground callers
-	/// can detect a configuration conflict and refuse to silently reuse.
+	/// A live standalone agent host supervisor owns a registry entry.
+	/// Tunnel callers should forward to `127.0.0.1:port` instead of
+	/// binding a second listener / publishing a conflicting entry. `host`
+	/// and `tunnel_name` expose the supervisor's effective config so
+	/// foreground callers can detect a configuration conflict and refuse
+	/// to silently reuse.
 	Reuse {
 		pid: u32,
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
 		tunnel_name: Option<String>,
+		/// This entry's stable identity within the registry, used by
+		/// `--replace` to scope removal to exactly this instance.
+		instance_id: String,
 	},
 }
 
-/// Inspect the agent host lockfile at `path` and decide whether the caller
-/// should spawn a fresh sidecar or reuse an existing live one. Missing /
-/// unreadable / stale (dead-PID) lockfiles all map to
-/// [`AgentHostLockfileDecision::SpawnFresh`].
-pub fn classify_agent_host_lockfile(
+/// Preferred entry point for CLI commands that need to discover a live
+/// standalone agent host: consults the shared local agent-host endpoint
+/// registry (schema v2), the sole source of truth for automatic
+/// discovery.
+///
+/// `editor` entries are never selected here — they are owned by running VS
+/// Code windows and must remain invisible to (and unkillable by) the
+/// standalone CLI's discovery/`--replace` path. See
+/// [`agent_host_registry::select_live_standalone_endpoint`].
+pub fn classify_agent_host(
 	log: &log::Logger,
-	path: &std::path::Path,
-) -> AgentHostLockfileDecision {
-	use super::agent_host_metadata::read_agent_host_metadata;
-	use crate::util::machine::process_exists;
-
-	let metadata = match read_agent_host_metadata(path) {
-		Ok(Some(m)) => m,
-		Ok(None) => return AgentHostLockfileDecision::SpawnFresh,
-		Err(e) => {
-			debug!(
-				log,
-				"Could not read agent host lockfile {}: {}",
-				path.display(),
-				e
-			);
-			return AgentHostLockfileDecision::SpawnFresh;
-		}
-	};
-
-	if !process_exists(metadata.pid) {
-		debug!(
-			log,
-			"Agent host lockfile {} references dead PID {}; treating as stale",
-			path.display(),
-			metadata.pid
-		);
-		return AgentHostLockfileDecision::SpawnFresh;
-	}
-
-	AgentHostLockfileDecision::Reuse {
-		pid: metadata.pid,
-		host: metadata.host,
-		port: metadata.port,
-		token: metadata.connection_token,
-		tunnel_name: metadata.tunnel_name,
+	user_data_path: &std::path::Path,
+) -> AgentHostReuseDecision {
+	match agent_host_registry::select_live_standalone_endpoint(log, user_data_path) {
+		Some(selected) => AgentHostReuseDecision::Reuse {
+			pid: selected.pid,
+			host: Some(selected.host),
+			port: selected.port,
+			token: if selected.connection_token.is_empty() {
+				None
+			} else {
+				Some(selected.connection_token)
+			},
+			tunnel_name: selected.tunnel_name,
+			instance_id: selected.instance_id,
+		},
+		None => AgentHostReuseDecision::SpawnFresh,
 	}
 }
 
-/// Forwards a single tunnel-relayed connection to an existing agent host
-/// listening on `<upstream_host>:<upstream_port>`. Mirrors the TS-side
-/// `AgentHostProxy`: per request, it opens a TCP connection upstream and
-/// injects `?tkn=<token>` into the request URI when the lockfile records a
-/// connection token. `upstream_host` should already be a dialable
-/// loopback address (the caller is responsible for mapping wildcard
-/// binds like `0.0.0.0` to the corresponding loopback).
-pub async fn forward_tunnel_connection_to_existing_ah<RW>(
+/// Routes one raw tunneled connection accepted on the forwarded
+/// agent-host port (`AGENT_HOST_PORT`, protocol tag `protocolv6`).
+/// Requests to [`AGENT_HOST_GATEWAY_SELECT_PATH`] run the protocol-v6
+/// registry-based selection gateway (see [`run_gateway_session`]); every
+/// other request preserves the unchanged protocol-v5 behavior -- lazily
+/// ensure/reuse the single legacy supervisor via `active_agent_host` and
+/// proxy directly, injecting `?tkn=<token>` into the request URI the same
+/// way the old `forward_tunnel_connection_to_existing_ah` did. Because
+/// the route is decided per request, a v5 client that never asks for the
+/// selection path never drives `active_agent_host` from here either --
+/// only an actual legacy request does, so a tunnel that nobody connects
+/// to never spawns a standalone supervisor by itself.
+///
+/// This is the single request router shared by every caller that hosts
+/// the forwarded agent-host tunnel port, regardless of who owns
+/// `active_agent_host`: `code tunnel`'s `control_server` passes a lazily
+/// `ensure_supervisor_running`-backed future (it may not know of a live
+/// supervisor yet), while `code agent host --tunnel` passes an
+/// already-resolved [`super::control_server::ready_active_agent_host`]
+/// pointing at its own running sidecar (see
+/// [`AgentHostSidecar::active_agent_host`]) -- it already *is* the
+/// supervisor, so it must never call `ensure_supervisor_running` (which
+/// could spawn or reuse an unrelated one) from this path.
+///
+/// `user_data_path` is passed in explicitly (rather than re-resolved
+/// internally) so it reflects whatever `--user-data-dir` (if any) the
+/// caller's own supervisor is actually using -- this must match the
+/// directory [`AgentHostSidecar::bind_tcp`] published its registry entry
+/// under, or the selection gateway's inventory would look at the wrong
+/// registry file.
+pub async fn serve_agent_host_tunnel_connection<RW>(
 	log: log::Logger,
 	rw: RW,
-	upstream_host: String,
-	upstream_port: u16,
-	token: Option<String>,
+	active_agent_host: super::control_server::SharedActiveAgentHost,
+	launcher_paths: LauncherPaths,
+	user_data_path: PathBuf,
 ) where
 	RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
-	let token = Arc::new(token);
-	let upstream_host = Arc::new(upstream_host);
 	let svc_log = log.clone();
-	let svc = service_fn(move |req| {
+	let svc = service_fn(move |req: Request<Incoming>| {
 		let log = svc_log.clone();
-		let token = token.clone();
-		let host = upstream_host.clone();
+		let active_agent_host = active_agent_host.clone();
+		let launcher_paths = launcher_paths.clone();
+		let user_data_path = user_data_path.clone();
 		async move {
-			handle_reuse_request(log, (*host).clone(), upstream_port, (*token).clone(), req).await
+			let path = req.uri().path().to_string();
+			if is_gateway_select_request(&req) {
+				debug!(
+					log,
+					"Agent-host tunnel: dispatching {} to protocol-v6 selection gateway", path
+				);
+				return handle_gateway_select_request(log, launcher_paths, user_data_path, req)
+					.await;
+			}
+
+			let active = match active_agent_host.await {
+				Ok(a) => a,
+				Err(e) => {
+					warning!(
+						log,
+						"Cannot forward agent-host tunnel connection; supervisor unavailable: {}",
+						e
+					);
+					return Ok(Response::builder()
+						.status(503)
+						.body(full_body(format!("Agent host supervisor unavailable: {e}")))
+						.unwrap());
+				}
+			};
+			debug!(
+				log,
+				"Agent-host tunnel: routing {} to legacy direct proxy (pid={}, {}:{})",
+				path,
+				active.pid,
+				active.dial_host(),
+				active.port
+			);
+			handle_reuse_request(
+				log,
+				active.dial_host().to_string(),
+				active.port,
+				active.token.clone(),
+				req,
+			)
+			.await
 		}
 	});
 	let io = TokioIo::new(rw);
@@ -1290,7 +1534,7 @@ pub async fn forward_tunnel_connection_to_existing_ah<RW>(
 		.serve_connection_with_upgrades(io, svc)
 		.await
 	{
-		debug!(log, "Tunnel reuse-forward connection ended: {:?}", e);
+		debug!(log, "Tunnel agent-host connection ended: {:?}", e);
 	}
 }
 
@@ -1354,12 +1598,528 @@ fn inject_connection_token(uri: &::http::Uri, token: &str) -> ::http::Uri {
 		.unwrap_or_else(|_| uri.clone())
 }
 
+// ---- Protocol-v6 tunnel gateway: registry-based endpoint selection ---------
+//
+// Adds a second WebSocket route on the same forwarded agent-host tunnel
+// port used by the legacy (protocol-v5) direct-reuse route above. A
+// protocol-v6-aware client opens this route instead of the root route to
+// pick, from the live local registry, which endpoint it actually wants
+// (any live `editor`/`standalone` entry, or a freshly spawned dedicated
+// standalone) rather than always being handed the single deterministic
+// legacy reuse target. It reuses the same tunnel relay connection and
+// forwarded port as the legacy route -- no tunnel-per-endpoint -- and,
+// like the legacy route, injects the target's connection token itself so
+// it is never exposed to the renderer.
+
+/// WebSocket route on the forwarded agent-host tunnel port
+/// (`AGENT_HOST_PORT`) used by protocol-v6-aware clients to run the
+/// registry-based selection handshake in [`run_gateway_session`]. Any
+/// other path keeps the unchanged protocol-v5 root/default behavior in
+/// [`serve_agent_host_tunnel_connection`].
+pub const AGENT_HOST_GATEWAY_SELECT_PATH: &str = "/agent-host/select";
+
+/// Whether a request on the forwarded agent-host tunnel port should be
+/// routed to the protocol-v6 selection gateway rather than the legacy
+/// (v5) direct-reuse route: it must both target the dedicated selection
+/// path and be a WebSocket upgrade (a plain GET to that path, e.g. a
+/// health probe, still falls through to legacy handling rather than
+/// erroring). Generic over the body type so it can be exercised directly
+/// in tests without needing a real hyper connection.
+fn is_gateway_select_request<B>(req: &Request<B>) -> bool {
+	req.uri().path() == AGENT_HOST_GATEWAY_SELECT_PATH
+		&& req.headers().contains_key(::http::header::UPGRADE)
+}
+
+/// Idle timeout applied to a supervisor spawned via a `newDedicated`
+/// gateway selection, matching `code agent host --new-instance
+/// --idle-timeout 300`: if no client connects to it for five minutes
+/// after the gateway connection that spawned it goes away, the dedicated
+/// supervisor exits on its own.
+const GATEWAY_NEW_INSTANCE_IDLE_TIMEOUT_SECS: u64 = 300;
+
+/// One live registry endpoint as reported to the tunnel client in the
+/// protocol-v6 selection inventory. Deliberately excludes
+/// `connectionToken` -- the gateway injects the target's token itself
+/// once selection completes and never exposes it to the renderer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentHostGatewayEndpoint {
+	#[serde(rename = "type")]
+	pub server_type: AgentHostServerType,
+	pub pid: u32,
+	pub instance_id: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub quality: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub tunnel_name: Option<String>,
+	/// `"tcp"` or `"socket"`.
+	pub endpoint_kind: &'static str,
+	/// Short human address label (`host:port`, or the socket/pipe path);
+	/// never the connection token.
+	pub endpoint_label: String,
+}
+
+impl From<&AgentHostEndpointMetadata> for AgentHostGatewayEndpoint {
+	fn from(e: &AgentHostEndpointMetadata) -> Self {
+		Self {
+			server_type: e.server_type,
+			pid: e.pid,
+			instance_id: e.instance_id.clone(),
+			quality: e.quality.clone(),
+			tunnel_name: e.tunnel_name.clone(),
+			endpoint_kind: match e.endpoint {
+				AgentHostEndpointAddress::Tcp { .. } => "tcp",
+				AgentHostEndpointAddress::Socket { .. } => "socket",
+			},
+			endpoint_label: e.address_label(),
+		}
+	}
+}
+
+/// One-time inventory message the gateway sends immediately after the
+/// protocol-v6 selection WebSocket upgrades.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GatewayInventory {
+	user_data_path: String,
+	endpoints: Vec<AgentHostGatewayEndpoint>,
+}
+
+/// The client's one-time selection message: either an existing live
+/// endpoint's `instanceId`, or a request to spawn a new dedicated
+/// standalone instance. Modeled as a plain struct with two optional
+/// fields (rather than a tagged enum) so the wire shape stays exactly
+/// `{"instanceId": "..."}` or `{"newDedicated": true}`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GatewaySelectionRequest {
+	#[serde(default)]
+	instance_id: Option<String>,
+	#[serde(default)]
+	new_dedicated: Option<bool>,
+}
+
+/// Parsed, validated form of [`GatewaySelectionRequest`].
+enum GatewaySelection {
+	Existing { instance_id: String },
+	NewDedicated,
+}
+
+impl GatewaySelectionRequest {
+	fn parse(self) -> Result<GatewaySelection, &'static str> {
+		match (self.instance_id, self.new_dedicated) {
+			(Some(id), _) if !id.is_empty() => Ok(GatewaySelection::Existing { instance_id: id }),
+			(_, Some(true)) => Ok(GatewaySelection::NewDedicated),
+			_ => Err(
+				"Selection must include either a non-empty `instanceId` or `newDedicated: true`",
+			),
+		}
+	}
+}
+
+/// Lifecycle of the selected endpoint as reported back to the client,
+/// mirroring `ITunnelConnectResult.lifecycle` on the TypeScript side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum GatewayLifecycle {
+	/// An already-running editor window, or a standalone instance that
+	/// was already live and merely reused; the gateway did not spawn it
+	/// and is not responsible for its lifetime.
+	External,
+	/// A standalone instance the gateway just spawned for this
+	/// `newDedicated` selection. It outlives this connection and
+	/// self-terminates via its own no-client idle timeout.
+	Managed,
+}
+
+/// Metadata about the selected endpoint, included in the success
+/// acknowledgement and mirrored into `ITunnelConnectResult` on the
+/// TypeScript side.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GatewaySelectedInfo {
+	#[serde(rename = "type")]
+	server_type: AgentHostServerType,
+	instance_id: String,
+	/// Always `"primary"` today; reserved for future multi-role
+	/// selections.
+	role: &'static str,
+	lifecycle: GatewayLifecycle,
+}
+
+/// The gateway's one-time reply to a selection message: either a
+/// selected/ready acknowledgement (after which frames are proxied to the
+/// target) or a clear error (after which the connection is closed; the
+/// gateway never silently substitutes a different target).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GatewaySelectionResponse {
+	ok: bool,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	selected: Option<GatewaySelectedInfo>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	error: Option<String>,
+}
+
+/// Completes a protocol-v6 selection WebSocket handshake for the current
+/// HTTP/1 request. Unlike the legacy route, the gateway is itself the
+/// WebSocket endpoint here (there is no upstream to proxy to until a
+/// selection is made), so it answers the upgrade directly and hands the
+/// upgraded connection to [`run_gateway_session`]. `user_data_path` is
+/// the caller-resolved directory to consult for the live-endpoint
+/// registry -- see [`serve_agent_host_tunnel_connection`]'s doc comment
+/// for why this must not be re-resolved internally.
+async fn handle_gateway_select_request(
+	log: log::Logger,
+	launcher_paths: LauncherPaths,
+	user_data_path: PathBuf,
+	mut req: Request<Incoming>,
+) -> Result<Response<HyperBody>, Infallible> {
+	let key = match req.headers().get(::http::header::SEC_WEBSOCKET_KEY) {
+		Some(k) => k.clone(),
+		None => {
+			return Ok(Response::builder()
+				.status(400)
+				.body(full_body(
+					"Gateway selection route requires a WebSocket upgrade".to_string(),
+				))
+				.unwrap())
+		}
+	};
+
+	let accept = tokio_tungstenite::tungstenite::handshake::derive_accept_key(key.as_bytes());
+	let response = Response::builder()
+		.status(::http::StatusCode::SWITCHING_PROTOCOLS)
+		.header(::http::header::CONNECTION, "Upgrade")
+		.header(::http::header::UPGRADE, "websocket")
+		.header(::http::header::SEC_WEBSOCKET_ACCEPT, accept)
+		.body(empty_body())
+		.unwrap();
+
+	let svc_log = log.clone();
+	tokio::spawn(async move {
+		match hyper::upgrade::on(&mut req).await {
+			Ok(upgraded) => {
+				let io = TokioIo::new(upgraded);
+				let ws = WebSocketStream::from_raw_socket(io, Role::Server, None).await;
+				run_gateway_session(svc_log, launcher_paths, user_data_path, ws).await;
+			}
+			Err(e) => {
+				warning!(
+					svc_log,
+					"Gateway selection: WebSocket upgrade failed: {:?}",
+					e
+				);
+			}
+		}
+	});
+
+	Ok(response)
+}
+
+/// Drives one protocol-v6 selection WebSocket end-to-end: sends the
+/// inventory, waits for exactly one selection message, resolves it
+/// (rereading the registry fresh for an existing instance, or spawning a
+/// new dedicated one without touching any existing entry), dials the
+/// selected target, sends the selected/ready acknowledgement, then
+/// proxies every subsequent frame bidirectionally. Never touches
+/// `active_agent_host` -- the legacy shared future used by the root
+/// route -- since this path resolves its own target directly from the
+/// registry. `user_data_path` is resolved once by the caller (rather
+/// than internally) so tests can drive this end-to-end against an
+/// isolated registry directory.
+async fn run_gateway_session<S>(
+	log: log::Logger,
+	launcher_paths: LauncherPaths,
+	user_data_path: PathBuf,
+	mut client: WebSocketStream<S>,
+) where
+	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+	let inventory = GatewayInventory {
+		user_data_path: user_data_path.to_string_lossy().to_string(),
+		endpoints: agent_host_registry::list_live_endpoints(&log, &user_data_path)
+			.iter()
+			.map(AgentHostGatewayEndpoint::from)
+			.collect(),
+	};
+	let inventory_json = match serde_json::to_string(&inventory) {
+		Ok(j) => j,
+		Err(e) => {
+			warning!(log, "Failed to serialize gateway inventory: {:?}", e);
+			return;
+		}
+	};
+	if let Err(e) = client.send(Message::Text(inventory_json.into())).await {
+		debug!(log, "Gateway selection: failed to send inventory: {:?}", e);
+		return;
+	}
+
+	// Wait for exactly one selection message, ignoring any control frames
+	// (ping/pong) tungstenite surfaces along the way.
+	let selection = loop {
+		match client.next().await {
+			Some(Ok(Message::Text(s))) => {
+				match serde_json::from_str::<GatewaySelectionRequest>(&s) {
+					Ok(req) => break req,
+					Err(e) => {
+						send_gateway_error(&log, &mut client, format!("Malformed selection: {e}"))
+							.await;
+						return;
+					}
+				}
+			}
+			Some(Ok(Message::Binary(_))) => {
+				send_gateway_error(
+					&log,
+					&mut client,
+					"Selection must be a JSON text message".to_string(),
+				)
+				.await;
+				return;
+			}
+			Some(Ok(Message::Close(_))) | None => {
+				debug!(
+					log,
+					"Gateway selection: client disconnected before selecting"
+				);
+				return;
+			}
+			Some(Ok(_)) => continue,
+			Some(Err(e)) => {
+				debug!(log, "Gateway selection: client connection error: {:?}", e);
+				return;
+			}
+		}
+	};
+
+	let selection = match selection.parse() {
+		Ok(s) => s,
+		Err(msg) => {
+			send_gateway_error(&log, &mut client, msg.to_string()).await;
+			return;
+		}
+	};
+
+	let (endpoint, lifecycle) = match selection {
+		GatewaySelection::Existing { instance_id } => {
+			// Reread the registry fresh here -- never reuse the inventory
+			// snapshot -- and require the *exact* entry to still be live.
+			// If it disappeared, fail clearly instead of silently
+			// switching to a different one.
+			match agent_host_registry::list_live_endpoints(&log, &user_data_path)
+				.into_iter()
+				.find(|e| e.instance_id == instance_id)
+			{
+				Some(e) => (e, GatewayLifecycle::External),
+				None => {
+					send_gateway_error(
+						&log,
+						&mut client,
+						format!("Selected agent host instance {instance_id} is no longer live"),
+					)
+					.await;
+					return;
+				}
+			}
+		}
+		GatewaySelection::NewDedicated => {
+			match crate::commands::agent_host::spawn_dedicated_supervisor(
+				&launcher_paths,
+				&log,
+				&user_data_path,
+				GATEWAY_NEW_INSTANCE_IDLE_TIMEOUT_SECS,
+			)
+			.await
+			{
+				Ok(e) => (e, GatewayLifecycle::Managed),
+				Err(e) => {
+					send_gateway_error(
+						&log,
+						&mut client,
+						format!("Failed to start a new dedicated agent host: {e}"),
+					)
+					.await;
+					return;
+				}
+			}
+		}
+	};
+
+	let target = match dial_gateway_target(&endpoint).await {
+		Ok(t) => t,
+		Err(e) => {
+			send_gateway_error(
+				&log,
+				&mut client,
+				format!("Selected agent host became unreachable: {e}"),
+			)
+			.await;
+			return;
+		}
+	};
+
+	let ack = GatewaySelectionResponse {
+		ok: true,
+		selected: Some(GatewaySelectedInfo {
+			server_type: endpoint.server_type,
+			instance_id: endpoint.instance_id.clone(),
+			role: "primary",
+			lifecycle,
+		}),
+		error: None,
+	};
+	let ack_json = match serde_json::to_string(&ack) {
+		Ok(j) => j,
+		Err(e) => {
+			warning!(log, "Failed to serialize gateway selection ack: {:?}", e);
+			return;
+		}
+	};
+	if let Err(e) = client.send(Message::Text(ack_json.into())).await {
+		debug!(log, "Gateway selection: failed to send ready ack: {:?}", e);
+		return;
+	}
+
+	match target {
+		GatewayTargetWs::Tcp(t) => proxy_gateway_frames(&log, client, t).await,
+		GatewayTargetWs::Socket(t) => proxy_gateway_frames(&log, client, t).await,
+	}
+}
+
+/// Sends a `{"ok":false,"error":...}` response and closes the connection.
+/// Used for every selection failure path so a failed selection always
+/// gets a clear error rather than the connection just dropping silently.
+async fn send_gateway_error<S>(log: &log::Logger, client: &mut WebSocketStream<S>, message: String)
+where
+	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+	let resp = GatewaySelectionResponse {
+		ok: false,
+		selected: None,
+		error: Some(message.clone()),
+	};
+	if let Ok(json) = serde_json::to_string(&resp) {
+		let _ = client.send(Message::Text(json.into())).await;
+	}
+	let _ = client.close(None).await;
+	debug!(log, "Gateway selection failed: {}", message);
+}
+
+/// The gateway's outbound connection to a selected target, opened after
+/// selection completes. Kept as an enum (rather than a boxed trait
+/// object) since [`AgentHostEndpointAddress`] is only ever `Tcp` or
+/// `Socket`; [`proxy_gateway_frames`] is generic so each variant is
+/// proxied via its own monomorphization.
+enum GatewayTargetWs {
+	Tcp(WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>),
+	Socket(WebSocketStream<AsyncPipe>),
+}
+
+/// Opens a raw WebSocket connection to a selected registry endpoint,
+/// injecting its connection token as the `tkn` query parameter the same
+/// way [`inject_connection_token`] does for the legacy per-request proxy.
+/// No AHP-level handshake is performed here -- once selection completes
+/// the gateway proxies frames verbatim, so this only needs to reach the
+/// WebSocket layer.
+async fn dial_gateway_target(
+	endpoint: &AgentHostEndpointMetadata,
+) -> Result<GatewayTargetWs, AnyError> {
+	let token_query = if endpoint.connection_token.is_empty() {
+		String::new()
+	} else {
+		let encoded: String =
+			url::form_urlencoded::byte_serialize(endpoint.connection_token.as_bytes()).collect();
+		format!("?tkn={encoded}")
+	};
+
+	match &endpoint.endpoint {
+		AgentHostEndpointAddress::Tcp { host, port } => {
+			let dial_host = crate::commands::agent_host::dial_host(Some(host));
+			let url = format!("ws://{dial_host}:{port}/{token_query}");
+			let (ws, _) = tokio_tungstenite::connect_async(url)
+				.await
+				.map_err(|e| wrap(e, "Failed to connect to selected agent host"))?;
+			Ok(GatewayTargetWs::Tcp(ws))
+		}
+		AgentHostEndpointAddress::Socket { path } => {
+			let pipe = get_socket_rw_stream(std::path::Path::new(path))
+				.await
+				.map_err(|e| {
+					wrap(
+						e,
+						format!("Failed to connect to selected agent host socket at {path}"),
+					)
+				})?;
+			let url = format!("ws://localhost/{token_query}");
+			let (ws, _) = tokio_tungstenite::client_async(url, pipe)
+				.await
+				.map_err(|e| {
+					wrap(
+						e,
+						format!(
+							"WebSocket handshake over selected agent host socket {path} failed"
+						),
+					)
+				})?;
+			Ok(GatewayTargetWs::Socket(ws))
+		}
+	}
+}
+
+/// Bidirectionally forwards WebSocket frames between the tunnel client
+/// and the selected target until either side closes or errors. Generic
+/// over both stream types so it is shared between the `Tcp` and `Socket`
+/// [`GatewayTargetWs`] variants.
+async fn proxy_gateway_frames<A, B>(
+	log: &log::Logger,
+	mut client: WebSocketStream<A>,
+	mut target: WebSocketStream<B>,
+) where
+	A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+	B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+	loop {
+		tokio::select! {
+			msg = client.next() => match msg {
+				Some(Ok(Message::Close(_))) | None => {
+					let _ = target.close(None).await;
+					return;
+				}
+				Some(Ok(m)) => {
+					if let Err(e) = target.send(m).await {
+						debug!(log, "Gateway proxy: failed forwarding client frame to target: {:?}", e);
+						return;
+					}
+				}
+				Some(Err(e)) => {
+					debug!(log, "Gateway proxy: client connection error: {:?}", e);
+					return;
+				}
+			},
+			msg = target.next() => match msg {
+				Some(Ok(Message::Close(_))) | None => {
+					let _ = client.close(None).await;
+					return;
+				}
+				Some(Ok(m)) => {
+					if let Err(e) = client.send(m).await {
+						debug!(log, "Gateway proxy: failed forwarding target frame to client: {:?}", e);
+						return;
+					}
+				}
+				Some(Err(e)) => {
+					debug!(log, "Gateway proxy: target connection error: {:?}", e);
+					return;
+				}
+			}
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tunnels::agent_host_metadata::{
-		read_agent_host_metadata, AGENT_HOST_PROTOCOL_VERSION,
-	};
 	use crate::util::http::ReqwestSimpleHttp;
 	use std::path::Path;
 
@@ -1467,36 +2227,10 @@ mod tests {
 		assert!(json.contains(r#""restartDelayMs":3000"#), "got: {}", json);
 	}
 
-	#[test]
-	fn metadata_includes_quality_and_no_tunnel() {
-		let metadata = build_metadata(
-			42,
-			"127.0.0.1".to_string(),
-			8080,
-			Some("tok".to_string()),
-			None,
-		);
-
-		assert_eq!(metadata.pid, 42);
-		assert_eq!(metadata.host.as_deref(), Some("127.0.0.1"));
-		assert_eq!(metadata.port, 8080);
-		assert_eq!(metadata.connection_token.as_deref(), Some("tok"));
-		assert_eq!(metadata.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
-		assert_eq!(metadata.tunnel_name, None);
-	}
-
-	#[test]
-	fn metadata_records_tunnel_name() {
-		let metadata = build_metadata(42, "0.0.0.0".to_string(), 8080, None, Some("my-tunnel"));
-
-		assert_eq!(metadata.host.as_deref(), Some("0.0.0.0"));
-		assert_eq!(metadata.tunnel_name.as_deref(), Some("my-tunnel"));
-	}
-
 	#[tokio::test]
-	async fn bind_tcp_writes_lockfile_with_bound_port_and_pid() {
+	async fn bind_tcp_publishes_registry_entry_with_bound_port_and_pid() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
+		let user_data_path = dir.path().join("user-data");
 		let manager = make_test_manager(dir.path());
 
 		let sidecar = AgentHostSidecar::bind_tcp(
@@ -1506,24 +2240,88 @@ mod tests {
 			Some("localhost".to_string()),
 			LoopbackAuth::Token("tok".to_string()),
 			Some("my-tunnel".to_string()),
-			lockfile.clone(),
+			user_data_path.clone(),
+			"instance-a".to_string(),
+			None,
 		)
 		.await
 		.unwrap();
 
-		let metadata = read_agent_host_metadata(&lockfile).unwrap().unwrap();
-		assert_eq!(metadata.pid, std::process::id());
-		assert_eq!(metadata.host.as_deref(), Some("localhost"));
-		assert_eq!(metadata.port, sidecar.bound_addr().port());
-		assert_ne!(metadata.port, 0);
-		assert_eq!(metadata.connection_token.as_deref(), Some("tok"));
-		assert_eq!(metadata.tunnel_name.as_deref(), Some("my-tunnel"));
+		let entries =
+			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
+		assert_eq!(entries.len(), 1);
+		let entry = &entries[0];
+		assert_eq!(entry.server_type, AgentHostServerType::Standalone);
+		assert_eq!(entry.pid, std::process::id());
+		assert_eq!(entry.instance_id, "instance-a");
+		assert_eq!(entry.connection_token, "tok");
+		assert_eq!(entry.tunnel_name.as_deref(), Some("my-tunnel"));
+		assert_eq!(entry.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
+		match &entry.endpoint {
+			AgentHostEndpointAddress::Tcp { host, port } => {
+				assert_eq!(host, "localhost");
+				assert_eq!(*port, sidecar.bound_addr().port());
+				assert_ne!(*port, 0);
+			}
+			other => panic!("expected a tcp endpoint, got {:?}", other),
+		}
 	}
 
 	#[tokio::test]
-	async fn drop_removes_lockfile_when_pid_matches() {
+	async fn serve_reports_activity_for_idle_timeout_when_enabled() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
+		let user_data_path = dir.path().join("user-data");
+		let manager = make_test_manager(dir.path());
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+
+		let sidecar = AgentHostSidecar::bind_tcp(
+			log::Logger::test(),
+			manager,
+			SocketAddr::from(([127, 0, 0, 1], 0)),
+			None,
+			LoopbackAuth::Disabled,
+			None,
+			user_data_path.clone(),
+			"instance-activity".to_string(),
+			Some(tracker),
+		)
+		.await
+		.unwrap();
+
+		let (shutdown, opener) = new_barrier::<ShutdownSignal>();
+		let bound_addr = sidecar.bound_addr();
+		let serve_task = tokio::spawn(async move { sidecar.serve(shutdown).await });
+
+		let client = tokio::net::TcpStream::connect(bound_addr).await.unwrap();
+
+		// A bounded wait is used only to prove the event actually
+		// arrived promptly (rather than hanging the test forever if the
+		// wiring were broken), not as the pass condition itself: which
+		// event arrives is fully deterministic given a real accepted
+		// connection.
+		let connected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
+			.await
+			.expect("did not observe a Connected activity event in time");
+		assert_eq!(connected, Some(idle_timeout::ActivityEvent::Connected));
+
+		drop(client);
+
+		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
+
+		opener.open(ShutdownSignal::CtrlC);
+		serve_task.await.unwrap().unwrap();
+	}
+
+	#[tokio::test]
+	async fn drop_removes_registry_entry_matching_our_identity_without_blocking_worker() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
 		let manager = make_test_manager(dir.path());
 
 		{
@@ -1534,20 +2332,44 @@ mod tests {
 				None,
 				LoopbackAuth::Disabled,
 				None,
-				lockfile.clone(),
+				user_data_path.clone(),
+				"instance-fallback".to_string(),
+				None,
 			)
 			.await
 			.unwrap();
-			assert!(lockfile.exists());
+			assert_eq!(
+				agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
+					.unwrap()
+					.len(),
+				1
+			);
 		}
 
-		assert!(!lockfile.exists());
+		// `shutdown` was never called, so `Drop`'s fallback cleanup is
+		// responsible here. It dispatches the blocking removal to a
+		// separate blocking-safe thread rather than doing it inline on
+		// this async task's worker, so poll briefly for it to land instead
+		// of asserting immediately.
+		let deadline = Instant::now() + Duration::from_secs(2);
+		loop {
+			if agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
+				.unwrap()
+				.is_empty()
+			{
+				break;
+			}
+			if Instant::now() >= deadline {
+				panic!("drop's fallback registry cleanup did not complete in time");
+			}
+			tokio::time::sleep(Duration::from_millis(20)).await;
+		}
 	}
 
 	#[tokio::test]
-	async fn shutdown_leaves_lockfile_when_pid_was_overwritten() {
+	async fn shutdown_leaves_registry_entry_owned_by_a_different_instance() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
+		let user_data_path = dir.path().join("user-data");
 		let manager = make_test_manager(dir.path());
 
 		let sidecar = AgentHostSidecar::bind_tcp(
@@ -1557,96 +2379,182 @@ mod tests {
 			None,
 			LoopbackAuth::Disabled,
 			None,
-			lockfile.clone(),
+			user_data_path.clone(),
+			"instance-c".to_string(),
+			None,
 		)
 		.await
 		.unwrap();
 
-		// Simulate another process taking over the same lockfile path.
-		let foreign_pid = std::process::id().wrapping_add(1);
-		write_agent_host_metadata(&lockfile, &AgentHostMetadata::new(foreign_pid, 9999)).unwrap();
+		// Simulate another live process taking over with a distinct
+		// instance ID; `shutdown`/`Drop` must only ever remove the entry
+		// exactly matching our own `(type, pid, instanceId)` identity.
+		let foreign = AgentHostEndpointMetadata::new_standalone(
+			std::process::id(),
+			"instance-foreign".to_string(),
+			"127.0.0.1".to_string(),
+			9999,
+			String::new(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			None,
+			None,
+		);
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&foreign,
+		)
+		.unwrap();
 
 		sidecar.shutdown().await;
 
-		let preserved = read_agent_host_metadata(&lockfile).unwrap().unwrap();
-		assert_eq!(preserved.pid, foreign_pid);
-		assert_eq!(preserved.port, 9999);
+		let entries =
+			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
+		assert_eq!(entries.len(), 1);
+		assert_eq!(entries[0].instance_id, "instance-foreign");
+	}
+
+	#[tokio::test]
+	async fn drop_does_not_redundantly_clean_up_after_shutdown() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let manager = make_test_manager(dir.path());
+
+		let sidecar = AgentHostSidecar::bind_tcp(
+			log::Logger::test(),
+			manager,
+			SocketAddr::from(([127, 0, 0, 1], 0)),
+			None,
+			LoopbackAuth::Disabled,
+			None,
+			user_data_path.clone(),
+			"instance-shutdown-then-drop".to_string(),
+			None,
+		)
+		.await
+		.unwrap();
+
+		sidecar.shutdown().await;
+		assert!(
+			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
+				.unwrap()
+				.is_empty()
+		);
+
+		// Republish an entry reusing our own identity, simulating a case
+		// where some other writer took over that exact (type, pid,
+		// instanceId) slot right after `shutdown` removed it. If `Drop`
+		// were to redundantly repeat cleanup after `shutdown` already
+		// claimed it, it would incorrectly remove this entry too.
+		let republished = AgentHostEndpointMetadata::new_standalone(
+			std::process::id(),
+			"instance-shutdown-then-drop".to_string(),
+			"127.0.0.1".to_string(),
+			9999,
+			String::new(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			None,
+			None,
+		);
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&republished,
+		)
+		.unwrap();
+
+		drop(sidecar);
+
+		// Give any (incorrectly) dispatched fallback cleanup a moment to
+		// run before asserting it left the republished entry untouched.
+		tokio::time::sleep(Duration::from_millis(100)).await;
+
+		let entries =
+			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
+		assert_eq!(entries.len(), 1);
+		assert_eq!(entries[0].instance_id, "instance-shutdown-then-drop");
 	}
 
 	#[test]
-	fn classify_returns_spawn_fresh_when_lockfile_missing() {
+	fn classify_agent_host_returns_spawn_fresh_when_registry_empty() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("missing.lock");
+		let user_data_path = dir.path().join("user-data");
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
 
-		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
+		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
 	}
 
 	#[test]
-	fn classify_returns_spawn_fresh_for_stale_pid() {
+	fn classify_agent_host_prefers_live_registry_standalone_entry() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
-		// Use a PID that is extremely unlikely to exist (max u32 - 1).
-		// `process_exists` returns false for unknown PIDs.
-		let mut metadata = AgentHostMetadata::new(u32::MAX - 1, 1234);
-		metadata.connection_token = Some("ignored".to_string());
-		write_agent_host_metadata(&lockfile, &metadata).unwrap();
-
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
-
-		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
-	}
-
-	#[test]
-	fn classify_returns_reuse_for_live_compatible_lockfile() {
-		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
+		let user_data_path = dir.path().join("user-data");
 		let pid = std::process::id();
-		let mut metadata = AgentHostMetadata::new(pid, 4321);
-		metadata.host = Some("127.0.0.1".to_string());
-		metadata.connection_token = Some("tok".to_string());
-		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let entry = AgentHostEndpointMetadata::new_standalone(
+			pid,
+			"instance-registry".to_string(),
+			"127.0.0.1".to_string(),
+			4321,
+			"registry-tok".to_string(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			None,
+			None,
+		);
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
 
 		assert_eq!(
 			decision,
-			AgentHostLockfileDecision::Reuse {
+			AgentHostReuseDecision::Reuse {
 				pid,
 				host: Some("127.0.0.1".to_string()),
 				port: 4321,
-				token: Some("tok".to_string()),
+				token: Some("registry-tok".to_string()),
 				tunnel_name: None,
+				instance_id: "instance-registry".to_string(),
 			}
 		);
 	}
 
 	#[test]
-	fn classify_returns_reuse_for_live_newer_protocol() {
-		// The agent host server is downloaded on demand and may speak a
-		// newer protocol than the CLI is built with; we must still treat
-		// it as reusable rather than refusing to share it.
+	fn classify_agent_host_never_selects_an_editor_registry_entry() {
 		let dir = tempfile::tempdir().unwrap();
-		let lockfile = dir.path().join("agent-host.lock");
-		let pid = std::process::id();
-		let mut metadata = AgentHostMetadata::new(pid, 4321);
-		metadata.protocol_version = "9.9.9".to_string();
-		metadata.connection_token = Some("tok".to_string());
-		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+		let user_data_path = dir.path().join("user-data");
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let editor = AgentHostEndpointMetadata {
+			schema_version:
+				crate::tunnels::agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			server_type: AgentHostServerType::Editor,
+			pid: std::process::id(),
+			instance_id: "editor-instance".to_string(),
+			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			connection_token: "editor-tok".to_string(),
+			endpoint: AgentHostEndpointAddress::Socket {
+				path: "/tmp/editor.sock".to_string(),
+			},
+			quality: None,
+			tunnel_name: None,
+		};
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&editor,
+		)
+		.unwrap();
 
-		assert_eq!(
-			decision,
-			AgentHostLockfileDecision::Reuse {
-				pid,
-				host: None,
-				port: 4321,
-				token: Some("tok".to_string()),
-				tunnel_name: None,
-			}
-		);
+		// With only an (ignored) editor entry present, the caller must be
+		// told to spawn a fresh standalone supervisor rather than ever
+		// touching the editor entry.
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+
+		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
 	}
 
 	#[test]
@@ -1671,5 +2579,478 @@ mod tests {
 		let uri: ::http::Uri = "/".parse().unwrap();
 		let out = inject_connection_token(&uri, "tok");
 		assert_eq!(out.path_and_query().unwrap().as_str(), "/?tkn=tok");
+	}
+
+	// ---- Protocol-v6 gateway ------------------------------------------------
+
+	#[test]
+	fn gateway_select_routing_requires_exact_path_and_upgrade_header() {
+		let select_with_upgrade = Request::builder()
+			.uri(AGENT_HOST_GATEWAY_SELECT_PATH)
+			.header(::http::header::UPGRADE, "websocket")
+			.body(())
+			.unwrap();
+		assert!(is_gateway_select_request(&select_with_upgrade));
+
+		let select_without_upgrade = Request::builder()
+			.uri(AGENT_HOST_GATEWAY_SELECT_PATH)
+			.body(())
+			.unwrap();
+		assert!(
+			!is_gateway_select_request(&select_without_upgrade),
+			"a non-upgrade request to the select path must fall through to legacy handling"
+		);
+
+		let root_with_upgrade = Request::builder()
+			.uri("/")
+			.header(::http::header::UPGRADE, "websocket")
+			.body(())
+			.unwrap();
+		assert!(
+			!is_gateway_select_request(&root_with_upgrade),
+			"the root route must keep going through legacy handling even for an upgrade"
+		);
+	}
+
+	fn make_tcp_endpoint(instance_id: &str, port: u16, token: &str) -> AgentHostEndpointMetadata {
+		AgentHostEndpointMetadata::new_standalone(
+			// The registry prunes entries whose pid is not a live process,
+			// so tests that expect an entry to survive `list_live_endpoints`
+			// must use this test process's own real pid.
+			std::process::id(),
+			instance_id.to_string(),
+			"127.0.0.1".to_string(),
+			port,
+			token.to_string(),
+			AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			Some("stable".to_string()),
+			Some("my-tunnel".to_string()),
+		)
+	}
+
+	#[test]
+	fn gateway_endpoint_from_metadata_never_includes_connection_token() {
+		let entry = make_tcp_endpoint("instance-a", 12345, "super-secret-token");
+		let gw: AgentHostGatewayEndpoint = (&entry).into();
+		let json = serde_json::to_string(&gw).unwrap();
+
+		assert!(
+			!json.contains("super-secret-token") && !json.contains("connectionToken"),
+			"gateway inventory entries must never expose the connection token: {json}"
+		);
+		assert_eq!(
+			json,
+			format!(
+				r#"{{"type":"standalone","pid":{},"instanceId":"instance-a","quality":"stable","tunnelName":"my-tunnel","endpointKind":"tcp","endpointLabel":"127.0.0.1:12345"}}"#,
+				std::process::id()
+			)
+		);
+	}
+
+	#[test]
+	fn gateway_endpoint_from_metadata_reports_socket_kind_and_label() {
+		let entry = AgentHostEndpointMetadata {
+			schema_version:
+				crate::tunnels::agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			server_type: AgentHostServerType::Editor,
+			pid: 1,
+			instance_id: "editor-a".to_string(),
+			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			connection_token: "tok".to_string(),
+			endpoint: AgentHostEndpointAddress::Socket {
+				path: "/tmp/editor.sock".to_string(),
+			},
+			quality: None,
+			tunnel_name: None,
+		};
+		let gw: AgentHostGatewayEndpoint = (&entry).into();
+		assert_eq!(gw.endpoint_kind, "socket");
+		assert_eq!(gw.endpoint_label, "/tmp/editor.sock");
+	}
+
+	#[test]
+	fn gateway_selection_request_parses_existing_instance_id() {
+		let req: GatewaySelectionRequest =
+			serde_json::from_str(r#"{"instanceId":"instance-a"}"#).unwrap();
+		match req.parse().unwrap() {
+			GatewaySelection::Existing { instance_id } => assert_eq!(instance_id, "instance-a"),
+			GatewaySelection::NewDedicated => panic!("expected Existing"),
+		}
+	}
+
+	#[test]
+	fn gateway_selection_request_parses_new_dedicated() {
+		let req: GatewaySelectionRequest =
+			serde_json::from_str(r#"{"newDedicated":true}"#).unwrap();
+		match req.parse().unwrap() {
+			GatewaySelection::NewDedicated => {}
+			GatewaySelection::Existing { .. } => panic!("expected NewDedicated"),
+		}
+	}
+
+	#[test]
+	fn gateway_selection_request_rejects_empty_selection() {
+		let req: GatewaySelectionRequest = serde_json::from_str(r#"{}"#).unwrap();
+		assert!(req.parse().is_err());
+
+		let req: GatewaySelectionRequest = serde_json::from_str(r#"{"instanceId":""}"#).unwrap();
+		assert!(
+			req.parse().is_err(),
+			"an empty instanceId must not be treated as a valid selection"
+		);
+	}
+
+	#[test]
+	fn gateway_selection_response_serializes_success_without_error_field() {
+		let resp = GatewaySelectionResponse {
+			ok: true,
+			selected: Some(GatewaySelectedInfo {
+				server_type: AgentHostServerType::Standalone,
+				instance_id: "instance-a".to_string(),
+				role: "primary",
+				lifecycle: GatewayLifecycle::External,
+			}),
+			error: None,
+		};
+		let json = serde_json::to_string(&resp).unwrap();
+		assert_eq!(
+			json,
+			r#"{"ok":true,"selected":{"type":"standalone","instanceId":"instance-a","role":"primary","lifecycle":"external"}}"#
+		);
+	}
+
+	#[test]
+	fn gateway_selection_response_serializes_error_without_selected_field() {
+		let resp = GatewaySelectionResponse {
+			ok: false,
+			selected: None,
+			error: Some("boom".to_string()),
+		};
+		let json = serde_json::to_string(&resp).unwrap();
+		assert_eq!(json, r#"{"ok":false,"error":"boom"}"#);
+	}
+
+	/// Binds a TCP listener that completes exactly one WebSocket server
+	/// handshake, echoes back one text message, then closes -- standing in
+	/// for a real target agent host so [`run_gateway_session`]'s dial +
+	/// proxy path can be exercised end-to-end without spawning a real
+	/// supervisor process.
+	async fn spawn_fake_target_endpoint() -> u16 {
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		tokio::spawn(async move {
+			let (stream, _) = listener.accept().await.unwrap();
+			let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+			if let Some(Ok(msg)) = ws.next().await {
+				let _ = ws.send(msg).await;
+			}
+			let _ = ws.close(None).await;
+		});
+		port
+	}
+
+	/// Drives a full client-side selection session against an in-process
+	/// [`run_gateway_session`] over an in-memory duplex pipe, returning the
+	/// client's WebSocket end after the initial inventory message (parsed
+	/// as generic JSON, since [`GatewayInventory`] only derives
+	/// `Serialize`) so the test can send a selection and inspect the
+	/// response.
+	async fn start_gateway_session_with_registry(
+		user_data_path: PathBuf,
+		launcher_paths: LauncherPaths,
+	) -> (WebSocketStream<tokio::io::DuplexStream>, serde_json::Value) {
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			let server_ws = WebSocketStream::from_raw_socket(server_io, Role::Server, None).await;
+			run_gateway_session(
+				log::Logger::test(),
+				launcher_paths,
+				user_data_path,
+				server_ws,
+			)
+			.await;
+		});
+		let mut client_ws = WebSocketStream::from_raw_socket(client_io, Role::Client, None).await;
+		let inventory = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => serde_json::from_str::<serde_json::Value>(&t).unwrap(),
+			other => panic!("expected inventory message, got {other:?}"),
+		};
+		(client_ws, inventory)
+	}
+
+	#[tokio::test]
+	async fn gateway_session_selects_existing_endpoint_and_proxies_frames() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let port = spawn_fake_target_endpoint().await;
+		let entry = make_tcp_endpoint("instance-existing", port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let (mut client_ws, inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+		let endpoints = inventory["endpoints"].as_array().unwrap();
+		assert_eq!(endpoints.len(), 1);
+		assert_eq!(endpoints[0]["instanceId"], "instance-existing");
+
+		client_ws
+			.send(Message::Text(
+				r#"{"instanceId":"instance-existing"}"#.into(),
+			))
+			.await
+			.unwrap();
+		let ack = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => t,
+			other => panic!("expected selection ack, got {other:?}"),
+		};
+		assert!(ack.contains(r#""ok":true"#), "got: {ack}");
+		assert!(
+			ack.contains(r#""instanceId":"instance-existing""#),
+			"got: {ack}"
+		);
+		assert!(ack.contains(r#""lifecycle":"external""#), "got: {ack}");
+
+		// Frames must now be proxied verbatim to the fake target, which
+		// echoes exactly what it receives.
+		client_ws.send(Message::Text("ping".into())).await.unwrap();
+		let echoed = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => t,
+			other => panic!("expected echoed frame, got {other:?}"),
+		};
+		assert_eq!(echoed, "ping");
+	}
+
+	#[tokio::test]
+	async fn gateway_session_errors_clearly_when_selected_instance_disappeared() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		// Registry is empty: nothing is live, so any `instanceId` selection
+		// must fail with a clear error rather than silently switching to a
+		// different (nonexistent) target.
+		let (mut client_ws, inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+		assert!(inventory["endpoints"].as_array().unwrap().is_empty());
+
+		client_ws
+			.send(Message::Text(r#"{"instanceId":"does-not-exist"}"#.into()))
+			.await
+			.unwrap();
+		let ack = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => t,
+			other => panic!("expected error ack, got {other:?}"),
+		};
+		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
+		assert!(ack.contains("no longer live"), "got: {ack}");
+	}
+
+	#[tokio::test]
+	async fn gateway_session_errors_on_malformed_selection() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let (mut client_ws, _inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+
+		client_ws
+			.send(Message::Text("not json".into()))
+			.await
+			.unwrap();
+		let ack = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => t,
+			other => panic!("expected error ack, got {other:?}"),
+		};
+		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
+	}
+
+	// ---- Direct-hosted tunnel router (`serve_agent_host_tunnel_connection`) --
+	//
+	// These exercise the exact request router `code agent host --tunnel`'s
+	// `run_supervisor` now dispatches its dev-tunnel-hosted `AGENT_HOST_PORT`
+	// connections through -- previously it called
+	// `AgentHostSidecar::serve_tunnel_connection` unconditionally, which
+	// never looked at the request path, so a renderer's `/agent-host/select`
+	// upgrade (sent because the tunnel is tagged with the current
+	// `PROTOCOL_VERSION_TAG`, see `constants::PROTOCOL_VERSION`'s doc
+	// comment) fell straight through to the AH backend and no inventory was
+	// ever sent.
+
+	/// Accepts exactly one raw TCP connection, reads until the request's
+	/// header terminator, and replies with a fixed HTTP/1.1 body -- a
+	/// minimal stand-in for "the current sidecar's own local accept loop"
+	/// so tests can assert the direct-hosted-tunnel router's root/default
+	/// route reaches *this* fake endpoint specifically, without needing a
+	/// real `AgentHostManager`-backed server.
+	async fn spawn_fake_http_endpoint(body: &'static str) -> u16 {
+		use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		tokio::spawn(async move {
+			let (mut stream, _) = listener.accept().await.unwrap();
+			let mut buf = [0u8; 1024];
+			let mut seen = Vec::new();
+			loop {
+				let n = stream.read(&mut buf).await.unwrap();
+				if n == 0 {
+					break;
+				}
+				seen.extend_from_slice(&buf[..n]);
+				if seen.windows(4).any(|w| w == b"\r\n\r\n") {
+					break;
+				}
+			}
+			let response = format!(
+				"HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+				body.len(),
+				body
+			);
+			stream.write_all(response.as_bytes()).await.unwrap();
+		});
+		port
+	}
+
+	/// The root/default route of the direct-hosted-tunnel router must
+	/// resolve to exactly the `ActiveAgentHost` the caller already handed
+	/// it -- mirroring how `run_supervisor` builds one from its own
+	/// running sidecar's published identity (see
+	/// `AgentHostSidecar::active_agent_host`) -- rather than falling back
+	/// to some other discovery/spawn path. The registry here is left
+	/// completely empty (no `standalone`/`editor` entries at all): if the
+	/// router ever ignored the passed-in `active_agent_host` and instead
+	/// consulted the registry (e.g. via `ensure_supervisor_running`), it
+	/// would either 503 or try to spawn a brand-new supervisor process
+	/// instead of reaching the fake endpoint below, so reaching it proves
+	/// neither happened.
+	#[tokio::test]
+	async fn direct_tunnel_root_route_reaches_current_sidecar_without_spawning_supervisor() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let fake_port = spawn_fake_http_endpoint("current-sidecar-ok").await;
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: std::process::id(),
+				host: Some("127.0.0.1".to_string()),
+				port: fake_port,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+			)
+			.await;
+		});
+
+		let io = TokioIo::new(client_io);
+		let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+		tokio::spawn(async move {
+			let _ = conn.await;
+		});
+		let req = Request::builder()
+			.method("GET")
+			.uri("/")
+			.body(http_body_util::Empty::<bytes::Bytes>::new())
+			.unwrap();
+		let res = sender.send_request(req).await.expect("send request");
+		assert_eq!(res.status(), 200);
+		let body = res.into_body().collect().await.unwrap().to_bytes();
+		assert_eq!(&body[..], b"current-sidecar-ok" as &[u8]);
+	}
+
+	/// End-to-end regression test for the reported tunnel inventory
+	/// timeout: drives an actual HTTP/1 WebSocket upgrade request for
+	/// `AGENT_HOST_GATEWAY_SELECT_PATH` through
+	/// `serve_agent_host_tunnel_connection` -- the same router
+	/// `run_supervisor` now uses for `code agent host --tunnel`'s
+	/// dev-tunnel-hosted `AGENT_HOST_PORT` -- and observes the inventory
+	/// message the gateway sends immediately after upgrading. The
+	/// root/default route is deliberately pointed at an unreachable
+	/// address (port `1`, universally reserved/refused) so the test also
+	/// proves the select path never touches the legacy direct-proxy route
+	/// at all: if it did, this would hang or error instead of yielding an
+	/// inventory immediately.
+	///
+	/// This also ties the tunnel's protocol tag to the served route: the
+	/// tunnel `code agent host --tunnel` creates is tagged with the
+	/// current `PROTOCOL_VERSION_TAG` (`constants::PROTOCOL_VERSION`,
+	/// currently `6`), which is exactly the version that introduced this
+	/// selection route (see that constant's doc comment) -- so a tunnel
+	/// tagged this way must always be served by a router that understands
+	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
+	#[tokio::test]
+	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
+		assert!(
+			crate::constants::PROTOCOL_VERSION >= 6,
+			"the gateway selection route requires protocol v6+"
+		);
+
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let target_port = spawn_fake_target_endpoint().await;
+		let entry = make_tcp_endpoint("instance-direct-tunnel", target_port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				// Port 1 is a reserved, universally-refused TCP port: any
+				// attempt to dial it (i.e. the legacy root route) fails
+				// immediately rather than silently succeeding.
+				port: 1,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+			)
+			.await;
+		});
+
+		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
+			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
+			client_io,
+		)
+		.await
+		.expect("gateway select upgrade should succeed");
+
+		let inventory = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => serde_json::from_str::<serde_json::Value>(&t).unwrap(),
+			other => panic!("expected inventory message, got {other:?}"),
+		};
+		let endpoints = inventory["endpoints"].as_array().unwrap();
+		assert_eq!(endpoints.len(), 1);
+		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
 	}
 }

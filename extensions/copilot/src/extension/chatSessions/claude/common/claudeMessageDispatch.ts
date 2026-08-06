@@ -205,8 +205,10 @@ export function handleAssistantMessage(
 				kind: SpanKind.INTERNAL,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+					[GenAiAttr.CONVERSATION_ID]: sessionId,
 					[GenAiAttr.TOOL_NAME]: item.name,
 					[GenAiAttr.TOOL_CALL_ID]: item.id,
+					[CopilotChatAttr.SESSION_ID]: sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
 				},
 				parentTraceContext: spanParentContext,
@@ -443,13 +445,13 @@ function sendToolInvokedTelemetry(
 	/* __GDPR__
 		"languageModelToolInvoked" : {
 			"owner": "roblourens",
-			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
+			"comment": "Provides insight into the usage of language model tools invoked by agent SDKs.",
 			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
-			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The Claude Code SDK tool name (e.g. Bash, Read, Edit, mcp__server__tool)." },
-			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for Claude Code." },
-			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "claudeCode | mcp" },
-			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool_use and tool_result." }
+			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The tool name reported by the agent SDK." },
+			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for agent SDK tools." },
+			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The source of the tool invocation." },
+			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The duration of the tool invocation in milliseconds." }
 		}
 	*/
 	telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
@@ -504,6 +506,8 @@ export function handleHookStarted(
 		kind: SpanKind.INTERNAL,
 		attributes: {
 			[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
+			[GenAiAttr.CONVERSATION_ID]: sessionId,
+			[CopilotChatAttr.SESSION_ID]: sessionId,
 			[CopilotChatAttr.HOOK_TYPE]: message.hook_event,
 			'copilot_chat.hook_command': message.hook_name,
 			'copilot_chat.hook_id': message.hook_id,

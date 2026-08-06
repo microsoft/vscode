@@ -5,7 +5,6 @@
 
 import { mark } from '../../base/common/performance.js';
 import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from '../../base/browser/dom.js';
-import { assertReturnsDefined } from '../../base/common/types.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from '../../platform/log/common/log.js';
 import { ConsoleLogInAutomationLogger } from '../../platform/log/browser/log.js';
@@ -25,7 +24,7 @@ import { FileService } from '../../platform/files/common/fileService.js';
 import { Schemas, connectionTokenCookieName } from '../../base/common/network.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
+import { onUnexpectedError, ErrorNoTelemetry } from '../../base/common/errors.js';
 import { setFullscreen } from '../../base/browser/browser.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
@@ -70,6 +69,7 @@ import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.j
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { INativeManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -219,7 +219,7 @@ export class BrowserMain extends Disposable {
 						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
 					},
 					openTunnel: async tunnelOptions => {
-						const tunnel = assertReturnsDefined(await remoteExplorerService.forward({
+						const tunnel = await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,
@@ -235,7 +235,11 @@ export class BrowserMain extends Disposable {
 							onAutoForward: undefined,
 							requireLocalPort: undefined,
 							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
-						}));
+						});
+
+						if (tunnel === undefined) {
+							throw new ErrorNoTelemetry(`Could not open tunnel to ${tunnelOptions.remoteAddress.host}:${tunnelOptions.remoteAddress.port}.`);
+						}
 
 						if (typeof tunnel === 'string') {
 							throw new Error(tunnel);
@@ -364,6 +368,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
+		serviceCollection.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);

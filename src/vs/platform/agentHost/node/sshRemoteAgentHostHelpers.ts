@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from '../../log/common/log.js';
-import { createRemoteAgentHostState, parseRemoteAgentHostState } from '../common/remoteAgentHostMetadata.js';
-
-const LOG_PREFIX = '[SSHRemoteAgentHost]';
+import { timeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
+import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
 
 /**
  * Validate that a quality string is safe for bare interpolation in shell commands.
@@ -267,20 +267,29 @@ export function redactToken(text: string): string {
 }
 
 /**
- * Path to the per-quality agent host lockfile written by `code agent host`.
- *
- * Mirrors the Rust CLI's launcher path layout (see
- * `cli/src/state.rs::agent_host_root`). The Rust CLI anchors the agent host
- * lockfile on `serverDataFolderName` (exposed to the CLI build as
- * `VSCODE_CLI_SERVER_DATA_FOLDER_NAME`, derived from
- * `IProductConfiguration.serverDataFolderName`) so a `code agent host`
- * started locally and the supervisor spawned by the SSH `command-shell`
- * path agree on the same lockfile regardless of `--cli-data-dir`.
+ * Match the `ws://127.0.0.1:PORT[?tkn=TOKEN]` URL emitted by `code agent host`
+ * on stdout/stderr. Shared by SSH and WSL agent-host transports — both spawn
+ * the CLI inside a posix shell and scrape its first line of output to discover
+ * the WebSocket endpoint.
  */
-export function getAgentHostLockfile(serverDataFolderName: string, quality: string): string {
-	const d = validateShellToken(serverDataFolderName, 'server data folder name');
-	const q = validateShellToken(quality, 'quality');
-	return `~/${d}/cli/agent-host-${q}.lock`;
+const AGENT_HOST_WS_URL_RE = /ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/;
+
+/**
+ * Extract the `ws://` URL printed by `code agent host` from a line or buffer
+ * of mixed output. Returns the full URL plus its parsed components, or
+ * `undefined` if no match is found.
+ */
+export function extractAgentHostWebSocketURL(text: string): { url: string; host: string; port: number; token: string | undefined } | undefined {
+	const match = text.match(AGENT_HOST_WS_URL_RE);
+	if (!match) {
+		return undefined;
+	}
+	return {
+		url: match[0],
+		host: '127.0.0.1',
+		port: parseInt(match[1], 10),
+		token: match[2] || undefined,
+	};
 }
 
 /**
@@ -288,63 +297,6 @@ export function getAgentHostLockfile(serverDataFolderName: string, quality: stri
  */
 export interface ISshExec {
 	(command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }>;
-}
-
-export type FindRunningAgentHostResult =
-	| { readonly kind: 'notFound' }
-	| { readonly kind: 'compatible'; readonly host: string; readonly port: number; readonly connectionToken: string | undefined };
-
-/**
- * Try to find a running agent host on the remote by reading the lockfile and
- * verifying the recorded PID is still alive.
- */
-export async function findRunningAgentHost(
-	exec: ISshExec,
-	logService: ILogService,
-	serverDataFolderName: string,
-	quality: string,
-): Promise<FindRunningAgentHostResult> {
-	const stateFile = getAgentHostLockfile(serverDataFolderName, quality);
-	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { ignoreExitCode: true });
-	if (code !== 0 || !stdout.trim()) {
-		return { kind: 'notFound' };
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(stdout.trim());
-	} catch {
-		// fall through
-	}
-	const state = parseRemoteAgentHostState(parsed);
-	if (!state) {
-		logService.info(`${LOG_PREFIX} Invalid agent host state file ${stateFile}, removing`);
-		await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
-		return { kind: 'notFound' };
-	}
-
-	// Verify the PID is still alive
-	const { code: killCode } = await exec(`kill -0 ${state.pid} 2>/dev/null`, { ignoreExitCode: true });
-	if (killCode !== 0) {
-		logService.info(`${LOG_PREFIX} Stale agent host state in ${stateFile} (PID ${state.pid} not running), cleaning up`);
-		await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
-		return { kind: 'notFound' };
-	}
-
-	// We deliberately do not gate on `protocolVersion` here: the remote
-	// agent host server is downloaded on demand and may speak a newer
-	// protocol than this desktop was built with. The renderer↔AH
-	// handshake will surface a real incompatibility; for the SSH-side
-	// reuse decision we treat any live process as a candidate, and the
-	// caller (sshRemoteAgentHostService) already falls back to spawning
-	// fresh if the relay fails to connect.
-	logService.info(`${LOG_PREFIX} Found running agent host via ${stateFile}: PID ${state.pid}, port ${state.port}`);
-	return {
-		kind: 'compatible',
-		host: dialAgentHostHost(state.host),
-		port: state.port,
-		connectionToken: state.connectionToken ?? undefined,
-	};
 }
 
 /**
@@ -365,59 +317,181 @@ export function dialAgentHostHost(bound: string | undefined): string {
 }
 
 /**
- * After starting an agent host, record its PID/port/token in the lockfile on
- * the remote so that future connections can reuse the process.
+ * Build the `code agent endpoints` command that lists every live agent
+ * host endpoint (editor + standalone) known to the shared registry on the
+ * remote. When `userDataPath` is omitted the CLI resolves its own default
+ * user-data path and reports it back in the envelope's `userDataPath`
+ * field; once known, callers should pass it back explicitly so every
+ * subsequent lookup/spawn/relay command targets the exact same registry.
  */
-export async function writeAgentHostState(
-	exec: ISshExec,
-	logService: ILogService,
-	serverDataFolderName: string,
-	quality: string,
-	pid: number | undefined,
-	port: number,
-	connectionToken: string | undefined,
-): Promise<void> {
-	if (!pid) {
-		logService.info(`${LOG_PREFIX} Agent host PID unknown, state file not written`);
-		return;
-	}
-
-	const stateFile = getAgentHostLockfile(serverDataFolderName, quality);
-	const state = createRemoteAgentHostState({ pid, port, connectionToken, quality });
-	const json = JSON.stringify(state);
-	// Remove any existing file first so `>` creates a fresh inode with the
-	// new umask (overwriting an existing file preserves its old permissions).
-	// Use a subshell with restrictive umask (077) so the file is created with
-	// owner-only permissions (0600), protecting the connection token.
-	// The CLI itself stores its token file with the same permissions.
-	const result = await exec(`mkdir -p $(dirname ${stateFile}) && rm -f ${stateFile} && (umask 077 && printf %s ${shellEscape(json)} > ${stateFile})`, { ignoreExitCode: true });
-	if (result.code !== 0) {
-		logService.warn(`${LOG_PREFIX} Failed to write agent host state to ${stateFile} (exit code ${result.code})${result.stderr ? `: ${result.stderr.trim()}` : ''}`);
-		return;
-	}
-	logService.info(`${LOG_PREFIX} Wrote agent host state to ${stateFile}: PID ${pid}, port ${port}`);
+export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, userDataPath?: string): string {
+	const userDataArg = userDataPath ? ` --user-data-dir ${shellEscape(userDataPath)}` : '';
+	return `${cliBin} --cli-data-dir ${cliDataDir} agent endpoints${userDataArg}`;
 }
 
 /**
- * Kill a remote agent host tracked by our lockfile and remove the lockfile.
+ * Build the command that spawns a brand-new dedicated standalone agent
+ * host on the remote, self-managed via `--idle-timeout`: once no client
+ * has been connected for `idleTimeoutSec`, the process exits on its own,
+ * so callers must NOT tie its lifetime to the SSH exec channel used to
+ * launch it (see {@link waitForNewStandaloneEndpoint}).
+ *
+ * Always passes `--new-instance`: plain `agent host` reuses an existing
+ * live standalone when one is already registered, which would silently
+ * defeat the "Start New Dedicated Agent Host" choice (no new entry would
+ * ever appear, and delta-matching in {@link waitForNewStandaloneEndpoint}
+ * would time out) and could otherwise touch a standalone another
+ * selection path is still relying on. `--new-instance` guarantees a
+ * genuinely new process/registry entry every time this command runs,
+ * leaving all existing standalone/editor entries untouched.
  */
-export async function cleanupRemoteAgentHost(
+export function buildAgentHostSpawnCommand(cliBin: string, cliDataDir: string, userDataPath: string, idleTimeoutSec = 300): string {
+	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
+		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
+	}
+	return `${buildAgentHostBaseCommand(cliBin, cliDataDir)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
+}
+
+/**
+ * Build the command that performs a raw stdin/stdout byte relay to the
+ * exact endpoint identified by `instanceId`, used to open a duplex channel
+ * to a `socket`-addressed endpoint (see `AgentHostEndpointAddress`) that
+ * `forwardOut` cannot reach directly.
+ */
+export function buildAgentRelayCommand(cliBin: string, cliDataDir: string, instanceId: string, userDataPath: string): string {
+	return `${cliBin} --cli-data-dir ${cliDataDir} agent relay ${shellEscape(instanceId)} --user-data-dir ${shellEscape(userDataPath)}`;
+}
+
+/** Parsed, validated result of `code agent endpoints`. */
+export interface IAgentEndpointsResult {
+	/** The remote user-data path the registry was read from/for. */
+	readonly userDataPath: string;
+	/** Every live endpoint currently in the registry, already schema-validated. */
+	readonly endpoints: readonly IAgentHostEndpointMetadata[];
+}
+
+const agentEndpointsEnvelopeValidator = vObj({
+	userDataPath: vString(),
+	endpoints: vArray(vUnknown()),
+});
+
+/**
+ * Parse the JSON envelope printed by `code agent endpoints`
+ * (`{ userDataPath, endpoints }`). Individual endpoint entries are
+ * validated via the shared {@link parseAgentHostEndpointRegistry} parser
+ * (malformed/unsupported-schema entries are dropped, not fatal). Returns
+ * `undefined` if `stdout` is empty or the top-level envelope itself is
+ * malformed.
+ */
+export function parseAgentEndpointsOutput(stdout: string): IAgentEndpointsResult | undefined {
+	const trimmed = stdout.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	let raw: unknown;
+	try {
+		raw = JSON.parse(trimmed);
+	} catch {
+		return undefined;
+	}
+	const { content, error } = agentEndpointsEnvelopeValidator.validate(raw);
+	if (error) {
+		return undefined;
+	}
+	return {
+		userDataPath: content.userDataPath,
+		endpoints: parseAgentHostEndpointRegistry(content.endpoints),
+	};
+}
+
+/**
+ * Execute `code agent endpoints` over `exec` and return the parsed
+ * envelope. Throws if the command fails or its output cannot be parsed —
+ * callers rely on endpoint discovery to make a correct selection decision,
+ * so a silently empty/garbage result would be worse than a loud failure.
+ */
+export async function runAgentEndpoints(exec: ISshExec, cliBin: string, cliDataDir: string, userDataPath?: string): Promise<IAgentEndpointsResult> {
+	const command = buildAgentEndpointsCommand(cliBin, cliDataDir, userDataPath);
+	const { stdout, stderr, code } = await exec(command, { ignoreExitCode: true });
+	if (code !== 0) {
+		throw new Error(`'agent endpoints' failed (exit code ${code})${stderr.trim() ? `: ${stderr.trim()}` : ''}`);
+	}
+	const result = parseAgentEndpointsOutput(stdout);
+	if (!result) {
+		throw new Error(`'agent endpoints' produced unparsable output: ${JSON.stringify(stdout.slice(0, 500))}`);
+	}
+	return result;
+}
+
+/**
+ * Filter `entries` down to the ones whose PID is still alive, probing each
+ * distinct PID at most once with `kill -0`. The registry file itself may
+ * lag reality slightly (e.g. a crashed writer's stale entry before its
+ * cleanup ran), so liveness must always be re-checked before an entry is
+ * offered for reuse.
+ */
+export async function filterLiveAgentHostEndpoints(exec: ISshExec, entries: readonly IAgentHostEndpointMetadata[]): Promise<IAgentHostEndpointMetadata[]> {
+	const pids = [...new Set(entries.map(e => e.pid))];
+	const alive = new Set<number>();
+	await Promise.all(pids.map(async pid => {
+		const { code } = await exec(`kill -0 ${pid} 2>/dev/null`, { ignoreExitCode: true });
+		if (code === 0) {
+			alive.add(pid);
+		}
+	}));
+	return entries.filter(e => alive.has(e.pid));
+}
+
+/**
+ * Diff two endpoint snapshots and return the standalone entry present in
+ * `after` but not `before`, identified by `(type, pid, instanceId)`. Used
+ * to match the endpoint published by a just-spawned agent host without
+ * relying on any output scraped from the spawn command itself.
+ */
+export function findNewAgentHostEndpoint(before: readonly IAgentHostEndpointMetadata[], after: readonly IAgentHostEndpointMetadata[]): IAgentHostEndpointMetadata | undefined {
+	const beforeKeys = new Set(before.map(getAgentHostEndpointIdentityKey));
+	return after.find(entry => entry.type === 'standalone' && !beforeKeys.has(getAgentHostEndpointIdentityKey(entry)));
+}
+
+export interface IWaitForNewEndpointOptions {
+	/** Maximum number of `agent endpoints` polls before giving up. Defaults to 20. */
+	readonly attempts?: number;
+	/** Delay between polls, in milliseconds. Defaults to 500. */
+	readonly intervalMs?: number;
+	readonly token?: CancellationToken;
+}
+
+/**
+ * Poll `code agent endpoints` until a newly spawned standalone entry shows
+ * up (see {@link findNewAgentHostEndpoint}), or throw once the attempt
+ * budget is exhausted. The spawn command itself is fire-and-forget (its
+ * process is not tied to the SSH exec channel that launched it — see
+ * {@link buildAgentHostSpawnCommand}), so this is the only way to learn
+ * the freshly assigned TCP address/token/instanceId.
+ */
+export async function waitForNewStandaloneEndpoint(
 	exec: ISshExec,
-	logService: ILogService,
-	serverDataFolderName: string,
-	quality: string,
-): Promise<void> {
-	const stateFile = getAgentHostLockfile(serverDataFolderName, quality);
-	const { stdout, code } = await exec(`cat ${stateFile} 2>/dev/null`, { ignoreExitCode: true });
-	if (code === 0 && stdout.trim()) {
-		let state: { readonly pid: number } | undefined;
-		try {
-			state = parseRemoteAgentHostState(JSON.parse(stdout.trim()));
-		} catch { /* ignore parse errors */ }
-		if (state) {
-			logService.info(`${LOG_PREFIX} Killing remote agent host PID ${state.pid} (from ${stateFile})`);
-			await exec(`kill ${state.pid} 2>/dev/null`, { ignoreExitCode: true });
+	cliBin: string,
+	cliDataDir: string,
+	userDataPath: string,
+	before: readonly IAgentHostEndpointMetadata[],
+	options?: IWaitForNewEndpointOptions,
+): Promise<IAgentHostEndpointMetadata> {
+	const attempts = options?.attempts ?? 20;
+	const intervalMs = options?.intervalMs ?? 500;
+	for (let attempt = 0; attempt < attempts; attempt++) {
+		const { endpoints } = await runAgentEndpoints(exec, cliBin, cliDataDir, userDataPath);
+		const found = findNewAgentHostEndpoint(before, endpoints);
+		if (found) {
+			return found;
+		}
+		if (attempt < attempts - 1) {
+			if (options?.token) {
+				await timeout(intervalMs, options.token);
+			} else {
+				await timeout(intervalMs);
+			}
 		}
 	}
-	await exec(`rm -f ${stateFile}`, { ignoreExitCode: true });
+	throw new Error(`Timed out waiting for the newly spawned agent host to register itself (checked ${attempts} times, ~${Math.round(attempts * intervalMs / 1000)}s)`);
 }

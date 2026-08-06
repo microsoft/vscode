@@ -8,15 +8,20 @@
 	position: absolute;
 	max-width: 280px;
 	min-width: 180px;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	border-radius: 8px;
+	background-color: var(--vscode-agentFeedbackEditorWidget-background, var(--vscode-editorWidget-background));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 1.4;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	z-index: 10;
+}
+
+.hc-black .agent-feedback-widget,
+.hc-light .agent-feedback-widget {
+	box-shadow: none;
 }
 
 .agent-feedback-widget.visible {
@@ -45,7 +50,7 @@
 	height: 0;
 	border-top: 6px solid transparent;
 	border-bottom: 6px solid transparent;
-	border-right: 6px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-right: 6px solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	display: none;
 }
 
@@ -62,7 +67,7 @@
 	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
-	border-right: 5px solid var(--vscode-editorWidget-background);
+	border-right: 5px solid var(--vscode-agentFeedbackEditorWidget-background, var(--vscode-editorWidget-background));
 }
 
 /* Header */
@@ -71,7 +76,7 @@
 	align-items: center;
 	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	overflow: hidden;
 	cursor: pointer;
 	gap: 6px;
@@ -79,7 +84,7 @@
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-header {
 	border-bottom: none;
-	border-radius: 8px 8px 8px 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .agent-feedback-widget-header:hover {
@@ -88,7 +93,7 @@
 
 /* Title */
 .agent-feedback-widget-title {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
@@ -126,7 +131,7 @@
 /* Body - collapsible */
 .agent-feedback-widget-body {
 	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
-	border-radius: 0 0 8px 8px;
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
@@ -192,29 +197,25 @@
 .agent-feedback-widget-item-type {
 	display: inline-flex;
 	align-items: center;
-	padding: 1px 6px;
-	border-radius: 4px;
-	font-size: 10px;
-	font-weight: 600;
+	padding: 2px 6px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	letter-spacing: 0.2px;
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, var(--vscode-editorWidget-background));
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, var(--vscode-editorWidget-background));
-	color: var(--vscode-editorInfo-foreground);
+.agent-feedback-widget-item-prReview .agent-feedback-widget-item-type,
+.agent-feedback-widget-item-agentFeedback .agent-feedback-widget-item-type {
+	background: color-mix(in srgb, var(--vscode-charts-purple) 22%, var(--vscode-editorWidget-background));
+	color: var(--vscode-charts-purple);
 }
 
 /* Line info */
 .agent-feedback-widget-line-info {
-	font-size: 10px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -235,9 +236,9 @@
 
 .agent-feedback-widget-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label3);
 	padding: 1px 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 
@@ -249,17 +250,13 @@
 	padding: 0px 8px 4px 12px;
 }
 
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
-}
-
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
+	border-left: 1px solid color-mix(in srgb, var(--vscode-charts-purple) 50%, transparent);
 }
 
 .agent-feedback-widget-suggestion-header {
-	font-size: 10px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.4px;
 	color: var(--vscode-descriptionForeground);
@@ -274,11 +271,11 @@
 .agent-feedback-widget-suggestion-text {
 	margin: 0;
 	padding: 6px 8px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow-x: auto;
 	white-space: pre-wrap;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label3);
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
 	user-select: text;
@@ -303,7 +300,7 @@
 	min-height: 22px;
 	padding: 4px 6px;
 	border: 1px solid var(--vscode-focusBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font: inherit;
@@ -345,9 +342,9 @@
 
 .agent-feedback-widget-reply-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-	padding: 1px 4px;
-	border-radius: 3px;
+	font-size: var(--vscode-agents-fontSize-label3);
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 
@@ -360,4 +357,19 @@
 .agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground);
 	opacity: 1;
+}
+
+/* Accept / Remove action button bar shown for created agent feedback */
+.agent-feedback-widget-actions-bar {
+	display: flex;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.agent-feedback-widget-actions-bar .monaco-button {
+	flex: 1;
+	padding: 2px 10px;
+	width: auto;
+	font-size: var(--vscode-agents-fontSize-label2);
+	line-height: 18px;
 }

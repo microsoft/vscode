@@ -33,6 +33,7 @@ import { NextEditProviderTelemetryBuilder, TelemetrySender } from '../../../../i
 import { InlineEditLogger } from '../../../../inlineEdits/vscode-node/parts/inlineEditLogger';
 import { GhostTextLogContext } from '../../../common/ghostTextContext';
 import { ICompletionsTelemetryService } from '../../bridge/src/completionsTelemetryServiceBridge';
+import { ICompletionsCopilotTokenManager } from '../../lib/src/auth/copilotTokenManager';
 import { BuildInfo } from '../../lib/src/config';
 import { CopilotConfigPrefix } from '../../lib/src/constants';
 import { handleException } from '../../lib/src/defaultHandlers';
@@ -82,6 +83,7 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICompletionsTelemetryService private readonly telemetryService: ICompletionsTelemetryService,
 		@ICompletionsExtensionStatus private readonly extensionStatusService: ICompletionsExtensionStatus,
+		@ICompletionsCopilotTokenManager private readonly copilotTokenManager: ICompletionsCopilotTokenManager,
 		@ILogService logService: ILogService,
 		@IRequestLogger private readonly requestLogger: IRequestLogger,
 	) {
@@ -184,9 +186,14 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 			this.logSuggestion(logContext, doc, list);
 			logContext.setResponseResults(list.items);
 
+			// Only offer the "Send Copilot Completion Feedback" command to paid users.
+			// Free and unauthenticated users would otherwise spam the issue tracker.
+			const copilotToken = this.copilotTokenManager.token;
+			const canSendCompletionFeedback = !!copilotToken && !copilotToken.isFreeUser && !copilotToken.isNoAuthUser;
+
 			return {
 				...list,
-				commands: [sendCompletionFeedbackCommand],
+				commands: canSendCompletionFeedback ? [sendCompletionFeedbackCommand] : [],
 			};
 		} catch (e) {
 			this.instantiationService.invokeFunction(exception, e, '._provideInlineCompletionItems', myLogger);

@@ -397,16 +397,29 @@
 	color: white;
 }
 
-/* Center-Adjacent Toolbar (e.g., update indicator) */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container {
+/* Optional title bar toolbars */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
 	z-index: 2500;
 	-webkit-app-region: no-drag;
-	margin-right: auto;
-	min-width: 0;
-	overflow: hidden;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container {
+	margin-right: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
+	margin-left: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container.has-no-actions {
+	display: none;
+}
+
+/* Hidden when the title bar is too narrow to fit it without pushing the window controls off-screen (#303222). */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.overflowing,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container.overflowing {
 	display: none;
 }
 
@@ -425,6 +438,10 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	margin-left: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container:not(.has-no-actions) + .update-toolbar-container:not(.has-no-actions):not(.overflowing) {
+	margin-left: 4px;
 }
 
 .monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {

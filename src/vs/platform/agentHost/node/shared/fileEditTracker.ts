@@ -3,61 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
-import { basename } from '../../../../base/common/path.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
+import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-
-const SESSION_DB_SCHEME = 'session-db';
-
-/**
- * Builds a `session-db:` URI that references a file-edit content blob
- * stored in the session database. Parsed by {@link parseSessionDbUri}.
- */
-export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: 'before' | 'after'): string {
-	return URI.from({
-		scheme: SESSION_DB_SCHEME,
-		authority: encodeHex(VSBuffer.fromString(sessionUri)).toString(),
-		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}/${basename(filePath)}`,
-	}).toString();
-}
-
-/** Parsed fields from a `session-db:` content URI. */
-export interface ISessionDbUriFields {
-	sessionUri: string;
-	toolCallId: string;
-	filePath: string;
-	part: 'before' | 'after';
-}
-
-/**
- * Parses a `session-db:` URI produced by {@link buildSessionDbUri}.
- * Returns `undefined` if the URI is not a valid `session-db:` URI.
- */
-export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined {
-	const parsed = URI.parse(raw);
-	if (parsed.scheme !== SESSION_DB_SCHEME) {
-		return undefined;
-	}
-	const [, toolCallId, filePath, part] = parsed.path.split('/');
-	if (!toolCallId || !filePath || (part !== 'before' && part !== 'after')) {
-		return undefined;
-	}
-	try {
-		return {
-			sessionUri: decodeHex(parsed.authority).toString(),
-			toolCallId: decodeURIComponent(toolCallId),
-			filePath: decodeHex(filePath).toString(),
-			part
-		};
-	} catch {
-		return undefined;
-	}
-}
+import { extractAiChunks } from './editChunkExtractor.js';
+import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
+import { IEditArcReporterService } from './editArcReporter.js';
+import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
 
 /**
  * Tracks file edits made by tools in a session by snapshotting file content
@@ -86,6 +44,9 @@ export class FileEditTracker {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
+		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
+		@IEditArcReporterService private readonly _editArcReporterService: IEditArcReporterService,
 	) { }
 
 	/**
@@ -140,30 +101,37 @@ export class FileEditTracker {
 	 * and returns the result as an {@link ToolResultFileEditContent}
 	 * for inclusion in the tool result.
 	 *
-	 * @param turnId - The turn that produced this edit.
-	 * @param toolCallId - The tool call that produced this edit.
-	 * @param filePath - Absolute path of the edited file.
+	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
+	 * for region-based survival scoring; unknown shapes fall back to
+	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
 		}
 		this._completedEdits.delete(filePath);
 
+		if (!modelId) {
+			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
+		}
+
 		const beforeBytes = edit.beforeContent.buffer;
 		const afterBytes = edit.afterContent.buffer;
 		const beforeText = edit.beforeContent.toString();
 		const afterText = edit.afterContent.toString();
+		const completionTime = Date.now();
 
 		const isCreate = !edit.beforeExisted && afterBytes.length > 0;
 
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
+		let changes: readonly IOffsetEdit[] = [];
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
+			changes = counts.changes;
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -183,7 +151,20 @@ export class FileEditTracker {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
 
-		return {
+		this._editSurvivalReporterFactory.launch({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			isCreate,
+			modelId,
+			toolName,
+			aiChunks: extractAiChunks(toolName, toolInput, filePath),
+		});
+
+		const content: ToolResultFileEditContent = {
 			type: ToolResultContentType.FileEdit,
 			before: {
 				uri: URI.file(filePath).toString(),
@@ -195,6 +176,52 @@ export class FileEditTracker {
 			},
 			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
 		};
+		let marker: IFileEditAttributionMarker | undefined;
+		try {
+			marker = await this._editAttributionService.recordEdit({
+				sessionUri: this._sessionUri,
+				turnId,
+				toolCallId,
+				filePath,
+				beforeText,
+				afterText,
+				changes,
+				modelId,
+				toolName,
+			});
+		} catch (error) {
+			this._logService.warn(`[FileEditTracker] Failed to record edit attribution for ${filePath}: ${error}`);
+		}
+
+		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
+			?? createArcTextEditFromDiff(changes, beforeText, afterText);
+		this._editArcReporterService.reportEdit({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			initialEdit,
+			modelId,
+			toolName,
+			completionTime,
+		}).catch(error => {
+			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
+		});
+
+		if (!marker) {
+			return content;
+		}
+		const attributedContent: AttributedToolResultFileEditContent = {
+			...content,
+			[FILE_EDIT_ATTRIBUTION_PROPERTY]: marker,
+		};
+		return attributedContent;
+	}
+
+	async flushAttribution(): Promise<void> {
+		await this._editAttributionService.flushSession(this._sessionUri);
 	}
 
 	private async _readFile(filePath: string): Promise<VSBuffer> {

@@ -14,10 +14,12 @@ import './standaloneLayoutService.js';
 
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { KeyCodeChord, Keybinding, ResolvedKeybinding, decodeKeybinding } from '../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -265,10 +267,10 @@ class StandaloneDialogService implements IDialogService {
 		};
 	}
 
-	private doConfirm(message: string, detail?: string): boolean {
+	private doConfirm(message: string, detail?: string | IMarkdownString): boolean {
 		let messageText = message;
 		if (detail) {
-			messageText = messageText + '\n\n' + detail;
+			messageText = messageText + '\n\n' + (typeof detail === 'object' ? renderAsPlaintext(detail) : detail);
 		}
 
 		return mainWindow.confirm(messageText);
@@ -1131,6 +1133,7 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;

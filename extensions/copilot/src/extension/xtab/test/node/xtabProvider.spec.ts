@@ -12,8 +12,9 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -21,8 +22,10 @@ import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { Result } from '../../../../util/common/result';
+import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -39,6 +42,7 @@ import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../../common/systemMessages';
+import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import {
 	computeAreaAroundEditWindowLinesRange,
@@ -454,8 +458,22 @@ describe('getPredictionContents', () => {
 	const editWindowLines = ['const x = 1;', 'const y = 2;'];
 	const doc = makeActiveDocument(['line0', ...editWindowLines, 'line3']);
 
+	// Defaults for response formats that ignore the cursor/patch args.
+	const call = (
+		lines: readonly string[],
+		format: ResponseFormat,
+		opts?: { cursorLineOffset?: number; cursorLineInEditWindowOffset?: number; patchModelPredictionKind?: PatchModelPrediction; doc?: StatelessNextEditDocument },
+	) => getPredictionContents(
+		opts?.doc ?? doc,
+		opts?.cursorLineOffset ?? 0,
+		lines,
+		opts?.cursorLineInEditWindowOffset ?? 0,
+		format,
+		opts?.patchModelPredictionKind ?? PatchModelPrediction.FilePath,
+	);
+
 	it('returns correct content for UnifiedWithXml', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
 			"<EDIT>
 			const x = 1;
 			const y = 2;
@@ -464,14 +482,14 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowOnly', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
 			"const x = 1;
 			const y = 2;"
 		`);
 	});
 
 	it('returns correct content for EditWindowWithEditIntent', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
 			"<|edit_intent|>high<|/edit_intent|>
 			const x = 1;
 			const y = 2;"
@@ -479,7 +497,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowWithEditIntentShort', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
 			"H
 			const x = 1;
 			const y = 2;"
@@ -487,7 +505,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for CodeBlock', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
 			"\`\`\`
 			const x = 1;
 			const y = 2;
@@ -500,21 +518,66 @@ describe('getPredictionContents', () => {
 			['line0', 'line1'],
 			{ workspaceRoot: URI.file('/workspace/project') },
 		);
-		const result = getPredictionContents(docWithRoot, ['line0'], ResponseFormat.CustomDiffPatch);
+		const result = call(['line0'], ResponseFormat.CustomDiffPatch, { doc: docWithRoot });
 		expect(result.endsWith(':')).toBe(true);
 	});
 
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
-		const result = getPredictionContents(doc, editWindowLines, ResponseFormat.CustomDiffPatch);
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch);
 		expect(result.endsWith(':')).toBe(true);
 	});
 
+	it('CustomDiffPatch / CurrentLine emits path:line and a `-` deletion', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineReplaced emits a deletion plus an empty `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineReplaced,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineCompleted echoes the line as a `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch falls back to path-only when the cursor is past the edit window', () => {
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 99,
+			cursorLineInEditWindowOffset: 99,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		});
+		expect(result.endsWith(':')).toBe(true);
+		expect(result.includes('undefined')).toBe(false);
+	});
+
 	it('handles empty editWindowLines', () => {
-		expect(getPredictionContents(doc, [], ResponseFormat.EditWindowOnly)).toBe('');
+		expect(call([], ResponseFormat.EditWindowOnly)).toBe('');
 	});
 
 	it('handles single-line editWindowLines', () => {
-		expect(getPredictionContents(doc, ['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
+		expect(call(['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
 	});
 });
 
@@ -984,6 +1047,40 @@ describe('XtabProvider integration', () => {
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
 		});
 
+		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
+				mockModelService.setSelectedConfig({ promptingStrategy });
+				await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
+				streamingFetcher.setStreamingLines(lines);
+
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+				const userMessage = messages?.find(message => message.role === Raw.ChatRole.User);
+				expect(userMessage).toBeDefined();
+				return getMessageText(userMessage!);
+			};
+
+			const nonAggressiveLow = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.Low);
+			const nonAggressiveHigh = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.High);
+			const aggressiveLow = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.Low);
+			const aggressiveHigh = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.High);
+
+			expect({
+				nonAggressivePromptsMatch: nonAggressiveLow === nonAggressiveHigh,
+				nonAggressivePromptHasLevel: nonAggressiveLow.includes('<|aggressive|>'),
+				aggressiveLowHasLevel: aggressiveLow.includes('<|aggressive|>low<|/aggressive|>'),
+				aggressiveHighHasLevel: aggressiveHigh.includes('<|aggressive|>high<|/aggressive|>'),
+			}).toEqual({
+				nonAggressivePromptsMatch: true,
+				nonAggressivePromptHasLevel: false,
+				aggressiveLowHasLevel: true,
+				aggressiveHighHasLevel: true,
+			});
+		});
+
 		it('retries with default model after NotFound response', async () => {
 			const provider = createProvider();
 
@@ -1076,6 +1173,69 @@ describe('XtabProvider integration', () => {
 	// Group 4: Filter Pipeline
 	// ========================================================================
 
+	describe('global budget', () => {
+
+		/** Drives the provider once and returns the captured user-message text. */
+		async function captureUserPrompt(provider: XtabProvider, request: StatelessNextEditRequest): Promise<string> {
+			streamingFetcher.setStreamingLines(['x']);
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+			// Guard against silently comparing a stale capture: the run must have fetched.
+			expect(streamingFetcher.capturedOptions.length).toBeGreaterThan(capturesBefore);
+			const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+			const userMessage = messages?.find(m => m.role === Raw.ChatRole.User);
+			expect(userMessage).toBeDefined();
+			return getMessageText(userMessage!);
+		}
+
+		/** Number of lines in the `<|current_file_content|>` region of the prompt. */
+		function currentFileRegionLineCount(prompt: string): number {
+			const start = prompt.indexOf(PromptTags.CURRENT_FILE.start);
+			const end = prompt.indexOf(PromptTags.CURRENT_FILE.end);
+			expect(start).toBeGreaterThanOrEqual(0);
+			expect(end).toBeGreaterThan(start);
+			return prompt.slice(start, end).split('\n').length;
+		}
+
+		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
+
+		// Under a global budget the current file is clipped LAST, so it absorbs whatever
+		// budget the cascade parts leave unused. With the (here empty) cascade the
+		// current file therefore reuses essentially the whole pool and keeps strictly
+		// MORE of the file than the legacy path, which caps it at its own
+		// currentFile.maxTokens (1500) and trims the tail.
+		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
+			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
+			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Legacy caps the current file at 2000 tokens → the tail is trimmed.
+			expect(legacy).not.toContain('const value399 = 399;');
+			// Clip-last lets the current file reuse the whole pool → the entire file fits.
+			expect(enabledAtDefault).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(legacy)).toBeLessThan(currentFileRegionLineCount(enabledAtDefault));
+		});
+
+		// New behavior: because the current file is sized to its share PLUS the cascade
+		// leftover (≈ the whole pool when the cascade is empty), a larger total budget
+		// keeps more of the file. A small pool still trims the tail; a generous pool
+		// fits the entire file.
+		it('keeps more of the current file as the total budget grows', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 2000 }));
+			const smallBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Small pool trims the tail; wide pool fits the whole file.
+			expect(smallBudget).not.toContain('const value399 = 399;');
+			expect(wideBudget).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(smallBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+		});
+	});
+
 	describe('filter pipeline', () => {
 		it('filters out import-only changes', async () => {
 			const provider = createProvider();
@@ -1104,6 +1264,36 @@ describe('XtabProvider integration', () => {
 
 			// Import-only changes should be filtered out
 			expect(edits.length).toBe(0);
+		});
+
+		it('allows import-only changes when model config allows them', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({ allowImportChanges: ImportChanges.All });
+
+			const lines = [
+				'import { foo } from "bar";',
+				'',
+				'function main() {',
+				'  foo();',
+				'}',
+			];
+			// Place cursor at the import line
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 5,
+				insertedText: 'x',
+				languageId: 'typescript',
+			});
+
+			// Respond with a modified import line
+			const responseLines = [...lines];
+			responseLines[0] = 'import { foo, baz } from "bar";';
+			streamingFetcher.setStreamingLines(responseLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits } = await collectEdits(gen);
+
+			// With import changes allowed, the import-only edit should pass through
+			expect(edits.length).toBeGreaterThan(0);
 		});
 
 		it('passes through substantive code edits', async () => {
@@ -1255,6 +1445,29 @@ describe('XtabProvider integration', () => {
 
 			expect(edits.length).toBe(0);
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('CustomDiffPatch clamps tagged content range to the source document', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				includeTagsInCurrentFile: true,
+			});
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'e' });
+			streamingFetcher.setStreamingLines([]);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect({
+				editCount: edits.length,
+				finalReason: finalReason.v.constructor.name,
+			}).toEqual({
+				editCount: 0,
+				finalReason: NoNextEditReason.NoSuggestions.name,
+			});
 		});
 
 		it('UnifiedWithXml INSERT yields insertion edit at cursor line', async () => {
@@ -1680,6 +1893,59 @@ describe('XtabProvider integration', () => {
 			expect(streamingFetcher.callCount).toBe(3);
 		});
 
+		it('cross-file cursor jump with out-of-bounds predicted line → NoSuggestions without throwing', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, { insertionOffset: cursorOffset });
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump path
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): predict a jump into another file at line 50 (0-based),
+			// which is out of bounds for the 5-line target document opened below.
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '/test/other.ts:50',
+				resolvedModel: 'test-model',
+			});
+
+			// The cross-file jump target only has 5 lines, so the predicted line 50 is out of bounds.
+			const targetDoc = createTextDocumentData(
+				URI.file('/test/other.ts'),
+				Array.from({ length: 5 }, (_, i) => `other ${i}`).join('\n'),
+				'typescript',
+			).document;
+			const workspaceService = instaService.invokeFunction(accessor => accessor.get(IWorkspaceService));
+			const openSpy = vi.spyOn(workspaceService, 'openTextDocument').mockResolvedValue(targetDoc);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// The out-of-bounds prediction must be rejected before any retry fetch happens, rather
+			// than constructing a CurrentDocument with an out-of-bounds cursor (which would throw).
+			expect(streamingFetcher.callCount).toBe(2);
+			expect(openSpy).toHaveBeenCalledOnce();
+
+			openSpy.mockRestore();
+		});
+
 		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
 			const provider = createProvider();
 
@@ -1745,6 +2011,30 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
+			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines(lines);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				expect({
+					setBaseDebounceTimeCalls: setBaseDebounceTime.mock.calls.length,
+					setExpectedTotalTimeCalls: setExpectedTotalTime.mock.calls.length,
+				}).toEqual({
+					setBaseDebounceTimeCalls: 0,
+					setExpectedTotalTimeCalls: 0,
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('debounce is skipped in simulation tests', async () => {
 			// Override the simulation test context to indicate we're in sim tests
 			const testingServiceCollection = createExtensionUnitTestingServices(disposables);
@@ -2231,7 +2521,7 @@ describe('XtabProvider integration', () => {
 			//  Doc at request time: "const a = 1;\nfunction fi\n}"
 			//  Offsets: "const a = 1;" = 0..11, \n = 12, "function fi" = 13..23, \n = 24, "}" = 25
 			//  Cursor on line 1 (0-based), insertionOffset 23 = last 'i' of "function fi"
-			//  Edit window: all 3 lines, cursorOriginalLinesOffset = 1
+			//  Edit window: all 3 lines, cursorLineInEditWindowOffset = 1
 			//
 			//  User typed "x" at offset 24 (end of "function fi") → "function fix"
 			//  Model responds with "function fibonacci(n): number"
@@ -2395,7 +2685,7 @@ describe('XtabProvider integration', () => {
 			const provider = createProvider();
 
 			//  Doc: "const a = 1;\nfunction fi\n}"
-			//  Cursor on line 1 (0-indexed), cursorOriginalLinesOffset = 1
+			//  Cursor on line 1 (0-indexed), cursorLineInEditWindowOffset = 1
 			//  Lines before cursor (line 0) should be yielded normally.
 			//  Cursor line should trigger divergence cancellation.
 			const request = createDivergenceRequest(

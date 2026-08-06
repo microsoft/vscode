@@ -95,6 +95,8 @@
         completedAt: undefined
       },
       vote: undefined,
+      modelTotals: undefined,
+      sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: {
@@ -175,6 +177,8 @@
         completedAt: undefined
       },
       vote: undefined,
+      modelTotals: undefined,
+      sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,
