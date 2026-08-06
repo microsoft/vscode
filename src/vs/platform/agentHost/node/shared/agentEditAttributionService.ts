@@ -325,10 +325,10 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			beforeDigest: createFileEditContentDigest(edit.beforeText),
 			afterDigest: createFileEditContentDigest(edit.afterText),
 			source: {
-				modelId: source.modelId,
-				conversationId: source.conversationId,
-				requestId: source.requestId,
-				harness: source.harness,
+				modelId: edit.modelId,
+				conversationId: AgentSession.id(edit.sessionUri),
+				requestId: edit.turnId,
+				harness: provider,
 			},
 		};
 		resource.lastSequence = marker.sequence;

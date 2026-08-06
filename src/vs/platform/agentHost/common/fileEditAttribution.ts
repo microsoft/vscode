@@ -155,6 +155,9 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 	return typeof marker.beforeDigest === 'string' &&
 		typeof marker.afterDigest === 'string' &&
 		(marker.source === undefined || (
+			typeof marker.source === 'object' &&
+			marker.source !== null &&
+			!Array.isArray(marker.source) &&
 			(marker.source.modelId === undefined || typeof marker.source.modelId === 'string') &&
 			typeof marker.source.conversationId === 'string' &&
 			typeof marker.source.requestId === 'string' &&

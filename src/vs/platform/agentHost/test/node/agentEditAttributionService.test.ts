@@ -164,6 +164,51 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('uses the current edit metadata for each marker', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, { telemetryLevel: TelemetryLevel.USAGE, publicLog2() { } });
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+
+		const first = await service.recordEdit({
+			sessionUri: 'copilotcli:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		const second = await service.recordEdit({
+			sessionUri: 'copilotcli:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'ab',
+			afterText: 'abc',
+			changes: [{ startOffset: 2, endOffsetExclusive: 2, newText: 'c' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		assert.deepStrictEqual([
+			first?.status !== 'skipped' ? first?.source : undefined,
+			second?.status !== 'skipped' ? second?.source : undefined,
+		], [
+			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' },
+			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
+		]);
+	});
+
 	test('normalizes ahp chat harness without coalescing chat resources', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));

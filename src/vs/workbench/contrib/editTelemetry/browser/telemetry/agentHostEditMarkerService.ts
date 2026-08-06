@@ -49,6 +49,7 @@ interface IExternalObservation {
 	readonly id: string;
 	readonly beforeDigest: string;
 	readonly afterDigest: string;
+	readonly timestamp: number;
 	referenceCount: number;
 	resolution?: IExternalEditCorrelationResolution;
 }
@@ -510,6 +511,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			id: generateUuid(),
 			beforeDigest: createFileEditContentDigest(before),
 			afterDigest: createFileEditContentDigest(after),
+			timestamp: Date.now(),
 			referenceCount: 1,
 		};
 		const observations = this._observations.get(resourceKey) ?? [];
@@ -653,7 +655,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		} else {
 			this._markers.delete(resourceKey);
 		}
-		const observations = this._observations.get(resourceKey)?.filter(observation => observation.referenceCount > 0);
+		const observations = this._observations.get(resourceKey)?.filter(observation => observation.resolution !== undefined || observation.timestamp >= minimumTimestamp);
 		if (observations?.length) {
 			this._observations.set(resourceKey, observations);
 		} else {
