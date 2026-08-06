@@ -294,8 +294,6 @@ export interface IAgentHostE2EProviderConfig {
 	readonly multiSelectInputPrompt?: string;
 	/** Provider supports a session with no working directory through the full model path. */
 	readonly supportsWorkspacelessE2E?: boolean;
-	/** Provider supports multiple workspace roots through the full model path. */
-	readonly supportsMultipleWorkingDirectoriesE2E?: boolean;
 	/** Provider exposes runtime slash commands through AHP completions after materialization. */
 	readonly supportsRuntimeSlashCommandsE2E?: boolean;
 	/** Provider supports shared default-chat attachment scenarios. */

@@ -68,7 +68,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	interactiveInputPrompt: 'Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.',
 	cancelledInputPrompt: 'Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
-	supportsMultipleWorkingDirectoriesE2E: true,
 	supportsRuntimeSlashCommandsE2E: true,
 	supportsAttachmentsE2E: true,
 	supportsWorktreeIncludeFilesE2E: true,

@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, driveTurnWithCancelledInputToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -163,6 +163,13 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		return server;
 	}
 
+	function toolResultTexts(sessionUri: string, turnId: string): readonly string[] {
+		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
+			.map(({ action }) => textFromContent(action.result.content ?? []));
+	}
+
 	providerHostOnlyTest(context, 'client plugin exposes agent rule skill and MCP server customizations', async function () {
 		const { sessionUri, pluginUri } = await createPluginSession('catalog');
 		const plugin = await pluginState(sessionUri, pluginUri);
@@ -233,7 +240,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const { sessionUri, pluginUri } = await createPluginSession('tool');
 			await pluginState(sessionUri, pluginUri);
 
-			const result = await driveTurnToCompletion(
+			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-mcp-plugin-tool',
@@ -241,7 +248,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				2,
 			);
 
-			assert.strictEqual(result.responseText.trim(), 'MCP_PLUGIN_RESULT');
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-plugin-tool').includes('MCP_PLUGIN_RESULT'));
 		});
 
 		test('plugin MCP server can be stopped and restarted through AHP', async function () {
@@ -300,7 +307,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			);
 
 			assert.ok(result.sawInputRequest);
-			assert.ok(result.responseText.includes('ELICIT_FORM:accept:Apple:3:true'));
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-elicit-form').includes('ELICIT_FORM:accept:Apple:3:true'));
 		});
 
 		test('plugin MCP URL elicitation round-trips acceptance', async function () {
@@ -317,7 +324,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			);
 
 			assert.ok(result.sawInputRequest);
-			assert.ok(result.responseText.includes('ELICIT_URL:accept'));
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-elicit-url').includes('ELICIT_URL:accept'));
 		});
 
 		test('plugin MCP extended form round-trips text number and multi-select answers', async function () {
@@ -334,7 +341,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			);
 
 			assert.ok(result.sawInputRequest);
-			assert.ok(result.responseText.includes('ELICIT_EXTENDED:accept:sample:2.5:Red'));
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-elicit-extended').includes('ELICIT_EXTENDED:accept:sample:2.5:Red'));
 		});
 
 		test('plugin MCP form elicitation cancellation returns to the model', async function () {
@@ -350,11 +357,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				2,
 			);
 
-			const toolResults = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
-				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
-				.map(action => textFromContent(action.result.content ?? []));
 			assert.ok(result.sawInputRequest);
-			assert.ok(toolResults.some(text => text.startsWith('ELICIT_FORM:cancel')));
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-elicit-cancel').some(text => text.startsWith('ELICIT_FORM:cancel')));
 			assert.ok(result.responseText.trim().endsWith('elicitation cancelled'));
 		});
 
@@ -371,10 +375,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				2,
 			);
 
-			const toolResults = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
-				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
-				.map(action => textFromContent(action.result.content ?? []));
-			assert.ok(toolResults.some(text => text.includes('MCP_SAMPLE:The user cancelled the request.')));
+			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-sampling').some(text => text.includes('MCP_SAMPLE:The user cancelled the request.')));
 			assert.ok(result.responseText.trim().endsWith('sampling cancelled'));
 		});
 	}

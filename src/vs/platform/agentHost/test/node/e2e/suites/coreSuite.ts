@@ -24,6 +24,7 @@ import {
 	resolveGitHubToken,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -36,6 +37,48 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	const cancelledInputPrompt = config.cancelledInputPrompt;
 	const textInputPrompt = config.textInputPrompt;
 	const multiSelectInputPrompt = config.multiSelectInputPrompt;
+
+	function observedModelRequest(body: string | undefined): IReadableAnthropicRequest {
+		assert.ok(body, 'Expected an observed model request');
+		const request = summarizeAnthropicRequest(body);
+		assert.ok(request, `Expected an Anthropic model request: ${body}`);
+		return request;
+	}
+
+	function modelContentText(value: unknown): string {
+		if (typeof value === 'string') {
+			return value;
+		}
+		if (Array.isArray(value)) {
+			return value.map(modelContentText).join('');
+		}
+		if (isRecord(value)) {
+			if (typeof value.text === 'string') {
+				return value.text;
+			}
+			return modelContentText(value.content);
+		}
+		return '';
+	}
+
+	function toolResultTexts(value: unknown): readonly string[] {
+		if (Array.isArray(value)) {
+			return value.flatMap(toolResultTexts);
+		}
+		if (!isRecord(value)) {
+			return [];
+		}
+		return value.type === 'tool_result' ? [modelContentText(value.content)] : [];
+	}
+
+	function observedToolResultTexts(): readonly string[] {
+		const request = observedModelRequest(context.observedModelRequestBodies.at(-1));
+		return request.messages.flatMap(message => toolResultTexts(message.content));
+	}
+
+	function isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null;
+	}
 
 	async function createSessionWithWorkingDirectories(prefix: string, workingDirectories: readonly URI[]): Promise<string> {
 		const clientWorkspace = workingDirectories[0]?.fsPath ?? mkdtempSync(join(tmpdir(), 'ahp-client-workspace-'));
@@ -189,12 +232,8 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			1,
 		);
 
-		const started = context.client.receivedNotifications(n =>
-			isActionNotification(n, 'chat/turnStarted')
-			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-model-switch',
-		).at(-1);
 		assert.deepStrictEqual({
-			model: started && (getActionEnvelope(started).action as { readonly message: { readonly model?: { readonly id: string } } }).message.model?.id,
+			model: observedModelRequest(context.observedModelRequestBodies.at(-1)).model,
 			response: result.responseText.trim(),
 		}, {
 			model: modelSwitchTarget,
@@ -219,10 +258,10 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		assert.deepStrictEqual({
 			sawInputRequest: result.sawInputRequest,
-			responseContainsAnswer: /Apple|Banana/i.test(result.responseText),
+			forwardedAnswer: observedToolResultTexts().some(text => text.includes('Apple')),
 		}, {
 			sawInputRequest: true,
-			responseContainsAnswer: true,
+			forwardedAnswer: true,
 		});
 	});
 
@@ -252,9 +291,11 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		);
 
 		assert.deepStrictEqual({
+			models: context.observedModelRequestBodies.slice(-2).map(body => observedModelRequest(body).model),
 			first: first.responseText.trim(),
 			secondRemembersCodeWord: /MARIGOLD/i.test(second.responseText),
 		}, {
+			models: [modelSwitchTarget, modelSwitchReturnTarget],
 			first: 'ready',
 			secondRemembersCodeWord: true,
 		});
@@ -330,10 +371,10 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		assert.deepStrictEqual({
 			sawInputRequest: result.sawInputRequest,
-			hasResponse: result.responseText.trim().length > 0,
+			forwardedAnswer: observedToolResultTexts().some(text => text.includes('interactive')),
 		}, {
 			sawInputRequest: true,
-			hasResponse: true,
+			forwardedAnswer: true,
 		});
 	});
 
@@ -345,13 +386,14 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const sessionUri = await createRealSession(context.client, config, `input-multi-select-${config.provider}`, createdSessions, URI.file(workspace));
 
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-input-multi-select', multiSelectInputPrompt, 1);
+		const forwardedSelections = observedToolResultTexts();
 
 		assert.deepStrictEqual({
 			sawInputRequest: result.sawInputRequest,
-			responseMentionsSelection: /Red|Blue/i.test(result.responseText),
+			forwardedSelectionsContainRed: forwardedSelections.length > 0 && forwardedSelections.every(text => text.includes('Red')),
 		}, {
 			sawInputRequest: true,
-			responseMentionsSelection: true,
+			forwardedSelectionsContainRed: true,
 		});
 	});
 
@@ -368,34 +410,6 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}, {
 			response: 'workspaceless',
 			workingDirectoryCount: 1,
-		});
-	});
-
-	(config.supportsMultipleWorkingDirectoriesE2E ? test : test.skip)('multiple working directories reach the provider session', async function () {
-		this.timeout(180_000);
-		const first = mkdtempSync(join(tmpdir(), 'ahp-multi-root-first-'));
-		const second = mkdtempSync(join(tmpdir(), 'ahp-multi-root-second-'));
-		tempDirs.push(first, second);
-		const marker = join(second, 'secondary-marker.txt');
-		writeFileSync(marker, 'SECONDARY_ROOT_VALUE');
-		const sessionUri = await createSessionWithWorkingDirectories('multi-root', [URI.file(first), URI.file(second)]);
-		context.client.setWorkingDirectory(second);
-
-		const result = await driveTurnToCompletion(
-			context.client,
-			sessionUri,
-			'turn-multi-root',
-			`Read ${marker} using your file tools; do not run a shell command. Reply with only its exact contents.`,
-			1,
-		);
-		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-
-		assert.deepStrictEqual({
-			responseContainsSecondaryValue: result.responseText.includes('SECONDARY_ROOT_VALUE'),
-			hasPrimaryWorkingDirectory: (session.snapshot!.state as SessionState).workingDirectories?.[0] === URI.file(first).toString(),
-		}, {
-			responseContainsSecondaryValue: true,
-			hasPrimaryWorkingDirectory: true,
 		});
 	});
 

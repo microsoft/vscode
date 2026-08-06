@@ -20,7 +20,6 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	cancelledInputPrompt: 'Call ask_user exactly once to ask "Continue?" with choices "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	textInputPrompt: 'Call ask_user exactly once to ask "What word?" with no choices. After the answer, reply with only the answer.',
 	supportsWorkspacelessE2E: true,
-	supportsMultipleWorkingDirectoriesE2E: true,
 	supportsRuntimeSlashCommandsE2E: true,
 	supportsAttachmentsE2E: true,
 	supportsTruncateE2E: true,

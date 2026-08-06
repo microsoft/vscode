@@ -29,7 +29,7 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
@@ -264,6 +264,17 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId,
 			30_000,
 		);
+		const paused = await fetchSessionWithChat(client, sessionUri);
+		const pendingToolCall = paused.activeTurn?.responseParts.find(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId,
+		);
+		assert.deepStrictEqual({
+			status: pendingToolCall?.kind === ResponsePartKind.ToolCall ? pendingToolCall.toolCall.status : undefined,
+			modelRequestCount: lease!.observedModelRequestBodies.length,
+		}, {
+			status: ToolCallStatus.PendingResultConfirmation,
+			modelRequestCount: 1,
+		});
 		client.dispatch({
 			channel: chatUri,
 			clientSeq: 5,
