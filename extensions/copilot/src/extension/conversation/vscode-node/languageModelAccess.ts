@@ -40,11 +40,13 @@ import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../.
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation as ApiChatLocation, ExtensionMode } from '../../../vscodeTypes';
 import type { LMResponsePart } from '../../byok/common/byokProvider';
+import { OpenAIEndpoint } from '../../byok/node/openAIEndpoint';
 import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
 import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { CacheAwareHistoryConfig, ConversationState, deriveConversationId, prepareMessagesForRequest } from './cacheAwareHistoryManager';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -676,6 +678,14 @@ class LanguageModelAccessPromptBaseCountCache {
  */
 export class CopilotLanguageModelWrapper extends Disposable {
 
+	/**
+	 * Per-conversation cache-aware history state, keyed by a stable
+	 * conversation id derived from the system prompt + first user message.
+	 * Only populated for BYOK / customendpoint providers where the cache-aware
+	 * history manager is enabled.
+	 */
+	private readonly _cacheAwareConversationState = new Map<string, ConversationState>();
+
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IBlockedExtensionService private readonly _blockedExtensionService: IBlockedExtensionService,
@@ -685,8 +695,59 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		@IEnvService private readonly _envService: IEnvService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+	}
+
+	/**
+	 * Applies the cache-aware history manager to the incoming messages for
+	 * BYOK / customendpoint providers. Returns the messages to render, or the
+	 * original messages if the feature is disabled or not applicable.
+	 */
+	private _applyCacheAwareHistory(
+		endpoint: IChatEndpoint,
+		messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>,
+	): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
+		// Only apply to BYOK / customendpoint providers (OpenAIEndpoint instances).
+		if (!(endpoint instanceof OpenAIEndpoint)) {
+			return messages;
+		}
+
+		const config = this._readCacheAwareConfig();
+		if (!config.enabled) {
+			return messages;
+		}
+
+		const conversationId = deriveConversationId(messages);
+		const previousState = this._cacheAwareConversationState.get(conversationId);
+		const maxInputTokens = endpoint.modelMaxPromptTokens;
+
+		const { messagesToSend, newState, truncated, tokenCount } = prepareMessagesForRequest(
+			messages,
+			previousState,
+			maxInputTokens,
+			undefined,
+			config,
+		);
+
+		this._cacheAwareConversationState.set(conversationId, newState);
+
+		if (truncated) {
+			this._logService.info(`[LanguageModelAccess] Cache-aware history manager truncated conversation '${conversationId}' to ${tokenCount} tokens (budget ${Math.floor(maxInputTokens * config.targetUtilization)}).`);
+		}
+
+		return messagesToSend as Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>;
+	}
+
+	private _readCacheAwareConfig(): CacheAwareHistoryConfig {
+		return {
+			enabled: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryEnabled),
+			truncationPolicy: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryTruncationPolicy),
+			summarizeDroppedTurns: this._configurationService.getConfig(ConfigKey.CacheAwareHistorySummarizeDroppedTurns),
+			targetUtilization: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryTargetUtilization),
+			minRecentTurns: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryMinRecentTurns),
+		};
 	}
 
 	private async _provideLanguageModelResponse(_endpoint: IChatEndpoint, _messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, _options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, callback: FinishedCallback, token: vscode.CancellationToken): Promise<APIUsage | undefined> {
@@ -713,11 +774,18 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		if (_options.tools) {
 			this.validateTools(_options.tools);
 		}
+
+		// Apply the cache-aware history manager for BYOK / customendpoint
+		// providers. This maximises KV-cache hits by keeping a long stable
+		// prefix across requests and only dropping the oldest turns when the
+		// projected token count approaches the input budget.
+		const cacheAwareMessages = this._applyCacheAwareHistory(_endpoint, _messages);
+
 		// Add safety rules to the prompt if it originates from outside the Copilot Chat extension, otherwise they already exist in the prompt.
 		const { messages, tokenCount } = await PromptRenderer.create(this._instantiationService, {
 			..._endpoint,
 			modelMaxPromptTokens: tokenLimit
-		}, LanguageModelAccessPrompt, { noSafety: extensionId === this._envService.extensionId, messages: _messages }).render();
+		}, LanguageModelAccessPrompt, { noSafety: extensionId === this._envService.extensionId, messages: cacheAwareMessages }).render();
 
 		/* __GDPR__
 			"languagemodelrequest" : {
