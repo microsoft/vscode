@@ -189,9 +189,10 @@
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
-/* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
+/* When the activity bar is on the right, add the inner gutter missing from the
+ * neighboring card while retaining the outer gutter at the window edge. */
 .monaco-workbench.floating-panels .part.activitybar.right {
-	margin-left: 0;
+	margin-left: var(--vscode-spacing-size40);
 	margin-right: var(--vscode-spacing-size40);
 }
 
