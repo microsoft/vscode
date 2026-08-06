@@ -7,13 +7,13 @@ import * as performance from '../../../base/common/performance.js';
 import type * as vscode from 'vscode';
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
 import { INodeModuleFactory, RequireInterceptor } from '../common/extHostRequireInterceptor.js';
-import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
+import { ActivatedExtension, ExtensionActivationTimesBuilder, IExtensionModule } from '../common/extHostExtensionActivator.js';
 import { connectProxyResolver } from './proxyResolver.js';
 import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { ExtHostDownloadService } from './extHostDownloadService.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtensionRuntime } from '../common/extHostTypes.js';
 import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/pfs.js';
@@ -23,7 +23,9 @@ import nodeModule from 'node:module';
 import { assertType } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BidirectionalMap } from '../../../base/common/map.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { runWithFencedProcessEnvironment } from './extHostProcessEnvironment.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
@@ -204,7 +206,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (mode === 'esm') {
 				r = <T>await import(module.toString(true));
 			} else {
-				r = <T>require(module.fsPath);
+				r = runWithFencedProcessEnvironment(() => <T>require(module.fsPath));
 			}
 		} finally {
 			if (extensionId) {
@@ -213,6 +215,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			activationTimesBuilder.codeLoadingStop();
 		}
 		return r;
+	}
+
+	protected override _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, extensionInternalStore: IDisposable, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
+		return runWithFencedProcessEnvironment(() => super._callActivate(logService, extensionId, extensionModule, context, extensionInternalStore, activationTimesBuilder));
 	}
 
 	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
