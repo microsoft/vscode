@@ -300,16 +300,21 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
+	// Capture edit states of source cells before copying
+	const sourceIndices = cellRangesToIndexes([range]);
+	const editStates = sourceIndices.map(index => editor.cellAt(index)!.getEditState());
+
 	if (direction === 'up') {
 		// insert up, without changing focus and selections
 		const focus = editor.getFocus();
 		const selections = editor.getSelections();
+		const insertIndex = range.end;
 		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
-				index: range.end,
+				index: insertIndex,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
+				cells: sourceIndices.map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -321,20 +326,28 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 			undefined,
 			true
 		);
+
+		// Apply edit states to copied cells
+		for (let i = 0; i < editStates.length; i++) {
+			const copiedCell = editor.cellAt(insertIndex + i);
+			if (copiedCell) {
+				copiedCell.updateEditState(editStates[i], 'copyCellRange');
+			}
+		}
 	} else {
 		// insert down, move selections
 		const focus = editor.getFocus();
 		const selections = editor.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model));
-		const countDelta = newCells.length;
+		const insertIndex = range.end;
+		const countDelta = sourceIndices.length;
 		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
 		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
 		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
-				index: range.end,
+				index: insertIndex,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
+				cells: sourceIndices.map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -346,6 +359,14 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 			undefined,
 			true
 		);
+
+		// Apply edit states to copied cells
+		for (let i = 0; i < editStates.length; i++) {
+			const copiedCell = editor.cellAt(insertIndex + i);
+			if (copiedCell) {
+				copiedCell.updateEditState(editStates[i], 'copyCellRange');
+			}
+		}
 
 		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
 		editor.revealCellRangeInView(focusRange);
