@@ -4764,6 +4764,41 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
+	test('omni returns to listening after sending a routed voice request', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			commandService,
+			undefined,
+			mic,
+			new TestConfigurationService({ 'agents.voice.handsFree': true, [VOICE_AGENT_PROGRESS_SETTING]: true }),
+		);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		controller.setOmniInputActive(true);
+		clock.tick(1);
+
+		voiceClientService.fireToolCall({
+			callId: 'omni-send',
+			name: 'send_to_chat',
+			args: { text: 'continue the related task' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			state: controller.voiceState.get(),
+			status: controller.statusText.get(),
+			micStarts: mic.pttDownCalls.length,
+		}, {
+			state: 'listening',
+			status: 'Listening...',
+			micStarts: 1,
+		});
+	});
+
 	test('focused omni chat routes voice input instead of the panel session', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new TestCommandService(true);

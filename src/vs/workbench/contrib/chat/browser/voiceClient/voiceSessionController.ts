@@ -1966,6 +1966,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._sendContext();
+					if (this._omniInputActive.get() && this._isHandsFreeEnabled()) {
+						this._enterAutoListen();
+					}
 				});
 				return;
 			}
