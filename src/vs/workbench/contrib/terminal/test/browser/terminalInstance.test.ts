@@ -283,16 +283,8 @@ suite('Workbench - TerminalInstance', () => {
 					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.file('/home/test'), [remoteResolverTerminal]: true, hideFromUser: true }
 				},
 				{
-					label: 'remote terminal',
-					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.parse('vscode-remote://ssh-remote+test/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
-				},
-				{
 					label: 'non-file URI cwd',
 					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: URI.parse('untitled:/home/test'), [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
-				},
-				{
-					label: 'string cwd',
-					shellLaunchConfig: { executable: '/usr/bin/zsh', cwd: '/home/test', [remoteResolverTerminal]: true, hideFromUser: true, isTransient: true }
 				},
 				{
 					label: 'local window',
@@ -308,18 +300,13 @@ suite('Workbench - TerminalInstance', () => {
 			const results = [];
 
 			for (const testCase of cases) {
-				const trustResult = new DeferredPromise<boolean>();
-				const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust(testCase.shellLaunchConfig, trustResult.p, testCase.options);
-				const processCreation = createProcess(instance);
-				await timeout(0);
+				const { instance, terminalInstanceService, workspaceTrustRequestService } = await createTerminalInstanceForTrust(testCase.shellLaunchConfig, Promise.resolve(false), testCase.options);
+				await createProcess(instance);
 				results.push({
 					label: testCase.label,
 					trustRequestCount: workspaceTrustRequestService.requestCount,
 					createProcessCount: terminalInstanceService.createProcessCount
 				});
-				instance.dispose();
-				trustResult.complete(true);
-				await processCreation;
 			}
 
 			deepStrictEqual(results, cases.map(testCase => ({

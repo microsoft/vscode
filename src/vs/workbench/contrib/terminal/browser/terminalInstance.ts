@@ -1620,9 +1620,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._logService.warn('Ignoring remote resolver terminal workspace trust bypass because the launch configuration is not a local, hidden, transient terminal created during remote workspace trust initialization');
 		}
 		const trusted = bypassWorkspaceTrust || await this._trust();
-		if (this.isDisposed) {
-			return;
-		}
 		// Allow remote terminals in a remote workspace to be created when trust is denied, but
 		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
 		const isRemoteTerminal = !!this.remoteAuthority;
@@ -1631,10 +1628,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
 			// something strange is going on if cwd is not userHome in an empty workspace
-			await this._onProcessExit({
+			this._onProcessExit({
 				message: nls.localize('workspaceEmptyCreateTerminalCwd', "Cannot launch a terminal process in an empty workspace with cwd {0} different from userHome {1}", this._cwd, this._userHome)
 			});
-			return;
 		}
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {

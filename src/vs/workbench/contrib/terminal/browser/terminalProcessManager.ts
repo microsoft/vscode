@@ -245,9 +245,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
-		if (this._isDisposed) {
-			return undefined;
-		}
 		this._shellLaunchConfig = shellLaunchConfig;
 		this._dimensions.cols = cols;
 		this._dimensions.rows = rows;
@@ -317,9 +314,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
 					try {
-						if (this._isDisposed) {
-							return undefined;
-						}
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -362,9 +356,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		// If the process was disposed during its creation, shut it down and return failure
-		if (!newProcess) {
-			return undefined;
-		}
 		if (this._isDisposed) {
 			newProcess.shutdown(false);
 			return undefined;
@@ -506,7 +497,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		userHome: string | undefined,
 		variableResolver: terminalEnvironment.VariableResolver | undefined
-	): Promise<ITerminalChildProcess | undefined> {
+	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 			remoteAuthority: undefined,
 			os: OS
@@ -536,9 +527,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
-		if (this._isDisposed) {
-			return undefined;
-		}
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
 	}
 
