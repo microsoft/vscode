@@ -370,6 +370,23 @@
 	display: none;
 }
 
+.scm-view .scm-input .scm-editor .scm-editor-line-length {
+	position: absolute;
+	right: 4px;
+	bottom: 2px;
+	padding: 0 2px;
+	font-size: 10px;
+	line-height: 14px;
+	color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+	user-select: none;
+	z-index: 1;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-line-length.hidden {
+	display: none;
+}
+
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.scroll-decoration {
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
 }
