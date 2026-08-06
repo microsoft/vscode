@@ -269,8 +269,17 @@
 .chat-input-window .chat-input-window-pending-widget .monaco-list,
 .chat-input-window .chat-input-window-pending-widget .monaco-scrollable-element,
 .chat-input-window .chat-input-window-pending-widget .monaco-list-rows,
-.chat-input-window .chat-input-window-pending-widget .monaco-list-row {
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row,
+.chat-input-window .chat-input-window-pending-widget .monaco-tl-row,
+.chat-input-window .chat-input-window-pending-widget .monaco-tl-contents {
 	overflow: visible !important;
+}
+
+.chat-input-window .chat-input-window-pending-widget .monaco-tl-row,
+.chat-input-window .chat-input-window-pending-widget .monaco-tl-contents {
+	height: auto !important;
+	min-height: 100%;
+	align-items: stretch;
 }
 
 .chat-input-window .chat-input-window-pending-widget .chat-confirmation-widget2 {
