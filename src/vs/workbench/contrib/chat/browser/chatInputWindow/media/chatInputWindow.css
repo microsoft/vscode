@@ -100,7 +100,6 @@
 	padding-top: 0;
 }
 
-.chat-input-window .chat-input-toolbars .chat-input-picker-item,
 .chat-input-window .chat-input-toolbars .action-item > .codicon-add {
 	display: none;
 }

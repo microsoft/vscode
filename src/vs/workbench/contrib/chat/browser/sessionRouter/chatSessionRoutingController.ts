@@ -1107,9 +1107,7 @@ export class ChatSessionRoutingController extends Disposable {
 					this.host.onWillDispatchRoute?.(target);
 				}
 				result = await this._sendRequest(target, utterance, {
-					attachedContext: requestOptions.attachedContext,
-					resolvedVariables: requestOptions.resolvedVariables,
-					isVoiceModeInput: requestOptions.isVoiceModeInput,
+					...requestOptions,
 					agentIdSilent: getChatSessionType(target),
 					queue: ChatRequestQueueKind.Queued,
 				});
