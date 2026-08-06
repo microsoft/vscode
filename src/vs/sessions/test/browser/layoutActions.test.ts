@@ -75,7 +75,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor render in the editor-title layout cluster before Maximize/Restore', async () => {
+	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', async () => {
 		await import('../../contrib/editor/browser/editor.contribution.js');
 
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
@@ -90,15 +90,15 @@ suite('Sessions - Layout Actions', () => {
 			}));
 
 		assert.deepStrictEqual({
-			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
-			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
 			maximize: groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'),
 			restore: groupOrder('workbench.action.agentSessions.restoreMainEditorPart'),
+			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
+			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
 		}, {
-			hide: [{ group: 'navigation', order: 10, precondition: AuxiliaryBarVisibleContext.key }],
-			show: [{ group: 'navigation', order: 10, precondition: undefined }],
-			maximize: [{ group: 'navigation', order: 20, precondition: undefined }],
-			restore: [{ group: 'navigation', order: 20, precondition: undefined }],
+			maximize: [{ group: 'navigation', order: 10, precondition: undefined }],
+			restore: [{ group: 'navigation', order: 10, precondition: undefined }],
+			hide: [{ group: 'navigation', order: 20, precondition: AuxiliaryBarVisibleContext.key }],
+			show: [{ group: 'navigation', order: 20, precondition: undefined }],
 		});
 
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
