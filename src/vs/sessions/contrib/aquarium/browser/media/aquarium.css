@@ -10,9 +10,14 @@
 
 /* Make the chat bar a positioning context for the water layer (its first
  * child) and keep its real children above the decorative water — without
- * explicit z-index, positioned siblings paint after non-positioned ones. */
+ * explicit z-index, positioned siblings paint after non-positioned ones.
+ * `isolation` keeps the raised children below a stacking context of their own,
+ * so they compete with the water rather than with workbench-level overlays such
+ * as context menus and editor overflow widgets, which would otherwise be
+ * painted behind this part. */
 .monaco-workbench .part.sessionspart {
 	position: relative;
+	isolation: isolate;
 }
 .monaco-workbench .part.sessionspart > .title,
 .monaco-workbench .part.sessionspart > .content {

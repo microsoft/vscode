@@ -9,6 +9,13 @@
 	margin-top: 12px;
 	box-sizing: border-box;
 	display: none;
+	/* The reveal animation leaves a transform behind (`animation-fill-mode: both`),
+	 * which makes this a stacking context that overlays opened inside the input —
+	 * context menus, the post-paste selector — cannot escape. Raise it above the
+	 * later siblings, such as the session controls row, that would otherwise paint
+	 * through those overlays. */
+	position: relative;
+	z-index: 1;
 }
 
 .new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
@@ -586,6 +593,14 @@
 .sessions-chat-attachment-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Mirrors the workbench paste pill's `.attachment-additional-info`. */
+.sessions-chat-attachment-info {
+	opacity: 0.7;
+	font-size: .9em;
+	padding-left: 4px;
 	white-space: nowrap;
 }
 

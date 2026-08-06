@@ -153,6 +153,11 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
 						hidePath: true,
 					});
+				} else if (isPastedTextArtifact(entry)) {
+					// Matches the workbench paste pill: a file icon for the artifact's
+					// language, and how much text it stands in for.
+					label.setLabel(entry.fileName, undefined, { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] });
+					dom.append(pill, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
 					label.setLabel(entry.name);
 				}
@@ -185,7 +190,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			// Only expose the pill itself as a focusable button when it has an open
 			// action; reference pills without a resource (e.g. `#session`) would
 			// otherwise be a focusable control that does nothing.
-			if (imageData || resource) {
+			if (imageData || resource || isPastedTextArtifact(entry)) {
 				pill.tabIndex = 0;
 				pill.role = 'button';
 			}
