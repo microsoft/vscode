@@ -3735,6 +3735,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: true,
 					confirmed: confirmedReasonToProtocol(state.confirmed),
+					...(state.confirmed.type === ToolConfirmKind.UserAction && state.confirmed.selectedButton
+						? { selectedOptionId: state.confirmed.selectedButton }
+						: {}),
 				});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
 				// Pre-execution cancellation (a denied confirmation). If the

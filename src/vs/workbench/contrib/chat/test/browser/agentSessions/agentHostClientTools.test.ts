@@ -25,7 +25,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatStat
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -1577,6 +1577,10 @@ suite('AgentHostClientTools', () => {
 				invocationMessage: 'Run Task',
 				toolInput: '{"task":"build"}',
 				confirmationTitle: 'Run Task',
+				options: [
+					{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+					{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+				],
 			} as ChatAction);
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -1681,6 +1685,37 @@ suite('AgentHostClientTools', () => {
 					{ type: ActionType.ChatToolCallConfirmed, approved: true, confirmed: ToolCallConfirmationReason.UserAction },
 					{ type: ActionType.ChatToolCallComplete, success: true },
 				],
+			});
+		});
+
+		test('renders and dispatches a pending protocol confirmation for an owned client tool', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			await provideSessionWithPendingConfirmationClientTool(handler, connection);
+
+			const invocation = toolsService.begunToolCalls[0];
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0);
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				return;
+			}
+			state.confirm({
+				type: ToolConfirmKind.UserAction,
+				selectedButton: 'allow-once',
+				selectedButtonKind: ConfirmationOptionKind.Approve,
+			});
+			await timeout(0);
+
+			const confirmation = connection.dispatchedActions.find(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallConfirmed
+				&& entry.action.toolCallId === 'tool-call-1');
+			assert.deepStrictEqual(confirmation?.action, {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+				selectedOptionId: 'allow-once',
 			});
 		});
 
