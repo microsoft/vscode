@@ -27,7 +27,7 @@ export type ChatPetClickInteraction = Extract<ChatPetState, 'love' | 'jump' | 'c
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 const TRANSIENT_STATE_DURATION = 2_000;
-const COMPLETE_STATE_DURATION = 2_140;
+const COMPLETE_STATE_DURATION = 2_170;
 const LOVE_STATE_DURATION = 2_940;
 const COOL_STATE_DURATION = 3_000;
 const WAKE_STATE_DURATION = 880;
@@ -42,6 +42,7 @@ const IDLE_FRAME_DURATIONS = Array.from({ length: 50 }, () => 40);
 const SLEEP_FRAME_DURATIONS = Array.from({ length: 8 }, () => 300);
 const WAKE_FRAME_DURATIONS = [160, 100, 80, 90, 90, 90, 100, 170];
 const TYPING_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
+const COMPLETE_FRAME_DURATIONS = Array.from({ length: 31 }, () => 70);
 const SPEECH_FRAME_DURATIONS = [220, 220, 220, 100, 160, 180];
 const CLAPPING_FRAME_DURATIONS = [80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80];
 const LOVE_FRAME_DURATIONS = [200, 200, 380, 100, 80, 1_980];
@@ -74,7 +75,7 @@ const spriteSources = new Map<ChatPetVariant, Record<ChatPetState, ChatPetSprite
 const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'complete' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
 }
 
 export function getChatPetSpriteName(state: ChatPetState, quality: string | undefined): string {
@@ -98,6 +99,8 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-typing-${variant}`;
 		case 'rendering':
 			return `buddy-rendering-${variant}`;
+		case 'complete':
+			return `buddy-complete-${variant}`;
 		case 'yappingMouthOpen':
 			return `buddy-yapping-${variant}`;
 		default:
@@ -115,6 +118,8 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return TYPING_FRAME_DURATIONS;
 		case 'rendering':
 			return IDLE_FRAME_DURATIONS;
+		case 'complete':
+			return COMPLETE_FRAME_DURATIONS;
 		case 'clapping':
 			return CLAPPING_FRAME_DURATIONS;
 		case 'love':
@@ -148,7 +153,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 		animated: frameDurations.length === 0 ? staticSource : {
 			url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.spritesheet.png`).toString(true),
 			frameDurations,
-			iterations: state === 'waking' || state === 'cool' || state === 'searching' ? 1 : Infinity,
+			iterations: state === 'waking' || state === 'complete' || state === 'cool' || state === 'searching' ? 1 : Infinity,
 		},
 		reducedMotion: staticSource,
 	};
