@@ -2303,7 +2303,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details before Hide Editor in the trailing editor header group', () => {
+	test('[D7 single-pane] contributes Toggle Details in the trailing editor header group', () => {
 		createSinglePaneController();
 
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
