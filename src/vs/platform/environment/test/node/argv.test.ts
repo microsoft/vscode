@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { consumeInitialWindowArgs, NativeParsedArgs } from '../../common/argv.js';
 import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
 import { addArg } from '../../node/argvHelper.js';
 
@@ -18,6 +19,20 @@ function c(description: string, options: OptionDescriptions<any>): Subcommand<an
 		description, type: 'subcommand', options
 	};
 }
+
+suite('consumeInitialWindowArgs', () => {
+	test('removes --trust-folder only from shared process arguments', () => {
+		const args: NativeParsedArgs = { _: ['/workspace'], wait: true, 'trust-folder': ['/trusted'] };
+		const initialWindowArgs = consumeInitialWindowArgs(args);
+
+		assert.deepStrictEqual({ initialWindowArgs, remainingProcessArgs: args }, {
+			initialWindowArgs: { _: ['/workspace'], wait: true, 'trust-folder': ['/trusted'] },
+			remainingProcessArgs: { _: ['/workspace'], wait: true }
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
 
 suite('formatOptions', () => {
 

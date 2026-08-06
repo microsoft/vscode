@@ -180,3 +180,11 @@ export interface NativeParsedArgs {
 	'trace-startup-duration'?: string;
 	'xdg-portal-required-version'?: string;
 }
+
+/** Copies arguments for the initial window and removes one-shot values from the shared process arguments. */
+export function consumeInitialWindowArgs(args: NativeParsedArgs): NativeParsedArgs {
+	const initialWindowArgs = { ...args };
+	delete args['trust-folder'];
+
+	return initialWindowArgs;
+}
