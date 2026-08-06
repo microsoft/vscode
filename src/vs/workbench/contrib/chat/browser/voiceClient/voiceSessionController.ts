@@ -4091,6 +4091,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!text) {
 			return false;
 		}
+		const sessionKey = this._sessionKey(sessionId);
+		const identity = this._narratableIdentity({ text, pending, confirmationType });
 		// Persistent exactly-once dedup applies only to completed responses: a
 		// response is immutable content, so re-reading the same text on focus is
 		// undesirable. A confirmation is current actionable state - two separate
@@ -4100,19 +4102,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		}
 		if (kind === 'response') {
-			const heard = this._lastHeardTranscriptById.get(this._sessionKey(sessionId));
+			const heard = this._lastHeardTranscriptById.get(sessionKey);
 			const requested = this._normalizeTranscript(text);
 			if (heard && requested && (heard === requested || heard.startsWith(requested) || requested.startsWith(heard))) {
 				return false;
 			}
+		}
+		// Confirmation dedup is per pending occurrence, not per text. Keep it in
+		// the common narration path so watchdog/focus/state retries are all safe:
+		// an already-heard approval stays quiet, while a replacement with identical
+		// prose still has a different pending id and is narrated.
+		if (kind === 'confirmation' && this._narratedPending.get(sessionKey) === identity) {
+			return false;
 		}
 		// A request for this exact occurrence+kind is already in flight (its audio
 		// hasn't finalized yet); don't re-request or we'd narrate it twice. Match on
 		// kind too so an in-flight response can't suppress a same-text confirmation,
 		// and on the pending id so a *different* form that happens to render the
 		// same prompt is not mistaken for the one already in flight.
-		const sessionKey = this._sessionKey(sessionId);
-		const identity = this._narratableIdentity({ text, pending, confirmationType });
 		for (const s of this._pendingSolicitedNarrations.values()) {
 			if (s.kind === kind && this._narratableIdentity(s) === identity && this._sessionKey(s.sessionId) === sessionKey) {
 				return false;
@@ -5888,12 +5895,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * users observed that the BE-side narration ("I need approval to run X")
 	 * only fires after they navigate AWAY from the session.
 	 *
-	 * As a guarded re-flush we schedule a single delayed `_sendContext + flush`
-	 * per session that's awaiting confirmation. The merge-patch in
-	 * `_sendDelta` short-circuits when no fields changed (see lines 393-395),
-	 * so a no-op re-send is silent on the BE — but if the FIRST send was
-	 * dropped (race condition, debounce hiccup, WS coalescing), this second
-	 * send pushes the state through.
+	 * As a guarded fallback we schedule a single delayed context re-flush and
+	 * client-driven narration retry per session that's awaiting confirmation.
+	 * Backend auto-narration is disabled for this client, so re-sending context
+	 * alone cannot recover a missed local transition. `_retryPendingNarration`
+	 * revalidates the exact current occurrence and the common narration path
+	 * suppresses both in-flight and already-heard duplicates.
 	 *
 	 * The watchdog auto-clears once the autorun observes the session has left
 	 * `waiting_for_confirmation`.
@@ -5910,10 +5917,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const timer = setTimeout(() => {
 			this._confirmationFlushWatchdogs.delete(sessionId);
 			this.logService.trace(`[voice] confirmation flush watchdog firing id=${sessionId.slice(-32)} label="${label}"`);
-			// Re-publish the current context. _sendDelta merge-patch will be
-			// a no-op if the BE already received the prior delta.
+			// Re-publish the current context before requesting narration: the backend
+			// validates the request against its mirrored session state.
 			this._sendContext();
 			this.voiceClientService.flushSessionContext();
+			let resource: URI | undefined;
+			try {
+				resource = URI.parse(sessionId);
+			} catch {
+				return;
+			}
+			const narratable = this._currentNarratable(resource);
+			if (narratable?.kind === 'confirmation') {
+				this._retryPendingNarration(sessionId, narratable);
+			}
 		}, VoiceSessionController._CONFIRMATION_FLUSH_DELAY_MS);
 		this._confirmationFlushWatchdogs.set(sessionId, timer);
 	}

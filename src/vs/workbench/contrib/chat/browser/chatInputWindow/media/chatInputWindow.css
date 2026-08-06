@@ -257,6 +257,10 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+.chat-input-window .chat-input-window-pending-approval-title p {
+	margin: 0;
+}
+
 .chat-input-window .chat-input-window-pending-approval-command {
 	padding: 6px 8px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
@@ -265,6 +269,12 @@
 	background: var(--vscode-textPreformat-background);
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+}
+
+.chat-input-window .chat-input-window-pending-approval-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .chat-input-window .chat-input-window-pending-panel.tool-approval-summary .chat-input-window-pending-widget {

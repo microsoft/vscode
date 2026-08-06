@@ -406,6 +406,24 @@ function pendingResponsePartModel(resource: URI, part: IChatProgressResponseCont
 	} as unknown as IChatModel;
 }
 
+function waitingTerminalTool(toolCallId: string, command = 'npm run build'): IChatToolInvocation {
+	return new class extends mock<IChatToolInvocation>() {
+		override readonly kind = 'toolInvocation' as const;
+		override readonly toolCallId = toolCallId;
+		override readonly toolId = 'runInTerminal';
+		override readonly invocationMessage = 'Run zsh command';
+		override readonly state = observableValue<IChatToolInvocation.State>(`${toolCallId}State`, {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command },
+			confirmationMessages: {
+				title: 'Run zsh command?',
+				message: 'Installs dependencies - pulls untrusted third-party code.',
+			},
+			confirm: () => { },
+		});
+	}();
+}
+
 function completedResponseModel(markdown: string, errorMessage?: string, isCanceled = false): IChatModel {
 	const response = {
 		isPendingConfirmation: observableValue('pending', undefined),
@@ -1677,21 +1695,6 @@ suite('VoiceSessionController', () => {
 		const chatService = new ControllableChatService();
 		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
 		const sessionResource = URI.parse('chat-session:/sequential-tool-approvals');
-		const waitingTool = (toolCallId: string) => new class extends mock<IChatToolInvocation>() {
-			override readonly kind = 'toolInvocation' as const;
-			override readonly toolCallId = toolCallId;
-			override readonly toolId = 'runInTerminal';
-			override readonly invocationMessage = 'Run zsh command';
-			override readonly state = observableValue<IChatToolInvocation.State>(`${toolCallId}State`, {
-				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
-				parameters: { command: 'npm run build' },
-				confirmationMessages: {
-					title: 'Run zsh command?',
-					message: 'Installs dependencies - pulls untrusted third-party code.',
-				},
-				confirm: () => { },
-			});
-		}();
 		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
 			state: string;
 			detail?: string;
@@ -1708,13 +1711,13 @@ suite('VoiceSessionController', () => {
 
 		controller.setActiveSessionShown(sessionResource);
 		controller.setTargetSession(sessionResource, 'existing_session');
-		const firstTool = waitingTool('first-tool');
+		const firstTool = waitingTerminalTool('first-tool');
 		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
 		chatService.setModels([firstModel]);
 		const firstState = getAgentStateInfo.call(controller, firstModel);
 		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
 
-		const secondTool = waitingTool('second-tool');
+		const secondTool = waitingTerminalTool('second-tool');
 		const secondModel = pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request');
 		chatService.setModels([secondModel]);
 		const secondState = getAgentStateInfo.call(controller, secondModel);
@@ -1733,6 +1736,65 @@ suite('VoiceSessionController', () => {
 			],
 			listeningTurnHeld: false,
 		});
+	});
+
+	test('confirmation watchdog narrates a sequential approval missed by the transition path', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/watchdog-sequential-tool-approvals');
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const armConfirmationFlushWatchdog = Reflect.get(controller, '_armConfirmationFlushWatchdog') as (sessionId: string, label: string, isTransition: boolean) => void;
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource, 'existing_session');
+		const firstTool = waitingTerminalTool('first-watchdog-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+		markNarrationHeard.call(controller, voiceClientService.requests[0].narrationId);
+
+		// Replace the completed first tool with the next pending occurrence without
+		// calling the normal state-change handler, matching the missed-transition
+		// condition this fallback exists to recover.
+		const secondTool = waitingTerminalTool('second-watchdog-tool', 'npm install');
+		chatService.setModels([pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request')]);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		armConfirmationFlushWatchdog.call(controller, sessionResource.toString(), 'Chat', true);
+		clock.tick(1_500);
+
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
+		});
+
+		// The watchdog can be re-armed while the same occurrence is still pending;
+		// the shared in-flight/occurrence dedup must keep that retry silent.
+		armConfirmationFlushWatchdog.call(controller, sessionResource.toString(), 'Chat', false);
+		clock.tick(1_500);
+		assert.strictEqual(voiceClientService.requests.length, 2);
 	});
 
 	test('same confirmation text with a new type is not deduplicated', async () => {
