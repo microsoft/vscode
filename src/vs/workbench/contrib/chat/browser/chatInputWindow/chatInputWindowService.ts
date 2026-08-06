@@ -617,6 +617,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		let layingOut = false;
 		let lastPendingHeight: number | undefined;
 		let lastPendingWidth: number | undefined;
+		let confirmationWidgetLaidOut = false;
 		let displayedResource: string | undefined;
 		const layout = () => {
 			if (layingOut || !panel.classList.contains('shown')) {
@@ -626,6 +627,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			try {
 				const width = Math.max(0, panel.clientWidth);
 				if (lastPendingHeight === undefined || lastPendingWidth !== width) {
+					if (lastPendingWidth !== width) {
+						confirmationWidgetLaidOut = false;
+					}
 					lastPendingWidth = width;
 					widget.layout(lastPendingHeight ?? CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
 				}
@@ -655,16 +659,21 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					: renderedContentHeight;
 				const minimumHeight = panel.classList.contains('question') ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
 				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
-				if (height !== lastPendingHeight) {
+				const heightChanged = height !== lastPendingHeight;
+				if (heightChanged) {
 					lastPendingHeight = height;
 					parent.style.height = `${height}px`;
-					// Confirmation rows use natural-height layout. Feeding their
-					// measured height back into the virtualized widget changes the
-					// measurement again and creates an endless resize oscillation.
-					if (panel.classList.contains('question')) {
-						widget.layout(height, width);
-					}
 					this._fitWindowToContent();
+				}
+				if (panel.classList.contains('question') && heightChanged) {
+					widget.layout(height, width);
+				} else if (!panel.classList.contains('question') && !confirmationWidgetLaidOut) {
+					// Constrain the virtual list once so its row is positioned below
+					// the input/header. Repeating this with each measured height
+					// creates an endless resize oscillation.
+					confirmationWidgetLaidOut = true;
+					widget.layout(height, width);
+					scheduleLayout();
 				}
 			} finally {
 				layingOut = false;
@@ -679,6 +688,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._pendingPromptIndex = 0;
 				lastPendingHeight = undefined;
 				lastPendingWidth = undefined;
+				confirmationWidgetLaidOut = false;
 				displayedResource = undefined;
 				this._activePendingSessionResource = undefined;
 				this._voiceConfirmationPending.set(false, undefined);
@@ -694,6 +704,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (displayedResource !== resource) {
 				displayedResource = resource;
 				lastPendingHeight = undefined;
+				confirmationWidgetLaidOut = false;
 			}
 			this._voiceConfirmationPending.set(true, undefined);
 			panel.classList.add('shown');
