@@ -6360,8 +6360,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *   completion never narrates the previous reply.
 	 */
 	private _cacheResponseSummary(sessionId: string, state: string, summary: string | undefined): void {
+		const sessionKey = this._sessionKey(sessionId);
+		const routedRequest = this._routedRequests.get(sessionKey);
+		if (routedRequest && state === 'thinking') {
+			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
+		} else if (routedRequest && state === 'waiting_for_confirmation') {
+			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
+		}
 		if (this._isOmniRoutedSession(sessionId)) {
-			this._lastResponseSummaryById.delete(this._sessionKey(sessionId));
+			this._lastResponseSummaryById.delete(sessionKey);
 			return;
 		}
 		if (state === 'idle' && summary) {

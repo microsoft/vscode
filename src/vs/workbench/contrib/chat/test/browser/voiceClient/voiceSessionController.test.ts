@@ -4042,10 +4042,13 @@ suite('VoiceSessionController', () => {
 		const resource = URI.parse('vscode-chat://omni-target');
 		const sessionId = resource.toString();
 		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		const cacheResponseSummary = Reflect.get(controller, '_cacheResponseSummary') as (sessionId: string, state: string, summary: string | undefined) => void;
 		controller.setTargetSession(resource, 'existing_session');
 		controller.markRoutedRequestPending(resource, 'local-queued-request-id');
 
-		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
+		// Raw state observes thinking, but the settled narration changes collapse
+		// idle → thinking → idle and never emit a separate thinking callback.
+		cacheResponseSummary.call(controller, sessionId, 'thinking', undefined);
 		handleStateChange.call(controller, sessionId, 'idle', undefined, undefined, undefined);
 		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The current omni request is complete.', undefined);
 
