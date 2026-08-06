@@ -18,6 +18,7 @@ suite('claudeModelSelection', () => {
 		assert.deepStrictEqual(parseClaudeModelSelection({ id }), {
 			provider: 'custom/provider',
 			modelId: 'org/model:latest',
+			explicitProvider: true,
 		});
 	});
 
@@ -25,6 +26,7 @@ suite('claudeModelSelection', () => {
 		assert.deepStrictEqual(parseClaudeModelSelection({ id: 'claude-opus-4-8' }), {
 			provider: CLAUDE_PROVIDER_COPILOT,
 			modelId: 'claude-opus-4-8',
+			explicitProvider: false,
 		});
 	});
 
@@ -32,6 +34,7 @@ suite('claudeModelSelection', () => {
 		assert.deepStrictEqual(parseClaudeModelSelection({ id: '@provider=anthropic' }), {
 			provider: CLAUDE_PROVIDER_COPILOT,
 			modelId: '@provider=anthropic',
+			explicitProvider: false,
 		});
 	});
 
@@ -95,34 +98,38 @@ suite('claudeModelSelection', () => {
 
 	suite('resolveClaudeSessionTransport', () => {
 
-		test('the flag off always yields the host default, regardless of the selected model provider', () => {
+		test('with no explicit model, falls back to the host default (preserving today\'s default)', () => {
 			assert.deepStrictEqual(
 				[
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: false, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-opus-4-8') }, defaultMode: 'proxy' }),
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: false, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4-8') }, defaultMode: 'native' }),
+					resolveClaudeSessionTransport({ model: undefined, defaultMode: 'proxy' }),
+					resolveClaudeSessionTransport({ model: undefined, defaultMode: 'native' }),
 				],
 				['proxy', 'native'],
 			);
 		});
 
-		test('the flag on with no explicit model falls back to the host default (preserving today\'s default)', () => {
+		test('derives the transport from the selected model\'s provider, overriding the default', () => {
 			assert.deepStrictEqual(
 				[
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: undefined, defaultMode: 'proxy' }),
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: undefined, defaultMode: 'native' }),
+					resolveClaudeSessionTransport({ model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-opus-4-8') }, defaultMode: 'proxy' }),
+					resolveClaudeSessionTransport({ model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4-8') }, defaultMode: 'native' }),
 				],
-				['proxy', 'native'],
+				['native', 'proxy'],
 			);
 		});
 
-		test('the flag on derives the transport from the selected model\'s provider, overriding the default', () => {
+		test('with a bare/legacy id (no explicit provider) follows the host default, not the copilot fallback', () => {
+			// A bare id carries no explicit provider, so per-session resolution must not
+			// reroute it: a session persisted before provider qualification existed —
+			// e.g. a native BYO-Anthropic session, whose id is a bare SDK id — keeps its
+			// host-default transport in both directions rather than being forced onto
+			// the proxy (which would trigger a spurious GitHub sign-in).
 			assert.deepStrictEqual(
 				[
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-opus-4-8') }, defaultMode: 'proxy' }),
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4-8') }, defaultMode: 'native' }),
-					resolveClaudeSessionTransport({ perSessionProviderEnabled: true, model: { id: 'claude-opus-4-8' }, defaultMode: 'native' }),
+					resolveClaudeSessionTransport({ model: { id: 'claude-opus-4-8' }, defaultMode: 'native' }),
+					resolveClaudeSessionTransport({ model: { id: 'claude-opus-4-8' }, defaultMode: 'proxy' }),
 				],
-				['native', 'proxy', 'proxy'],
+				['native', 'proxy'],
 			);
 		});
 	});
@@ -132,7 +139,7 @@ suite('claudeModelSelection', () => {
 		test('peels off the provider qualification and normalizes to the bare SDK id; a legacy bare id and undefined pass through', () => {
 			// A provider-qualified id must be stripped to its bare model id before
 			// SDK-normalization, or the unparseable `@provider=…` string reaches the
-			// subprocess verbatim and 400s. A bare/legacy id (flag-off) has no
+			// subprocess verbatim and 400s. A bare/legacy id has no
 			// wrapper and just normalizes (dotted→dashed); undefined stays undefined.
 			assert.deepStrictEqual(
 				[

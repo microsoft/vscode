@@ -16,10 +16,14 @@
 
 /**
  * Provider token for Copilot-CAPI routing (the `proxy` transport). This is the
- * default: a bare, un-prefixed model-selection id decodes to it, so every id
- * persisted before per-session provider selection existed keeps routing through
- * the proxy with no migration. Models stamped with it group under the global
- * `copilot` picker vendor.
+ * grouping/default provider: a bare, un-prefixed model-selection id decodes to
+ * it, and models stamped with it group under the global `copilot` picker vendor.
+ * Note this token only names the *provider* a bare id falls back to; it does not
+ * by itself pin the *transport*. A bare/legacy id keeps following the host
+ * default transport (see `resolveClaudeSessionTransport` in the node
+ * `claudeModelSelection` module), so per-session selection never migrates an
+ * already-persisted session — including a native BYO-Anthropic one — onto the
+ * proxy.
  */
 export const CLAUDE_PROVIDER_COPILOT = 'copilot';
 

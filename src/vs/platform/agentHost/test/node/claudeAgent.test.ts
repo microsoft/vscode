@@ -947,6 +947,9 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, new RecordingOTelService()],
 		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+		// Every test ClaudeAgent's always-on merged model refresh reads `userHome`
+		// at construction, so a mock environment service is part of the baseline.
+		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
 	];
 }
 
@@ -986,7 +989,7 @@ suite('ClaudeAgent', () => {
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
-			required: true,
+			required: false,
 		}, {
 			resource: 'https://api.github.com/repos',
 			resource_name: 'GitHub Repository',
@@ -1101,7 +1104,7 @@ suite('ClaudeAgent', () => {
 				},
 				after: {
 					resources: [
-						{ resource: 'https://api.github.com', required: true },
+						{ resource: 'https://api.github.com', required: false },
 						{ resource: 'https://api.github.com/repos', required: false },
 					],
 					proxyStarts: 1,
@@ -1192,7 +1195,7 @@ suite('ClaudeAgent', () => {
 				supportedModelsCalls: sdk.supportedModelsCallCount,
 				capiModelsCalls,
 			}, {
-				models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
+				models: [{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' }],
 				proxyStarts: 0,
 				supportedModelsCalls: 1,
 				capiModelsCalls: 0,
@@ -1249,11 +1252,16 @@ suite('ClaudeAgent', () => {
 		}
 	});
 
-	test('native transport: authenticate never starts the proxy', async () => {
+	test('native-default authenticate still starts the proxy so Copilot-routed models can run', async () => {
+		// With the merged catalog always on, a native default no longer short-
+		// circuits sign-in: `authenticate` falls through to acquire a proxy handle
+		// so a session that later picks a Copilot-routed model has a started proxy
+		// to run against. The handle is acquired while `_transportMode` stays native
+		// (the default for model-less sessions).
 		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
-		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
+		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 1 });
 	});
 
 	test('unusable native (explicit proxy off, no setup) does not demand GitHub sign-in', async () => {
@@ -1274,14 +1282,19 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('transport flip native→proxy with no proxy handle emits auth/required once', () => {
+	test('a host-default transport flip no longer proactively demands auth (sign-in defers to first send)', () => {
+		// A host-default flip only changes the fallback transport for model-less
+		// sessions; the merged catalog still publishes both providers and
+		// `getProtectedResources()` keeps Copilot optional, so a flip must NOT fire
+		// `auth/required`. Sign-in for a Copilot-routed model defers to the first
+		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`.
 		const { agent, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
 		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
 
 		configService.updateRootConfig({ claudeUseCopilotProxy: true });
 
-		assert.deepStrictEqual(events, [{ resource: 'https://api.github.com', reason: 'required' }]);
+		assert.deepStrictEqual(events, []);
 	});
 
 	test('transport flip does not emit auth/required when a proxy handle already exists', async () => {
@@ -1318,23 +1331,36 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(events, []);
 	});
 
-	test('proxy-mode authenticate with an unchanged token starts the proxy when no handle exists', async () => {
-		// Native mode records the Copilot token without starting the proxy. After
-		// a flip to proxy the agent has a token but no handle; re-authenticating
-		// with the SAME token must still start the proxy rather than short-
-		// circuiting on the "token unchanged" path.
-		const { agent, proxy, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		await agent.authenticate('https://api.github.com', 'T');
-		assert.strictEqual(proxy.startCalls.length, 0);
+	test('re-authenticating an unchanged token starts the proxy when a prior start left no handle', async () => {
+		// The token-unchanged short-circuit in authenticate() is guarded by
+		// `&& this._proxyHandle`: an unchanged token must still start the proxy if a
+		// prior attempt failed and left the agent holding a recorded token but no
+		// handle. A native default now attempts the proxy (so the merged catalog's
+		// Copilot models are runnable); if that first start fails it commits native,
+		// recording the token with no handle. Re-authenticating with the SAME token
+		// must retry start() rather than short-circuit as "unchanged".
+		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		let failNext = true;
+		proxy.start = async (token: string) => {
+			proxy.startCalls.push({ token });
+			if (failNext) {
+				failNext = false;
+				throw new Error('proxy bind failed');
+			}
+			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
+		};
 
-		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+		// First authenticate: native default attempts the proxy, start fails, commits
+		// native — token 'T' recorded, no handle.
+		await agent.authenticate('https://api.github.com', 'T');
+		// Re-auth with the SAME token: no handle ⇒ must retry start() (now succeeds).
 		await agent.authenticate('https://api.github.com', 'T');
 		await tick();
 
 		assert.deepStrictEqual({
 			startTokens: proxy.startCalls.map(c => c.token),
 			disposeCount: proxy.disposeCount,
-		}, { startTokens: ['T'], disposeCount: 0 });
+		}, { startTokens: ['T', 'T'], disposeCount: 0 });
 	});
 
 	test('createSession before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {
@@ -1364,8 +1390,8 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startCalls: ['tok'],
 			models: [
-				{ provider: 'claude', id: 'claude-opus-4.6', name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
-				{ provider: 'claude', id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: CLAUDE_PROVIDER_COPILOT, id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: CLAUDE_PROVIDER_COPILOT, id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'), name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
 			],
 		});
 	});
@@ -1421,7 +1447,11 @@ suite('ClaudeAgent', () => {
 
 		assert.deepStrictEqual(
 			agent.models.get().map(m => m.id),
-			['claude-sonnet-4.6', 'claude-opus-4.6', 'claude-haiku-4.6'],
+			[
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-haiku-4.6'),
+			],
 		);
 	});
 
@@ -1478,7 +1508,7 @@ suite('ClaudeAgent', () => {
 			agent.models.get().map(m => [m.id, m.configSchema] as const),
 		);
 		assert.deepStrictEqual(schemasById, {
-			'claude-opus-4.6': {
+			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6')]: {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -1492,7 +1522,7 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			'claude-sonnet-4.6': {
+			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6')]: {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -1506,8 +1536,8 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			'claude-haiku-4.6': undefined,
-			'claude-opus-4.5': {
+			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-haiku-4.6')]: undefined,
+			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.5')]: {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -1521,7 +1551,7 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			'claude-sonnet-4.5': undefined,
+			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.5')]: undefined,
 		});
 	});
 
@@ -1635,7 +1665,7 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startTokens: ['tok', 'tok'],
 			disposeCount: 0,
-			modelIds: [CLAUDE_OPUS.id, CLAUDE_SONNET.id],
+			modelIds: [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_OPUS.id), toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)],
 		});
 	});
 
@@ -1648,7 +1678,10 @@ suite('ClaudeAgent', () => {
 
 		assert.deepStrictEqual(
 			agent.models.get().map(m => m.id),
-			['claude-opus-4.6', 'claude-sonnet-4.6'],
+			[
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+			],
 		);
 	});
 
@@ -1756,13 +1789,13 @@ suite('ClaudeAgent', () => {
 		// Second authenticate: refresh-B runs to completion, models == [B].
 		await agent.authenticate('https://api.github.com', 'tokB');
 		await tick();
-		assert.deepStrictEqual(agent.models.get().map(m => m.id), [CLAUDE_SONNET.id]);
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)]);
 
 		// Now unblock refresh-A: it must observe the rotated token and
 		// drop its write rather than overwrite refresh-B's result.
 		tokAModels.complete([CLAUDE_OPUS]);
 		await tick();
-		assert.deepStrictEqual(agent.models.get().map(m => m.id), [CLAUDE_SONNET.id]);
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)]);
 	});
 
 	// #region Phase 5 — session lifecycle
@@ -2832,10 +2865,9 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
-	test('flag off: a forked peer chat inherits its never-materialized parent\'s explicit model', async () => {
+	test('a forked peer chat inherits its never-materialized parent\'s explicit model', async () => {
 		// The model inheritance in `_resolveParentSession` (`provisionalModel ??
-		// overlay.model`) is deliberately NOT gated on the per-session provider flag:
-		// even with the flag off, a peer chat forked from a parent that only ever held
+		// overlay.model`): a peer chat forked from a parent that only ever held
 		// its picked model in `provisionalModel` (never materialized, so the overlay is
 		// empty) must still run that model. Reading the overlay alone would silently
 		// drop it and fall back to the host default. Bare id, proxy default transport.
@@ -2854,7 +2886,7 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats.sendMessage(chatUri, 'hi', undefined, undefined, 'turn-1');
 
-		// Materialized over the proxy transport (flag-off default) resuming the fork,
+		// Materialized over the proxy transport (host default) resuming the fork,
 		// carrying the parent's model normalized to its bare SDK id.
 		assert.deepStrictEqual({
 			model: sdk.capturedStartupOptions[0]?.model,
@@ -5439,7 +5471,7 @@ suite('ClaudeAgent', () => {
 	// #endregion
 });
 
-suite('ClaudeAgent — per-session provider (flag on)', () => {
+suite('ClaudeAgent — per-session provider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
@@ -5458,12 +5490,281 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		}
 	}
 
+	/**
+	 * The per-session proxy bearer (`ANTHROPIC_AUTH_TOKEN`) is injected into
+	 * `Options.settings.env` only for the Copilot proxy transport; the native
+	 * transport omits it (see `buildOptions`). Its presence is the cast-free
+	 * discriminator for which transport a captured startup ran on.
+	 */
+	function proxyAuthTokenOf(options: Options | undefined): string | undefined {
+		const settings = options?.settings;
+		if (!settings || typeof settings === 'string') {
+			return undefined;
+		}
+		return settings.env?.ANTHROPIC_AUTH_TOKEN;
+	}
+
+	/**
+	 * Materialize a signed-in session by running one full turn, mirroring the
+	 * top-level `materialize()` helper. Defaults to a Copilot (proxy) model. With
+	 * `block`, turn-1 parks the query iterator at index 2 (an extra staged result)
+	 * so a follow-up turn drains a hot-swap on the SAME live query — the returned
+	 * `advance` releases it. Without `block`, turn-1 fully drains so a follow-up
+	 * send rebuilds/resumes on a fresh query.
+	 */
+	async function materializeSession(
+		ctx: ITestContext,
+		opts?: { readonly model?: { readonly id: string }; readonly block?: boolean },
+	): Promise<{ readonly sessionUri: URI; readonly sessionId: string; readonly advance: DeferredPromise<void> }> {
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const model = opts?.model ?? { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+		const created = await ctx.agent.createSession({ workingDirectories: [URI.file('/workspace')], model });
+		const sessionId = AgentSession.id(created.session);
+		const advance = new DeferredPromise<void>();
+		if (opts?.block) {
+			ctx.sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId), makeResultSuccess(sessionId)];
+		} else {
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		}
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		return { sessionUri: created.session, sessionId, advance };
+	}
+
+	test('a cross-transport model switch defers, then rebuilds on the new (native) transport at the next send (US 11)', async () => {
+		const ctx = createTestContext(disposables);
+		const { sessionUri, sessionId } = await materializeSession(ctx);
+		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+
+		// Switching to a native-qualified model on a live proxy session defers:
+		// no hot-swap on the old transport, and no rebuild until the next send.
+		await ctx.agent.chats.changeModel(defaultChatUri(sessionUri), nativeModel);
+		const atSwitch = {
+			startups: ctx.sdk.startupCallCount,
+			hotSwaps: ctx.sdk.warmQueries[0]?.produced?.recordedModels ?? [],
+		};
+
+		// The next send consumes the pending switch: a fresh subprocess is
+		// materialized on the native transport, resuming the same session id.
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'again', undefined, undefined, 'turn-2');
+		const rebuild = ctx.sdk.capturedStartupOptions[1];
+
+		assert.deepStrictEqual({
+			atSwitch,
+			afterSendStartups: ctx.sdk.startupCallCount,
+			initialWasProxy: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[0]) !== undefined,
+			rebuild: { model: rebuild?.model, resume: rebuild?.resume, isProxy: proxyAuthTokenOf(rebuild) !== undefined },
+			// The rebuild resumes the transcript, which replays the pre-switch
+			// `/model`; the pipeline must re-assert the SWITCHED model onto the fresh
+			// query, not the stale pre-switch one — else the new transport runs the
+			// old model and 400s (`model_not_supported`).
+			replayedOnRebuild: ctx.sdk.warmQueries[1]?.produced?.recordedModels ?? [],
+		}, {
+			atSwitch: { startups: 1, hotSwaps: [] },
+			afterSendStartups: 2,
+			initialWasProxy: true,
+			rebuild: { model: 'claude-sonnet-4-5', resume: sessionId, isProxy: false },
+			replayedOnRebuild: ['claude-sonnet-4-5'],
+		});
+	});
+
+	test('a same-transport model change still hot-swaps the live query (no rebuild)', async () => {
+		const ctx = createTestContext(disposables);
+		const { sessionUri, advance } = await materializeSession(ctx, { block: true });
+
+		// Another Copilot-qualified model is the same transport → the change is
+		// pushed onto the live query in place, never rebuilding the subprocess.
+		await ctx.agent.chats.changeModel(defaultChatUri(sessionUri), { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4-5-20250929') });
+
+		// Drive one more turn on the same (parked) query so it drains cleanly.
+		const p2 = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'again', undefined, undefined, 'turn-2');
+		await tick();
+		advance.complete();
+		await p2;
+
+		assert.deepStrictEqual({
+			startups: ctx.sdk.startupCallCount,
+			hotSwaps: ctx.sdk.warmQueries[0]?.produced?.recordedModels ?? [],
+		}, {
+			startups: 1,
+			hotSwaps: ['claude-sonnet-4-5'],
+		});
+	});
+
+	test('a switch during an in-flight turn leaves it untouched; the rebuild fires only on the next send (US 12)', async () => {
+		const ctx = createTestContext(disposables);
+		const { sessionUri, sessionId, advance } = await materializeSession(ctx, { block: true });
+		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+
+		// Turn 2 is in flight (parked in the SDK). A switch issued now serializes
+		// behind it on the session sequencer and must not disturb the running turn.
+		const inflight = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'turn 2', undefined, undefined, 'turn-2');
+		await tick();
+		const switching = ctx.agent.chats.changeModel(defaultChatUri(sessionUri), nativeModel);
+		await tick();
+		const duringTurn = { startups: ctx.sdk.startupCallCount, warmQueries: ctx.sdk.warmQueries.length };
+
+		// Release the in-flight turn; only then does the queued switch apply (as a
+		// deferral — still no rebuild, no hot-swap on the old transport).
+		advance.complete();
+		await inflight;
+		await switching;
+		const afterSwitch = { startups: ctx.sdk.startupCallCount, hotSwaps: ctx.sdk.warmQueries[0]?.produced?.recordedModels ?? [] };
+
+		// The subsequent send is what rebuilds onto the native transport.
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'turn 3', undefined, undefined, 'turn-3');
+		const rebuild = ctx.sdk.capturedStartupOptions.at(-1);
+
+		assert.deepStrictEqual({
+			duringTurn,
+			afterSwitch,
+			afterNextSend: { startups: ctx.sdk.startupCallCount, isNative: proxyAuthTokenOf(rebuild) === undefined, model: rebuild?.model },
+		}, {
+			duringTurn: { startups: 1, warmQueries: 1 },
+			afterSwitch: { startups: 1, hotSwaps: [] },
+			afterNextSend: { startups: 2, isNative: true, model: 'claude-sonnet-4-5' },
+		});
+	});
+
+	test('a native→Copilot switch while signed out surfaces AHP_AUTH_REQUIRED on the next send, then rebuilds once signed in (US 27)', async () => {
+		const ctx = createTestContext(disposables);
+		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+		const copilotModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+
+		// Materialize native while signed out (native needs no proxy handle).
+		const created = await ctx.agent.createSession({ workingDirectories: [URI.file('/workspace')], model: nativeModel });
+		const sessionId = AgentSession.id(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+
+		// Switch to a Copilot model → deferred. The next send's rebuild resolves the
+		// proxy transport, which requires a GitHub sign-in that is absent.
+		await ctx.agent.chats.changeModel(defaultChatUri(created.session), copilotModel);
+		const first = await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', undefined, undefined, 'turn-2')
+			.then(() => 'sent', (err: unknown) => (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) ? 'auth-required' : `unexpected:${err}`);
+		const startupsAfterFailure = ctx.sdk.startupCallCount;
+
+		// Signing in provides the proxy handle; the still-pending switch rebuilds
+		// on the Copilot proxy at the next send (US 27: Copilot required again).
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'turn 3', undefined, undefined, 'turn-3');
+		const rebuild = ctx.sdk.capturedStartupOptions.at(-1);
+
+		assert.deepStrictEqual({
+			first,
+			startupsAfterFailure,
+			startupsAfterAuth: ctx.sdk.startupCallCount,
+			rebuiltProxy: proxyAuthTokenOf(rebuild) !== undefined,
+			rebuildModel: rebuild?.model,
+		}, {
+			first: 'auth-required',
+			startupsAfterFailure: 1,
+			startupsAfterAuth: 2,
+			rebuiltProxy: true,
+			rebuildModel: 'claude-opus-4-6',
+		});
+	});
+
+	test('with a runtime host-default transport flip, a live session is not rerouted on an ordinary (non-switch) rebuild', async () => {
+		// Byte-identity guard for the live-switch machinery. Pre-feature the
+		// transport was fixed at materialize and every warm rebuild reused it. An
+		// ordinary rebuild — here a crash-recovery resume, NOT a provider switch —
+		// must still reuse the transport the session materialized under even after
+		// the host-global default flips underneath it. Otherwise signing into
+		// Copilot mid-conversation would silently drag a running native
+		// (BYO-Anthropic) session onto the proxy on its next rebind.
+		await withNativeSetup(async userHome => {
+			const ctx = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+
+			// Materialize a native session while signed out: turn-1 starts the
+			// subprocess (system_init) then crashes mid-stream, leaving it needing a
+			// warm rebind on the next send.
+			const created = await ctx.agent.createSession({ workingDirectories: [URI.file('/workspace')], model: { id: 'claude-sonnet-4-5-20250929' } });
+			const sid = AgentSession.id(created.session);
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid)];
+			ctx.sdk.queryAdvance = async (i: number) => { if (i === 1) { throw new Error('subprocess crashed'); } };
+			await assert.rejects(
+				ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1'),
+				(err: Error) => err.message.includes('subprocess crashed'),
+			);
+			ctx.sdk.queryAdvance = undefined;
+
+			// Sign into Copilot: absent an explicit `claudeUseCopilotProxy`, this
+			// flips the host default native→proxy and acquires a proxy handle.
+			await ctx.agent.authenticate('https://api.github.com', 'tok');
+			await tick();
+
+			// Positive control that the flip is live: a brand-new session now
+			// materializes on the proxy (carrying the per-session bearer token).
+			const fresh = await ctx.agent.createSession({ workingDirectories: [URI.file('/fresh')], model: { id: 'claude-opus-4.6' } });
+			const freshSid = AgentSession.id(fresh.session);
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(freshSid), makeResultSuccess(freshSid)];
+			await ctx.agent.chats.sendMessage(defaultChatUri(fresh.session), 'hi', undefined, undefined, 'fresh-1');
+
+			// Recover the ORIGINAL session: the next send warm-rebuilds it (resume),
+			// and that rebuild must stay native despite the flipped host default.
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+			await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'recover', undefined, undefined, 'turn-2');
+
+			assert.deepStrictEqual({
+				originalMaterializeNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[0]) === undefined,
+				freshSessionProxy: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[1]) !== undefined,
+				rebuild: {
+					resume: ctx.sdk.capturedStartupOptions[2]?.resume,
+					stayedNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[2]) === undefined,
+				},
+				totalStartups: ctx.sdk.startupCallCount,
+			}, {
+				originalMaterializeNative: true,
+				freshSessionProxy: true,
+				rebuild: { resume: sid, stayedNative: true },
+				totalStartups: 3,
+			});
+		});
+	});
+
+	test('a Copilot→native switch survives a cold resume: the reload rematerializes on native', async () => {
+		const ctx = createTestContext(disposables);
+		const { sessionUri, sessionId } = await materializeSession(ctx);
+		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+
+		// Switch persists the native model to the overlay, then tear the session
+		// down so the next send has to cold-resume from that overlay.
+		await ctx.agent.chats.changeModel(defaultChatUri(sessionUri), nativeModel);
+		await ctx.agent.disposeSession(sessionUri);
+
+		ctx.sdk.sessionList = [{ sessionId, cwd: URI.file('/workspace').fsPath, summary: '', lastModified: Date.now() }];
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'turn 2', undefined, undefined, 'turn-2');
+		const resumed = ctx.sdk.capturedStartupOptions.at(-1);
+
+		// Resume derives transport from the persisted model, not the stale
+		// `transport` overlay field — so the reload lands on native.
+		assert.deepStrictEqual({
+			model: resumed?.model,
+			resume: resumed?.resume,
+			isNative: proxyAuthTokenOf(resumed) === undefined,
+		}, {
+			model: 'claude-sonnet-4-5',
+			resume: sessionId,
+			isNative: true,
+		});
+	});
+
 	test('getProtectedResources advertises Copilot as optional even in the proxy default', () => {
 		// Per-session routing means no host-global mode can make Copilot strictly
 		// required — each session's transport comes from its picked model — so the
 		// resource is always advertised optional (mirroring Codex). The proxy-only
 		// session that needs it is gated later, in `_ensureAuthenticated(model)`.
-		const { agent } = createTestContext(disposables, { rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true } });
+		const { agent } = createTestContext(disposables);
 		assert.deepStrictEqual(
 			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
 			[
@@ -5475,10 +5776,7 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 
 	test('merged catalog lists both providers, each id provider-qualified', async () => {
 		await withNativeSetup(async userHome => {
-			const { agent, api, sdk } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true },
-				userHome,
-			});
+			const { agent, api, sdk } = createTestContext(disposables, { userHome });
 			api.models = async () => [CLAUDE_OPUS];
 			sdk.supportedModelsResult = [
 				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
@@ -5501,7 +5799,7 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		// Signed out (no proxy handle). The transport is derived per session from
 		// the picked model: a native-qualified model resolves without GitHub, while
 		// a Copilot-qualified one still throws AHP_AUTH_REQUIRED.
-		const { agent } = createTestContext(disposables, { rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true } });
+		const { agent } = createTestContext(disposables);
 		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
 		const copilotModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
 
@@ -5524,7 +5822,7 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		// normalized id before it reaches the subprocess (a `@provider=…` id is
 		// unparseable and would 400). The prior weaker form only asserted the chat
 		// was created; it never materialized, so it masked both bugs.
-		const { agent, sdk, proxy } = createTestContext(disposables, { rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true } });
+		const { agent, sdk, proxy } = createTestContext(disposables);
 		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
 		// Signed out (no `authenticate`) — only the native transport can run here.
 		const created = await agent.createSession({ workingDirectories: [URI.file('/work')], model: nativeModel });
@@ -5552,18 +5850,13 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		});
 	});
 
-	test('signed out with the flag on, the native catalog bootstraps with no manual refresh', async () => {
-		// Regression (Finding A): the flag typically hydrates *after* construction
-		// via its config forwarder, but even seeded pre-construction the constructor
-		// must bootstrap the merged catalog off the `|| _perSessionProviderEnabled`
-		// gate — a signed-out, flag-on window with a native setup has no GitHub
+	test('signed out, the native catalog bootstraps with no manual refresh', async () => {
+		// Regression (Finding A): the constructor must bootstrap the merged catalog
+		// unconditionally — a signed-out window with a native setup has no GitHub
 		// token to trigger a proxy refresh, so without this it would never populate
 		// its picker and dead-end. No `authenticate`, no explicit `refreshModels`.
 		await withNativeSetup(async userHome => {
-			const { agent, sdk } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true },
-				userHome,
-			});
+			const { agent, sdk } = createTestContext(disposables, { userHome });
 			sdk.supportedModelsResult = [
 				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 			];
@@ -5581,94 +5874,20 @@ suite('ClaudeAgent — per-session provider (flag on)', () => {
 		});
 	});
 
-	test('toggling the flag on at runtime repopulates the merged catalog', async () => {
-		// Regression (Finding C): the flag is not an input to the host-global
-		// transport-mode resolution, so a runtime false→true toggle would otherwise
-		// early-return from the root-config handler and leave the stale, un-merged
-		// catalog in place. `_applyPerSessionProviderChange` must re-enumerate.
-		await withNativeSetup(async userHome => {
-			const { agent, sdk, configService } = createTestContext(disposables, { userHome });
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			// Flag off + signed out + proxy default: nothing enumerates.
-			await tick();
-			assert.deepStrictEqual(agent.models.get(), []);
-
-			configService.updateRootConfig({ [AgentHostConfigKey.ClaudePerSessionProvider]: true });
-			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-				await tick();
-			}
-			await tick();
-
-			assert.deepStrictEqual(agent.models.get().map(m => m.id), [
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'),
-			]);
-		});
-	});
-
-	test('a failing proxy start does not fail native-default sign-in under the flag', async () => {
-		// Regression (Finding D): with the flag on and a native default
+	test('a failing proxy start does not fail native-default sign-in', async () => {
+		// Regression (Finding D): with a native default
 		// (`claudeUseCopilotProxy: false`), `authenticate` still tries to start the
 		// proxy so the merged catalog's Copilot models can run — but native needs
 		// neither proxy nor token, so a transient `start()` failure must resolve
 		// sign-in as success (native), not reject.
 		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true, claudeUseCopilotProxy: false },
+			rootConfig: { claudeUseCopilotProxy: false },
 		});
 		proxy.startError = new Error('proxy boom');
 
 		const ok = await agent.authenticate('https://api.github.com', 'tok');
 
 		assert.deepStrictEqual({ ok, proxyStartAttempts: proxy.startCalls.length }, { ok: true, proxyStartAttempts: 1 });
-	});
-
-	test('a flag toggle mid-refresh: the superseded merged refresh does not clobber the single catalog', async () => {
-		// Regression (guard completeness): `_startModelRefresh` supersedes an
-		// in-flight refresh as the coalescing target but does NOT cancel it, so a
-		// false-flip of the flag mid-merge leaves the merged refresh running. When it
-		// finally settles it must observe the flag moved and bail, or its stale
-		// provider-qualified write would clobber the bare single-transport catalog the
-		// (now flag-off) refresh already published. The native half is parked on a
-		// gate so the merged refresh is guaranteed still in-flight when the flag flips.
-		await withNativeSetup(async userHome => {
-			const { agent, api, sdk, configService } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.ClaudePerSessionProvider]: true },
-				userHome,
-			});
-			api.models = async () => [CLAUDE_OPUS];
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			await agent.authenticate('https://api.github.com', 'tok');
-			await agent.refreshModels();
-			await tick();
-
-			// Park the native half, then start the merged refresh it belongs to.
-			const nativeGate = new DeferredPromise<void>();
-			sdk.supportedModelsGate = nativeGate.p;
-			const straggler = agent.refreshModels();
-			await tick();
-
-			// Flip the flag off: a single-transport (proxy default) refresh runs and
-			// publishes the bare catalog while the merged refresh is still parked.
-			configService.updateRootConfig({ [AgentHostConfigKey.ClaudePerSessionProvider]: false });
-			for (let i = 0; i < 100 && agent.models.get().length !== 1; i++) {
-				await tick();
-			}
-			const afterToggle = agent.models.get().map(m => m.id);
-
-			// Release the merged refresh: its stale-write guard must drop the result.
-			nativeGate.complete();
-			await straggler;
-			await tick();
-			const afterRelease = agent.models.get().map(m => m.id);
-
-			assert.deepStrictEqual({ afterToggle, afterRelease }, {
-				afterToggle: ['claude-opus-4.6'],
-				afterRelease: ['claude-opus-4.6'],
-			});
-		});
 	});
 });
 
@@ -5713,7 +5932,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			instantiationService,
 		));
 		await session.materialize({
-			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } },
+			resolveTransport: () => ({ kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } }),
 			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,

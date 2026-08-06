@@ -44,24 +44,31 @@ export function toClaudeModelSelectionId(provider: string, modelId: string): str
  * fail to url-decode all fall back to the default {@link CLAUDE_PROVIDER_COPILOT}
  * provider with the original id as the model — so a malformed or legacy value
  * routes through the proxy rather than throwing.
+ *
+ * `explicitProvider` distinguishes those fallbacks (`false`) from a genuine
+ * `@provider=`-qualified id (`true`). {@link resolveClaudeSessionTransport} reads
+ * it to keep a bare/legacy id on the host default transport rather than the
+ * copilot fallback, so an existing session is never migrated onto a different
+ * transport.
  */
-export function parseClaudeModelSelection(selection: ModelSelection): { readonly provider: string; readonly modelId: string } {
+export function parseClaudeModelSelection(selection: ModelSelection): { readonly provider: string; readonly modelId: string; readonly explicitProvider: boolean } {
 	const { id } = selection;
 	if (!id.startsWith(CLAUDE_MODEL_SELECTION_PREFIX)) {
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id };
+		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
 	}
 	const separator = id.indexOf(':', CLAUDE_MODEL_SELECTION_PREFIX.length);
 	if (separator < CLAUDE_MODEL_SELECTION_PREFIX.length) {
 		// No `:` after the prefix — not a well-formed provider-qualified id.
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id };
+		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
 	}
 	try {
 		return {
 			provider: decodeURIComponent(id.slice(CLAUDE_MODEL_SELECTION_PREFIX.length, separator)),
 			modelId: decodeURIComponent(id.slice(separator + 1)),
+			explicitProvider: true,
 		};
 	} catch {
-		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id };
+		return { provider: CLAUDE_PROVIDER_COPILOT, modelId: id, explicitProvider: false };
 	}
 }
 
@@ -100,22 +107,31 @@ export function claudeTransportForProvider(provider: string): ClaudeTransportMod
 /**
  * Decides the transport a single session should run on. This is the per-session
  * counterpart to the host-global {@link resolveClaudeTransportMode}: when the
- * per-session-provider feature is off, or the session has no explicit model yet,
- * the session inherits the host default (`defaultMode`) so behavior is identical
- * to today; when the feature is on and a model is selected, its provider decides
- * (via {@link claudeTransportForProvider}), letting two concurrent sessions run
- * on different transports.
+ * session has no explicit model yet, it inherits the host default (`defaultMode`);
+ * when a model with an explicit provider is selected, its provider decides (via
+ * {@link claudeTransportForProvider}), letting two concurrent sessions run on
+ * different transports. A bare/legacy id (no explicit provider) also inherits
+ * `defaultMode`, so a session persisted before provider qualification existed is
+ * never rerouted onto a different transport.
  */
 export function resolveClaudeSessionTransport(inputs: {
-	readonly perSessionProviderEnabled: boolean;
 	readonly model: ModelSelection | undefined;
 	readonly defaultMode: ClaudeTransportMode;
 }): ClaudeTransportMode {
-	const { perSessionProviderEnabled, model, defaultMode } = inputs;
-	if (!perSessionProviderEnabled || !model) {
+	const { model, defaultMode } = inputs;
+	if (!model) {
 		return defaultMode;
 	}
-	return claudeTransportForProvider(parseClaudeModelSelection(model).provider);
+	const parsed = parseClaudeModelSelection(model);
+	if (!parsed.explicitProvider) {
+		// A bare / legacy id carries no explicit provider, so it follows the host
+		// default transport exactly like the model-less case above. Without this, a
+		// session persisted before provider qualification existed — e.g. a native
+		// BYO-Anthropic session, whose id is a bare SDK id — would be rerouted onto
+		// the proxy and forced through a spurious GitHub sign-in.
+		return defaultMode;
+	}
+	return claudeTransportForProvider(parsed.provider);
 }
 
 /**

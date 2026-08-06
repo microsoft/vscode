@@ -36,16 +36,6 @@ export const enum AgentHostConfigKey {
 	 * feature is dark (today's always-proxy behavior).
 	 */
 	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
-	/**
-	 * Experimentation flag for the Claude per-session provider picker. When true,
-	 * the Claude provider publishes both its Copilot-routed and native-Anthropic
-	 * catalogs as one grouped picker and derives each session's transport from the
-	 * selected model's provider, instead of a single host-global transport. The
-	 * workbench forwards it here from the
-	 * `chat.agentHost.claude.perSessionProvider` VS Code setting; when unset the
-	 * feature is dark (today's single-catalog behavior).
-	 */
-	ClaudePerSessionProvider = 'claudePerSessionProvider',
 	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
 	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
@@ -118,12 +108,6 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
 		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
-		default: false,
-	}),
-	[AgentHostConfigKey.ClaudePerSessionProvider]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudePerSessionProvider.title', "Claude Per-Session Provider"),
-		description: localize('agentHost.config.claudePerSessionProvider.description', "Experimental. When enabled, the Claude model picker shows both your Copilot-provided and your own Anthropic-account models in one grouped list, and each session runs on the transport of the model you pick. When disabled (the default), Claude uses a single provider resolved from your settings and sign-in state."),
 		default: false,
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({

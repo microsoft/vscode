@@ -59,7 +59,16 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
  * agent's per-session lookup, and the resume-vs-fresh discriminator).
  */
 export interface IMaterializeContext {
-	readonly transport: ClaudeTransport;
+	/**
+	 * Resolves the transport (proxy vs native) for a given model. Invoked once
+	 * at materialize with the session's provisional model, and again by the
+	 * rematerializer on every rebuild with the session's *current* provisional
+	 * model — so a per-session provider switch re-routes the rebuilt subprocess
+	 * onto the new transport instead of pinning the one chosen at materialize.
+	 * The agent owns transport resolution (it holds the flag, the live proxy
+	 * handle, and `_ensureAuthenticated`); the session only supplies the model.
+	 */
+	readonly resolveTransport: (model: ModelSelection | undefined) => ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
@@ -293,6 +302,30 @@ export class ClaudeAgentSession extends Disposable {
 	private _transportKind: ClaudeTransport['kind'] = 'proxy';
 
 	/**
+	 * Set by {@link setModel} when a model change crosses transports (Copilot ↔
+	 * native) on an already-materialized session. Rather than hot-swapping the
+	 * live subprocess (which stays on the old transport), the switch is deferred:
+	 * the flag makes the next {@link send} pre-flight rebind, and the
+	 * rematerializer re-resolves the transport from the switched
+	 * {@link _provisionalModel} and clears the flag on a successful rebuild. A
+	 * failed rebuild leaves it set so the following send retries.
+	 */
+	private _pendingTransportSwitch = false;
+
+	/**
+	 * The full transport (kind + any live proxy handle) that backs the current
+	 * {@link _transportKind}, captured the last time {@link materialize} or the
+	 * rematerializer actually built the subprocess. Ordinary rebuilds (a tool /
+	 * customization diff, a resume) reuse it verbatim so a runtime flip of the
+	 * host default transport — e.g. a config change or a Copilot sign-in mutating
+	 * the agent's live transport mode — never reroutes the live conversation. Only
+	 * a deliberate {@link _pendingTransportSwitch} re-resolves the transport; this
+	 * pin is what keeps the flag-off path byte-identical to pre-feature behavior,
+	 * where the transport was fixed at materialize and never re-derived.
+	 */
+	private _materializedTransport: ClaudeTransport | undefined;
+
+	/**
 	 * Accumulate proxy-reported billed credits for the in-flight turn.
 	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
 	 * routed to this session. Ignores non-positive / non-finite values.
@@ -493,7 +526,9 @@ export class ClaudeAgentSession extends Disposable {
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}
-		this._transportKind = ctx.transport.kind;
+		const transport = ctx.resolveTransport(this._provisionalModel);
+		this._transportKind = transport.kind;
+		this._materializedTransport = transport;
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
@@ -520,7 +555,7 @@ export class ClaudeAgentSession extends Disposable {
 				telemetry,
 				traceContext,
 			},
-			ctx.transport,
+			transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
 		);
 
@@ -579,7 +614,7 @@ export class ClaudeAgentSession extends Disposable {
 					customizationDirectory: this.workingDirectory,
 					model: this._provisionalModel,
 					permissionMode,
-					transport: ctx.transport.kind,
+					transport: transport.kind,
 					// Persist the full ordered set so a cold resume / remove-all /
 					// fork can recover the tail (the SDK catalog only stores `cwd`).
 					// Only meaningful when there is a tail; single-root sessions
@@ -611,6 +646,20 @@ export class ClaudeAgentSession extends Disposable {
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
 			try {
+				// Reuse the transport captured at materialize for an ordinary rebuild,
+				// so a runtime flip of the host default (config change / Copilot
+				// sign-in mutating the agent's live transport mode) never reroutes the
+				// live conversation. Only a deliberate per-session provider switch
+				// (`_pendingTransportSwitch`) re-resolves from the session's *current*
+				// provisional model, rebuilding onto the new transport; a signed-out
+				// switch-to-proxy throws here (from `_ensureAuthenticated`), landing in
+				// the catch below so the diffs stay dirty and the next send retries.
+				// The `_materializedTransport` fallback is defensive — it is always set
+				// once `materialize` has run, but re-resolving keeps a rebuild correct
+				// rather than crashing if it somehow has not.
+				const rebuildTransport = (this._pendingTransportSwitch || !this._materializedTransport)
+					? ctx.resolveTransport(this._provisionalModel)
+					: this._materializedTransport;
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildOptions = await buildOptions(
@@ -632,7 +681,7 @@ export class ClaudeAgentSession extends Disposable {
 						telemetry,
 						traceContext,
 					},
-					ctx.transport,
+					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
@@ -648,6 +697,13 @@ export class ClaudeAgentSession extends Disposable {
 				this._pendingResumeSessionAt = undefined;
 				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 				this._watchCustomizations(this.workingDirectories);
+				// Commit the (possibly switched) transport now that the new
+				// subprocess is live, so credit enrichment tracks the running
+				// transport and a pending switch is considered resolved. A throw
+				// above leaves both untouched so the next send retries the switch.
+				this._transportKind = rebuildTransport.kind;
+				this._materializedTransport = rebuildTransport;
+				this._pendingTransportSwitch = false;
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				rebuildAbort.abort();
@@ -723,6 +779,13 @@ export class ClaudeAgentSession extends Disposable {
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
 
+	/**
+	 * Transport the live subprocess is currently running on (`proxy` before
+	 * materialize). The agent reads this to decide whether a model change crosses
+	 * transports and must therefore defer to a rebuild rather than hot-swap.
+	 */
+	get transportKind(): ClaudeTransport['kind'] { return this._transportKind; }
+
 	private _requirePipeline(): ClaudeSdkPipeline {
 		if (!this._pipeline) {
 			throw new Error('ClaudeAgentSession is not materialized');
@@ -788,7 +851,8 @@ export class ClaudeAgentSession extends Disposable {
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
+			|| this._pendingTransportSwitch) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
@@ -854,9 +918,29 @@ export class ClaudeAgentSession extends Disposable {
 	 * In both cases the new model is persisted to the per-session
 	 * metadata overlay so a later resume sees the user's choice.
 	 */
-	async setModel(model: ModelSelection): Promise<void> {
+	async setModel(model: ModelSelection, opts?: { readonly deferForTransportSwitch?: boolean }): Promise<void> {
 		this._provisionalModel = model;
-		if (this._pipeline) {
+		if (opts?.deferForTransportSwitch) {
+			// Cross-transport switch on a live session: the running subprocess is
+			// pinned to the old transport/credential, and pushing the new model onto
+			// it may 400 on a model that transport doesn't serve. Flag the switch and
+			// skip the hot-swap — the next `send` pre-flight rebuilds on the new
+			// transport (conversation preserved via the resume rebuild), and the
+			// rematerializer clears the flag once the new subprocess is live.
+			this._pendingTransportSwitch = true;
+			// Advance the pipeline's DESIRED model/effort (without touching the
+			// doomed old-transport Query) so the rebuild's config replay re-asserts
+			// THIS selection on the new subprocess. The resume replays the pre-switch
+			// `/model`, so skipping this lets the rebuilt subprocess silently revert
+			// to the old model on the new transport (→ `model_not_supported`).
+			this._pipeline?.bufferConfigForRebind(toClaudeSdkModelId(model), toRuntimeEffortLevel(resolveClaudeEffort(model)));
+		} else if (this._pipeline) {
+			// A same-transport hot-swap supersedes any still-pending cross-transport
+			// switch: the user has now landed on a model the live subprocess can serve,
+			// so clear the flag to spare the next `send` a needless full rebuild. The
+			// `setModel`/`setEffort` calls below re-assert this selection as the
+			// pipeline's desired config, overwriting whatever the deferred path buffered.
+			this._pendingTransportSwitch = false;
 			await this._pipeline.setModel(toClaudeSdkModelId(model));
 			// Always push the resolved effort, including `undefined`. Switching
 			// to a model that does not support reasoning effort (e.g. Haiku)
