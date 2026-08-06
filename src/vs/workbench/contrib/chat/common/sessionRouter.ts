@@ -134,7 +134,8 @@ export function buildRouterMessages(request: ISessionRouteRequest): ISessionRout
 	}).join('\n');
 
 	const system = [
-		'You route a user request to the coding session it most likely refers to.',
+		'Decide from the user request whether it is best handled as a continuation of an existing coding session or whether it warrants a new session.',
+		'Route to an existing session only when continuing that session preserves useful task context; prefer a new session for a distinct task, even when it is in the same repository.',
 		'Each candidate may include a summary plus its first request, most recent request, and most recent response; weigh these more heavily than the name when present.',
 		'Score every candidate session from 0 (no match) to 1 (certain match).',
 		'Reserve scores above 0.8 for a clear continuation of the same concrete task; shared repository names or generic coding terms are not enough.',

@@ -27,6 +27,8 @@ suite('SessionRouter helpers', () => {
 		assert.ok(messages[1].content.includes('fix the flaky voice reconnect test'));
 		assert.ok(messages[1].content.includes('id=s1'));
 		assert.ok(messages[1].content.includes('id=s2'));
+		assert.ok(messages[0].content.includes('whether it warrants a new session'));
+		assert.ok(messages[0].content.includes('prefer a new session for a distinct task'));
 	});
 
 	test('buildRouterMessages embeds enriched conversation content', () => {

@@ -440,7 +440,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			getVoiceFollowupSessionResource: () => this._activePendingSessionResource ?? this.voiceSessionController.getLastSpokenResponseSession(),
-			onDidResolveRoute: (resource, kind) => {
+			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {
+				if (resource) {
+					this.voiceSessionController.markRoutedRequestPending(resource, requestId);
+				}
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
 			},
 			placeBadge: (badge) => {

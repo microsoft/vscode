@@ -264,6 +264,8 @@ export interface IVoiceSessionController {
 	 * sent to this session instead of the currently active one.
 	 */
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void;
+	/** Mark a newly routed request so the session's previous idle response is stale. */
+	markRoutedRequestPending(resource: URI, requestId?: string): void;
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
 	/** Transfer Voice Mode surface ownership to or from the floating omni input. */
@@ -673,6 +675,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * session starts a new turn (``thinking``) so a stale reply is never narrated.
 	 */
 	private readonly _lastResponseSummaryById = new Map<string, string>();
+	/** Request-aware narration state for omni routes, retained across queue/run/prompt transitions. */
+	private readonly _routedRequests = new Map<string, { requestId: string | undefined; phase: 'queued' | 'running' | 'waiting' }>();
 
 	/**
 	 * The exact text last narrated per session, used to de-duplicate narration
@@ -1783,6 +1787,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (e.responseId && codingSessionId) {
 				this._responseSessionIds.set(e.responseId, codingSessionId);
 			}
+			const routedRequest = codingSessionId ? this._routedRequests.get(this._sessionKey(codingSessionId)) : undefined;
+			if (codingSessionId && routedRequest && routedRequest.phase !== 'running' && !solicitedNarration) {
+				if (e.responseId && !e.isFinal) {
+					this._ownershipDroppedResponseIds.add(e.responseId);
+				}
+				if (e.responseId && e.isFinal) {
+					this._ownershipDroppedResponseIds.delete(e.responseId);
+					this._responseSessionIds.delete(e.responseId);
+					this._responseRoutes.delete(e.responseId);
+				}
+				this.logService.trace(`[voice] dropping stale response while routed request is ${routedRequest.phase} session=${codingSessionId.slice(-32)}`);
+				return;
+			}
 			if (e.responseId && this._ownershipDroppedResponseIds.has(e.responseId)) {
 				if (e.isFinal) {
 					this._ownershipDroppedResponseIds.delete(e.responseId);
@@ -2197,6 +2214,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pendingIdleNarration.clear();
 		this._sessionsAwaitingResponseSummary.clear();
 		this._lastResponseSummaryById.clear();
+		this._routedRequests.clear();
 		this._lastNarratedText.clear();
 		this._pendingNarrationRetries.clear();
 		this._voiceProgressListeners.clearAndDisposeAll();
@@ -2838,6 +2856,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = resource ? omniRoute : undefined;
 		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
+	}
+
+	markRoutedRequestPending(resource: URI, requestId?: string): void {
+		const sessionKey = this._sessionKey(resource.toString());
+		this._routedRequests.set(sessionKey, { requestId, phase: 'queued' });
+		this._discardResponsesSupersededByPending(sessionKey);
+
+		const model = this.chatService.getSession(resource);
+		const lastRequest = model?.getRequests().at(-1);
+		if (model && (!requestId || lastRequest?.id === requestId)) {
+			const state = this._getAgentStateInfo(model);
+			if (state.state === 'thinking') {
+				this._routedRequests.set(sessionKey, { requestId, phase: 'running' });
+			} else if (state.state === 'waiting_for_confirmation') {
+				this._routedRequests.set(sessionKey, { requestId, phase: 'waiting' });
+			} else if (state.last_response_summary) {
+				this._routedRequests.delete(sessionKey);
+			}
+		}
 	}
 
 	getLastSpokenResponseSession(): URI | undefined {
@@ -5632,6 +5669,26 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** React to a session reaching a narratable state. If it's the shown or omni-routed session, speak it now; a completed reply on another background session instead shows the sessions-list pending indicator and is read when focused. A new turn (`thinking`) clears both the dedup and any stale pending indicator. */
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
+		const routedRequest = this._routedRequests.get(sessionKey);
+		if (routedRequest && currentState === 'thinking') {
+			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
+		} else if (routedRequest && currentState === 'waiting_for_confirmation') {
+			this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
+		} else if (routedRequest && currentState === 'idle') {
+			const model = this.chatService.getSession(URI.parse(sessionId));
+			const lastRequest = model?.getRequests().at(-1);
+			const isRoutedResponse = routedRequest.requestId
+				? lastRequest?.id === routedRequest.requestId
+				: routedRequest.phase !== 'queued';
+			if (isRoutedResponse && lastResponseSummary) {
+				this._routedRequests.delete(sessionKey);
+			} else if (routedRequest.phase !== 'queued' && !lastResponseSummary) {
+				this._routedRequests.delete(sessionKey);
+			} else {
+				this.logService.trace(`[voice] suppressing idle response that does not belong to routed request session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
+				return;
+			}
+		}
 		if (currentState === 'idle' || currentState === 'waiting_for_confirmation') {
 			this._cancelVoiceProgress(sessionId);
 		}

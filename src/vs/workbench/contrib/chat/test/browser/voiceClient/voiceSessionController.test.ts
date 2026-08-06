@@ -4080,6 +4080,57 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(voiceClientService.requests, []);
 	});
 
+	test('a queued routed request suppresses the session previous idle response', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+		controller.markRoutedRequestPending(resource);
+
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The response from before the queued request.', undefined);
+		voiceClientService.fireAudioResponse({
+			audio: 'old queued response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'old-queued-response',
+			transcript: 'The response from before the queued request.',
+		});
+		handleStateChange.call(controller, sessionId, 'waiting_for_confirmation', undefined, undefined, undefined);
+		voiceClientService.fireAudioResponse({
+			audio: 'old response after prompt',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'old-response-after-prompt',
+			transcript: 'The response from before the queued request.',
+		});
+		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
+		voiceClientService.fireAudioResponse({
+			audio: 'new queued response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'new-queued-response',
+			transcript: 'The new queued request is complete.',
+		});
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The new queued request is complete.', undefined);
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			narrations: voiceClientService.requests.map(request => request.text),
+		}, {
+			playedAudio: ['new queued response'],
+			narrations: [],
+		});
+	});
+
 	test('an omni response is never requested again after it has been heard', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
