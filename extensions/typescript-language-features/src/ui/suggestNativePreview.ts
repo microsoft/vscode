@@ -6,12 +6,15 @@
 import * as vscode from 'vscode';
 import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
+import { PluginManager } from '../tsServer/plugins';
+import { copilotChatExtensionId } from '../typescriptServiceClient';
 
 const suggestNativePreviewStorageKey = 'typescript.suggestNativePreview.dismissed';
 
 export async function suggestNativePreview(
 	context: vscode.ExtensionContext,
 	experimentationService: ExperimentationService,
+	pluginManager: PluginManager,
 ): Promise<void> {
 	if (context.globalState.get<boolean>(suggestNativePreviewStorageKey)) {
 		return;
@@ -22,8 +25,8 @@ export async function suggestNativePreview(
 		return;
 	}
 
-	// Only show when the nightly extension is installed
-	if (!vscode.extensions.getExtension('ms-vscode.vscode-typescript-next')) {
+	// TSServer plugins are not supported by TypeScript 7
+	if (pluginManager.plugins.some(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId)) {
 		return;
 	}
 
@@ -34,7 +37,7 @@ export async function suggestNativePreview(
 		return;
 	}
 
-	const inExperiment = await experimentationService.getTreatmentVariable('suggestNativePreview', false);
+	const inExperiment = await experimentationService.getTreatmentVariable('suggestTS7IfNoPlugins', false);
 	if (!inExperiment) {
 		return;
 	}

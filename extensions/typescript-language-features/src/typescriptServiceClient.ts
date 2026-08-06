@@ -99,7 +99,7 @@ export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
 
-const copilotChatExtensionId = 'github.copilot-chat';
+export const copilotChatExtensionId = 'github.copilot-chat';
 
 interface WatchEvent {
 	updated?: Set<string>;
