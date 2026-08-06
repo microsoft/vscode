@@ -30,6 +30,7 @@ import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
@@ -64,6 +65,7 @@ import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAns
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import { buildCodexLaunchConfig, buildCodexResumeParams } from './codexLaunchConfig.js';
+import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
@@ -119,6 +121,7 @@ import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/gener
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -2073,6 +2076,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
+			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
 			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
 			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
 			'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
@@ -3611,18 +3615,26 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const { input, cleanupPaths } = resolveCodexInput(prompt, attachments);
 		// Buffer the prompt text for `turn/started`'s userMessage fallback.
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
 		this._startTurnStopWatch(session);
+		let cleanupPaths: readonly string[] = [];
+		const isCompactCommand = parseLeadingSlashCommand(prompt)?.command === CODEX_COMPACT_SLASH_COMMAND;
 		try {
+			if (isCompactCommand) {
+				await conn.client.request<'thread/compact/start'>('thread/compact/start', { threadId }, this._traceContext(session));
+				session.firstTurnSent = true;
+				return;
+			}
+			const resolvedInput = resolveCodexInput(prompt, attachments);
+			cleanupPaths = resolvedInput.cleanupPaths;
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
-				input: input.slice(),
+				input: resolvedInput.input.slice(),
 				model: resolvedModel.modelId,
 				...turnOptions,
 			}, this._traceContext(session));
@@ -3637,13 +3649,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			this._logService.error(`[Codex:${sessionId}] turn/start error: ${message}`);
+			const operation = isCompactCommand ? 'thread/compact/start' : 'turn/start';
+			this._logService.error(`[Codex:${sessionId}] ${operation} error: ${message}`);
 			const duration = this._clearTurnStopWatch(session);
 			this._fire(sessionUri, {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				error: { errorType: 'CodexTurnError', ...extractForwardedErrorInfo(message) },
+				error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) },
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 		} finally {
@@ -4053,11 +4066,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		// Reject rather than reporting an empty list while the GitHub token is
-		// still landing: the workbench treats a successful listing as the
-		// authoritative session set and would evict — and permanently unpin and
-		// ungroup — every Codex session. A rejection instead leaves the cached
-		// list intact and self-heals through the caller's backoff retry.
 		// Don't connect (and trigger a cold SDK download) just to list threads
 		// at startup. When the SDK isn't local yet, surface an empty list; the
 		// download fires (with host-level progress) once the user starts a
@@ -4069,9 +4077,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		try {
 			const conn = await this._ensureConnection();
-			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
-				limit: 200,
-			});
+			const threads = await collectThreadListPages<Thread>(
+				request => conn.client.request<'thread/list', ThreadListResponse>('thread/list', request),
+				collected => this._logService.warn(`[Codex] thread/list hit the ${THREAD_LIST_MAX_PAGES}-page cap after ${collected} threads; some sessions may be missing`),
+			);
 			// Map persisted threads back to the URI the workbench already
 			// knows them by. After `_materializeIfNeeded` runs, the codex
 			// thread is persisted to disk under its thread id but the
@@ -4086,12 +4095,18 @@ export class CodexAgent extends Disposable implements IAgent {
 					liveUriByThreadId.set(s.threadId, s.sessionUri);
 				}
 			}
-			return response.data.map(thread => {
+			return threads.map(thread => {
 				const sessionUri = liveUriByThreadId.get(thread.id) ?? AgentSession.uri(this.id, thread.id);
 				const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
 				return this._withWorkingDirectories(this._threadToMetadata(thread, sessionUri), liveWorkingDirectories);
 			});
 		} catch (err) {
+			// `AgentService.listSessions` fans out across all providers via
+			// `Promise.all`, so a rejection here takes the sibling Copilot and
+			// Claude listings down with it. Returning empty is a workaround for
+			// that aggregation, not a correct signal — an empty list is
+			// indistinguishable from "this agent has no sessions" and the
+			// workbench may reconcile against it.
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
 		}

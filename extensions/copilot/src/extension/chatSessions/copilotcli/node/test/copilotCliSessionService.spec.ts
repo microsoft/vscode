@@ -266,20 +266,17 @@ describe('CopilotCLISessionService', () => {
 	describe('session file monitoring', () => {
 		it('skips the watcher when the Extension Host Copilot CLI is inactive for the current window', async () => {
 			const cases = [
-				{ name: 'Agents window Agent Host default', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 0 },
-				{ name: 'editor window Extension Host hidden', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 0 },
-				{ name: 'Agents window Agent Host disabled', isAgentSessionsWorkspace: true, agentHostEnabled: false, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agent Host disabled', isAgentSessionsWorkspace: false, agentHostEnabled: false, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'Agents window editor hidden only', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agents default only', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agent Host default only', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: false, editorHidden: false, editorDefault: true, expectedWatcherCount: 1 },
+				{ name: 'Agents window Agent Host default', isAgentSessionsWorkspace: true, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 0 },
+				{ name: 'editor window Extension Host hidden', isAgentSessionsWorkspace: false, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 0 },
+				{ name: 'Agents window editor hidden only', isAgentSessionsWorkspace: true, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 1 },
+				{ name: 'editor window Agents default only', isAgentSessionsWorkspace: false, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 1 },
+				{ name: 'editor window Agent Host default only', isAgentSessionsWorkspace: false, agentsDefault: false, editorHidden: false, editorDefault: true, expectedWatcherCount: 1 },
 			];
 
 			const results = [];
 			for (const testCase of cases) {
 				const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
 				await Promise.all([
-					testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', testCase.agentHostEnabled),
 					testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', testCase.agentsDefault),
 					testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', testCase.editorHidden),
 					testConfiguration.setNonExtensionConfig('chat.defaultToCopilotHarness', testCase.editorDefault),
@@ -298,10 +295,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('stops monitoring when the Agents window Agent Host default resolves after construction', async () => {
 			const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-			await Promise.all([
-				testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', true),
-				testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false),
-			]);
+			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false);
 			const fileSystem = new TrackingFileSystemService();
 			const sessionService = disposables.add(createSessionService({
 				configurationService: testConfiguration,
@@ -329,10 +323,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('updates monitoring when the Extension Host Copilot CLI is hidden in the editor window', async () => {
 			const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-			await Promise.all([
-				testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', true),
-				testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', false),
-			]);
+			await testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', false);
 			const fileSystem = new TrackingFileSystemService();
 			const sessionService = disposables.add(createSessionService({
 				configurationService: testConfiguration,

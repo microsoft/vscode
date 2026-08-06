@@ -138,3 +138,4 @@ The latter two extensions build on top of our Markdown extension api using the s
 - `markdown.markdownItPlugins` — register a [markdown-it](https://github.com/markdown-it/markdown-it) plugin to extend how Markdown is parsed and rendered.
 - `markdown.previewScripts` — add scripts that run inside the preview webview.
 - `markdown.previewStyles` — add stylesheets to the preview.
+- `markdown.codeBlockEditors` — register an extension-relative, self-contained HTML editor for a fenced code block language in the experimental Markdown editor. The HTML runs in a sandboxed iframe and exchanges content using the `web-editor/0.12` protocol.
