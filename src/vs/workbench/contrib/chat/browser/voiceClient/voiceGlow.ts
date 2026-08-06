@@ -14,18 +14,18 @@
  */
 
 import { Color, HSLA } from '../../../../../base/common/color.js';
+import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
 import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
 
-export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'confirmation' | 'error';
 
 /**
- * Glow states that render the audio-reactive rim. Only the two talking states do:
- * connected-idle and thinking deliberately render nothing, so the glow means
- * "someone is talking" rather than "voice is on".
+ * Glow states that render the rim. Talking states are audio-reactive, while
+ * confirmation uses the same ambient motion at its resting intensity.
  */
 export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
-	return voiceState === 'listening' || voiceState === 'speaking';
+	return voiceState === 'listening' || voiceState === 'speaking' || voiceState === 'confirmation';
 }
 
 /**
@@ -54,6 +54,7 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
 export interface IVoiceGlowColors {
 	readonly listening: Color;
 	readonly speaking: Color;
+	readonly confirmation: Color;
 }
 
 /**
@@ -65,6 +66,7 @@ export const VOICE_GLOW_SPEAKING_HUE_SHIFT = 80;
 
 /** The historical hardcoded accent, used when no theme color resolves. */
 const VOICE_GLOW_FALLBACK = Color.fromHex('#58A6FF');
+const VOICE_GLOW_CONFIRMATION_FALLBACK = Color.fromHex('#F0883E');
 
 function clamp01(value: number): number {
 	return Math.max(0, Math.min(1, value));
@@ -83,6 +85,7 @@ function shiftHue(base: Color, degrees: number, saturationMul: number = 1, light
 export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = {
 	listening: VOICE_GLOW_FALLBACK,
 	speaking: shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+	confirmation: VOICE_GLOW_CONFIRMATION_FALLBACK,
 };
 
 /**
@@ -96,6 +99,7 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
 	return {
 		listening: theme.getColor(chatVoiceListeningGlow) ?? base,
 		speaking: theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+		confirmation: theme.getColor(chartsOrange) ?? VOICE_GLOW_CONFIRMATION_FALLBACK,
 	};
 }
 
@@ -104,18 +108,22 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
  * else renders no glow, so it never reaches this.
  */
 export function voiceGlowStateColor(voiceState: VoiceGlowState, colors: IVoiceGlowColors): Color {
-	return voiceState === 'speaking' ? colors.speaking : colors.listening;
+	return voiceState === 'confirmation'
+		? colors.confirmation
+		: voiceState === 'speaking'
+			? colors.speaking
+			: colors.listening;
 }
 
 // --- The rim accent ----------------------------------------------------------
 
 /** Which of the two talking states a rim is showing. */
-export type VoiceRimMood = 'cool' | 'warm';
+export type VoiceRimMood = 'cool' | 'warm' | 'warning';
 
 /** Whether the surrounding surface is light or dark. */
 export type GlowThemeKind = 'light' | 'dark';
 
-/** Saturation (%) bounds for an active (listening / speaking) rim. */
+/** Saturation (%) bounds for an active rim. */
 const RIM_SAT_MIN = 70;
 const RIM_SAT_MAX = 96;
 
@@ -125,8 +133,8 @@ const RIM_SAT_MAX = 96;
  * blue-violet edge sits darker than a cyan one at equal lightness.
  */
 const RIM_LIGHTNESS = {
-	dark: { cool: 56, warm: 72 },
-	light: { cool: 72, warm: 72 },
+	dark: { cool: 56, warm: 72, warning: 62 },
+	light: { cool: 72, warm: 72, warning: 52 },
 } as const;
 
 /**
@@ -135,7 +143,7 @@ const RIM_LIGHTNESS = {
  * the warm side widens the contrast between "you are talking" and "the agent is
  * talking".
  */
-const RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
+const RIM_HUE_SHIFT = { cool: -10, warm: 7, warning: 0 } as const;
 
 /**
  * Tune a raw accent into the color a rim actually paints with: hue nudged off the
@@ -171,4 +179,3 @@ export function computeVoiceMicGlowBoxShadow(voiceState: VoiceGlowState, intensi
 	const shadowAlpha = 0.2 + intensity * 0.45;
 	return `0 0 ${shadowSpread}px rgba(${r},${g},${b},${shadowAlpha})`;
 }
-

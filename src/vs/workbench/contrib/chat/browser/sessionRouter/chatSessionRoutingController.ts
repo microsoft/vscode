@@ -217,7 +217,7 @@ export interface IChatSessionRoutingHost {
 	 */
 	placeBadge(badge: HTMLElement): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
-	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session'): void;
+	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
 }
 
 /**
@@ -1032,6 +1032,7 @@ export class ChatSessionRoutingController extends Disposable {
 				return { status: 'rejected' };
 			}
 			let result: IDispatchResult;
+			let requestId: string | undefined;
 			try {
 				result = await this._sendRequest(target, utterance, {
 					attachedContext: requestOptions.attachedContext,
@@ -1040,6 +1041,7 @@ export class ChatSessionRoutingController extends Disposable {
 					agentIdSilent: getChatSessionType(target),
 					queue: ChatRequestQueueKind.Queued,
 				});
+				requestId = ref.object.lastRequest?.id;
 			} finally {
 				ref.dispose();
 			}
@@ -1048,7 +1050,7 @@ export class ChatSessionRoutingController extends Disposable {
 				return result;
 			}
 			if (notifyRoute && result.resource) {
-				this.host.onDidResolveRoute?.(result.resource, 'existing_session');
+				this.host.onDidResolveRoute?.(result.resource, 'existing_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			// Remember this session so the next request biases toward it.
 			this.storageService.store(LAST_TARGET_STORAGE_KEY, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -1075,8 +1077,10 @@ export class ChatSessionRoutingController extends Disposable {
 				this.newSessionFolderService.setFolder(ref.object.sessionResource, folder);
 			}
 			let result: IDispatchResult;
+			let requestId: string | undefined;
 			try {
 				result = await this._sendRequest(ref.object.sessionResource, utterance, requestOptions);
+				requestId = ref.object.lastRequest?.id;
 			} finally {
 				ref.dispose();
 			}
@@ -1085,7 +1089,7 @@ export class ChatSessionRoutingController extends Disposable {
 				return result;
 			}
 			if (notifyRoute && result.resource) {
-				this.host.onDidResolveRoute?.(result.resource, 'new_session');
+				this.host.onDidResolveRoute?.(result.resource, 'new_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return result;

@@ -14,9 +14,9 @@ export type { GlowThemeKind };
 /**
  * The DOM applier for the Voice Mode ambient glow.
  *
- * `listening` and `speaking` render an audio-reactive interior RIM — cool while
- * the user speaks, warm while the agent speaks. Every other state renders
- * nothing, so the glow means "someone is talking" rather than "voice is on".
+ * `listening` and `speaking` render an audio-reactive interior rim, while
+ * `confirmation` renders an orange warning rim for a voice request that needs
+ * input. Every other state renders nothing.
  *
  * Every state change is a true cross-fade between two buffered slots, so
  * `listening -> speaking` dissolves cool -> warm rather than snapping. Colors are
@@ -421,6 +421,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			this._target.classList.toggle('voice-listening', state === 'listening');
 			this._target.classList.toggle('voice-processing', state === 'processing');
 			this._target.classList.toggle('voice-speaking', state === 'speaking');
+			this._target.classList.toggle('voice-confirmation', state === 'confirmation');
 			this._target.style.setProperty('--voice-accent', voiceGlowStateColor(state, this._colors).toString());
 		}
 
@@ -435,7 +436,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		}
 		this._currentState = 'none';
 		this._currentMood = undefined;
-		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
+		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking', 'voice-confirmation');
 		this._target.style.removeProperty('--voice-accent');
 		const previous = this._front;
 		this._front = undefined;
@@ -513,7 +514,12 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme);
+		const accentColor = mood === 'warning'
+			? this._colors.confirmation
+			: mood === 'warm'
+				? this._colors.speaking
+				: this._colors.listening;
+		const accent = resolveVoiceRimAccent(accentColor, mood, theme);
 		return mountRimLayers(host, {
 			theme,
 			mood,
@@ -533,13 +539,13 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 /**
  * Map a voice state to the rim mood that renders it, or `undefined` for no glow.
- * Only the talking states glow: thinking and connected-idle render nothing, so
- * the light means "someone is talking" rather than "voice is on".
+ * Thinking and connected-idle render nothing.
  */
 function resolveMood(state: VoiceGlowState): RimMood | undefined {
 	switch (state) {
 		case 'listening': return 'cool';
 		case 'speaking': return 'warm';
+		case 'confirmation': return 'warning';
 		default: return undefined;
 	}
 }

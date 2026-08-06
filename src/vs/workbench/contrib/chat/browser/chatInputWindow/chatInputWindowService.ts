@@ -38,7 +38,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -76,6 +76,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _modelRef: IChatModelReference | undefined;
 	private _widget: ChatWidget | undefined;
 	private _pendingPromptIndex = 0;
+	private readonly _voiceRoutedRequestIds = new Map<string, string>();
+	private readonly _voiceConfirmationPending = observableValue(this, false);
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
@@ -416,6 +418,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					glowContainer: auxiliaryWindow.container,
 					isActive: this.voiceSessionController.omniInputActive,
 					isOwner: this.voiceSessionController.omniInputActive,
+					confirmationPending: this._voiceConfirmationPending,
 				}));
 			} catch (error) {
 				this.logService.error('[chatInputWindow] Failed to initialize voice decorations', error);
@@ -434,8 +437,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
-			onDidResolveRoute: (resource, kind) => {
+			onDidResolveRoute: (resource, kind, isVoiceModeInput, requestId) => {
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
+				if (resource) {
+					const key = resource.toString();
+					if (isVoiceModeInput && requestId) {
+						this._voiceRoutedRequestIds.set(key, requestId);
+						const model = this.chatService.getSession(resource);
+						if (model?.lastRequest?.id === requestId && model.requestNeedsInput.get()) {
+							this._voiceConfirmationPending.set(true, undefined);
+						}
+					} else {
+						this._voiceRoutedRequestIds.delete(key);
+					}
+				}
 			},
 			placeBadge: (badge) => {
 				const container = this._window?.container;
@@ -620,9 +635,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			try {
 				const width = Math.max(0, panel.clientWidth);
 				widget.layout(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, width);
-				const contentHeight = panel.classList.contains('question')
+				const listBounds = list?.getBoundingClientRect();
+				const renderedRows = list ? Array.from(list.querySelectorAll<HTMLElement>('.interactive-item-container')) : [];
+				const renderedContentHeight = listBounds
+					? renderedRows.reduce((height, row) => Math.max(height, row.getBoundingClientRect().bottom - listBounds.top), 0)
+					: 0;
+				const contentHeight = panel.classList.contains('question') || renderedContentHeight === 0
 					? widget.contentHeight
-					: list?.scrollHeight ?? widget.contentHeight;
+					: renderedContentHeight;
 				const height = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(1, Math.ceil(contentHeight)));
 				parent.style.height = `${height}px`;
 				widget.layout(height, width);
@@ -634,6 +654,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const showPendingModel = (index: number) => {
 			if (pendingModels.length === 0) {
 				this._pendingPromptIndex = 0;
+				this._voiceConfirmationPending.set(false, undefined);
 				panel.classList.remove('shown', 'question');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
@@ -641,6 +662,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			this._pendingPromptIndex = (index + pendingModels.length) % pendingModels.length;
 			const model = pendingModels[this._pendingPromptIndex];
+			const voiceRequestId = this._voiceRoutedRequestIds.get(model.sessionResource.toString());
+			this._voiceConfirmationPending.set(model.lastRequest?.id === voiceRequestId, undefined);
 			panel.classList.add('shown');
 			panel.classList.toggle('question', this._hasPendingQuestion(model));
 			label.textContent = localize(
@@ -783,6 +806,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._row = undefined;
 		this._lead = undefined;
 		this._trail = undefined;
+		this._voiceRoutedRequestIds.clear();
+		this._voiceConfirmationPending.set(false, undefined);
 		this._actionWidgetRestoreHeight = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;

@@ -13,6 +13,7 @@
  *
  * - `.voice-glow-rim-cool` — the user is listening,
  * - `.voice-glow-rim-warm` — the agent is speaking.
+ * - `.voice-glow-rim-warning` — a voice request needs confirmation.
  *
  * Both are audio-reactive. Every other voice state renders nothing, so the light
  * means "someone is talking" rather than "voice is on".
@@ -234,8 +235,10 @@
 
 .hc-black .voice-glow-rim-cool,
 .hc-black .voice-glow-rim-warm,
+.hc-black .voice-glow-rim-warning,
 .hc-light .voice-glow-rim-cool,
-.hc-light .voice-glow-rim-warm {
+.hc-light .voice-glow-rim-warm,
+.hc-light .voice-glow-rim-warning {
 	border: var(--vscode-strokeThickness) solid;
 }
 
@@ -253,4 +256,9 @@
 
 .hc-light .voice-glow-rim-warm {
 	border-color: var(--vscode-charts-purple, #5c2d91);
+}
+
+.hc-black .voice-glow-rim-warning,
+.hc-light .voice-glow-rim-warning {
+	border-color: var(--vscode-charts-orange, #f0883e);
 }
