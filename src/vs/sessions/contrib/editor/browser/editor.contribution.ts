@@ -228,6 +228,38 @@ class HideMainEditorPartAction extends Action2 {
 
 registerAction2(HideMainEditorPartAction);
 
+class ShowMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.showMainEditorPart';
+
+	constructor() {
+		super({
+			id: ShowMainEditorPartAction.ID,
+			title: localize2('showMainEditorPart', "Show Editor"),
+			icon: Codicon.chevronLeft,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'navigation',
+				order: singlePaneHeaderHideEditorOrder,
+				when: ContextKeyExpr.and(
+					editorTitleActionsWhen,
+					singlePaneDetailPanel,
+					HasDockedDetailsContext,
+					MainEditorAreaVisibleContext.toNegated())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		editorGroupsService.activeGroup.focus();
+	}
+}
+
+registerAction2(ShowMainEditorPartAction);
+
 class CloseMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';
 

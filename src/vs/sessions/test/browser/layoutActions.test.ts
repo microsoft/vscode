@@ -97,6 +97,13 @@ suite('Sessions - Layout Actions', () => {
 					order: item.order,
 					precondition: item.command.precondition?.serialize(),
 				})),
+			show: headerItems
+				.filter(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')
+				.map(item => ({
+					group: item.group,
+					order: item.order,
+					precondition: item.command.precondition?.serialize(),
+				})),
 		}, {
 			maximize: [{ group: 'navigation', order: 20 }],
 			restore: [{ group: 'navigation', order: 20 }],
@@ -105,11 +112,22 @@ suite('Sessions - Layout Actions', () => {
 				order: 20,
 				precondition: AuxiliaryBarVisibleContext.key,
 			}],
+			show: [{
+				group: 'navigation',
+				order: 20,
+				precondition: undefined,
+			}],
 		});
 
 		const hideWhen = headerItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
 		assert.ok(hideWhen.includes(HasDockedDetailsContext.key));
 		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
+		assert.ok(hideWhen.includes(MainEditorAreaVisibleContext.key));
+		assert.ok(!hideWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
+
+		const showWhen = headerItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
+		assert.ok(showWhen.includes(HasDockedDetailsContext.key));
+		assert.ok(showWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
 
 		// Add File as Context stays a right-header action, not a layout action.
 		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
