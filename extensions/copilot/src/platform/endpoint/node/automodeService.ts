@@ -522,6 +522,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				hasImage: hasImage(chatRequest),
 				conversationId,
 				vscodeRequestId: chatRequest?.id,
+				tier: this._configurationService.getConfig(ConfigKey.Advanced.AutoModeV2Tier) || undefined,
 			});
 			this._setLastAutoV2Discounts(result.discounted_costs);
 
