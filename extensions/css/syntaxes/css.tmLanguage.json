@@ -1506,6 +1506,9 @@
 			"patterns": [
 				{
 					"include": "#rule-list-innards"
+				},
+				{
+					"include": "$self"
 				}
 			]
 		},
@@ -1523,6 +1526,9 @@
 				{
 					"match": "(?x) (?<![\\w-])\n--\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
 					"name": "variable.css"
+				},
+				{
+					"include": "#selector"
 				},
 				{
 					"begin": "(?<![-a-zA-Z])(?=[-a-zA-Z])",
@@ -1564,7 +1570,7 @@
 			]
 		},
 		"selector": {
-			"begin": "(?x)\n(?=\n  (?:\\|)?                    # Possible anonymous namespace prefix\n  (?:\n    [-\\[:.*\\#a-zA-Z_]       # Valid selector character\n    |\n    [^\\x00-\\x7F]            # Which can include non-ASCII symbols\n    |\n    \\\\                      # Or an escape sequence\n    (?:[0-9a-fA-F]{1,6}|.)\n  )\n)",
+			"begin": "(?x)\n(?=\n  (?:\\|)?                    # Possible anonymous namespace prefix\n  (?:\n    [-\\[:.*\\#a-zA-Z_]       # Valid selector character\n    |\n    [^\\x00-\\x7F]            # Which can include non-ASCII symbols\n    |\n    \\\\                      # Or an escape sequence\n    (?:[0-9a-fA-F]{1,6}|.)\n  )\n)\n(?!\n  [^{]*;                      # A semicolon before any opening brace denotes a declaration, not a nested rule\n  |\n  [^{]*}                      # A closing brace before any opening brace also denotes a declaration\n  |\n  [\\w-]*:+\\s                 # A colon followed by whitespace right here denotes a property, not a selector\n)",
 			"end": "(?=\\s*[/@{)])",
 			"name": "meta.selector.css",
 			"patterns": [
