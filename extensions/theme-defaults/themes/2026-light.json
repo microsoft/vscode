@@ -81,6 +81,7 @@
 		"activityBar.background": "#FAFAFD",
 		"activityBar.foreground": "#202020",
 		"activityBar.inactiveForeground": "#606060",
+		"activityBar.activeBackground": "#D6D6D6",
 		"activityBar.border": "#F0F1F2FF",
 		"activityBar.activeBorder": "#000000",
 		"activityBar.activeFocusBorder": "#0069CCFF",
