@@ -230,6 +230,8 @@ export interface ITestLayoutHarness {
 	 * assert the superseded reconcile's intents do not leak).
 	 */
 	onOpenChangesEditor?: () => Promise<void> | void;
+	/** Optional async hook awaited before `closeEditors` mutates the group. */
+	onCloseEditors?: () => Promise<void> | void;
 	/** Records every `openChangesEditor` call for assertions (session + whether active). */
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
@@ -592,6 +594,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return [];
 		}
 		override async closeEditors(editors: readonly { editor: EditorInput }[]): Promise<void> {
+			await harness.onCloseEditors?.();
 			for (const { editor } of editors) {
 				const index = harness.activeGroupEditors.indexOf(editor);
 				if (index !== -1) {

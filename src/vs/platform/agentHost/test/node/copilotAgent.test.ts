@@ -541,7 +541,6 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
-		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -574,7 +573,6 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
-		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {

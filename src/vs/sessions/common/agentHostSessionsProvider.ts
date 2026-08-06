@@ -235,9 +235,8 @@ export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
 
 /**
  * Experimental setting id controlling whether the local agent host acts as the
- * default sessions provider. When enabled (and `chat.agentHost.enabled` is
- * true), the local agent host's session types are surfaced before those of
- * other providers. Defaults to `true`.
+ * default sessions provider. When enabled, the local agent host's session types
+ * are surfaced before those of other providers. Defaults to `true`.
  */
 export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
 

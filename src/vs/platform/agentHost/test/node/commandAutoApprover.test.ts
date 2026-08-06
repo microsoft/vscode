@@ -502,6 +502,32 @@ suite('CommandAutoApprover', () => {
 			], ['denied', 'denied']);
 		});
 
+		// Reported PowerShell wrapper shapes: an outer allowed cmdlet must not
+		// hide nested denied/non-allowed commands inside a script block. The Bash
+		// grammar keeps `{ ... }` opaque, so the same rules can incorrectly
+		// approve the line when the wrong dialect is selected.
+		test('does not auto-approve denied commands nested in Measure-Command script blocks', () => {
+			const rules = {
+				...pwsh,
+				autoApproveRules: {
+					'Measure-Command': true,
+					'Where-Object': true,
+					'Set-Content': false,
+					'Start-Process': false,
+					'Invoke-Expression': false,
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', rules),
+				approver.shouldAutoApprove('Measure-Command { Invoke-Expression "Write-Output hi" }', rules),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Start-Process notepad }', rules),
+				// Visible separators already rejected nested denied commands.
+				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
+				// The wrong dialect demonstrates the opaque-block bypass.
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
+			], ['denied', 'denied', 'denied', 'denied', 'approved']);
+		});
+
 		// An unquoted `$null` discards PowerShell output; both the spaced form (a
 		// `redirection` node) and the no-space form (a `generic_token`) must be
 		// recognized. POSIX sinks and real file targets still require confirmation.

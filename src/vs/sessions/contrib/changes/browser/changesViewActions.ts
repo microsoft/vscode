@@ -24,7 +24,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
@@ -155,6 +155,7 @@ class ChangesHeaderActionsAction extends Action2 {
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
 					SinglePaneLayoutEnabledContext,
+					SessionIsCreatedContext,
 					SessionHasChangesContext
 				)
 			},

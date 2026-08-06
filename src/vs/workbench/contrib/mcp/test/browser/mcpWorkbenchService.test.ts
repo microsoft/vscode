@@ -226,12 +226,13 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[]) {
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
 		managementService.installed = [...installed];
-		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.Registry });
+		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue });
+		const allowedMcpServersEmitter = store.add(new Emitter<void>());
 		const services = new ServiceCollection(
 			[IMcpGalleryManifestService, manifestService],
 			[IMcpGalleryService, galleryService],
@@ -248,7 +249,7 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, store.add(new NullLogService())],
 			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({})],
-			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None })],
+			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: allowedMcpServersEmitter.event })],
 			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable([]) })],
 			[IURLService, upcastPartial<IURLService>({ registerHandler: () => Disposable.None })],
 			[IFileService, upcastPartial<IFileService>({})],
@@ -256,7 +257,7 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
 		await Event.toPromise(service.onChange);
-		return { service, galleryService, manifestService, managementService };
+		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter };
 	}
 
 	async function complete(request: IResolveRequest, result: Map<string, IMcpGalleryServerResolveResult>): Promise<void> {
@@ -672,5 +673,23 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		]));
 
 		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed']);
+	});
+
+	test('keeps a stable order for duplicate server names across repeated sorts', async () => {
+		const user = createLocal('duplicate', LocalMcpServerScope.User);
+		const workspaceA = { ...createLocal('duplicate', LocalMcpServerScope.Workspace), id: 'workspace/a/duplicate' };
+		const workspaceB = { ...createLocal('duplicate', LocalMcpServerScope.Workspace), id: 'workspace/b/duplicate' };
+		const { service, galleryService, allowedMcpServersEmitter } = await createFixture([user, workspaceA, workspaceB], McpAccessValue.All);
+		await complete(await galleryService.nextRequest(), new Map([
+			[user.name, notFound()],
+		]));
+
+		const orderBefore = service.local.map(server => server.id);
+		const winnerBefore = service.getEnabledLocalMcpServers().map(server => server.id);
+		for (let i = 0; i < 10; i++) {
+			allowedMcpServersEmitter.fire();
+			assert.deepStrictEqual(service.local.map(server => server.id), orderBefore);
+			assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.id), winnerBefore);
+		}
 	});
 });

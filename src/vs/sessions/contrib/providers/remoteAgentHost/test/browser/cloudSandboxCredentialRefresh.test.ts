@@ -12,7 +12,7 @@ import {
 	CloudSandboxRequestError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
-	type ICloudSandboxCredentialsService,
+	type ICloudSandboxApiService,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import {
@@ -96,7 +96,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			credentials as unknown as ICloudSandboxCredentialsService,
+			credentials as unknown as ICloudSandboxApiService,
 			telemetry,
 			new NullLogService(),
 		));
@@ -216,7 +216,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			credentials as unknown as ICloudSandboxCredentialsService,
+			credentials as unknown as ICloudSandboxApiService,
 			telemetry,
 			new NullLogService(),
 		));

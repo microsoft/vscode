@@ -32,6 +32,7 @@ class TestTelemetryService implements ITelemetryService {
 	firstSessionDate = 'firstSessionDate';
 	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 	readonly errorEvents: { eventName: string; data: ITelemetryData | undefined }[] = [];
+	readonly commonProperties: Record<string, string | boolean> = {};
 
 	publicLog(eventName: string, data?: ITelemetryData): void {
 		this.events.push({ eventName, data });
@@ -50,7 +51,9 @@ class TestTelemetryService implements ITelemetryService {
 	}
 
 	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
+	setCommonProperty(name: string, value: string | boolean): void {
+		this.commonProperties[name] = value;
+	}
 }
 
 class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
@@ -190,6 +193,16 @@ suite('AgentHostTelemetryService', () => {
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+	});
+
+	test('adds the Copilot SDK and runtime versions as common properties', () => {
+		const delegate = new TestTelemetryService();
+		disposables.add(new AgentHostTelemetryService(delegate, undefined, '1.0.9-preview.3', '1.0.78'));
+
+		assert.deepStrictEqual(delegate.commonProperties, {
+			'common.copilotSdkVersion': '1.0.9-preview.3',
+			'common.copilotRuntimeVersion': '1.0.78',
+		});
 	});
 
 	test('updates telemetry level from root config string enum', () => {

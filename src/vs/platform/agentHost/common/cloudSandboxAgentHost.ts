@@ -12,7 +12,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { localize } from '../../../nls.js';
+import { IReplayedTaskHistory } from './taskEventReplay.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -68,6 +68,11 @@ export interface ICloudSandboxDiscoveredSession {
 	 * reconcile with the host's `listSessions()` on connect.
 	 */
 	readonly sessionId: string;
+	/**
+	 * Mission Control task id owning the session. Persisted AHP history is addressed per task, so
+	 * this is what makes a session's conversation readable after its sandbox is gone.
+	 */
+	readonly taskId: string;
 	/** Display name for the session/host. */
 	readonly name: string;
 	/** Owning repository as `owner/name`, when known. */
@@ -181,13 +186,15 @@ export interface ICloudSandboxConnectionRequest {
 	readonly sessionId?: string;
 }
 
-export const ICloudSandboxCredentialsService = createDecorator<ICloudSandboxCredentialsService>('cloudSandboxCredentialsService');
+export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
 
 /**
- * Mints and refreshes the Mission Control Web PubSub credentials a cloud sandbox connection needs,
- * and reads an environment's current record.
+ * Client for the Mission Control APIs a cloud sandbox session depends on: connection credentials,
+ * the environment and task records, and the persisted history. Every call is served by Mission
+ * Control rather than the sandbox, which is what keeps {@link getSessionHistory} readable after the
+ * environment is gone.
  */
-export interface ICloudSandboxCredentialsService {
+export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -203,24 +210,22 @@ export interface ICloudSandboxCredentialsService {
 	reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult>;
 
 	/**
-	 * Read an environment's current record so the caller can gate connecting on it actually being
-	 * online (and speaking a compatible host version).
+	 * Read an environment's current record. `status` is derived from heartbeat age, so it says
+	 * whether the environment is running — not whether a dormant one can be woken, which Mission
+	 * Control only discovers by attempting the resume behind `/connect`.
 	 */
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 
 	/** Enumerate the caller's sandbox-backed cloud sessions, enough to seed session entries. */
 	listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult>;
-}
 
-/**
- * Thrown when the sandbox environment cannot serve a connection and waiting will not help. Retrying
- * re-mints credentials and wakes the sandbox again, so callers should surface this rather than retry.
- */
-export class CloudSandboxEnvironmentOfflineError extends Error {
-	constructor(readonly status: CloudSandboxEnvironmentStatus) {
-		super(localize('cloudSandbox.environmentOffline', "The environment for this session is offline. It will become available again when the host reconnects."));
-		this.name = 'CloudSandboxEnvironmentOfflineError';
-	}
+	/**
+	 * Read a task's persisted AHP history and fold it back into session and chat state.
+	 *
+	 * Mission Control mirrors every `ActionEnvelope` it relays, so this rebuilds the conversation
+	 * **without the sandbox**. `undefined` when the task has no AHP history.
+	 */
+	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
 }
 
 /**
@@ -256,16 +261,16 @@ export class CloudSandboxRequestError extends Error {
 }
 
 /**
- * Whether re-issuing a request that failed with {@link error} could plausibly succeed later.
+ * Whether re-issuing a failed request could plausibly succeed later. Callers that retry on a timer
+ * MUST consult this, or one dead session becomes an unbounded stream of failed requests.
  *
- * Transport failures carry no status and are assumed transient, as are 5xx, 408 and 429. Every other
- * 4xx describes a request Mission Control will reject identically however often it is repeated — a
- * deleted environment, a revoked token — so repeating it only adds load. Callers that retry on a
- * timer MUST consult this, or a single dead session becomes an unbounded stream of failed requests.
+ * Transport failures (no status), 5xx, 408 and 429 are transient; every other 4xx describes a
+ * request Mission Control will reject identically however often it is repeated.
  *
- * Note that {@link CloudSandboxAuthenticationRequiredError} counts as retryable: it is raised before
- * any request goes out, and covers the GitHub auth provider not having registered yet as well as a
- * genuinely signed-out user. Callers still need their own ceiling on how long they keep trying.
+ * This gates credential refresh for *live* connections, where a transient fault must not tear down
+ * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
+ * use it: there, any answer is final. {@link CloudSandboxAuthenticationRequiredError} is retryable
+ * because it is raised before any request goes out, so callers need their own ceiling.
  */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {
@@ -290,7 +295,7 @@ export interface ICloudSandboxConnectOptions {
 /**
  * Renderer-side coordinator that establishes and manages live Agent Host
  * Protocol relay connections to Copilot cloud sandbox environments. Mints
- * credentials via {@link ICloudSandboxCredentialsService}, opens a
+ * credentials via {@link ICloudSandboxApiService}, opens a
  * {@link WebPubSubRelayTransport}, drives the AHP handshake (including the
  * sealed-token `authenticate`), and registers the connection with
  * {@link IRemoteAgentHostService} so it surfaces as a native agent-host session.

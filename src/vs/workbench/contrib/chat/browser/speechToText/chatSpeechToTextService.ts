@@ -259,6 +259,9 @@ export interface IChatSpeechToTextService {
 
 	readonly onDidChangeState: Event<ChatSpeechToTextState>;
 	readonly state: ChatSpeechToTextState;
+	readonly isBusy: boolean;
+	/** Dictation surface associated with the current or most recent session. */
+	readonly currentSurface: ChatDictationSurface;
 
 	/**
 	 * Fires with the cumulative transcript while recording, so callers can
@@ -332,7 +335,7 @@ export interface IChatSpeechToTextService {
 	stopAndTranscribe(): Promise<string | undefined>;
 
 	/** Abort an in-progress recording without keeping the transcript. */
-	cancel(): void;
+	cancel(): Promise<void>;
 
 	/** The backend selected for the current/most-recent session (`nemo` or `mai`). */
 	readonly currentBackend: string;
@@ -343,6 +346,10 @@ export interface IChatSpeechToTextService {
 	 * aggregate metrics; no transcript text is emitted.
 	 */
 	logDictationAccuracy(measurement: IDictationAccuracyMeasurement): void;
+}
+
+export function isDictationActiveOnSurface(service: IChatSpeechToTextService, surface: ChatDictationSurface): boolean {
+	return service.currentSurface === surface && service.isBusy;
 }
 
 export class ChatSpeechToTextService extends Disposable implements IChatSpeechToTextService {
@@ -398,6 +405,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _startGeneration = 0;
 	private _startInProgress: number | undefined;
 
+	get isBusy(): boolean {
+		return this._state !== ChatSpeechToTextState.Idle || this._pendingStart !== undefined || this._pendingStop !== undefined;
+	}
+
+	get currentSurface(): ChatDictationSurface {
+		return this._sessionSurface;
+	}
+
 	private readonly _recordingContextKey: IContextKey<boolean>;
 	private readonly _configuredContextKey: IContextKey<boolean>;
 	private readonly _preparingContextKey: IContextKey<boolean>;
@@ -408,6 +423,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _analyserNode: AnalyserNode | undefined;
 	private _workletNode: AudioWorkletNode | undefined;
 	private _captureGeneration = 0;
+	private _sessionGeneration = 0;
+	private _pendingStart: Promise<void> | undefined;
+	private _pendingStop: Promise<void> | undefined;
 	/** Drains the capture worklet's trailing buffer; see {@link IPcmCaptureNode.flush}. */
 	private _flushCapture: (() => Promise<void>) | undefined;
 
@@ -580,7 +598,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._isPreparingModel = preparing;
-		this._preparingContextKey.set(preparing);
+		this._preparingContextKey.set(preparing && this.currentSurface === 'chat');
 		if (!preparing) {
 			this._setModelDownloadProgress(undefined);
 			// Preparation ended (ready, error, or teardown): the model is no
@@ -654,7 +672,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._state = state;
-		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording);
+		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording && this.currentSurface === 'chat');
 		this._onDidChangeState.fire(state);
 	}
 
@@ -663,7 +681,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async start(window: Window & typeof globalThis, surface: ChatDictationSurface = 'chat'): Promise<void> {
-		if (this._state !== ChatSpeechToTextState.Idle || this._startInProgress !== undefined) {
+		if (this._state !== ChatSpeechToTextState.Idle || this._pendingStart || this._pendingStop || this._startInProgress !== undefined) {
 			return;
 		}
 
@@ -671,6 +689,20 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 
+		const generation = ++this._sessionGeneration;
+		const operation = this._start(window, surface, generation);
+		const pendingStart = operation.then(() => undefined, () => undefined);
+		this._pendingStart = pendingStart;
+		try {
+			await operation;
+		} finally {
+			if (this._pendingStart === pendingStart) {
+				this._pendingStart = undefined;
+			}
+		}
+	}
+
+	private async _start(window: Window & typeof globalThis, surface: ChatDictationSurface, generation: number): Promise<void> {
 		const backend = this._getBackend();
 		this._activeBackend = backend;
 
@@ -699,7 +731,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const startGeneration = ++this._startGeneration;
 		this._startInProgress = startGeneration;
 		try {
-			await this._startEntitled(window, surface, backend, startGeneration);
+			await this._startEntitled(window, surface, backend, generation, startGeneration);
 		} finally {
 			if (this._startInProgress === startGeneration) {
 				this._startInProgress = undefined;
@@ -707,7 +739,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, startGeneration: number): Promise<void> {
+	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, generation: number, startGeneration: number): Promise<void> {
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
 		this._sessionPartialUpdates = 0;
@@ -727,7 +759,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		try {
 			stream = await this._acquireStream(window);
 		} catch (err) {
-			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
 			}
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
@@ -736,7 +768,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
 		}
-		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+		if (!this._isCurrentStart(generation, startGeneration, backend)) {
 			stream.getTracks().forEach(track => track.stop());
 			return;
 		}
@@ -744,19 +776,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._mediaStream = stream;
 
 		try {
-			await this._startBackendSession(window);
+			await this._startBackendSession(window, generation);
 		} catch (err) {
-			this._teardown();
-			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
 			}
+			this._teardown();
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start transcription', err);
 			this._notificationService.error(localize('chatStt.connectError', "Could not start speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
 		}
-		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+		if (!this._isCurrentStart(generation, startGeneration, backend)) {
 			this._cancelBackend();
 			this._teardown();
 			return;
@@ -765,21 +797,21 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		try {
 			await this._startCapture(window, stream);
 		} catch (err) {
+			if (!this._isCurrentStart(generation, startGeneration, backend)) {
+				return;
+			}
 			// Capture setup (AudioContext/nodes) can fail after the mic and the
 			// transcription session are already live; make sure both are torn
 			// down instead of leaking an active recording in the Idle state.
 			this._cancelBackend();
 			this._teardown();
-			if (!this._isCurrentEntitledStart(startGeneration, backend)) {
-				return;
-			}
 			this._sessionErrorCode = this._sessionErrorCode || 'capture';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start audio capture', err);
 			this._notificationService.error(localize('chatStt.captureError', "Could not start audio capture for speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
 		}
-		if (!this._isCurrentEntitledStart(startGeneration, backend)) {
+		if (!this._isCurrentStart(generation, startGeneration, backend)) {
 			this._cancelBackend();
 			this._teardown();
 			return;
@@ -794,16 +826,16 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private _isCurrentEntitledStart(startGeneration: number, backend: DictationBackend): boolean {
-		return startGeneration === this._startGeneration && this._isEntitledForBackend(backend);
+	private _isCurrentStart(generation: number, startGeneration: number, backend: DictationBackend): boolean {
+		return generation === this._sessionGeneration && startGeneration === this._startGeneration && this._isEntitledForBackend(backend);
 	}
 
 	/** Start the transcription session for the active backend. */
-	private async _startBackendSession(window: Window & typeof globalThis): Promise<void> {
+	private async _startBackendSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		if (this._activeBackend === 'mai') {
-			return this._startMaiSession(window);
+			return this._startMaiSession(window, generation);
 		}
-		return this._startLocalSession(window);
+		return this._startLocalSession(window, generation);
 	}
 
 	/**
@@ -840,11 +872,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * down a connection we ourselves established, so dictation and Voice Mode
 	 * cannot disconnect each other.
 	 */
-	private async _startMaiSession(window: Window & typeof globalThis): Promise<void> {
+	private async _startMaiSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		if (this._voiceClientService.isConnected) {
 			throw new Error(localize('chatStt.maiBusy', "Cloud dictation is unavailable while Voice Mode is connected."));
 		}
 		const authToken = await this._getGitHubToken();
+		if (generation !== this._sessionGeneration) {
+			return;
+		}
 		if (!authToken) {
 			throw new Error(localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
 		}
@@ -870,6 +905,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._setPreparingModel(true);
 		await this._voiceClientService.connect(window, authToken);
 		await this._awaitVoiceConnected();
+		if (generation !== this._sessionGeneration) {
+			return;
+		}
 
 		// The backend drops PTT audio until a session is opened, so establish a
 		// minimal (session-less) dictation session and wait for the backend to
@@ -885,6 +923,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const turnConfig: IVoiceTurnConfig = { auto_end_mode: 'off', silence_ms: 0, stop_phrases: [], vad_gate_asr: false };
 		this._voiceClientService.sendStartSession(context, this._telemetryService.machineId, undefined, turnConfig);
 		await this._awaitSessionInit();
+		if (generation !== this._sessionGeneration) {
+			return;
+		}
 
 		// Session is live; drop the connecting spinner so the mic reads as
 		// recording when start() transitions to the Recording state.
@@ -901,14 +942,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		await new Promise<void>(resolve => {
 			const store = new DisposableStore();
 			this._maiSessionDisposables.add(store);
+			store.add(toDisposable(resolve));
 			const timer = setTimeout(() => {
 				store.dispose();
-				resolve();
 			}, MAI_SESSION_INIT_TIMEOUT_MS);
 			store.add(toDisposable(() => clearTimeout(timer)));
 			store.add(this._voiceClientService.onSessionInit(() => {
 				store.dispose();
-				resolve();
 			}));
 		});
 	}
@@ -979,15 +1019,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		await new Promise<void>((resolve, reject) => {
 			const store = new DisposableStore();
 			this._maiSessionDisposables.add(store);
+			store.add(toDisposable(resolve));
 			const timer = setTimeout(() => {
-				store.dispose();
 				reject(new Error('Timed out connecting to the voice service.'));
+				store.dispose();
 			}, MAI_CONNECT_TIMEOUT_MS);
 			store.add(toDisposable(() => clearTimeout(timer)));
 			store.add(this._voiceClientService.onDidChangeConnectionState(connected => {
 				if (connected) {
 					store.dispose();
-					resolve();
 				}
 			}));
 		});
@@ -997,7 +1037,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * Begin an on-device transcription session in the utility process and pipe
 	 * its interim/final results onto the shared cumulative-transcript surface.
 	 */
-	private async _startLocalSession(window: Window & typeof globalThis): Promise<void> {
+	private async _startLocalSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		const local = this._localTranscription;
 		this._localSessionDisposables.add(local.onDidTranscribe(result => {
 			// The local service returns the full cumulative transcript each time.
@@ -1010,12 +1050,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			window.navigator.language,
 		);
 		await local.start({ cacheDir, model, language });
+		if (generation !== this._sessionGeneration) {
+			return;
+		}
 
 		// The model loads in the utility process in the background (start()
 		// returns immediately). On first use it may download hundreds of MB, so
 		// surface progress until it is ready; recording proceeds meanwhile and
 		// interim transcripts begin once the model finishes loading.
 		const status = await local.getModelStatus();
+		if (generation !== this._sessionGeneration) {
+			return;
+		}
 		if (status.state !== LocalTranscriptionModelState.Ready && status.state !== LocalTranscriptionModelState.Error) {
 			this._trackModelPreparation();
 		}
@@ -1226,10 +1272,24 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async stopAndTranscribe(): Promise<string | undefined> {
-		if (this._state !== ChatSpeechToTextState.Recording) {
+		if (this._state !== ChatSpeechToTextState.Recording || this._pendingStop) {
 			return undefined;
 		}
 
+		const generation = this._sessionGeneration;
+		const operation = this._stopAndTranscribe(generation);
+		const pendingStop = operation.then(() => undefined, () => undefined);
+		this._pendingStop = pendingStop;
+		try {
+			return await operation;
+		} finally {
+			if (this._pendingStop === pendingStop) {
+				this._pendingStop = undefined;
+			}
+		}
+	}
+
+	private async _stopAndTranscribe(generation: number): Promise<string | undefined> {
 		this._setState(ChatSpeechToTextState.Transcribing);
 		// Flush trailing audio before stopping the backend so transport ordering is preserved.
 		await this._flushCapture?.();
@@ -1240,10 +1300,16 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		let text = this._transcript;
 		try {
 			const finalText = await this._finishBackend();
+			if (generation !== this._sessionGeneration) {
+				return undefined;
+			}
 			if (finalText) {
 				text = finalText;
 			}
 		} catch (err) {
+			if (generation !== this._sessionGeneration) {
+				return undefined;
+			}
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
 			this._logService.error('[chat-stt] final transcription failed', err);
 		}
@@ -1251,7 +1317,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (text && this._configurationService.getValue<boolean>(LLM_CLEANUP_SETTING) === true) {
 			const cts = this._cleanupCts.value = new CancellationTokenSource();
 			const cleaned = await this._cleanupWithLanguageModel(text, cts.token);
-			if (cts.token.isCancellationRequested) {
+			if (cts.token.isCancellationRequested || generation !== this._sessionGeneration) {
 				// The session was cancelled or disposed while cleanup was running:
 				// `cancel()` has already torn down and may have started a new
 				// session, so we must not touch shared state or return a result.
@@ -1398,7 +1464,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		return this._localTranscription.stop();
 	}
 
-	cancel(): void {
+	async cancel(): Promise<void> {
+		const pendingStart = this._pendingStart;
+		const pendingStop = this._pendingStop;
+		this._sessionGeneration++;
 		const wasRecording = this._state === ChatSpeechToTextState.Recording;
 		this._startGeneration++;
 		this._cleanupCts.value?.cancel();
@@ -1409,6 +1478,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (wasRecording) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 		}
+		await pendingStart;
+		await pendingStop;
 	}
 
 	/** Abort the active backend's session, discarding any transcript in flight. */
