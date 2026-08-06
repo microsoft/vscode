@@ -503,6 +503,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private inputEditorHasSendableContent: IContextKey<boolean>;
 	private inputSubmitPending: IContextKey<boolean>;
+	private inputRouting: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 	private currentlyEditingInputKey!: IContextKey<boolean>;
@@ -842,6 +843,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
 		this.inputSubmitPending = ChatContextKeys.inputSubmitPending.bindTo(contextKeyService);
+		this.inputRouting = ChatContextKeys.inputRouting.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);
@@ -2274,8 +2276,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * disabled until the submission resolves or the draft changes. Any input content
 	 * change clears this automatically.
 	 */
-	setSubmitPending(pending: boolean): void {
+	setSubmitPending(pending: boolean, routing = pending): void {
 		this.inputSubmitPending.set(pending);
+		this.inputRouting.set(routing);
 	}
 
 	private _updateInputContentContextKeys(): void {
@@ -3145,6 +3148,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// A submitted request was pending (e.g. omni-chat routing) but the draft
 			// changed: the user is editing again, so re-enable sending.
 			this.inputSubmitPending.set(false);
+			this.inputRouting.set(false);
 
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();
@@ -3182,9 +3186,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
+		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const isVoiceSessionActive = derived(this, reader => {
 			if (!isVoiceInputActive.read(reader)) {
 				return false;
+			}
+			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
+			if (omniInputActive) {
+				return isOmniInput;
 			}
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);

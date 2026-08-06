@@ -467,6 +467,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * this pane plus a chat editor) exactly one lights up.
 	 */
 	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
+		const omniInputActive = reader ? this.voiceSessionController.omniInputActive.read(reader) : this.voiceSessionController.omniInputActive.get();
+		if (omniInputActive) {
+			return undefined;
+		}
 		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
 		if (target) {
 			return target;
@@ -638,6 +642,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
@@ -645,7 +650,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
-			if (!connected) {
+			if (!connected || omniInputActive) {
 				listeningSession = undefined;
 				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';

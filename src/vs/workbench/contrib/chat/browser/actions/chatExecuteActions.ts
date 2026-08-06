@@ -226,6 +226,7 @@ export class ChatSubmitAction extends SubmitAction {
 						whenNoActiveRequest,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
+						ChatContextKeys.inputSubmitPending.negate(),
 					),
 					group: 'navigation',
 					alt: {
@@ -245,6 +246,34 @@ export class ChatSubmitAction extends SubmitAction {
 				}]
 		});
 	}
+}
+
+class ChatSubmitPendingAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitPending';
+
+	constructor() {
+		super({
+			id: ChatSubmitPendingAction.ID,
+			title: localize2('interactive.submitPending.label', "Routing Request…"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.loading,
+			precondition: ChatContextKeys.inputRouting,
+			menu: {
+				id: MenuId.ChatExecute,
+				order: 4,
+				when: ContextKeyExpr.and(
+					whenNoActiveRequest,
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+					ChatContextKeys.withinEditSessionDiff.negate(),
+					ChatContextKeys.inputRouting,
+				),
+				group: 'navigation',
+			},
+		});
+	}
+
+	run(): void { }
 }
 
 
@@ -1167,6 +1196,7 @@ class ExecuteHandoffAction extends Action2 {
 export function registerChatExecuteActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(ChatSubmitAction));
+	store.add(registerAction2(ChatSubmitPendingAction));
 	store.add(registerAction2(ChatEditingSessionSubmitAction));
 	store.add(registerAction2(SubmitWithoutDispatchingAction));
 	store.add(registerAction2(CancelAction));

@@ -3522,6 +3522,71 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('omni surface ownership clears its draft and routed target when released', () => {
+		const controller = createController(new TestVoiceClientService());
+		const routedSession = URI.parse('agent-host-copilot:/omni-target');
+
+		controller.setOmniInputActive(true);
+		controller.setDraftTarget();
+		assert.deepStrictEqual({
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get(),
+		}, {
+			omniInputActive: true,
+			hasDraftTarget: true,
+			targetSession: undefined,
+		});
+
+		controller.setTargetSession(routedSession, 'existing_session');
+		controller.setOmniInputActive(false);
+		assert.deepStrictEqual({
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get(),
+		}, {
+			omniInputActive: false,
+			hasDraftTarget: false,
+			targetSession: undefined,
+		});
+	});
+
+	test('omni blur preserves an in-progress turn until voice returns to idle', async () => {
+		const controller = createController(new TestVoiceClientService());
+		const voiceState = Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void };
+
+		controller.setOmniInputActive(true);
+		controller.setDraftTarget();
+		voiceState.set('processing', undefined);
+		controller.releaseOmniInputOnBlur();
+
+		assert.strictEqual(controller.omniInputActive.get(), true);
+		assert.strictEqual(controller.hasDraftTarget.get(), true);
+
+		voiceState.set('idle', undefined);
+		await Promise.resolve();
+
+		assert.strictEqual(controller.omniInputActive.get(), false);
+		assert.strictEqual(controller.hasDraftTarget.get(), false);
+		assert.strictEqual(controller.targetSession.get(), undefined);
+	});
+
+	test('omni focus reacquisition cancels a deferred blur release', async () => {
+		const controller = createController(new TestVoiceClientService());
+		const voiceState = Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void };
+
+		controller.setOmniInputActive(true);
+		controller.setDraftTarget();
+		voiceState.set('processing', undefined);
+		controller.releaseOmniInputOnBlur();
+		controller.setOmniInputActive(true);
+		voiceState.set('idle', undefined);
+		await Promise.resolve();
+
+		assert.strictEqual(controller.omniInputActive.get(), true);
+		assert.strictEqual(controller.hasDraftTarget.get(), true);
+	});
+
 	test('untagged solicited narration dropped after retargeting retries when its session returns', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();

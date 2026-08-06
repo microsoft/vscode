@@ -193,8 +193,14 @@ export interface IVoiceSessionController {
 	readonly targetSession: IObservable<URI | undefined>;
 	/** Whether Voice Mode is explicitly owned by a new-session draft. */
 	readonly hasDraftTarget: IObservable<boolean>;
+	/** Whether the floating omni input, rather than a standard chat input, owns Voice Mode. */
+	readonly omniInputActive: IObservable<boolean>;
 
 	connect(window: Window & typeof globalThis): Promise<void>;
+	/** Update the OS window whose focus controls capture and hands-free listening. */
+	setActiveWindow(window: Window & typeof globalThis): void;
+	/** Release omni ownership after an in-progress voice turn reaches idle. */
+	releaseOmniInputOnBlur(): void;
 	disconnect(source?: 'explicit' | 'internal'): void;
 
 	pttDown(source?: 'explicit' | 'auto' | 'connect', forceNewTurn?: boolean): void;
@@ -258,6 +264,8 @@ export interface IVoiceSessionController {
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void;
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
+	/** Transfer Voice Mode surface ownership to or from the floating omni input. */
+	setOmniInputActive(active: boolean): void;
 
 	/**
 	 * Create a new chat session and set it as the target for transcription.
@@ -345,6 +353,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _targetOmniRoute: 'existing_session' | 'new_session' | undefined;
 	private readonly _hasDraftTarget = observableValue<boolean>(this, false);
 	readonly hasDraftTarget: IObservable<boolean> = this._hasDraftTarget;
+	private readonly _omniInputActive = observableValue<boolean>(this, false);
+	readonly omniInputActive: IObservable<boolean> = this._omniInputActive;
 
 	// --- Internal state ---
 	private _pttHeld = false;
@@ -394,7 +404,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _transcriptionTurnState: ITranscriptionTurnState | undefined;
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
+	private readonly _windowFocusDisposables = this._register(new DisposableStore());
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
+	private readonly _omniBlurRelease = this._register(new MutableDisposable());
 	/**
 	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
 	 * handshake never completes. Armed up front in {@link connect} so a step that
@@ -985,8 +997,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
-		this._window = window;
-		this._onFocusedSessionChanged();
+		this.setActiveWindow(window);
 		this._fatalDisconnect = false;
 		// A fresh connection re-enables confirmation tracking for any sessions
 		// suppressed by the previous terminal teardown.
@@ -1057,12 +1068,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		this._voiceEventDisposables.clear();
-
-		// Multi-window hands-free: abort any open passive turn when this window
-		// loses OS focus so the background window stops recording, and re-arm
-		// listening when it gains focus so only the focused window listens (#8507).
-		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'blur', () => this._onWindowBlur()));
-		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'focus', () => this._onWindowFocus()));
 
 		// Streaming PTT: send start/chunks/end as they arrive
 		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
@@ -2039,9 +2044,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!this._isConnecting.get() || connectAttemptGeneration !== this._connectAttemptGeneration) {
 			return;
 		}
+
 		// Re-arm so the WebSocket handshake gets a fresh timeout window
 		// independent of how long the awaited auth/transcript work took above.
 		this._armConnectWatchdog();
+	}
+
+	setActiveWindow(window: Window & typeof globalThis): void {
+		this._window = window;
+		this._windowFocusDisposables.clear();
+		this._windowFocusDisposables.add(addDisposableListener(window, 'blur', () => this._onWindowBlur()));
+		this._windowFocusDisposables.add(addDisposableListener(window, 'focus', () => this._onWindowFocus()));
+		this._onFocusedSessionChanged();
 	}
 
 	/**
@@ -2104,6 +2118,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._connectWatchdog.clear();
 		this._voiceAutorunDisposable.clear();
 		this._voiceEventDisposables.clear();
+		this._windowFocusDisposables.clear();
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
 		this.voiceClientService.disconnect();
@@ -2138,6 +2153,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
 		this._hasDraftTarget.set(false, undefined);
+		this._omniInputActive.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
 		this._pendingToolConfirmations.set([], undefined);
 		// Terminal disconnect: drop embedder-driven active-session state too, so a
@@ -2254,6 +2270,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._isProcessingQueue = false;
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
+		this._windowFocusDisposables.clear();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
 		// No reconnect is coming and a later connect() does not reset narration
@@ -2279,6 +2296,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
 		this._hasDraftTarget.set(false, undefined);
+		this._omniInputActive.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
 		this._pendingToolConfirmations.set([], undefined);
 		transaction(tx => {
@@ -2810,6 +2828,42 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
 		this._hasDraftTarget.set(true, undefined);
+	}
+
+	setOmniInputActive(active: boolean): void {
+		this._omniBlurRelease.clear();
+		if (this._omniInputActive.get() === active) {
+			return;
+		}
+		this._omniInputActive.set(active, undefined);
+		if (!active) {
+			this._targetOmniRoute = undefined;
+			this._targetSession.set(undefined, undefined);
+			this._hasDraftTarget.set(false, undefined);
+		}
+	}
+
+	releaseOmniInputOnBlur(): void {
+		this._clearAutoListenTimer();
+		if (!this._omniInputActive.get()) {
+			return;
+		}
+		if (this._voiceState.get() === 'idle' || this._voiceState.get() === 'error') {
+			this.setOmniInputActive(false);
+			return;
+		}
+		this._omniBlurRelease.value = autorun(reader => {
+			const state = this._voiceState.read(reader);
+			if (state !== 'idle' && state !== 'error') {
+				return;
+			}
+			Promise.resolve().then(() => {
+				const currentState = this._voiceState.get();
+				if (currentState === 'idle' || currentState === 'error') {
+					this.setOmniInputActive(false);
+				}
+			});
+		});
 	}
 
 	promoteDraftTarget(resource: URI): void {

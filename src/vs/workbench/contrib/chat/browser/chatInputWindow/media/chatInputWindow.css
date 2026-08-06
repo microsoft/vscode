@@ -170,10 +170,6 @@
 	display: block;
 }
 
-.chat-input-window .chat-input-window-pending-panel.question .chat-input-window-pending-header {
-	display: none;
-}
-
 .chat-input-window .chat-input-window-pending-header {
 	display: flex;
 	align-items: center;
@@ -197,6 +193,10 @@
 
 .chat-input-window .chat-input-window-pending-label {
 	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .chat-input-window .chat-input-window-pending-navigation {

@@ -41,6 +41,15 @@ import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_
 import { autorun } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
+import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
+import { setupVoiceInputDecorations } from '../voiceClient/voiceInputDecorations.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
@@ -76,12 +85,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
 	private _openOperation: Promise<void> | undefined;
+	private _desiredOpen = false;
+	private readonly _ownershipId = mainWindow.crypto.randomUUID();
+	private _ownershipClaim: { readonly timestamp: number; readonly id: string } | undefined;
 	private _actionWidgetRestoreHeight: number | undefined;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
 	get isOpen(): boolean {
 		return !!this._window;
+	}
+
+	get hasFocus(): boolean {
+		return this._window?.window.document.hasFocus() ?? false;
 	}
 
 	constructor(
@@ -95,12 +111,27 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@ICommandService private readonly commandService: ICommandService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly logService: ILogService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
+		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
 		const ownershipChannel = new BroadcastChannel('chat-input-window-ownership');
-		ownershipChannel.onmessage = (e) => {
-			if (e.data?.type === 'claim' && this._window) {
+		ownershipChannel.onmessage = e => {
+			const incoming = e.data;
+			if (incoming?.type !== 'claim' || typeof incoming.timestamp !== 'number' || typeof incoming.id !== 'string') {
+				return;
+			}
+			const current = this._ownershipClaim;
+			const incomingWins = !current
+				|| incoming.timestamp > current.timestamp
+				|| (incoming.timestamp === current.timestamp && incoming.id > current.id);
+			if (incomingWins) {
 				this.closeWindow();
 			}
 		};
@@ -117,9 +148,25 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (wasOpen) {
 			this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+
+		const closeWhenDisabled = () => {
+			if (!this._isEnabled()) {
+				this.closeWindow();
+			}
+		};
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OmniChatEnabledSettingId)) {
+				closeWhenDisabled();
+			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(closeWhenDisabled));
 	}
 
 	async openWindow(invokingWindowBounds?: IRectangle): Promise<void> {
+		if (!this._isEnabled()) {
+			return;
+		}
+		this._desiredOpen = true;
 		if (this._window) {
 			return;
 		}
@@ -132,6 +179,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		try {
 			await this._openOperation;
 		} catch (error) {
+			this._desiredOpen = false;
 			this._disposeWidget();
 			this._window = undefined;
 			this._windowDisposables.clear();
@@ -156,6 +204,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
+		if (!this._desiredOpen || !this._isEnabled()) {
+			auxiliaryWindow.dispose();
+			return;
+		}
 
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
@@ -204,6 +256,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
 		this._renderChatWidget(auxiliaryWindow, row);
+		this._windowDisposables.add(autorun(reader => {
+			const ownsVoice = this.voiceSessionController.omniInputActive.read(reader);
+			if (ownsVoice || auxiliaryWindow.window.document.hasFocus()) {
+				return;
+			}
+			this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
+				const activeWindow = dom.getActiveWindow();
+				if (activeWindow !== auxiliaryWindow.window) {
+					this.voiceSessionController.setActiveWindow(activeWindow);
+				}
+			}));
+		}));
 
 		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
 		this._trail = trail;
@@ -229,6 +293,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			this._disposeWidget();
+			this._desiredOpen = false;
+			this._ownershipClaim = undefined;
 			this._window = undefined;
 			this._windowDisposables.clear();
 			this._auxiliaryWindowRef.value = undefined;
@@ -241,13 +307,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	closeWindow(): void {
+		this._desiredOpen = false;
+		this._ownershipClaim = undefined;
 		if (!this._window) { return; }
 
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Cancel any in-flight submission so routing can't dispatch after close.
 		this._routingController?.cancelPending();
-
 		this._disposeWidget();
 		this._window = undefined;
 		this._windowDisposables.clear();
@@ -256,10 +323,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	async toggleWindow(invokingWindowBounds?: IRectangle): Promise<void> {
-		if (this.isOpen) {
+		if (this._desiredOpen || this.isOpen) {
 			this.closeWindow();
 		} else {
-			this._ownershipChannel.postMessage({ type: 'claim' });
+			const claim = { timestamp: Date.now(), id: this._ownershipId };
+			this._ownershipClaim = claim;
+			this._ownershipChannel.postMessage({ type: 'claim', ...claim });
 			await this.openWindow(invokingWindowBounds);
 		}
 	}
@@ -267,7 +336,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	async acceptVoiceInput(text: string): Promise<boolean> {
 		const window = this._window?.window;
 		const widget = this._widget;
-		if (!window?.document.hasFocus() || !widget || !this._routingController) {
+		if ((!window?.document.hasFocus() && !this.voiceSessionController.omniInputActive.get()) || !widget || !this._routingController) {
 			return false;
 		}
 
@@ -315,7 +384,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
-				submitHandler: (query, mode, attachedContext) => this._routingController?.handleSubmit(query, mode, attachedContext) ?? Promise.resolve(false),
+				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
 				onDidChangeModelPickerVisibility: visible => this._layoutForModelPicker(auxiliaryWindow, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
 			},
@@ -330,6 +399,22 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._widget = widget;
 		widget.render(parent);
 		widget.setVisible(true);
+		const inputContainer = widget.input.inputContainerElement;
+		if (inputContainer) {
+			this._windowDisposables.add(setupVoiceInputDecorations({
+				voiceSessionController: this.voiceSessionController,
+				ttsPlaybackService: this.ttsPlaybackService,
+				micCaptureService: this.micCaptureService,
+				configurationService: this.configurationService,
+				keybindingService: this.keybindingService,
+				themeService: this.themeService,
+				accessibilityService: this.accessibilityService,
+			}, {
+				inputContainer,
+				isActive: this.voiceSessionController.omniInputActive,
+				isOwner: this.voiceSessionController.omniInputActive,
+			}));
+		}
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
@@ -452,8 +537,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				widget.focusInput();
 			}));
 		}));
-		// Refresh editor focus when the auxiliary window becomes active.
-		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => widget.focusInput()));
+		// Refresh editor focus and transfer the voice capture lease back to omni
+		// when an in-progress omni turn regains OS focus.
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => {
+			widget.focusInput();
+			if (this.voiceSessionController.omniInputActive.get()) {
+				this.voiceSessionController.setOmniInputActive(true);
+				this.voiceSessionController.setActiveWindow(auxiliaryWindow.window);
+			}
+		}));
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'blur', () => {
+			this.voiceSessionController.releaseOmniInputOnBlur();
+		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
 
@@ -531,7 +626,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const model = pendingModels[this._pendingPromptIndex];
 			panel.classList.add('shown');
 			panel.classList.toggle('question', this._hasPendingQuestion(model));
-			label.textContent = localize('chatInputWindow.pending.count', "{0} of {1} waiting on you", this._pendingPromptIndex + 1, pendingModels.length);
+			label.textContent = localize(
+				'chatInputWindow.pending.sourceAndCount',
+				"{0} — {1} of {2} waiting on you",
+				model.title || localize('chatInputWindow.pending.untitledSource', "Chat"),
+				this._pendingPromptIndex + 1,
+				pendingModels.length,
+			);
 			const hasMultiple = pendingModels.length > 1;
 			for (const button of [previous, next]) {
 				button.classList.toggle('disabled', !hasMultiple);
@@ -549,8 +650,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {
 			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
+			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
 			pendingModels = [...this.chatService.chatModels.read(reader)]
-				.filter(model => !!model.requestNeedsInput.read(reader));
+				.filter(model => !!model.requestNeedsInput.read(reader))
+				.sort((a, b) =>
+					Number(b.sessionResource.toString() === activeTarget) - Number(a.sessionResource.toString() === activeTarget)
+					|| Number(this._hasPendingQuestion(b)) - Number(this._hasPendingQuestion(a))
+					|| b.lastMessageDate - a.lastMessageDate);
 			const preservedIndex = currentResource
 				? pendingModels.findIndex(model => model.sessionResource.toString() === currentResource)
 				: -1;
@@ -653,6 +759,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _disposeWidget(): void {
+		this.voiceSessionController.setOmniInputActive(false);
 		this._routingController = undefined;
 		this._widget = undefined;
 		this._fitWindowToContent = () => { };
@@ -698,6 +805,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			width: window.outerWidth,
 			height: window.outerHeight,
 		};
+	}
+
+	private _isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(OmniChatEnabledSettingId) === true
+			&& !this.chatEntitlementService.sentiment.hidden;
 	}
 }
 

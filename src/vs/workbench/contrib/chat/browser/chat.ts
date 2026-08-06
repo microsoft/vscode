@@ -317,7 +317,7 @@ export interface IChatWidgetViewOptions {
 	 * on the input so a host that routes the request elsewhere can forward them
 	 * instead of silently dropping them.
 	 */
-	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[]) => Promise<boolean>;
+	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition;
 

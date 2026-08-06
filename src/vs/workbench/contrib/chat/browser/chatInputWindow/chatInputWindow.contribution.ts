@@ -36,7 +36,7 @@ registerAction2(class extends Action2 {
 			category: Categories.View,
 			icon: Codicon.commentDiscussionSparkle,
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: inputWindowEnabled,
 			menu: [
 				{
 					id: MenuId.CommandCenter,

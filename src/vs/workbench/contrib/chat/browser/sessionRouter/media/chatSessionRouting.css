@@ -221,3 +221,21 @@
 .chat-routing-badge-sent-mark .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
+
+.chat-routing-badge.chat-routing-badge-outcomes {
+	align-items: stretch;
+	flex-direction: column;
+	padding-block: 6px;
+}
+
+.chat-routing-outcome-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-routing-outcome-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}

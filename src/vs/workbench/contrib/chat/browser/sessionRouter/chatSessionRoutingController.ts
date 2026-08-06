@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -21,8 +21,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -37,7 +38,7 @@ import './media/chatSessionRouting.css';
  * When the last-used session is within this confidence margin of the top match,
  * it is preferred so repeated turns keep landing on the same session.
  */
-const ROUTE_AMBIGUITY_MARGIN = 0.2;
+const ROUTE_AMBIGUITY_MARGIN = 0.05;
 
 /** Maximum number of options shown in the disambiguation picker. */
 const ROUTE_MAX_CHOICES = 6;
@@ -47,7 +48,7 @@ const ROUTE_MAX_CHOICES = 6;
  * for the final content-aware score. Bounds how many session-content resolves a
  * single submission triggers while still covering the plausible matches.
  */
-const ROUTE_ENRICH_MAX_CANDIDATES = 5;
+const ROUTE_ENRICH_MAX_CANDIDATES = 12;
 
 /**
  * How long the pending-send badge counts down before auto-dispatching to the
@@ -55,13 +56,6 @@ const ROUTE_ENRICH_MAX_CANDIDATES = 5;
  * keep a hands-free/voice flow moving.
  */
 const ROUTE_AUTOSEND_DELAY_MS = 10000;
-
-/**
- * How long the "Sent to …" confirmation badge lingers after a matched send
- * before auto-dismissing. Long enough to register where the request went, short
- * enough not to get in the way of firing the next one.
- */
-const SENT_CONFIRMATION_MS = 4000;
 
 /** Workspace-scoped memory of the last routed session, biasing the next turn. */
 const LAST_TARGET_STORAGE_KEY = 'chat.sessionRouting.lastTarget';
@@ -76,6 +70,14 @@ type NewSessionTarget = {
 	readonly label: string;
 	readonly folder?: URI;
 };
+
+interface IDispatchResult {
+	readonly status: 'sent' | 'queued' | 'rejected';
+	readonly resource?: URI;
+	readonly completion?: Promise<IDispatchResult>;
+}
+
+type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
 const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
 
@@ -230,10 +232,10 @@ export class ChatSessionRoutingController extends Disposable {
 
 	/** Active pending-send badge + auto-send timers; replaced/cleared per submission. */
 	private readonly _pendingSend = this._register(new MutableDisposable<IDisposable>());
-	/** Sessions loaded or spawned by routing, deduped by resource; disposed on teardown. */
-	private readonly _routedSessionRefs = new ResourceMap<IChatModelReference>();
 	/** Cancellation for the in-flight submission; canceled when the host tears down. */
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _submitDraftListeners = this._register(new MutableDisposable<IDisposable>());
+	private _submissionPhase: SubmissionPhase = 'idle';
 
 	constructor(
 		private readonly host: IChatSessionRoutingHost,
@@ -258,7 +260,7 @@ export class ChatSessionRoutingController extends Disposable {
 	 * returns `true` (handled) so the input-only widget never runs the request on
 	 * its own scratch session.
 	 */
-	async handleSubmit(query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[]): Promise<boolean> {
+	async handleSubmit(query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean): Promise<boolean> {
 		const utterance = query.trim();
 		if (!utterance) {
 			return false;
@@ -266,19 +268,40 @@ export class ChatSessionRoutingController extends Disposable {
 
 		// A new submission supersedes any pending badge from a previous one.
 		this._submitCts.value?.cancel();
+		this._submitDraftListeners.clear();
 		this._pendingSend.clear();
 
 		// Immediately reflect that the request was accepted so the send button
 		// greys out while routing runs (it is intercepted off-model, so the
 		// widget's own submit state never changes). Cleared when the submission
 		// resolves, is cancelled, or the user edits the draft.
-		this.host.widget.input.setSubmitPending(true);
+		this._setSubmissionPhase('routing');
+		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
 
 		// The host cancels the in-flight submission on teardown so we never
 		// dispatch after close.
 		const cts = new CancellationTokenSource();
 		this._submitCts.value = cts;
 		const token = cts.token;
+		const submittedAttachmentIds = this._attachmentIds();
+		const draftListeners = new DisposableStore();
+		const cancelForDraftChange = () => {
+			cts.cancel();
+			if (this._submitCts.value === cts) {
+				this._pendingSend.clear();
+				this._submitDraftListeners.clear();
+				this._setSubmissionPhase('idle');
+			}
+		};
+		draftListeners.add(this.host.widget.inputEditor.onDidChangeModelContent(cancelForDraftChange));
+		draftListeners.add(this.host.widget.attachmentModel.onDidChange(cancelForDraftChange));
+		this._submitDraftListeners.value = draftListeners;
+		const requestOptions: IChatSendRequestOptions = {
+			...this.host.widget.getSelectedModelRequestOptions(),
+			...this.host.widget.getModeRequestOptions(),
+			isVoiceModeInput,
+			attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
+		};
 
 		const candidates = await this._collectCandidateSessions(token);
 		if (token.isCancellationRequested) {
@@ -298,10 +321,11 @@ export class ChatSessionRoutingController extends Disposable {
 		if (token.isCancellationRequested) {
 			return true;
 		}
+		this._setSubmissionPhase('awaitingChoice');
 
 		const newSessionTarget = this._resolveNewSessionTarget(utterance, attachedContext, results, enriched);
 		const target = this._resolveTarget(results, enriched, newSessionTarget);
-		this._beginPendingSend(target, newSessionTarget, results, enriched, query, utterance, attachedContext, cts);
+		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
 		return true;
 	}
 
@@ -309,8 +333,14 @@ export class ChatSessionRoutingController extends Disposable {
 	cancelPending(): void {
 		this._submitCts.value?.cancel();
 		this._submitCts.clear();
+		this._submitDraftListeners.clear();
 		this._pendingSend.clear();
-		this.host.widget.input.setSubmitPending(false);
+		this._setSubmissionPhase('idle');
+	}
+
+	private _setSubmissionPhase(phase: SubmissionPhase): void {
+		this._submissionPhase = phase;
+		this.host.widget.input.setSubmitPending(phase !== 'idle', phase === 'routing' || phase === 'dispatching');
 	}
 
 	/** Run the router, degrading to an empty ranking on failure/cancellation. */
@@ -374,7 +404,9 @@ export class ChatSessionRoutingController extends Disposable {
 		const ownResource = this.host.getOwnSessionResource()?.toString();
 		return this.agentSessionsService.model.sessions
 			.filter(session => session.resource.toString() !== ownResource
-				&& session.providerType !== AgentSessionProviders.Local)
+				&& session.providerType !== AgentSessionProviders.Local
+				&& !session.isArchived()
+				&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true)
 			.map(session => this._toRoutableSession(session));
 	}
 
@@ -457,11 +489,11 @@ export class ChatSessionRoutingController extends Disposable {
 			return candidate;
 		}
 		try {
-			const session = await this.chatSessionsService.getOrCreateChatSession(resource, token);
+			const history = await this.chatSessionsService.getChatSessionHistory?.(resource, token);
 			if (token.isCancellationRequested) {
 				return candidate;
 			}
-			return this._applyHistory(candidate, session.history);
+			return history ? this._applyHistory(candidate, history) : candidate;
 		} catch (err) {
 			if (!token.isCancellationRequested) {
 				this.logService.trace('[chatSessionRouting] enriching candidate failed, using metadata only:', candidate.sessionId, err);
@@ -496,9 +528,8 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Show the advisory pending-send badge for a resolved target. A confident
-	 * session match counts down and auto-sends (redirectable/cancelable); a
-	 * no-match creates and sends to a new chat immediately and links to it.
+	 * Show the advisory destination picker. A confident session match counts
+	 * down and auto-sends; an uncertain route waits for an explicit choice.
 	 */
 	private _beginPendingSend(
 		target: PendingTarget,
@@ -506,35 +537,31 @@ export class ChatSessionRoutingController extends Disposable {
 		results: ISessionRouteResult[],
 		candidates: IRoutableSession[],
 		submittedInput: string,
+		submittedAttachmentIds: readonly string[],
 		utterance: string,
-		attachedContext: IChatRequestVariableEntry[] | undefined,
+		requestOptions: IChatSendRequestOptions,
 		cts: CancellationTokenSource,
 	): void {
 		const badge = dom.$('.chat-routing-badge');
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
-			// No surface to host the badge — fall back to an immediate dispatch.
-			// The dispatch clears the input (which clears the pending state); do it
-			// eagerly too so the send button never stays greyed if dispatch fails.
-			this.host.widget.input.setSubmitPending(false);
-			void this._dispatchTo(target, submittedInput, utterance, attachedContext, cts.token);
+			this.logService.warn('[chatSessionRouting] no surface available for destination review; preserving draft');
+			cts.cancel();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('idle');
 			return;
 		}
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
-		// Re-enable sending once this pending send goes away for any reason
-		// (dismiss, escape, typing-cancel, or a superseding submission).
-		store.add(toDisposable(() => this.host.widget.input.setSubmitPending(false)));
+		store.add(toDisposable(() => {
+			if (this._submitCts.value === cts) {
+				this._submitDraftListeners.clear();
+			}
+		}));
 		this._pendingSend.value = store;
 
-		if (target.kind === 'new' && results.length === 0) {
-			// With no alternatives to show, create and send to a new chat right
-			// away, then surface a link to it in the badge as soon as it exists.
-			this._renderNewSessionBadge(badge, store, target, submittedInput, utterance, attachedContext, cts);
-		} else {
-			this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, utterance, attachedContext, cts);
-		}
+		this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 	}
 
 	/**
@@ -550,8 +577,9 @@ export class ChatSessionRoutingController extends Disposable {
 		results: ISessionRouteResult[],
 		candidates: IRoutableSession[],
 		submittedInput: string,
+		submittedAttachmentIds: readonly string[],
 		utterance: string,
-		attachedContext: IChatRequestVariableEntry[] | undefined,
+		requestOptions: IChatSendRequestOptions,
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
@@ -559,7 +587,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
 		const ranked = results
-			.filter(result => isHighConfidenceSessionRoute(result) && labelById.has(result.sessionId))
+			.filter(result => labelById.has(result.sessionId))
 			.sort((a, b) => b.confidence - a.confidence)
 			.slice(0, ROUTE_MAX_CHOICES)
 			.map(result => ({
@@ -581,22 +609,20 @@ export class ChatSessionRoutingController extends Disposable {
 		const head = dom.append(badge, dom.$('.chat-routing-badge-head'));
 		const headLabel = dom.append(head, dom.$('span.chat-routing-badge-title'));
 		const countdownEl = dom.append(head, dom.$('span.chat-routing-badge-countdown'));
-		const list = dom.append(badge, dom.$('.chat-routing-badge-list', { role: 'listbox', 'aria-label': localize('chatSessionRouting.sendTo', "Send to") }));
+		const list = dom.append(badge, dom.$('.chat-routing-badge-list', { role: 'listbox', 'aria-label': localize('chatSessionRouting.sendTo', "Send to"), 'aria-multiselectable': 'true' }));
 		let choosingFolder = false;
+		let focusedIndex = preselected;
 		const rows = options.map((option, index) => {
 			const row = dom.append(list, dom.$('.chat-routing-badge-row', { role: 'option', tabindex: '0' }));
 			const mark = dom.append(row, dom.$('span.chat-routing-badge-mark'));
 			mark.appendChild(renderIcon(Codicon.pass));
 			const label = dom.append(row, dom.$('span.chat-routing-badge-name'));
 			label.textContent = option.label;
-			if (option.kind === 'session') {
-				const meter = dom.append(row, dom.$('span.chat-routing-badge-meter'));
-				const fill = dom.append(meter, dom.$('span'));
-				fill.style.width = `${Math.round(option.confidence * 100)}%`;
-			}
 			const score = dom.append(row, dom.$('span.chat-routing-badge-score'));
 			score.textContent = option.kind === 'session'
-				? localize('chatSessionRouting.match', "{0}%", Math.round(option.confidence * 100))
+				? index === 0 && isHighConfidenceSessionRoute(option)
+					? localize('chatSessionRouting.bestMatch', "Best Match")
+					: localize('chatSessionRouting.possibleMatch', "Possible Match")
 				: '';
 			if (option.kind === 'new' && this.workspaceContextService.getWorkspace().folders.length > 1) {
 				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
@@ -639,6 +665,7 @@ export class ChatSessionRoutingController extends Disposable {
 				}));
 			}
 			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, event => {
+				focusedIndex = index;
 				if (event.ctrlKey || event.metaKey) {
 					if (selection.has(index) && selection.size > 1) {
 						selection.delete(index);
@@ -660,7 +687,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const foot = dom.append(badge, dom.$('.chat-routing-badge-foot'));
 		const changeHint = dom.append(foot, dom.$('span'));
-		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change \u00B7 \u2318click for several \u00B7 Escape to cancel");
+		changeHint.textContent = localize('chatSessionRouting.changeHint', "Arrow keys move · Space selects several · Escape cancels");
 		const sendHint = dom.append(foot, dom.$('span.chat-routing-badge-foot-end'));
 
 		const renderSelection = () => {
@@ -668,7 +695,7 @@ export class ChatSessionRoutingController extends Disposable {
 				const selected = selection.has(index);
 				row.classList.toggle('selected', selected);
 				row.setAttribute('aria-selected', String(selected));
-				row.tabIndex = selected ? 0 : -1;
+				row.tabIndex = focusedIndex === index ? 0 : -1;
 			});
 			list.classList.toggle('multiple', selection.size > 1);
 			headLabel.textContent = selection.size > 1
@@ -682,33 +709,57 @@ export class ChatSessionRoutingController extends Disposable {
 		const initialTarget = options[preselected];
 		ariaAlert(initialTarget.kind === 'session'
 			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000))
-			: localize('chatSessionRouting.startingNewIn', "Starting a new session in {0} seconds. Press Escape to cancel.", Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000)));
+			: localize('chatSessionRouting.confirmNewSession', "No confident match. Choose a destination before sending."));
 
 		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 		const renderCountdown = () => {
 			countdownEl.textContent = localize('chatSessionRouting.sendingIn', "sending in {0}s", remainingSeconds);
 		};
 
+		let didDispatch = false;
 		const send = () => {
-			this._pendingSend.clear();
+			if (didDispatch) {
+				return;
+			}
+			didDispatch = true;
+			countdownTimer.clear();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('dispatching');
+			badge.replaceChildren();
+			const progress = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+			progress.appendChild(renderIcon(Codicon.loading));
+			const progressLabel = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+			progressLabel.textContent = localize('chatSessionRouting.dispatching', "Sending request…");
 			const sent = [...selection].sort((a, b) => a - b).map(index => options[index]);
 			if (!sent.length) {
+				this._setSubmissionPhase('idle');
 				return;
 			}
 			if (sent.length > 1) {
 				this.host.onDidResolveRoute?.(undefined);
 			}
 			const dispatches = sent.map(selected =>
-				this._dispatchTo(selected, submittedInput, utterance, attachedContext, cts.token, sent.length === 1)
+				this._dispatchTo(selected, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts.token, sent.length === 1)
 			);
 			if (sent.length > 1) {
-				this._showFanoutConfirmation(sent.length);
+				void Promise.all(dispatches).then(results => {
+					if (this._submitCts.value === cts) {
+						this._setSubmissionPhase('idle');
+						this._showFanoutOutcomes(sent, results);
+					}
+				});
 				return;
 			}
-			void dispatches[0].then(ok => {
+			void dispatches[0].then(result => {
+				if (this._submitCts.value !== cts) {
+					return;
+				}
+				this._setSubmissionPhase('idle');
 				const selected = sent[0];
-				if (ok && selected.kind === 'session' && this._submitCts.value === cts) {
-					this._showSentConfirmation(selected.label, selected.sessionId);
+				if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
+					this._showDeliveryConfirmation(selected.label, result);
+				} else {
+					this._showDispatchFailure(selected.label);
 				}
 			});
 		};
@@ -731,6 +782,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const cancel = () => {
 			cts.cancel();
 			this._pendingSend.clear();
+			this._setSubmissionPhase('idle');
 		};
 
 		store.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
@@ -738,95 +790,63 @@ export class ChatSessionRoutingController extends Disposable {
 				return;
 			}
 			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Alt)) {
+			const isRoutingInteraction = dom.isHTMLElement(event.target) && badge.contains(event.target);
+			const isListInteraction = isRoutingInteraction && !!event.target.closest('.chat-routing-badge-row');
+			if (isListInteraction && (keyboardEvent.equals(KeyCode.UpArrow) || keyboardEvent.equals(KeyCode.DownArrow) || keyboardEvent.equals(KeyCode.Home) || keyboardEvent.equals(KeyCode.End))) {
 				keyboardEvent.preventDefault();
-				const from = selection.size === 1 ? [...selection][0] : preselected;
-				selection.clear();
-				selection.add((from + 1) % options.length);
+				if (keyboardEvent.equals(KeyCode.Home)) {
+					focusedIndex = 0;
+				} else if (keyboardEvent.equals(KeyCode.End)) {
+					focusedIndex = rows.length - 1;
+				} else {
+					const delta = keyboardEvent.equals(KeyCode.UpArrow) ? -1 : 1;
+					focusedIndex = (focusedIndex + delta + rows.length) % rows.length;
+				}
+				renderSelection();
+				rows[focusedIndex].focus();
+				countdownTimer.clear();
+				countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+			} else if (isListInteraction && keyboardEvent.equals(KeyCode.Space)) {
+				keyboardEvent.preventDefault();
+				if (selection.has(focusedIndex) && selection.size > 1) {
+					selection.delete(focusedIndex);
+				} else {
+					selection.add(focusedIndex);
+				}
 				renderSelection();
 				countdownTimer.clear();
 				countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
-			} else if (keyboardEvent.equals(KeyCode.Enter)) {
+			} else if (isListInteraction && keyboardEvent.equals(KeyCode.Enter)) {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				send();
-			} else if (keyboardEvent.equals(KeyCode.Escape)) {
+			} else if (isRoutingInteraction && keyboardEvent.equals(KeyCode.Escape)) {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				cancel();
 			}
 		}, true));
 
-		// Typing in the input cancels the auto-send so an edit never silently sends.
-		store.add(this.host.widget.inputEditor.onDidChangeModelContent(() => cancel()));
-
-		startCountdown();
+		if (target.kind === 'session') {
+			startCountdown();
+		} else {
+			countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+		}
 	}
 
-	/**
-	 * No-match badge: creates the new chat immediately (no countdown), fires the
-	 * request, and — since the session resource exists right away — shows a link
-	 * that opens the newly created chat.
-	 */
-	private _renderNewSessionBadge(
-		badge: HTMLElement,
-		store: DisposableStore,
-		target: NewSessionTarget,
-		submittedInput: string,
-		utterance: string,
-		attachedContext: IChatRequestVariableEntry[] | undefined,
-		cts: CancellationTokenSource,
-	): void {
-		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-
-		let resource: URI | undefined;
-		try {
-			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
-			this._retainSessionRef(ref.object.sessionResource, ref);
-			resource = ref.object.sessionResource;
-			if (target.folder) {
-				this.newSessionFolderService.setFolder(resource, target.folder);
-			}
-		} catch (err) {
-			this.logService.warn('[chatSessionRouting] error starting a new session:', err);
-		}
-
+	private _showDeliveryConfirmation(label: string, result: IDispatchResult): void {
+		const resource = result.resource;
 		if (!resource) {
-			label.textContent = localize('chatSessionRouting.noMatchFailed', "No matching chat found — could not create a new chat");
-			this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+			this._showDispatchFailure(label);
 			return;
 		}
-		const sessionResource = resource;
-		this.host.onDidResolveRoute?.(sessionResource, 'new_session');
-
-		label.textContent = localize('chatSessionRouting.noMatch', "No matching chat found — sent to a new chat");
-		this._addActionLink(store, badge, localize('chatSessionRouting.openNewChat', "Open new chat"), () => {
-			void this.chatWidgetService.openSession(sessionResource);
-		});
-		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
-
-		// Fire the request; the badge stays so the link remains usable.
-		void this._sendToNewSession(sessionResource, submittedInput, utterance, attachedContext, cts.token);
-	}
-
-	/**
-	 * Show a brief "Sent to …" confirmation after a matched send, so an omni
-	 * surface that can't render the response inline still confirms where the
-	 * request went. Offers an "Open" link and auto-dismisses.
-	 */
-	private _showSentConfirmation(label: string, sessionId: string): void {
-		let resource: URI;
-		try {
-			resource = URI.parse(sessionId);
-		} catch {
-			return;
-		}
-
 		const badge = dom.$('.chat-routing-badge');
 		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
-		mark.appendChild(renderIcon(Codicon.pass));
+		mark.appendChild(renderIcon(result.status === 'queued' ? Codicon.clock : Codicon.pass));
 		const labelEl = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-		labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
+		labelEl.textContent = result.status === 'queued'
+			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
+			: localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
 			return;
@@ -836,39 +856,135 @@ export class ChatSessionRoutingController extends Disposable {
 		store.add(toDisposable(() => badge.remove()));
 		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
 		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
-
-		const targetWindow = dom.getWindow(badge);
-		const handle = targetWindow.setTimeout(() => {
-			if (this._pendingSend.value === store) {
-				this._pendingSend.clear();
-			}
-		}, SENT_CONFIRMATION_MS);
-		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-
 		this._pendingSend.value = store;
+		const announcement = result.status === 'queued'
+			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
+			: localize('chatSessionRouting.sentTo', "Sent to {0}", label);
+		ariaAlert(announcement);
+		let trackingActivity = false;
+		const trackActivity = () => {
+			if (!trackingActivity) {
+				trackingActivity = true;
+				this._trackDeliveryActivity(store, resource, label, mark, labelEl);
+			}
+		};
+		if (result.status === 'sent') {
+			trackActivity();
+		}
+
+		if (result.completion) {
+			void result.completion.then(completion => {
+				if (this._pendingSend.value !== store) {
+					return;
+				}
+				if (completion.status === 'sent') {
+					mark.replaceChildren(renderIcon(Codicon.pass));
+					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
+					ariaAlert(labelEl.textContent);
+					trackActivity();
+				} else {
+					mark.replaceChildren(renderIcon(Codicon.error));
+					labelEl.textContent = localize('chatSessionRouting.queuedRejected', "{0} rejected the queued request", label);
+					ariaAlert(labelEl.textContent);
+				}
+			});
+		}
 	}
 
-	private _showFanoutConfirmation(count: number): void {
+	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement): void {
+		const model = this.chatService.getSession(resource);
+		let lastAnnouncement = labelElement.textContent;
+		const update = (requestInProgress = model?.requestInProgress.get() ?? false, needsInput = !!model?.requestNeedsInput.get()) => {
+			const sessionStatus = this.agentSessionsService.model.getSession(resource)?.status;
+			let icon = Codicon.pass;
+			if (needsInput || sessionStatus === AgentSessionStatus.NeedsInput) {
+				icon = Codicon.question;
+				labelElement.textContent = localize('chatSessionRouting.needsInputIn', "{0} needs your input", label);
+			} else if (requestInProgress || sessionStatus === AgentSessionStatus.InProgress) {
+				icon = Codicon.loading;
+				labelElement.textContent = localize('chatSessionRouting.runningIn', "Running in {0}", label);
+			} else if (sessionStatus === AgentSessionStatus.Failed) {
+				icon = Codicon.error;
+				labelElement.textContent = localize('chatSessionRouting.failedIn', "Failed in {0}", label);
+			} else if (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests) {
+				labelElement.textContent = localize('chatSessionRouting.completedIn', "Completed in {0}", label);
+			}
+			mark.replaceChildren(renderIcon(icon));
+			if (labelElement.textContent !== lastAnnouncement) {
+				lastAnnouncement = labelElement.textContent;
+				ariaAlert(lastAnnouncement);
+			}
+		};
+		if (model) {
+			store.add(autorun(reader => update(model.requestInProgress.read(reader), !!model.requestNeedsInput.read(reader))));
+		} else {
+			update();
+		}
+		store.add(this.agentSessionsService.model.onDidChangeSessions(() => update()));
+	}
+
+	private _showFanoutOutcomes(targets: readonly PendingTarget[], results: readonly IDispatchResult[]): void {
 		const badge = dom.$('.chat-routing-badge');
-		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
-		mark.appendChild(renderIcon(Codicon.pass));
-		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-		label.textContent = localize('chatSessionRouting.sentToMany', "Sent to {0} sessions", count);
+		badge.classList.add('chat-routing-badge-outcomes');
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		const heading = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		heading.textContent = localize('chatSessionRouting.deliveryResults', "Delivery results");
+		const list = dom.append(badge, dom.$('.chat-routing-outcome-list'));
+		results.forEach((result, index) => {
+			const target = targets[index];
+			const row = dom.append(list, dom.$('.chat-routing-outcome-row'));
+			const icon = dom.append(row, dom.$('span.chat-routing-badge-sent-mark'));
+			icon.appendChild(renderIcon(result.status === 'rejected' ? Codicon.error : result.status === 'queued' ? Codicon.clock : Codicon.pass));
+			const text = dom.append(row, dom.$('span.chat-routing-badge-label'));
+			text.textContent = result.status === 'rejected'
+				? localize('chatSessionRouting.targetFailed', "{0}: failed", target.label)
+				: result.status === 'queued'
+					? localize('chatSessionRouting.targetQueued', "{0}: queued", target.label)
+					: localize('chatSessionRouting.targetSent', "{0}: sent", target.label);
+			const resource = result.resource;
+			if (resource) {
+				this._addActionLink(store, row, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
+			}
+			if (result.completion) {
+				void result.completion.then(completion => {
+					icon.replaceChildren(renderIcon(completion.status === 'sent' ? Codicon.pass : Codicon.error));
+					text.textContent = completion.status === 'sent'
+						? localize('chatSessionRouting.targetSent', "{0}: sent", target.label)
+						: localize('chatSessionRouting.targetFailed', "{0}: failed", target.label);
+				});
+			}
+		});
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
 			return;
 		}
 
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._pendingSend.value = store;
+		const sent = results.filter(result => result.status === 'sent').length;
+		const queued = results.filter(result => result.status === 'queued').length;
+		const failed = results.length - sent - queued;
+		ariaAlert(localize('chatSessionRouting.fanoutResult', "{0} sent, {1} queued, {2} failed.", sent, queued, failed));
+	}
+
+	private _showDispatchFailure(label?: string): void {
+		const badge = dom.$('.chat-routing-badge');
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.error));
+		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		message.textContent = label
+			? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
+			: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
-		const targetWindow = dom.getWindow(badge);
-		const handle = targetWindow.setTimeout(() => {
-			if (this._pendingSend.value === store) {
-				this._pendingSend.clear();
-			}
-		}, SENT_CONFIRMATION_MS);
-		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
 		this._pendingSend.value = store;
+		ariaAlert(message.textContent);
 	}
 
 	/** Append an accessible link-style action to the badge. */
@@ -885,121 +1001,127 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Dispatch a resolved pending target, remembering it for next time. */
-	private async _dispatchTo(target: PendingTarget, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute = true): Promise<boolean> {
+	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IDispatchResult> {
 		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute, target.folder);
+			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target.folder);
 		}
-		return this._dispatchToSession(target.sessionId, submittedInput, utterance, attachedContext, token, notifyRoute);
+		return this._dispatchToSession(target.sessionId, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
 	}
 
-	/** Send to an already-created new session (used by the no-delay no-match flow). */
-	private async _sendToNewSession(resource: URI, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<void> {
-		try {
-			const result = await this.chatService.sendRequest(resource, utterance, attachedContext?.length ? { attachedContext } : undefined);
-			if (token.isCancellationRequested) {
-				return;
-			}
-			if (!result || result.kind === 'rejected') {
-				this.logService.warn('[chatSessionRouting] new session rejected the request');
-				return;
-			}
-			this._clearInputIfUnchanged(submittedInput);
-		} catch (err) {
-			if (!token.isCancellationRequested) {
-				this.logService.warn('[chatSessionRouting] error sending to new session:', err);
-			}
-		}
-	}
-
-	private async _dispatchToSession(sessionId: string, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean): Promise<boolean> {
+	private async _dispatchToSession(sessionId: string, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean): Promise<IDispatchResult> {
 		let target: URI;
 		try {
 			target = URI.parse(sessionId);
 		} catch (err) {
 			this.logService.warn('[chatSessionRouting] invalid session id for routing:', sessionId, err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
+			return { status: 'rejected' };
 		}
 
 		try {
 			const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, token, `${this.debugOwner}-route`);
 			if (token.isCancellationRequested) {
 				ref?.dispose();
-				return true;
+				return { status: 'rejected' };
 			}
 			if (!ref) {
-				this.logService.warn('[chatSessionRouting] could not load routed session, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
+				this.logService.warn('[chatSessionRouting] could not load routed session:', sessionId);
+				return { status: 'rejected' };
 			}
-			this._retainSessionRef(target, ref);
-			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(target, 'existing_session');
+			let result: IDispatchResult;
+			try {
+				result = await this._sendRequest(target, utterance, {
+					attachedContext: requestOptions.attachedContext,
+					resolvedVariables: requestOptions.resolvedVariables,
+					isVoiceModeInput: requestOptions.isVoiceModeInput,
+					agentIdSilent: getChatSessionType(target),
+					queue: ChatRequestQueueKind.Queued,
+				});
+			} finally {
+				ref.dispose();
 			}
-			const result = await this.chatService.sendRequest(target, utterance, attachedContext?.length ? { attachedContext } : undefined);
-			if (token.isCancellationRequested) {
-				return true;
+			if (result.status === 'rejected') {
+				this.logService.warn('[chatSessionRouting] routed session rejected the request:', sessionId);
+				return result;
 			}
-			if (!result || result.kind === 'rejected') {
-				this.logService.warn('[chatSessionRouting] routed session rejected the request, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
+			if (notifyRoute && result.resource) {
+				this.host.onDidResolveRoute?.(result.resource, 'existing_session');
 			}
 			// Remember this session so the next request biases toward it.
 			this.storageService.store(LAST_TARGET_STORAGE_KEY, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			this._clearInputIfUnchanged(submittedInput);
-			return true;
+			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+			return result;
 		} catch (err) {
 			if (token.isCancellationRequested) {
-				return true;
+				return { status: 'rejected' };
 			}
-			this.logService.warn('[chatSessionRouting] error dispatching to routed session, starting a new one:', err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
+			this.logService.warn('[chatSessionRouting] error dispatching to routed session:', err);
+			return { status: 'rejected' };
 		}
 	}
 
-	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<boolean> {
+	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IDispatchResult> {
 		try {
 			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
 			if (token.isCancellationRequested) {
 				ref.dispose();
-				return true;
+				return { status: 'rejected' };
 			}
-			this._retainSessionRef(ref.object.sessionResource, ref);
-			folder ??= this._resolveNewSessionTarget(utterance, attachedContext, [], []).folder;
+			folder ??= this._resolveNewSessionTarget(utterance, requestOptions.attachedContext, [], []).folder;
 			if (folder) {
 				this.newSessionFolderService.setFolder(ref.object.sessionResource, folder);
 			}
-			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(ref.object.sessionResource, 'new_session');
+			let result: IDispatchResult;
+			try {
+				result = await this._sendRequest(ref.object.sessionResource, utterance, requestOptions);
+			} finally {
+				ref.dispose();
 			}
-			const result = await this.chatService.sendRequest(ref.object.sessionResource, utterance, attachedContext?.length ? { attachedContext } : undefined);
-			if (token.isCancellationRequested) {
-				return true;
+			if (result.status === 'rejected') {
+				this.logService.warn('[chatSessionRouting] new session rejected the request');
+				return result;
 			}
-			if (!result || result.kind === 'rejected') {
-				this.logService.warn('[chatSessionRouting] new session rejected the request, running locally');
-				return false;
+			if (notifyRoute && result.resource) {
+				this.host.onDidResolveRoute?.(result.resource, 'new_session');
 			}
-			this._clearInputIfUnchanged(submittedInput);
-			return true;
+			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+			return result;
 		} catch (err) {
 			if (token.isCancellationRequested) {
-				return true;
+				return { status: 'rejected' };
 			}
-			this.logService.warn('[chatSessionRouting] error starting a new session, running locally:', err);
-			return false;
+			this.logService.warn('[chatSessionRouting] error starting a new session:', err);
+			return { status: 'rejected' };
 		}
 	}
 
-	/**
-	 * Retain at most one reference per session resource so a long-lived host
-	 * doesn't accumulate model references (and their sessions) as more requests
-	 * are routed to the same target.
-	 */
-	private _retainSessionRef(resource: URI, ref: IChatModelReference): void {
-		if (this._routedSessionRefs.has(resource)) {
-			ref.dispose();
-			return;
+	private async _sendRequest(resource: URI, utterance: string, options: IChatSendRequestOptions): Promise<IDispatchResult> {
+		const result = await this.chatService.sendRequest(resource, utterance, options);
+		if (result.kind === 'rejected') {
+			return { status: 'rejected' };
 		}
-		this._routedSessionRefs.set(resource, ref);
+		if (result.kind === 'queued') {
+			return {
+				status: 'queued',
+				resource,
+				completion: this._resolveQueuedCompletion(resource, result.deferred),
+			};
+		}
+		return { status: 'sent', resource: result.newSessionResource ?? resource };
+	}
+
+	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IDispatchResult> {
+		try {
+			let result = await deferred;
+			while (result.kind === 'queued') {
+				result = await result.deferred;
+			}
+			return result.kind === 'sent'
+				? { status: 'sent', resource: result.newSessionResource ?? resource }
+				: { status: 'rejected', resource: result.newSessionResource ?? resource };
+		} catch (error) {
+			this.logService.warn('[chatSessionRouting] queued request failed:', error);
+			return { status: 'rejected', resource };
+		}
 	}
 
 	/**
@@ -1007,9 +1129,17 @@ export class ChatSessionRoutingController extends Disposable {
 	 * holds exactly what was submitted, so a newer draft typed while the request
 	 * was in flight is preserved.
 	 */
-	private _clearInputIfUnchanged(submittedInput: string): void {
+	private _attachmentIds(): string[] {
+		return this.host.widget.attachmentModel.attachments.map(attachment => attachment.id);
+	}
+
+	private _clearInputIfUnchanged(submittedInput: string, submittedAttachmentIds: readonly string[]): void {
 		const editor = this.host.widget.inputEditor;
-		if (editor.getValue() === submittedInput) {
+		const currentAttachmentIds = this._attachmentIds();
+		const attachmentsUnchanged = currentAttachmentIds.length === submittedAttachmentIds.length
+			&& currentAttachmentIds.every((id, index) => id === submittedAttachmentIds[index]);
+		if (editor.getValue() === submittedInput && attachmentsUnchanged) {
+			this._submitDraftListeners.clear();
 			editor.setValue('');
 			this.host.widget.attachmentModel.clear();
 		}
@@ -1017,10 +1147,6 @@ export class ChatSessionRoutingController extends Disposable {
 
 	override dispose(): void {
 		this._pendingSend.clear();
-		for (const ref of this._routedSessionRefs.values()) {
-			ref.dispose();
-		}
-		this._routedSessionRefs.clear();
 		super.dispose();
 	}
 }

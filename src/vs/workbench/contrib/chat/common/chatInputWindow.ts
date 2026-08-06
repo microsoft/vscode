@@ -32,6 +32,8 @@ export interface IChatInputWindowService {
 	 * Whether the floating chat input window is currently open.
 	 */
 	readonly isOpen: boolean;
+	/** Whether the floating input's auxiliary window currently owns OS focus. */
+	readonly hasFocus: boolean;
 
 	/**
 	 * Fires when the window opens or closes.
