@@ -13,6 +13,7 @@ import { NullCommandService } from '../../../../platform/commands/test/common/nu
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { NoExternalUriResolverError } from '../../../../platform/opener/common/opener.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
@@ -278,6 +279,57 @@ suite('OpenerService', function () {
 		const result = await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
 		assert.deepStrictEqual(result.resolved.toString(), 'file:///Users/user/folder');
 		disposable.dispose();
+	});
+
+	test('resolveExternalUri continues after resolver errors', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+		const uri = URI.parse('https://example.com/path');
+		const expectedError = new Error('first resolver failed');
+
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				throw expectedError;
+			}
+		}));
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri(resource) {
+				return { resolved: resource, dispose() { } };
+			}
+		}));
+
+		const result = await openerService.resolveExternalUri(uri);
+
+		assert.strictEqual(result.resolved.toString(), uri.toString());
+	});
+
+	test('resolveExternalUri propagates the last resolver error', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+		const expectedError = new Error('resolver failed');
+
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				throw expectedError;
+			}
+		}));
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				return undefined;
+			}
+		}));
+
+		await assert.rejects(openerService.resolveExternalUri(URI.parse('https://example.com/path')), error => error === expectedError);
+	});
+
+	test('resolveExternalUri reports when no resolver handles the uri', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				return undefined;
+			}
+		}));
+
+		await assert.rejects(openerService.resolveExternalUri(URI.parse('https://example.com/path')), NoExternalUriResolverError);
 	});
 
 	test('vscode.open command can\'t open HTTP URL with hash (#) in it [extension development] #140907', async function () {
