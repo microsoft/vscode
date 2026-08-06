@@ -65,7 +65,6 @@
 		"copy": "copyfiles src/package.json \"src/**/*.tiktoken\" dist",
 		"package": "npm pack",
 		"postinstall": "tsx script/postinstall.js",
-		"publish": "npm publish",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	}

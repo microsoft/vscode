@@ -2,7 +2,7 @@
 
 The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that hosts native Copilot, Claude, and Codex runtimes instead of using the extension's in-process harnesses. The agent host has its own OTel pipeline so provider-native traces can be exported to a collector or persisted locally for inspection.
 
-> **Availability:** Insiders / non-stable builds only. Requires `chat.agentHost.enabled` to be `true`.
+> **Availability:** Insiders / non-stable builds only.
 
 This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) because the agent host runs entirely outside the extension host and is independent of the extension-side OTel pipeline (`github.copilot.chat.otel.*`) documented in `extensions/copilot/docs/monitoring/`.
 
@@ -152,7 +152,6 @@ To collect agent host traces with the [Aspire Dashboard](https://learn.microsoft
 
 ```json
 {
-  "chat.agentHost.enabled": true,
   "chat.agentHost.otel.enabled": true,
   "chat.agentHost.otel.captureContent": true,
   "chat.agentHost.otel.dbSpanExporter.enabled": true,
