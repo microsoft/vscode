@@ -1804,13 +1804,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		this._logService.warn(`${LOG_PREFIX} Desktop has no product commit; falling back to non-pinned CLI install at ${cliBin}.`);
 
 		const updateExitCodeMarker = '__vscode_cli_update_exit_code__:';
-		const { code, stdout, stderr } = await sshExec(client, `${cliBin} --version && (${cliBin} update; update_code=$?; echo ${updateExitCodeMarker}$update_code; true)`, { ignoreExitCode: true });
+		const { code, stdout } = await sshExec(client, `${cliBin} --version && (${cliBin} update; update_code=$?; echo ${updateExitCodeMarker}$update_code; true)`, { ignoreExitCode: true });
 		if (code === 0) {
 			const updateExitCodeLine = stdout.split('\n').find(line => line.startsWith(updateExitCodeMarker));
 			const updateExitCode = updateExitCodeLine === undefined ? undefined : Number.parseInt(updateExitCodeLine.slice(updateExitCodeMarker.length), 10);
-			if (updateExitCode !== undefined && updateExitCode !== 0 && (updateExitCode !== 1 || stderr.trim())) {
-				const updateError = stderr.trim() || `update exited ${updateExitCode}`;
-				this._logService.warn(`${LOG_PREFIX} Could not refresh the dev-build remote CLI at ${cliBin}; reusing the existing executable: ${updateError}`);
+			if (updateExitCode !== undefined && updateExitCode !== 0) {
+				this._logService.warn(`${LOG_PREFIX} Could not refresh the dev-build remote CLI at ${cliBin}; reusing the existing executable: update exited ${updateExitCode}`);
 			}
 			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, latest-version refresh attempted)`);
 			return cliBin;

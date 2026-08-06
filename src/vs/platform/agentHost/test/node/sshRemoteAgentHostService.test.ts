@@ -22,9 +22,14 @@ const quality = 'insider';
 
 class RecordingLogService extends NullLogService {
 	readonly errors: string[] = [];
+	readonly warnings: string[] = [];
 
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push([message, ...args].map(value => value instanceof Error ? value.message : String(value)).join(' '));
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].map(String).join(' '));
 	}
 }
 
@@ -56,7 +61,7 @@ function discoveryResponses(entries: readonly IAgentHostEndpointMetadata[], user
 	const responses: Array<{ stdout: string; code: number }> = [
 		{ stdout: 'Linux\n', code: 0 },
 		{ stdout: 'x86_64\n', code: 0 },
-		{ stdout: '1.0.0\n', code: 0 },
+		{ stdout: '1.0.0\n__vscode_cli_update_exit_code__:0\n', code: 0 },
 		{ stdout: agentEndpointsStdout(entries, userDataPath), code: 0 },
 	];
 	for (const _pid of new Set(entries.map(e => e.pid))) {
@@ -1262,6 +1267,33 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('curl')),
 			'should download CLI when not installed');
+	});
+
+	test('warns and reuses the installed CLI when refresh fails', async () => {
+		const logService = new RecordingLogService();
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+		};
+		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
+			logService,
+			productService as IProductService,
+		));
+		loggingService.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\nupdate failed\n__vscode_cli_update_exit_code__:1\n', code: 0 },
+			{ stdout: agentEndpointsStdout([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]), code: 0 },
+			{ stdout: '', code: 0 },
+		];
+
+		await loggingService.connect(makeConfig({ sshConfigHost: 'myhost' }));
+
+		assert.deepStrictEqual(logService.warnings, [
+			'[SSHRemoteAgentHost] Desktop has no product commit; falling back to non-pinned CLI install at ~/.vscode-server-oss/code-insiders.',
+			'[SSHRemoteAgentHost] Could not refresh the dev-build remote CLI at ~/.vscode-server-oss/code-insiders; reusing the existing executable: update exited 1',
+		]);
 	});
 
 	test('logs connection failures in the shared service', async () => {
