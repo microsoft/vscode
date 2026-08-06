@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -62,7 +63,7 @@ class OpenPullRequestAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenPullRequestAction.ID,
-			title: localize2('agentSessions.openPullRequest', 'Open Pull Request'),
+			title: localize2('agentSessions.openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
 			// Pull request pill shown in the session header meta row
@@ -75,7 +76,7 @@ class OpenPullRequestAction extends Action2 {
 				when: SessionHasPullRequestContext
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: 'navigation',
+				group: '2_pullRequest',
 				order: 0,
 				when: SessionHasPullRequestContext
 			}],
@@ -87,19 +88,53 @@ class OpenPullRequestAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const pullRequestUri = this._getPullRequestUri(targetSession);
+		const pullRequestUri = getSessionPullRequestUri(targetSession);
 		if (!pullRequestUri) {
 			return;
 		}
 
 		await openerService.open(pullRequestUri, { openExternal: true });
 	}
-
-	private _getPullRequestUri(session: ISession | undefined): URI | undefined {
-		return session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.uri;
-	}
 }
 registerAction2(OpenPullRequestAction);
+
+// --- Copy Pull Request URL action
+
+function getSessionPullRequestUri(session: ISession | undefined): URI | undefined {
+	return session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.uri;
+}
+
+class CopyPullRequestUrlAction extends Action2 {
+	static readonly ID = 'workbench.agentSessions.action.copyPullRequestUrl';
+
+	constructor() {
+		super({
+			id: CopyPullRequestUrlAction.ID,
+			title: localize2('agentSessions.copyPullRequestUrl', "Copy Pull Request URL"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionItemContextMenu,
+				group: '2_pullRequest',
+				order: 1,
+				when: SessionHasPullRequestContext
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const sessionsService = accessor.get(ISessionsService);
+
+		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
+		const pullRequestUri = getSessionPullRequestUri(targetSession);
+		if (!pullRequestUri) {
+			return;
+		}
+
+		await clipboardService.writeText(pullRequestUri.toString(true));
+	}
+}
+registerAction2(CopyPullRequestUrlAction);
 
 // --- Open Pull Request action view item (session header pull request pill)
 

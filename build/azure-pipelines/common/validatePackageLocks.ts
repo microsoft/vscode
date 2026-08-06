@@ -94,6 +94,24 @@ export function pinChangedPackages(packageJson: JsonValue, changedKeys: readonly
 	return pinned;
 }
 
+export function restoreDeclaredDependencies(lockfile: IPackageLock, packageJson: JsonValue): IPackageLock {
+	const restored = structuredClone(lockfile);
+	const rootPackage = restored.packages?.[''];
+	if (!isRecord(rootPackage) || !isRecord(packageJson)) {
+		return restored;
+	}
+
+	for (const field of DEPENDENCY_FIELDS) {
+		const declared = packageJson[field];
+		if (isRecord(declared)) {
+			rootPackage[field] = structuredClone(declared);
+		} else {
+			delete rootPackage[field];
+		}
+	}
+	return restored;
+}
+
 function normalizeForComparison(value: JsonValue, key?: string): JsonValue {
 	if (key === 'resolved' && typeof value === 'string') {
 		const tarballPathIndex = value.indexOf('/-/');
@@ -166,12 +184,13 @@ function regenerateLockfile(lockPath: string, seed: IPackageLock, pinnedPackageJ
 	try {
 		fs.writeFileSync(lockPath, `${JSON.stringify(seed, null, 2)}\n`);
 		fs.writeFileSync(packageJsonPath, `${JSON.stringify(pinnedPackageJson, null, 2)}\n`);
-		execFileSync(NPM, ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], {
+		execFileSync(NPM, ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--min-release-age=0'], {
 			cwd: path.dirname(lockPath),
 			stdio: 'inherit',
 			shell: process.platform === 'win32'
 		});
-		return readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
+		const regenerated = readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
+		return restoreDeclaredDependencies(regenerated, JSON.parse(submittedPackageJson) as JsonValue);
 	} finally {
 		fs.writeFileSync(lockPath, submittedLock);
 		fs.writeFileSync(packageJsonPath, submittedPackageJson);

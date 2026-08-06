@@ -102,7 +102,7 @@ suite('Sessions - Layout Actions', () => {
 			restore: [{ group: 'navigation', order: 20 }],
 			hide: [{
 				group: 'navigation',
-				order: 10,
+				order: 20,
 				precondition: AuxiliaryBarVisibleContext.key,
 			}],
 		});

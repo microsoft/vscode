@@ -128,8 +128,9 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'github.copilot.advanced.debug.overrideAuthType': 'token',
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
-		// This suite exercises the extension-host session providers directly.
-		'chat.agentHost.enabled': false,
+		'chat.agentHost.defaultSessionsProvider': false,
+		'chat.agents.copilotCli.hideExtensionHost': false,
+		'chat.agents.claude.preferAgentHost': false,
 		'sessions.chat.localAgent.enabled': true,
 		'github.copilot.chat.cli.sandbox.enabled': 'on',
 		'github.copilot.chat.cli.sessionEventLogging.enabled': true,
@@ -1332,9 +1333,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}));
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
-		// Agents profile. Writing settings after the workbench is up would race
-		// with AgentHostContribution’s startup (it gates on
-		// `chat.agentHost.enabled` at construction).
+		// Agents profile so Agent Host startup observes the test configuration.
 		const userDataDir = (this.app as Application).userDataPath;
 		if (userDataDir) {
 			const settings = JSON.stringify({
@@ -1346,7 +1345,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'http.proxySupport': 'override',
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
-				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.

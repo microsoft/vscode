@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { createLockfileRegenerationSeed, findChangedPackageKeys, findLockfileDifferences, pinChangedPackages } from '../../azure-pipelines/common/validatePackageLocks.ts';
+import { createLockfileRegenerationSeed, findChangedPackageKeys, findLockfileDifferences, pinChangedPackages, restoreDeclaredDependencies } from '../../azure-pipelines/common/validatePackageLocks.ts';
 
 suite('validatePackageLocks', () => {
 	test('forces npm to regenerate every package record changed by the PR', () => {
@@ -94,6 +94,32 @@ suite('validatePackageLocks', () => {
 		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
 			devDependencies: { tool: '2.1.0' },
 			dependencies: { unrelated: '^1.0.0' }
+		});
+	});
+
+	test('restores declared dependency ranges after regeneration', () => {
+		const regenerated = {
+			packages: {
+				'': {
+					dependencies: { canary: '1.0.79-2' },
+					devDependencies: { tool: '2.1.0' },
+					license: 'MIT'
+				}
+			}
+		};
+		const packageJson = {
+			dependencies: { canary: '^1.0.79-2' },
+			devDependencies: { tool: '^2.0.0' }
+		};
+
+		assert.deepStrictEqual(restoreDeclaredDependencies(regenerated, packageJson), {
+			packages: {
+				'': {
+					dependencies: { canary: '^1.0.79-2' },
+					devDependencies: { tool: '^2.0.0' },
+					license: 'MIT'
+				}
+			}
 		});
 	});
 });
