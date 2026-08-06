@@ -72,11 +72,17 @@ Editor-content overlays must use the editor pane container rather than the edito
 
 The workbench grid is built with `proportionalLayout: false` (see `createWorkbenchLayout()` in [browser/workbench.ts](src/vs/sessions/browser/workbench.ts)). In this mode the split views do **not** distribute resize deltas proportionally — instead each delta (window resize, or a part being shown/hidden) is absorbed by the highest-`LayoutPriority` view, while the others keep their established sizes. Each part therefore declares an explicit `priority`:
 
+The single-pane layout preserves the established Sessions/Editor ratio when the outer container dimensions change and the actual Editor area is visible, after the non-proportional grid has laid out its fixed Sidebar and panel. This keeps the two primary horizontal surfaces balanced without allowing the Sidebar or docked Details width to drift; minimum-width constraints still take precedence when the available width is insufficient.
+
+The shared editor grid node is also visible in Details-only layouts because it hosts the docked Auxiliary Bar. Grid-node visibility must not be treated as Editor visibility when deciding whether to preserve the Sessions/Editor ratio, or a container resize will incorrectly resize the user's Details width.
+
+Sidebar visibility is intentionally excluded from that proportional adjustment. The Sessions Part is the high-priority view, so collapsing the Sessions list gives all freed width to the Sessions Part while the Editor and docked Details retain their user-set widths; showing the list takes that width back from Sessions.
+
 | Part | `LayoutPriority` | Width behaviour |
 |------|------------------|-----------------|
 | Sidebar | `Low` | Fixed user-set width; never absorbs deltas. `minimumWidth` 170 (270 web), `maximumWidth` ∞, snaps closed below the minimum. |
-| Sessions Part | **`High`** | The single flexible view — grows/shrinks to absorb every horizontal delta. `minimumWidth` 300, `maximumWidth` ∞. |
-| Editor | `Normal` | Keeps its user-set width (`600` default); only resized via its own sash. |
+| Sessions Part | **`High`** | Absorbs horizontal deltas in the non-proportional grid. In single-pane, an outer-container resize is post-adjusted to preserve its ratio with a visible Editor. `minimumWidth` 300, `maximumWidth` ∞. |
+| Editor | `Normal` | Normally keeps its user-set width (`600` default) and responds to its sash. In single-pane, an outer-container resize also adjusts it proportionally while the actual Editor area is visible. |
 | Auxiliary Bar | `Low` | Keeps its user-set width (`340` default); only resized via its own sash. |
 | Custom View Grid | **`High`** | Claims the whole row. Never visible at the same time as the Sessions Part, so the "exactly one `High` view" invariant below still holds. |
 

@@ -1872,7 +1872,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 	}
 
-	private _layoutGrid(): void {
+	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep in sync with the desktop grid margin in workbench.css.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
