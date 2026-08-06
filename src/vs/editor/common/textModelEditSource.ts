@@ -91,10 +91,11 @@ export function isUserEdit(source: TextModelEditSource): boolean {
 }
 
 export const EditSources = {
-	unknown(data: { name?: string | null }) {
+	unknown(data: { name?: string | null; providerId?: ProviderId }) {
 		return createEditSource({
 			source: 'unknown',
 			name: data.name,
+			...toProperties(data.providerId),
 		} as const);
 	},
 
