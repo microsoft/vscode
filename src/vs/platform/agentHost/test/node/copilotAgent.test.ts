@@ -4867,6 +4867,224 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('republishes affected plugin customizations after enablement changes', async () => {
+			const pluginManager = new class extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({ customization }));
+				}
+			}();
+			const { agent, enablementService, stateManager, storageService } = createTestAgentContext(disposables, { pluginManager });
+			const session = AgentSession.uri('copilotcli', 'republish-affected-plugin');
+			const mcpId = `${pluginSource}/.mcp.json#mcp=slack`;
+			const topLevelMcp = {
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilotcli:republish-affected-plugin:root',
+				uri: 'mcp-top-level:copilotcli:republish-affected-plugin:root',
+				name: 'root',
+				enabled: true,
+				state: { kind: McpServerStatus.Stopped },
+			} as const;
+			const actions: (SessionAction | ChatAction)[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push(progress.action);
+				}
+			}));
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [pluginSource]: false } });
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				// The session owns bare top-level MCP customizations; the plugin
+				// controller does not. A republish replaces the whole list, so they
+				// have to be supplied or they would be dropped from the session.
+				setDefaultSessionStub(agent, 'republish-affected-plugin', {
+					topLevelMcpCustomizations: () => [topLevelMcp],
+					reconcileMcpServerEnablement: async () => { },
+					dispose: () => { },
+				});
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+				const pluginController = (getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: {
+						sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): Promise<unknown>;
+						getCustomizations(): readonly Customization[];
+					};
+				}).pluginController;
+				await pluginController.sync('client', [pluginWithSlackMcp(mcpId)], { quiet: true });
+				stateManager.dispatchServerAction(session.toString(), {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: [...pluginController.getCustomizations(), topLevelMcp],
+				});
+				assert.strictEqual(pluginController.getCustomizations()[0].enabled, false, 'precondition: plugin is published disabled');
+				actions.length = 0;
+
+				enablementService.handleToggle(session.toString(), pluginSource, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+				const republished = actions.filter((action): action is Extract<SessionAction, { type: ActionType.SessionCustomizationsChanged }> =>
+					action.type === ActionType.SessionCustomizationsChanged);
+				assert.deepStrictEqual(republished.map(action => {
+					const plugin = action.customizations.find(customization => customization.id === pluginSource) as PluginCustomization;
+					return {
+						enabled: plugin.enabled,
+						enablement: plugin.enablement,
+						children: publishedMcpChildren([plugin]),
+						topLevelMcp: action.customizations
+							.filter((customization): customization is Extract<Customization, { type: CustomizationType.McpServer }> => customization.type === CustomizationType.McpServer)
+							.map(customization => ({ id: customization.id, enabled: customization.enabled, enablement: customization.enablement })),
+					};
+				}), [{
+					enabled: true,
+					enablement: undefined,
+					children: [{ id: mcpId, enabled: true, enablement: undefined }],
+					topLevelMcp: [{ id: topLevelMcp.id, enabled: true, enablement: undefined }],
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		// Regression: folding the session's top-level MCP servers into
+		// `getCustomizations()` made them appear twice in `getSessionCustomizations`,
+		// which already combines that result with the session's own top-level list.
+		test('does not duplicate top-level MCP servers in the resolved customizations', async () => {
+			const { agent, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'republish-no-duplicates');
+			const workspace = URI.file('/workspace');
+			const topLevel = {
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilotcli:republish-no-duplicates:root',
+				uri: 'mcp-top-level:copilotcli:republish-no-duplicates:root',
+				name: 'root',
+				enabled: true,
+				state: { kind: McpServerStatus.Stopped },
+			} as const;
+			try {
+				storageService.set(CustomizationEnablementStorageKey, {});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				setDefaultSessionStub(agent, 'republish-no-duplicates', {
+					topLevelMcpCustomizations: () => [topLevel],
+					reconcileMcpServerEnablement: async () => { },
+					dispose: () => { },
+				});
+				agent.getOrCreateActiveClient(session, { clientId: 'client' });
+
+				const resolved = await agent.getSessionCustomizations(session);
+
+				assert.deepStrictEqual(
+					resolved.filter(customization => customization.id === topLevel.id).length,
+					1,
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('republishes only customizations for sessions affected by enablement changes', async () => {
+			const pluginManager = new class extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({ customization }));
+				}
+			}();
+			const { agent, enablementService, stateManager, storageService } = createTestAgentContext(disposables, { pluginManager });
+			const affected = AgentSession.uri('copilotcli', 'republish-affected');
+			const unaffected = AgentSession.uri('copilotcli', 'republish-unaffected');
+			const actions: { readonly session: URI; readonly action: SessionAction | ChatAction }[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push({ session: progress.resource, action: progress.action });
+				}
+			}));
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [pluginSource]: false } });
+				for (const [session, plugin] of [
+					[affected, pluginWithSlackMcp(`${pluginSource}/.mcp.json#mcp=affected`)],
+					[unaffected, { ...pluginWithSlackMcp(`${pluginSource}/.mcp.json#mcp=unaffected`), id: 'file:///unaffected-plugin', uri: 'file:///unaffected-plugin' }],
+				] as const) {
+					stateManager.createSession({
+						resource: session.toString(),
+						provider: 'copilotcli',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					});
+					agent.getOrCreateActiveClient(session, { clientId: session.path });
+					const pluginController = (getActiveClient(agent, session) as TestActiveClient & {
+						pluginController: {
+							sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): Promise<unknown>;
+							getCustomizations(): readonly Customization[];
+						};
+					}).pluginController;
+					await pluginController.sync(session.path, [plugin], { quiet: true });
+					stateManager.dispatchServerAction(session.toString(), {
+						type: ActionType.SessionCustomizationsChanged,
+						customizations: [...pluginController.getCustomizations()],
+					});
+				}
+				actions.length = 0;
+
+				enablementService.handleToggle(affected.toString(), pluginSource, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+				assert.deepStrictEqual(actions
+					.filter(({ action }) => action.type === ActionType.SessionCustomizationsChanged)
+					.map(({ session }) => session.toString()), [affected.toString()]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('skips harmlessly over affected sessions without active clients', async () => {
+			const pluginManager = new class extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({ customization }));
+				}
+			}();
+			const { agent, enablementService, stateManager, storageService } = createTestAgentContext(disposables, { pluginManager });
+			const active = AgentSession.uri('copilotcli', 'republish-active');
+			const inactive = AgentSession.uri('copilotcli', 'republish-inactive');
+			const actions: (SessionAction | ChatAction)[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push(progress.action);
+				}
+			}));
+			try {
+				storageService.set(CustomizationEnablementStorageKey, { global: { [pluginSource]: false } });
+				for (const session of [active, inactive]) {
+					stateManager.createSession({
+						resource: session.toString(),
+						provider: 'copilotcli',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					});
+					stateManager.dispatchServerAction(session.toString(), {
+						type: ActionType.SessionCustomizationsChanged,
+						customizations: [pluginWithSlackMcp(`${pluginSource}/.mcp.json#mcp=${AgentSession.id(session)}`)],
+					});
+				}
+				agent.getOrCreateActiveClient(active, { clientId: 'client' });
+				const pluginController = (getActiveClient(agent, active) as TestActiveClient & {
+					pluginController: {
+						sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }): Promise<unknown>;
+					};
+				}).pluginController;
+				await pluginController.sync('client', [pluginWithSlackMcp(`${pluginSource}/.mcp.json#mcp=active`)], { quiet: true });
+				actions.length = 0;
+
+				assert.doesNotThrow(() => enablementService.handleToggle(active.toString(), pluginSource, [{ kind: CustomizationEnablementKind.Global, enabled: true }]));
+				assert.strictEqual(actions.filter(action => action.type === ActionType.SessionCustomizationsChanged).length, 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('excludes a globally disabled root MCP server from the launch snapshot', async () => {
 			const { agent, configurationService, storageService } = createTestAgentContext(disposables);
 			const session = AgentSession.uri('copilotcli', 'disabled-root-mcp');

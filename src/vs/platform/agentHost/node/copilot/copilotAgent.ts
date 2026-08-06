@@ -479,6 +479,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (AgentSession.provider(sessionUri) !== this.id || !event.affectsSession(session)) {
 					continue;
 				}
+				this._activeClients.get(sessionUri)?.pluginController.republishCustomizations(this._findAnySession(AgentSession.id(sessionUri))?.topLevelMcpCustomizations() ?? []);
 				void this._reconcileMcpServerEnablement(sessionUri).catch(err => this._logService.error('[CopilotAgent] Failed to apply MCP server enablement policy', err));
 			}
 		}));
@@ -4482,9 +4483,24 @@ class SessionPluginController extends Disposable {
 		// customizations.
 		client.revision++;
 		this._clients.delete(clientId);
+		this.republishCustomizations();
+	}
+
+	/**
+	 * Re-emits this session's customizations so they re-resolve against current
+	 * enablement policy. A host-only policy change has nothing else to trigger a
+	 * publish, since the client only re-syncs when its own model changes.
+	 *
+	 * @param topLevelMcpServers the session's bare top-level MCP customizations.
+	 * `SessionCustomizationsChanged` replaces the whole list and this controller
+	 * does not own those entries, so they must be supplied or they would be
+	 * dropped. They are deliberately not folded into {@link getCustomizations},
+	 * which callers already combine with them and would then double-count.
+	 */
+	public republishCustomizations(topLevelMcpServers: readonly Customization[] = []): void {
 		this._onDidPublish.fire({
 			type: ActionType.SessionCustomizationsChanged,
-			customizations: [...this.getCustomizations()],
+			customizations: [...this.getCustomizations(), ...topLevelMcpServers.map(customization => this._projectForPublish(customization))],
 		});
 	}
 
