@@ -12,6 +12,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -70,6 +71,8 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
+		@ICommandService private readonly commandService: ICommandService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
@@ -77,6 +80,15 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 		const label = this.instantiationService.createInstance(ResourceLabel, element, {});
 		const showDiffStats = kind === MultiDiffEditorItemLabelKind.Primary;
 		return new SessionChangesResourceLabel(label, element, showDiffStats, this.changesObs);
+	}
+
+	handleHeaderMiddleClick(resource: URI): boolean {
+		if (this.changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+			return false;
+		}
+
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource);
+		return true;
 	}
 
 	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {

@@ -44,6 +44,10 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
+		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+			return;
+		}
+
 		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
 
 		const reviewedFiles = changesViewService.activeSessionChangesObs.get()
