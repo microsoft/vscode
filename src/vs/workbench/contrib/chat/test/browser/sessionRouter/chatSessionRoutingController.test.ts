@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { resolveNewSessionWorkspaceFolder } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
+import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -50,6 +50,13 @@ suite('ChatSessionRoutingController', () => {
 		);
 
 		assert.strictEqual(result?.toString(), vscode.uri.toString());
+	});
+
+	test('extracts the task from an explicit new-session voice request', () => {
+		assert.strictEqual(parseExplicitNewSessionRequest('Create a new session to update the chocolate file'), 'update the chocolate file');
+		assert.strictEqual(parseExplicitNewSessionRequest('Please start a new chat session for fixing tests'), 'fixing tests');
+		assert.strictEqual(parseExplicitNewSessionRequest('Create a new session'), undefined);
+		assert.strictEqual(parseExplicitNewSessionRequest('Create a file in the current session'), undefined);
 	});
 });
 

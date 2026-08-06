@@ -82,6 +82,12 @@ type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
 const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
 
+export function parseExplicitNewSessionRequest(utterance: string): string | undefined {
+	const match = /^(?:please\s+)?(?:create|start|open)\s+(?:a\s+)?new\s+(?:chat\s+)?session(?:\s+(?:to|for|and)\s+|\s*[:,-]\s*)(.+)$/i.exec(utterance.trim());
+	const task = match?.[1]?.trim();
+	return task || undefined;
+}
+
 export function resolveNewSessionWorkspaceFolder(
 	utterance: string,
 	folders: readonly IWorkspaceFolder[],
@@ -263,10 +269,12 @@ export class ChatSessionRoutingController extends Disposable {
 	 * its own scratch session.
 	 */
 	async handleSubmit(query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean): Promise<boolean> {
-		const utterance = query.trim();
-		if (!utterance) {
+		const submittedUtterance = query.trim();
+		if (!submittedUtterance) {
 			return false;
 		}
+		const explicitNewSessionTask = parseExplicitNewSessionRequest(submittedUtterance);
+		const utterance = explicitNewSessionTask ?? submittedUtterance;
 
 		// A new submission supersedes any pending badge from a previous one.
 		this._submitCts.value?.cancel();
@@ -304,6 +312,11 @@ export class ChatSessionRoutingController extends Disposable {
 			isVoiceModeInput,
 			attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
 		};
+		if (explicitNewSessionTask) {
+			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
+			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			return true;
+		}
 		const followupResource = isVoiceModeInput ? this.host.getVoiceFollowupSessionResource?.() : undefined;
 		if (followupResource && followupResource.toString() !== this.host.getOwnSessionResource()?.toString()) {
 			const followupTarget: PendingTarget = {
