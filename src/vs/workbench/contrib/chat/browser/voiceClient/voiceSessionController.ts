@@ -5702,9 +5702,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		} else if (routedRequest && currentState === 'idle') {
 			const model = this.chatService.getSession(URI.parse(sessionId));
 			const lastRequest = model?.getRequests().at(-1);
-			const isRoutedResponse = routedRequest.requestId
-				? lastRequest?.id === routedRequest.requestId
-				: routedRequest.phase !== 'queued';
+			const isRoutedResponse = routedRequest.phase !== 'queued'
+				|| (!!routedRequest.requestId && lastRequest?.id === routedRequest.requestId);
 			if (isRoutedResponse && lastResponseSummary) {
 				isCurrentRoutedCompletion = true;
 				this._routedRequests.delete(sessionKey);

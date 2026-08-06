@@ -4043,7 +4043,7 @@ suite('VoiceSessionController', () => {
 		const sessionId = resource.toString();
 		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
 		controller.setTargetSession(resource, 'existing_session');
-		controller.markRoutedRequestPending(resource);
+		controller.markRoutedRequestPending(resource, 'local-queued-request-id');
 
 		handleStateChange.call(controller, sessionId, 'thinking', undefined, undefined, undefined);
 		handleStateChange.call(controller, sessionId, 'idle', undefined, undefined, undefined);
