@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestContextFetcher } from '../../browser/fetchers/githubPullRequestContextFetcher.js';
 import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
@@ -16,12 +17,20 @@ import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHub
 class MockApiClient {
 
 	private _nextResponse: unknown;
+	private _responses: unknown[] = [];
 	private _nextError: Error | undefined;
 	readonly requestCalls: { method: string; path: string; body?: unknown }[] = [];
 	readonly graphqlCalls: { query: string; variables?: Record<string, unknown> }[] = [];
 
 	setNextResponse(data: unknown): void {
 		this._nextResponse = data;
+		this._responses = [];
+		this._nextError = undefined;
+	}
+
+	setResponses(...data: unknown[]): void {
+		this._responses = [...data];
+		this._nextResponse = undefined;
 		this._nextError = undefined;
 	}
 
@@ -35,7 +44,7 @@ class MockApiClient {
 		if (this._nextError) {
 			throw this._nextError;
 		}
-		return { data: this._nextResponse as T, statusCode: 200 };
+		return { data: (this._responses.length > 0 ? this._responses.shift() : this._nextResponse) as T, statusCode: 200 };
 	}
 
 	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -104,6 +113,75 @@ suite('GitHubRepositoryFetcher', () => {
 			() => fetcher.getRepository('owner', 'nonexistent'),
 			(err: Error) => err instanceof GitHubApiError && (err as GitHubApiError).statusCode === 404,
 		);
+	});
+});
+
+suite('GitHubPullRequestContextFetcher', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns details, patch, and issue/review comments as one snapshot', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setResponses(
+			{
+				number: 42,
+				html_url: 'https://github.com/owner/repo/pull/42',
+				title: 'Improve sessions',
+				body: 'Description',
+				user: { login: 'author' },
+				draft: false,
+				base: { ref: 'main' },
+				head: { ref: 'feature' },
+				updated_at: '2026-01-01T00:00:00Z',
+			},
+			[{ filename: 'src/a.ts', status: 'modified', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' }],
+			[{ body: 'General comment', user: { login: 'commenter' }, created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }],
+			[{ body: 'Inline comment', user: { login: 'reviewer' }, created_at: '2026-01-03T00:00:00Z', updated_at: '2026-01-03T00:00:00Z', path: 'src/a.ts', line: 7, original_line: null }],
+		);
+		const fetcher = new GitHubPullRequestContextFetcher(mockApi as unknown as GitHubApiClient);
+
+		const context = await fetcher.getPullRequestContext('owner', 'repo', 42);
+
+		assert.deepStrictEqual({
+			context,
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			context: {
+				owner: 'owner',
+				repo: 'repo',
+				number: 42,
+				url: 'https://github.com/owner/repo/pull/42',
+				title: 'Improve sessions',
+				description: 'Description',
+				author: 'author',
+				isDraft: false,
+				baseRef: 'main',
+				headRef: 'feature',
+				updatedAt: '2026-01-01T00:00:00Z',
+				patch: 'diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@',
+				comments: [{
+					kind: 'issue',
+					author: 'commenter',
+					body: 'General comment',
+					createdAt: '2026-01-02T00:00:00Z',
+					updatedAt: '2026-01-02T00:00:00Z',
+				}, {
+					kind: 'review',
+					author: 'reviewer',
+					body: 'Inline comment',
+					createdAt: '2026-01-03T00:00:00Z',
+					updatedAt: '2026-01-03T00:00:00Z',
+					path: 'src/a.ts',
+					line: 7,
+				}],
+			},
+			paths: [
+				'/repos/owner/repo/pulls/42',
+				'/repos/owner/repo/pulls/42/files?per_page=100&page=1',
+				'/repos/owner/repo/issues/42/comments?per_page=100&page=1',
+				'/repos/owner/repo/pulls/42/comments?per_page=100&page=1',
+			],
+		});
 	});
 });
 

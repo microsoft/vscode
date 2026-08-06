@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -11,8 +12,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { getChatTranscriptContext } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
+import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
 suite('Create Session from Pull Request', () => {
 
@@ -77,6 +80,100 @@ suite('Create Session from Pull Request', () => {
 			createPullRequestBootstrapPrompt(pullRequest(42, { title: 'Improve pull request picker' })),
 			'Initialize this session for pull request #42, "Improve pull request picker". Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".',
 		);
+	});
+
+	test('creates a transcript context attachment containing the PR snapshot as JSON', () => {
+		const attachment = createPullRequestContextAttachment({
+			owner: 'owner',
+			repo: 'repo',
+			number: 42,
+			url: 'https://github.com/owner/repo/pull/42',
+			title: 'Improve sessions',
+			description: 'Description',
+			author: 'author',
+			isDraft: false,
+			baseRef: 'main',
+			headRef: 'feature',
+			updatedAt: '2026-01-01T00:00:00Z',
+			patch: '@@ -1 +1 @@',
+			comments: [],
+		});
+
+		assert.deepStrictEqual({
+			kind: attachment.kind,
+			name: attachment.name,
+			value: JSON.parse(attachment.value ?? ''),
+			transcriptContext: getChatTranscriptContext(attachment),
+		}, {
+			kind: 'string',
+			name: '#42 Improve sessions',
+			value: {
+				owner: 'owner',
+				repo: 'repo',
+				number: 42,
+				url: 'https://github.com/owner/repo/pull/42',
+				title: 'Improve sessions',
+				description: 'Description',
+				author: 'author',
+				isDraft: false,
+				baseRef: 'main',
+				headRef: 'feature',
+				updatedAt: '2026-01-01T00:00:00Z',
+				patch: '@@ -1 +1 @@',
+				comments: [],
+			},
+			transcriptContext: {
+				label: '#42 Improve sessions',
+				iconId: 'git-pull-request',
+				tooltip: 'Pull request #42 by @author',
+			},
+		});
+	});
+
+	test('keeps creation pending until the committed session is opened', async () => {
+		const resource = URI.parse('test:///session');
+		const session = new class extends mock<ISession>() {
+			override readonly resource = resource;
+		}();
+		const createBarrier = new DeferredPromise<ISession | undefined>();
+		const openBarrier = new DeferredPromise<void>();
+		const openStarted = new DeferredPromise<void>();
+		const events: string[] = [];
+
+		const resultPromise = createAndOpenPullRequestSession(
+			async () => {
+				events.push('create');
+				return createBarrier.p;
+			},
+			async openedResource => {
+				events.push(`open:${openedResource.toString()}`);
+				openStarted.complete();
+				await openBarrier.p;
+				events.push('opened');
+			},
+			() => {
+				events.push('hidePicker');
+			},
+		);
+		await Promise.resolve();
+		const whileCreating = [...events];
+		createBarrier.complete(session);
+		await openStarted.p;
+		const whileOpening = [...events];
+		openBarrier.complete();
+		const result = await resultPromise;
+
+		assert.deepStrictEqual({
+			whileCreating,
+			whileOpening,
+			events,
+			result: result?.resource.toString(),
+		}, {
+			whileCreating: ['create'],
+			whileOpening: ['create', `open:${resource.toString()}`],
+			events: ['create', `open:${resource.toString()}`, 'opened', 'hidePicker'],
+			result: resource.toString(),
+		});
 	});
 
 	test('collects existing pull request numbers and tracked head branches only from the selected repository', () => {

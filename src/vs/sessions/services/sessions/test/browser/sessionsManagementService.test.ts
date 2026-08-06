@@ -1003,6 +1003,66 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		const requestOptionsBarrier = new DeferredPromise<void>();
+		const requestPreparationStarted = new DeferredPromise<void>();
+		const configurationCompleted = new DeferredPromise<void>();
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return {
+					uri: URI.parse('test:///folder'),
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(): ISession {
+				events.push('create');
+				return session;
+			}
+			override async setWorktreeConfiguration(): Promise<void> {
+				events.push('configure');
+				configurationCompleted.complete();
+			}
+			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+				events.push(`send:${options.query}`);
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), async () => {
+			events.push('prepare');
+			requestPreparationStarted.complete();
+			await requestOptionsBarrier.p;
+			return { query: 'prepared' };
+		}, {
+			isolationMode: 'worktree',
+			onSessionCreated: () => {
+				events.push('open');
+			},
+		});
+		await Promise.all([requestPreparationStarted.p, configurationCompleted.p]);
+		const eventsWhilePreparingRequest = [...events];
+		requestOptionsBarrier.complete();
+		await sendPromise;
+
+		assert.deepStrictEqual({
+			eventsWhilePreparingRequest,
+			events,
+		}, {
+			eventsWhilePreparingRequest: ['create', 'open', 'prepare', 'configure'],
+			events: ['create', 'open', 'prepare', 'configure', 'send:prepared'],
+		});
+	});
+
 	test('createAndSendNewChatRequest refuses an untrusted required workspace before creating a session', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

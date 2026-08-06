@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { IChatRequestStringVariableEntry, withChatTranscriptContext } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('Sessions - Chat View', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,5 +48,21 @@ suite('Sessions - Chat View', () => {
 			hiddenComplete: false,
 			visiblePending: false,
 		});
+	});
+
+	test('finds transcript context in hidden request attachments', () => {
+		const attachment = withChatTranscriptContext<IChatRequestStringVariableEntry>({
+			kind: 'string',
+			id: 'pr',
+			name: 'PR',
+			value: '{}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+			handle: 0,
+		}, { label: '#42 PR' });
+
+		assert.strictEqual(findTranscriptContextEntry([{
+			variableData: { variables: [] },
+			attachedContext: [attachment],
+		}]), attachment);
 	});
 });

@@ -6,7 +6,7 @@
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile, IGitHubPullRequestSummary, IGitHubPullRequestsPage } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
@@ -15,6 +15,7 @@ import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection }
 import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
+import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
@@ -68,6 +69,7 @@ export interface IGitHubService {
 	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage>;
 	getPullRequestsWaitingForReview(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]>;
 	getPullRequestsAssignedToViewer(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]>;
+	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext>;
 
 	/**
 	 * Find the most recently updated pull request whose head branch is
@@ -93,6 +95,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	private readonly _changesFetcher: GitHubChangesFetcher;
 	private readonly _pullRequestsFetcher: GitHubPullRequestsFetcher;
+	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
@@ -121,6 +124,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._changesFetcher = new GitHubChangesFetcher(apiClient);
 		this._pullRequestsFetcher = new GitHubPullRequestsFetcher(apiClient);
+		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 
 		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
@@ -231,6 +235,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getPullRequestsAssignedToViewer(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]> {
 		return this._pullRequestsFetcher.getPullRequestsAssignedToViewer(owner, repo);
+	}
+
+	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext> {
+		return this._pullRequestContextFetcher.getPullRequestContext(owner, repo, number);
 	}
 
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {

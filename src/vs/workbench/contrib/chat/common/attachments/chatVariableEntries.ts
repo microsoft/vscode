@@ -102,6 +102,40 @@ export const ChatPasteAttachmentMetadata = {
 	PastedLines: 'vscode.chat.attachment.pastedLines',
 } as const;
 
+const ChatTranscriptContextMetadataKey = 'vscode.chat.transcriptContext';
+
+export interface IChatTranscriptContext {
+	readonly label: string;
+	readonly iconId?: string;
+	readonly tooltip?: string;
+}
+
+export function getChatTranscriptContext(entry: IChatRequestVariableEntry): IChatTranscriptContext | undefined {
+	const value = entry._meta?.[ChatTranscriptContextMetadataKey];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const record = value as Record<string, unknown>;
+	if (typeof record.label !== 'string') {
+		return undefined;
+	}
+	return {
+		label: record.label,
+		...(typeof record.iconId === 'string' ? { iconId: record.iconId } : {}),
+		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+	};
+}
+
+export function withChatTranscriptContext<T extends IChatRequestVariableEntry>(entry: T, context: IChatTranscriptContext) {
+	return {
+		...entry,
+		_meta: {
+			...entry._meta,
+			[ChatTranscriptContextMetadataKey]: context,
+		},
+	};
+}
+
 export interface IRestorablePasteAttachment {
 	readonly label: string;
 	readonly displayKind?: string;

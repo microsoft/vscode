@@ -38,6 +38,36 @@
 	position: relative;
 }
 
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list {
+	display: block !important;
+	position: relative;
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context {
+	position: absolute;
+	top: var(--vscode-spacing-size320);
+	left: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	justify-content: flex-end;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 var(--vscode-spacing-size320);
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment {
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress {
 	position: absolute;
 	top: var(--vscode-spacing-size320);
@@ -57,6 +87,11 @@
 	pointer-events: none;
 }
 
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list > .chat-transcript-progress {
+	top: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size320));
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context[hidden],
 .agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress[hidden] {
 	display: none;
 }

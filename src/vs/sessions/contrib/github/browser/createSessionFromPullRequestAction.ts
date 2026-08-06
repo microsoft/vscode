@@ -6,7 +6,7 @@
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { observableFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +27,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workben
 import { ISessionSection, SessionSectionHasNonCloudRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
 import { IGitHubService } from './githubService.js';
 import { IGitHubPullRequestSummary } from '../common/types.js';
-import { createPullRequestBootstrapPrompt, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
+import { createAndOpenPullRequestSession } from './pullRequestSessionCreation.js';
 
 export const CREATE_SESSION_FROM_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.createSessionFromPullRequest';
 
@@ -227,22 +228,30 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 			picker.busy = true;
 			try {
 				await waitForWorktreeSessionType(sessionsManagementService, repository.folderUri, pickerCts.token);
-				picker.hide();
-				const session = await sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, {
-					query: createPullRequestBootstrapPrompt(pullRequest),
-					title: pullRequest.title,
-					hideFromTranscript: true,
-				}, {
-					isolationMode: 'worktree',
-					branch: pullRequest.headRef,
-					worktreeBranchTrack: true,
-					onSessionCreated: session => {
-						sessionsService.openSession(session.resource).catch(onUnexpectedError);
-					},
-				});
-				if (session) {
-					await sessionsService.openSession(session.resource);
+				if (pickerCts.token.isCancellationRequested) {
+					return;
 				}
+				await createAndOpenPullRequestSession(
+					() => sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, async () => {
+						const pullRequestContext = await gitHubService.getPullRequestContext(repository.owner, repository.repo, pullRequest.number);
+						return {
+							query: createPullRequestBootstrapPrompt(pullRequest),
+							title: pullRequest.title,
+							attachedContext: [createPullRequestContextAttachment(pullRequestContext)],
+							hideFromTranscript: true,
+						};
+					}, {
+						isolationMode: 'worktree',
+						branch: pullRequest.headRef,
+						worktreeBranchTrack: true,
+					}, pickerCts.token),
+					resource => sessionsService.openSession(resource),
+					() => {
+						if (!store.isDisposed) {
+							picker.hide();
+						}
+					},
+				);
 				if (isWeb && isMobile) {
 					await commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 				}
@@ -251,7 +260,9 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 				if (isCancellationError(error)) {
 					return;
 				}
-				picker.hide();
+				if (!store.isDisposed) {
+					picker.hide();
+				}
 				notificationService.error(localize('createSessionFromPullRequest.error', "Failed to create a session from pull request #{0}: {1}", pullRequest.number, toErrorMessage(error)));
 				await sessionsService.openNewSession();
 			}

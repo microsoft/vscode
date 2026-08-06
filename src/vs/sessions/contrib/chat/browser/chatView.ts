@@ -7,7 +7,8 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -25,6 +26,8 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { getChatTranscriptContext, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -213,7 +216,9 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
-		this._setupGettingReadyStatus();
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		this._setupGettingReadyStatus(chatModel);
+		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
 
@@ -248,8 +253,7 @@ export class ChatView extends AbstractChatView {
 		}));
 	}
 
-	private _setupGettingReadyStatus(): void {
-		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+	private _setupGettingReadyStatus(chatModel: IObservable<IChatModel | undefined>): void {
 		const message = localize('chatView.gettingReady', "Getting ready...");
 		this._register(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
@@ -269,6 +273,28 @@ export class ChatView extends AbstractChatView {
 				showGettingReady = shouldShowGettingReady(requests.length, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			this._widget.setTranscriptProgress(showGettingReady ? message : undefined);
+		}));
+	}
+
+	private _setupInitialTranscriptContext(chatModel: IObservable<IChatModel | undefined>): void {
+		let currentEntryId: string | undefined;
+		this._register(autorun(reader => {
+			const model = chatModel.read(reader);
+			model?.lastRequestObs.read(reader);
+			const requests = model?.getRequests() ?? [];
+			const hasVisibleRequest = requests.some(request => !request.isHiddenFromTranscript);
+			const entry = hasVisibleRequest ? undefined : findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript));
+			if (entry?.id === currentEntryId) {
+				return;
+			}
+			currentEntryId = entry?.id;
+			const context = entry ? getChatTranscriptContext(entry) : undefined;
+			this._widget.setTranscriptContext(context ? {
+				label: context.label,
+				icon: context.iconId ? ThemeIcon.fromId(context.iconId) : undefined,
+				tooltip: context.tooltip,
+				attachment: entry,
+			} : undefined);
 		}));
 	}
 
@@ -477,6 +503,16 @@ export class ChatView extends AbstractChatView {
 
 export function shouldShowGettingReady(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
+}
+
+export function findTranscriptContextEntry(requests: readonly { readonly variableData: { readonly variables: readonly IChatRequestVariableEntry[] }; readonly attachedContext?: readonly IChatRequestVariableEntry[] }[]): IChatRequestVariableEntry | undefined {
+	for (const request of requests) {
+		const entry = [...request.variableData.variables, ...(request.attachedContext ?? [])].find(entry => getChatTranscriptContext(entry) !== undefined);
+		if (entry) {
+			return entry;
+		}
+	}
+	return undefined;
 }
 
 /**

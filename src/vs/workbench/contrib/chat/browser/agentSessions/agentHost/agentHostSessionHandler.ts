@@ -60,6 +60,7 @@ import { ITerminalChatService, type ITerminalInstance } from '../../../../termin
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
+	getChatTranscriptContext,
 	isAgentFeedbackVariableEntry,
 	isBrowserViewVariableEntry,
 	isChatReferenceVariableEntry,
@@ -5388,7 +5389,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (v.kind === 'workspace') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, 'workspace', referenceRange);
 		}
-		if (v.kind === 'string' && typeof v.value === 'string') {
+		if ((v.kind === 'string' || getChatTranscriptContext(v)) && typeof v.value === 'string') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 		}
 		const agentHostCompletionKind = getAgentHostCompletionReferenceKind(v);

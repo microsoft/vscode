@@ -36,6 +36,9 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	readonly background?: boolean;
 }
 
+/** Request options, optionally prepared alongside provisional session configuration. */
+export type NewSessionRequestOptions = ISendRequestOptions | (() => Promise<ISendRequestOptions>);
+
 /**
  * A (provider, session-type) pair returned by
  * {@link ISessionsManagementService.getSessionTypesForFolder} so the UI can
@@ -428,6 +431,9 @@ export interface ISessionsManagementService {
 	 * Create a new session for the given folder and send a chat request to it,
 	 * without navigating into the started session.
 	 *
+	 * A request-options factory starts after the provisional session is created,
+	 * runs concurrently with its configuration, and is awaited before sending.
+	 *
 	 * The started session appears in the sessions list once the provider
 	 * commits it, while the user's current view is left untouched. Intended for
 	 * callers outside the new-session composer that want to kick off a session
@@ -435,7 +441,7 @@ export interface ISessionsManagementService {
 	 * service was disposed during the send. Rejects (after disposing the
 	 * stranded draft) if the send fails.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
+	createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Create a workspace-less quick chat and send a request without navigating

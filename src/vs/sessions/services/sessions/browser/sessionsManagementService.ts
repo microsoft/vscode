@@ -22,7 +22,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
@@ -704,7 +704,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * If the send or any configuration setter fails, the stranded draft is
 	 * disposed through its provider and the error is rethrown.
 	 */
-	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+	async createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
 		if (workspace.requiresWorkspaceTrust) {
 			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folderUri);
@@ -738,7 +738,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private async _configureAndSendNewSession(
 		provider: ISessionsProvider,
 		session: ISession,
-		options: ISendRequestOptions,
+		options: NewSessionRequestOptions,
 		createOptions: ICreateNewSessionOptions | undefined,
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
@@ -748,46 +748,58 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			if (createOptions?.modelId) {
-				const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-				provider.setModel(session.sessionId, resolvedModelId);
-			}
-			if (createOptions?.modeId) {
-				provider.setMode?.(session.sessionId, createOptions.modeId);
-			}
-			if (createOptions?.permissionLevel) {
-				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
-			}
-			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
-				if (provider.setWorktreeConfiguration) {
-					await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
-						isolationMode: createOptions.isolationMode,
-						worktreeBranchTrack: createOptions.worktreeBranchTrack,
-						branch: createOptions.branch,
-					}), token);
-				} else {
-					if (createOptions.isolationMode && provider.setIsolationMode) {
-						await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
-					}
-					if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
-						await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
-					}
-					if (createOptions.branch && provider.setBranch) {
-						await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
-					}
-				}
-			}
-
+			const requestOptionsPromise = typeof options === 'function' ? options() : Promise.resolve(options);
+			const configurationPromise = this._configureNewSession(provider, session, createOptions, supportsWorktreeConfiguration, token, folderUri);
+			const [resolvedOptions] = await raceCancellationError(Promise.all([requestOptionsPromise, configurationPromise]), token);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, options, token), token);
+			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, resolvedOptions, token), token);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it
 			// through its provider to release the eager backend session before
 			// rethrowing. Safe no-op if the provider already removed it.
 			provider.deleteNewSession(session.sessionId);
 			throw e;
+		}
+	}
+
+	private async _configureNewSession(
+		provider: ISessionsProvider,
+		session: ISession,
+		createOptions: ICreateNewSessionOptions | undefined,
+		supportsWorktreeConfiguration: boolean,
+		token: CancellationToken,
+		folderUri: URI | undefined,
+	): Promise<void> {
+		if (createOptions?.modelId) {
+			const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+			provider.setModel(session.sessionId, resolvedModelId);
+		}
+		if (createOptions?.modeId) {
+			provider.setMode?.(session.sessionId, createOptions.modeId);
+		}
+		if (createOptions?.permissionLevel) {
+			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
+		}
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
+			if (provider.setWorktreeConfiguration) {
+				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
+					isolationMode: createOptions.isolationMode,
+					worktreeBranchTrack: createOptions.worktreeBranchTrack,
+					branch: createOptions.branch,
+				}), token);
+			} else {
+				if (createOptions.isolationMode && provider.setIsolationMode) {
+					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
+				}
+				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
+					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
+				}
+				if (createOptions.branch && provider.setBranch) {
+					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
+				}
+			}
 		}
 	}
 

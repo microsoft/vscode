@@ -110,6 +110,13 @@ export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly resultEditorBackground: string;
 }
 
+export interface IChatTranscriptContextPresentation {
+	readonly label: string;
+	readonly icon?: ThemeIcon;
+	readonly tooltip?: string;
+	readonly attachment?: IChatRequestVariableEntry;
+}
+
 export interface IChatWidgetContrib extends IDisposable {
 
 	readonly id: string;
@@ -301,6 +308,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
+	private transcriptContext: { readonly container: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement } | undefined;
+	private transcriptContextValue: IChatTranscriptContextPresentation | undefined;
 
 	get domNode() { return this.container; }
 
@@ -1196,6 +1205,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.label.textContent = message ?? '';
 		this.transcriptProgress.container.hidden = message === undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
+	}
+
+	setTranscriptContext(context: IChatTranscriptContextPresentation | undefined): void {
+		this.transcriptContextValue = context;
+		if (!this.transcriptContext) {
+			const container = dom.append(this.listContainer, $('.chat-transcript-context.chat-attached-context'));
+			container.hidden = true;
+			const pill = dom.append(container, $('.chat-attached-context-attachment'));
+			const icon = dom.append(pill, $('span'));
+			icon.setAttribute('aria-hidden', 'true');
+			const label = dom.append(pill, $('span.chat-attached-context-custom-text'));
+			this.transcriptContext = { container, icon, label };
+		}
+		this.transcriptContext.container.hidden = context === undefined;
+		this.transcriptContext.container.title = context?.tooltip ?? '';
+		this.transcriptContext.container.setAttribute('aria-label', context?.tooltip ?? context?.label ?? '');
+		this.transcriptContext.icon.className = context?.icon
+			? ThemeIcon.asClassName(context.icon)
+			: '';
+		this.transcriptContext.label.textContent = context?.label ?? '';
+		this.container.classList.toggle('chat-transcript-context-active', context !== undefined);
 	}
 
 	/**
@@ -2975,27 +3005,43 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			? editedModelRequestOptions
 			: currentModelRequestOptions;
 
-		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
-			...selectedModelRequestOptions,
-			location: this.location,
-			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
-			attachedContext: requestInputs.attachedContext.asArray(),
-			resolvedVariables: resolvedImageVariables,
-			noCommandDetection: options?.noCommandDetection,
-			isVoiceModeInput: options?.isVoiceModeInput,
-			...this.getModeRequestOptions(),
-			modeInfo,
-			agentIdSilent: this._lockedAgent?.id,
-			queue: options?.queue,
-			instructionContext: autoAttachEnabled ? {
-				modeKind,
-				enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
-				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
-			} : undefined,
-		});
+		const transcriptContext = this.transcriptContextValue;
+		if (transcriptContext?.attachment) {
+			requestInputs.attachedContext.insertFirst(transcriptContext.attachment);
+			this.setTranscriptContext(undefined);
+		}
+		let result: ChatSendResult;
+		try {
+			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
+				...selectedModelRequestOptions,
+				location: this.location,
+				locationData: this._location.resolveData?.(),
+				parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+				attachedContext: requestInputs.attachedContext.asArray(),
+				resolvedVariables: resolvedImageVariables,
+				noCommandDetection: options?.noCommandDetection,
+				isVoiceModeInput: options?.isVoiceModeInput,
+				...this.getModeRequestOptions(),
+				modeInfo,
+				agentIdSilent: this._lockedAgent?.id,
+				queue: options?.queue,
+				instructionContext: autoAttachEnabled ? {
+					modeKind,
+					enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+					enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
+				} : undefined,
+			});
+		} catch (error) {
+			if (transcriptContext) {
+				this.setTranscriptContext(transcriptContext);
+			}
+			throw error;
+		}
 
 		if (ChatSendResult.isRejected(result)) {
+			if (transcriptContext) {
+				this.setTranscriptContext(transcriptContext);
+			}
 			if (result.newSessionResource) {
 				const newModel = this.chatService.getSession(result.newSessionResource);
 				if (newModel) {
