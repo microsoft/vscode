@@ -439,7 +439,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
-			getVoiceFollowupSessionResource: () => this._activePendingSessionResource ?? this.voiceSessionController.getLastSpokenResponseSession(),
+			getPendingReplySessionResource: () => this._activePendingSessionResource,
+			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
+			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
+			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
 			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {
 				if (resource) {
 					this.voiceSessionController.markRoutedRequestPending(resource, requestId);

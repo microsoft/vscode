@@ -264,8 +264,12 @@ export interface IVoiceSessionController {
 	 * sent to this session instead of the currently active one.
 	 */
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void;
+	/** Release the previous destination and cancel its stale response before routing a new request. */
+	prepareForRoutingRequest(): void;
 	/** Mark a newly routed request so the session's previous idle response is stale. */
 	markRoutedRequestPending(resource: URI, requestId?: string): void;
+	/** Clear request-aware narration state after a routed send is rejected. */
+	clearRoutedRequest(resource: URI): void;
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
 	/** Transfer Voice Mode surface ownership to or from the floating omni input. */
@@ -2858,10 +2862,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetSession.set(resource, undefined);
 	}
 
+	prepareForRoutingRequest(): void {
+		const resource = this._targetSession.get();
+		if (resource) {
+			this._discardResponsesSupersededByPending(this._sessionKey(resource.toString()));
+		}
+		this.setTargetSession(undefined);
+	}
+
 	markRoutedRequestPending(resource: URI, requestId?: string): void {
 		const sessionKey = this._sessionKey(resource.toString());
+		const wasAlreadyMarked = this._routedRequests.has(sessionKey);
 		this._routedRequests.set(sessionKey, { requestId, phase: 'queued' });
-		this._discardResponsesSupersededByPending(sessionKey);
+		if (!wasAlreadyMarked) {
+			this._discardResponsesSupersededByPending(sessionKey);
+		}
 
 		const model = this.chatService.getSession(resource);
 		const lastRequest = model?.getRequests().at(-1);
@@ -2875,6 +2890,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._routedRequests.delete(sessionKey);
 			}
 		}
+	}
+
+	clearRoutedRequest(resource: URI): void {
+		this._routedRequests.delete(this._sessionKey(resource.toString()));
 	}
 
 	getLastSpokenResponseSession(): URI | undefined {

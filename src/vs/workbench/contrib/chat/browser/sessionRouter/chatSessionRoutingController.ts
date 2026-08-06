@@ -217,14 +217,20 @@ export interface IChatSessionRoutingHost {
 	readonly widget: ChatWidget;
 	/** Resource of the host's own scratch session, excluded from routing candidates. */
 	getOwnSessionResource(): URI | undefined;
-	/** Existing session that a voice follow-up should continue without re-routing. */
-	getVoiceFollowupSessionResource?(): URI | undefined;
+	/** Session whose currently displayed question or approval the voice input answers directly. */
+	getPendingReplySessionResource?(): URI | undefined;
 	/**
 	 * Insert the advisory badge into the host DOM near the input.
 	 * If the host has no surface to place it, leave the badge disconnected and
 	 * the controller will fall back to an immediate dispatch.
 	 */
 	placeBadge(badge: HTMLElement): void;
+	/** Notify the host that a new request will be independently routed. */
+	onWillRoute?(): void;
+	/** Notify the host immediately before sending so stale destination state can be invalidated. */
+	onWillDispatchRoute?(resource: URI): void;
+	/** Roll back pre-dispatch state when the send is rejected or fails. */
+	onDidRejectRoute?(resource: URI): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
 	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
 }
@@ -317,7 +323,7 @@ export class ChatSessionRoutingController extends Disposable {
 			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
-		const followupResource = isVoiceModeInput ? this.host.getVoiceFollowupSessionResource?.() : undefined;
+		const followupResource = isVoiceModeInput ? this.host.getPendingReplySessionResource?.() : undefined;
 		if (followupResource && followupResource.toString() !== this.host.getOwnSessionResource()?.toString()) {
 			const followupTarget: PendingTarget = {
 				kind: 'session',
@@ -328,6 +334,7 @@ export class ChatSessionRoutingController extends Disposable {
 			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
+		this.host.onWillRoute?.();
 
 		const candidates = await this._collectCandidateSessions(token);
 		if (token.isCancellationRequested) {
@@ -1093,6 +1100,9 @@ export class ChatSessionRoutingController extends Disposable {
 			let result: IDispatchResult;
 			let requestId: string | undefined;
 			try {
+				if (notifyRoute) {
+					this.host.onWillDispatchRoute?.(target);
+				}
 				result = await this._sendRequest(target, utterance, {
 					attachedContext: requestOptions.attachedContext,
 					resolvedVariables: requestOptions.resolvedVariables,
@@ -1105,6 +1115,9 @@ export class ChatSessionRoutingController extends Disposable {
 				ref.dispose();
 			}
 			if (result.status === 'rejected') {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target);
+				}
 				this.logService.warn('[chatSessionRouting] routed session rejected the request:', sessionId);
 				return result;
 			}
@@ -1116,6 +1129,9 @@ export class ChatSessionRoutingController extends Disposable {
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return result;
 		} catch (err) {
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(target);
+			}
 			if (token.isCancellationRequested) {
 				return { status: 'rejected' };
 			}
@@ -1125,8 +1141,10 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IDispatchResult> {
+		let routeResource: URI | undefined;
 		try {
 			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
+			routeResource = ref.object.sessionResource;
 			if (token.isCancellationRequested) {
 				ref.dispose();
 				return { status: 'rejected' };
@@ -1138,12 +1156,18 @@ export class ChatSessionRoutingController extends Disposable {
 			let result: IDispatchResult;
 			let requestId: string | undefined;
 			try {
+				if (notifyRoute) {
+					this.host.onWillDispatchRoute?.(ref.object.sessionResource);
+				}
 				result = await this._sendRequest(ref.object.sessionResource, utterance, requestOptions);
 				requestId = ref.object.lastRequest?.id;
 			} finally {
 				ref.dispose();
 			}
 			if (result.status === 'rejected') {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(ref.object.sessionResource);
+				}
 				this.logService.warn('[chatSessionRouting] new session rejected the request');
 				return result;
 			}
@@ -1153,6 +1177,9 @@ export class ChatSessionRoutingController extends Disposable {
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return result;
 		} catch (err) {
+			if (notifyRoute && routeResource) {
+				this.host.onDidRejectRoute?.(routeResource);
+			}
 			if (token.isCancellationRequested) {
 				return { status: 'rejected' };
 			}

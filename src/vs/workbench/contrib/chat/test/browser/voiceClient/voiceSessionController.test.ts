@@ -3987,6 +3987,37 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['current audio', 'queued omni response']);
 	});
 
+	test('preparing a new route releases the recent target and cancels its stale audio', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://recent-target');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+
+		voiceClientService.fireAudioResponse({
+			audio: 'stale response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			responseId: 'stale-response',
+			transcript: 'Stale response.',
+		});
+		controller.prepareForRoutingRequest();
+
+		assert.deepStrictEqual({
+			target: (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get(),
+			stopCount: ttsPlaybackService.stopCount,
+			queuedResponses: (Reflect.get(controller, '_audioQueue') as unknown[]).length,
+		}, {
+			target: undefined,
+			stopCount: 1,
+			queuedResponses: 0,
+		});
+	});
+
 	test('narrates a completed omni-routed response when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
