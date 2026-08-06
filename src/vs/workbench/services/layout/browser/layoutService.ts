@@ -26,6 +26,7 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -116,6 +117,14 @@ export function positionToString(position: Position): string {
 		case Position.TOP: return 'top';
 		default: return 'bottom';
 	}
+}
+
+/**
+ * Whether the floating cards sit against the top window edge and take the doubled outer
+ * gutter. Both grid rows above the middle section (title bar and banner) must be hidden.
+ */
+export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return !layoutService.isVisible(Parts.TITLEBAR_PART, targetWindow) && !layoutService.isVisible(Parts.BANNER_PART);
 }
 
 /**
@@ -242,6 +251,67 @@ export function getFloatingSidebarSiblingToEditorStatus(
 	return {
 		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
 		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
+ * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
+ * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Each edge takes the
+ * doubled outer gutter only when it faces the window rather than another card.
+ */
+export function getFloatingPaneCompositeVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const topEdgeExposed = isFloatingTopEdgeExposed(layoutService, targetWindow);
+
+	const panelPosition = layoutService.getPanelPosition();
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const isSideBar = partId === Parts.SIDEBAR_PART || partId === Parts.AUXILIARYBAR_PART;
+	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
+	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
+	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP;
+	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
+	const atWindowBottom = !facesEditorBelow && !facesPanelBelow;
+	const statusBarVisible = layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow);
+
+	return {
+		top: facesPanelAbove ? FLOATING_PANEL_MARGIN
+			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		bottom: atWindowBottom
+			? statusBarVisible ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+			: FLOATING_PANEL_INNER_MARGIN
+	};
+}
+
+/**
+ * Vertical margins (in pixels) the floating main editor reserves, mirroring the margins in
+ * `floatingPanels.css`. A panel above or below takes the place of the corresponding window edge.
+ */
+export function getFloatingEditorVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const panelPosition = layoutService.getPanelPosition();
+	const panelAtTop = panelVisible && panelPosition === Position.TOP;
+	const panelAtBottom = panelVisible && panelPosition === Position.BOTTOM;
+
+	return {
+		top: panelAtTop ? FLOATING_PANEL_MARGIN
+			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		bottom: panelAtBottom ? FLOATING_PANEL_INNER_MARGIN
+			: layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 	};
 }
 

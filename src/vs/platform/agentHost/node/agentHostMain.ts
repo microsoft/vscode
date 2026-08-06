@@ -41,7 +41,6 @@ import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
-import { CompositeProtocolServer } from './compositeProtocolServer.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -73,8 +72,11 @@ import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } f
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
+import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
@@ -83,7 +85,6 @@ import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService } from './agentHostGitService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
@@ -182,12 +183,6 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(ISandboxHelperService, new SandboxHelperService());
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
-		// Checkpoint service depends on session data + git services, so
-		// construct it AFTER both are registered. Consumed by CopilotAgent
-		// (baseline capture) and AgentService's inner DI (changeset
-		// pipeline / end-of-turn capture).
-		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
-		diServices.set(IAgentHostCheckpointService, checkpointService);
 		// Register the agent SDK downloader BEFORE any service that injects it
 		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
 		// dev-override env var → on-disk cache → product.agentSdks download.
@@ -207,7 +202,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)]);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)]);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -217,12 +212,18 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		diServices.set(IAgentEditAttributionService, editAttributionService);
+		agentService.setEditAttributionService(editAttributionService);
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
+		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
+		diServices.set(IAgentHostCheckpointService, agentService.checkpointService);
 
 		// CopilotApiService and the proxies that consume it are created AFTER the
 		// GitHub endpoint service is re-exported (above) so CAPI endpoint discovery
@@ -286,7 +287,7 @@ async function startAgentHost(): Promise<void> {
 	// lifetime, rather than inside `AgentHostService`: a service that arms a
 	// recurring timer in its constructor is one that no faked-timer unit test
 	// can ever drain.
-	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
@@ -320,28 +321,22 @@ async function startAgentHost(): Promise<void> {
 	if (server instanceof UtilityProcessServer) {
 		const localDataPlaneDisposables = disposables.add(new DisposableStore());
 		const messagePortProtocolServer = new MessagePortProtocolServer<string>();
-		const localEndpoint = await startLocalAgentHostEndpoint(
-			environmentService.userDataPath,
-			logService,
-			instantiationService,
-			environmentService.logsHome,
-		);
+		// Shared config for the local data-plane protocol handlers (renderer
+		// MessagePort + the external endpoint, which each get their own handler).
+		const localProtocolHandlerConfig = {
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+			terminalCommandPrefix: BANG_COMMAND_PREFIX,
+			otlpLogEmitter,
+			allowExtensionMethods: false,
+		};
 		try {
-			const localProtocolServer = localDataPlaneDisposables.add(new CompositeProtocolServer([
-				messagePortProtocolServer,
-				...(localEndpoint ? [localEndpoint.server] : []),
-			]));
+			// Handler for the renderer's MessagePort data plane.
 			localDataPlaneDisposables.add(new ProtocolServerHandler(
 				agentService,
 				agentService.stateManager,
-				localProtocolServer,
-				{
-					defaultDirectory: URI.file(os.homedir()).toString(),
-					completionTriggerCharacters: agentService.completionTriggerCharacters,
-					terminalCommandPrefix: BANG_COMMAND_PREFIX,
-					otlpLogEmitter,
-					allowExtensionMethods: false,
-				},
+				messagePortProtocolServer,
+				localProtocolHandlerConfig,
 				clientFileSystemProvider,
 				logService,
 			));
@@ -390,24 +385,49 @@ async function startAgentHost(): Promise<void> {
 				registerConnection(connection);
 			}
 
+			// Register the renderer's protocol channel BEFORE starting the external
+			// endpoint: the renderer connects over this channel, and the IPC
+			// ChannelServer drops calls to a not-yet-registered channel after its
+			// unknown-channel timeout (~1s), so the endpoint's socket startup must
+			// not sit on this path.
 			server.registerChannel(AgentHostIpcChannels.Protocol, messagePortProtocolServer);
+
+			// The external local endpoint (out-of-process local clients such as the
+			// CLI) is not on the renderer's path; start it after registration and
+			// give it its own handler.
+			const localEndpoint = await startLocalAgentHostEndpoint(
+				environmentService.userDataPath,
+				logService,
+				instantiationService,
+				environmentService.logsHome,
+			);
 			if (localEndpoint) {
+				const endpointMetadata = localEndpoint.metadata;
+				// Wire the endpoint's handler (subscribing to its connections) BEFORE
+				// publishing the metadata that advertises it, so a client can't connect
+				// in the gap and be missed.
+				localDataPlaneDisposables.add(localEndpoint.server);
+				localDataPlaneDisposables.add(new ProtocolServerHandler(
+					agentService,
+					agentService.stateManager,
+					localEndpoint.server,
+					localProtocolHandlerConfig,
+					clientFileSystemProvider,
+					logService,
+				));
 				try {
-					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, localEndpoint.metadata);
+					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
 					localDataPlaneDisposables.add(toDisposable(() => {
-						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, localEndpoint.metadata, logService);
+						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
 					}));
 				} catch (error) {
 					logService.error('[AgentHost] Failed to publish local protocol endpoint; continuing with MessagePort only', error);
 					localEndpoint.server.dispose();
-					cleanupLocalAgentHostEndpoint(environmentService.userDataPath, localEndpoint.metadata, logService);
+					cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
 				}
 			}
 		} catch (error) {
 			localDataPlaneDisposables.dispose();
-			if (localEndpoint) {
-				cleanupLocalAgentHostEndpoint(environmentService.userDataPath, localEndpoint.metadata, logService);
-			}
 			throw error;
 		}
 	}
@@ -549,7 +569,7 @@ async function startLocalAgentHostEndpoint(
 		}
 		server = await WebSocketProtocolServer.create(
 			{
-				socketPath: endpointMetadata.endpointPath,
+				socketPath: endpointMetadata.endpoint.path,
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
@@ -577,12 +597,12 @@ function cleanupLocalAgentHostEndpoint(
 	logService: ILogService,
 ): void {
 	try {
-		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata);
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, metadata, logService);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol metadata', error);
 	}
 	try {
-		cleanupLocalAgentHostEndpointSocketSync(metadata.endpointPath);
+		cleanupLocalAgentHostEndpointSocketSync(metadata.endpoint.path);
 	} catch (error) {
 		logService.error('[AgentHost] Failed to clean up local protocol socket', error);
 	}

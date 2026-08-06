@@ -11,6 +11,14 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
+/** Raised when unattended session creation targets a workspace that requires trust. */
+export class WorkspaceNotTrustedError extends Error {
+	constructor() {
+		super('Workspace not trusted');
+		this.name = 'WorkspaceNotTrustedError';
+	}
+}
+
 /**
  * Options for sending a request through the sessions management service.
  *
@@ -85,6 +93,12 @@ export interface ICreateNewSessionOptions {
 	 * Skipped if the provider does not implement the setter.
 	 */
 	readonly branch?: string;
+	/**
+	 * Optional branch tracking preference to apply via
+	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
+	 * programmatic session creation and is not surfaced in the new-session UI.
+	 */
+	readonly worktreeBranchTrack?: boolean;
 }
 
 /**
@@ -116,6 +130,10 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/**
+	 * The exact options object the send was started with, so callers can
+	 * correlate a fire-and-forget (background) send with its completion.
+	 */
 	readonly options: ISendRequestOptions;
 }
 
@@ -205,9 +223,19 @@ export interface ISessionsManagementService {
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
 	/**
-	 * Get all session types from all registered providers.
+	 * Get all session types from all registered providers, deduplicated by
+	 * {@link ISessionType.id} (first provider wins). Use
+	 * {@link getAllProviderSessionTypes} when provider identity matters.
 	 */
 	getAllSessionTypes(): ISessionType[];
+
+	/**
+	 * Get every (provider × session type) pair from all registered providers,
+	 * without collapsing types that share an id. Two providers can offer the
+	 * same id while differing in properties that matter — e.g. only one of them
+	 * being usable without GitHub.
+	 */
+	getAllProviderSessionTypes(): IProviderSessionType[];
 
 	/**
 	 * Get all session types that can serve the given workspace URI, across all
@@ -307,6 +335,28 @@ export interface ISessionsManagementService {
 	 * reactively (e.g. the view restores it into the composer slot).
 	 */
 	readonly newSession: IObservable<ISession | undefined>;
+
+	/**
+	 * Observable for the Automation dialog's in-progress session draft. This is
+	 * independent from {@link newSession} so the dialog cannot replace the
+	 * regular New Chat composer draft.
+	 */
+	readonly automationSession: IObservable<ISession | undefined>;
+
+	/**
+	 * Create and track an Automation dialog session draft for the given folder.
+	 */
+	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
+
+	/**
+	 * Create and track a workspace-less Automation dialog session draft.
+	 */
+	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession;
+
+	/**
+	 * Discard the matching Automation dialog session draft.
+	 */
+	discardAutomationSession(session?: ISession): void;
 
 	/**
 	 * Create a new session for the given folder.

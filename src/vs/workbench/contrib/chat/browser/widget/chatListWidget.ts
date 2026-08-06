@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -35,12 +36,41 @@ import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileT
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
+import { sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
 	listBackground?: string;
+}
+
+/**
+ * Ref-counted suppression of auto-scrolling to the bottom. Holds compose, so
+ * unrelated features (request editing, an open text selection) can suppress
+ * concurrently without clobbering each other; auto-scroll resumes only once the
+ * last hold is released.
+ */
+export class AutoScrollHolds {
+
+	private _count = 0;
+
+	get isHeld(): boolean {
+		return this._count > 0;
+	}
+
+	acquire(): IDisposable {
+		this._count++;
+		// Idempotent so a double-dispose releases one hold rather than
+		// decrementing past it and silently cancelling somebody else's.
+		let released = false;
+		return toDisposable(() => {
+			if (!released) {
+				released = true;
+				this._count--;
+			}
+		});
+	}
 }
 
 /**
@@ -239,11 +269,6 @@ export interface IChatListWidgetOptions {
 	 * Callback to get current mode info (for rerun requests).
 	 */
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
-
-	/**
-	 * The render style for the chat widget. Affects minimum height behavior.
-	 */
-	readonly renderStyle?: 'compact' | 'minimal';
 }
 
 /**
@@ -312,7 +337,7 @@ export class ChatListWidget extends Disposable {
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
-	private _suppressAutoScroll: boolean = false;
+	private _autoScrollHolds = new AutoScrollHolds();
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
@@ -324,7 +349,6 @@ export class ChatListWidget extends Disposable {
 	private readonly _location: ChatAgentLocation | undefined;
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
-	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
 
 	//#endregion
 
@@ -407,7 +431,6 @@ export class ChatListWidget extends Disposable {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
 		));
-		this._renderStyle = options.renderStyle;
 
 		// Create overflow widgets container
 		const overflowWidgetsContainer = options.overflowWidgetsDomNode ?? document.createElement('div');
@@ -457,13 +480,6 @@ export class ChatListWidget extends Disposable {
 
 		this._register(this._renderer.onDidChangeItemHeight(e => {
 			this._updateElementHeight(e.element, e.height);
-
-			// If the second-to-last item's height changed, update the last item's min height
-			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			if (e.element.id === secondToLastItem?.id) {
-				this.updateLastItemMinHeight();
-			}
-
 			this._onDidChangeItemHeight.fire(e);
 		}));
 
@@ -613,6 +629,8 @@ export class ChatListWidget extends Disposable {
 			this.handleContextMenu(e);
 		}));
 
+		this._register(dom.addDisposableListener(this._container, 'copy', e => this.handleCopy(e)));
+
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this._settingChangeCounter++;
@@ -622,6 +640,89 @@ export class ChatListWidget extends Disposable {
 	}
 
 	//#region Internal event handlers
+
+	/**
+	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here
+	 * don't paste as `vscode-file:` targets or local paths. Selections whose links all resolve
+	 * elsewhere are left to the browser, which keeps the styling other apps rely on.
+	 */
+	private handleCopy(e: ClipboardEvent): void {
+		const selection = dom.getWindow(this._container).getSelection();
+		if (!selection || selection.isCollapsed || selection.rangeCount === 0 || !e.clipboardData) {
+			return;
+		}
+
+		// Cloning a range never yields the anchors around it, so ask the selection what it
+		// touches: otherwise a selection inside a link looks clean while the browser still
+		// copies the enclosing anchor.
+		// eslint-disable-next-line no-restricted-syntax
+		const touched = Array.from(this._container.querySelectorAll('a, img'))
+			.filter(element => selection.containsNode(element, true));
+		if (!touched.length) {
+			return;
+		}
+
+		const ranges: Range[] = [];
+		for (let i = 0; i < selection.rangeCount; i++) {
+			const range = selection.getRangeAt(i);
+			if (!dom.isAncestor(range.commonAncestorContainer, this._container)) {
+				return;
+			}
+			ranges.push(range);
+		}
+
+		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
+			return;
+		}
+
+		const holder = this._container.ownerDocument.createElement('div');
+		for (const fragment of fragments) {
+			holder.appendChild(fragment);
+		}
+
+		e.clipboardData.setData(Mimes.text, selection.toString());
+		e.clipboardData.setData(Mimes.html, holder.innerHTML);
+		e.preventDefault();
+	}
+
+	/**
+	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
+	 * lies between the range boundaries, which drops both the heading or list item giving the
+	 * text its shape and, for a partly selected link, the rest of its label.
+	 */
+	private cloneSelectedContents(range: Range): DocumentFragment {
+		let content: Node = range.cloneContents();
+
+		for (
+			let ancestor = range.commonAncestorContainer;
+			ancestor && ancestor !== this._container;
+			ancestor = ancestor.parentNode as Node
+		) {
+			if (!dom.isHTMLElement(ancestor)) {
+				continue;
+			}
+
+			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
+			// reference rather than a fragment of its label.
+			if (ancestor.tagName === 'A') {
+				content = ancestor.cloneNode(true);
+				continue;
+			}
+
+			const wrapper = ancestor.cloneNode(false);
+			wrapper.appendChild(content);
+			content = wrapper;
+		}
+
+		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+			return content as DocumentFragment;
+		}
+
+		const fragment = this._container.ownerDocument.createDocumentFragment();
+		fragment.appendChild(content);
+		return fragment;
+	}
 
 	/**
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
@@ -689,8 +790,6 @@ export class ChatListWidget extends Disposable {
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
-		const previousItem = items.at(-2);
-		const needsInitialPreviousItemHeight = (isRequestVM(previousItem) || isResponseVM(previousItem)) && previousItem.currentRenderedHeight === undefined;
 
 		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
 			element: item,
@@ -732,10 +831,6 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
-
-		if (needsInitialPreviousItemHeight) {
-			this.updateLastItemMinHeight();
-		}
 	}
 
 	/**
@@ -929,15 +1024,22 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Suppress auto-scroll behavior temporarily. While suppressed,
-	 * _withPersistedAutoScroll will not scroll to bottom after operations.
+	 * Suppresses auto-scrolling to the bottom until the returned disposable is
+	 * disposed. Holds compose, so unrelated features (request editing, an open
+	 * text selection) can suppress concurrently without clobbering each other;
+	 * auto-scroll resumes only once the last hold is released.
 	 */
-	set suppressAutoScroll(value: boolean) {
-		this._suppressAutoScroll = value;
+	acquireAutoScrollHold(): IDisposable {
+		return this._autoScrollHolds.acquire();
+	}
+
+	/** Whether any {@link acquireAutoScrollHold} hold is currently active. */
+	get isAutoScrollHeld(): boolean {
+		return this._autoScrollHolds.isHeld;
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {
-		if (this._suppressAutoScroll) {
+		if (this.isAutoScrollHeld) {
 			fn();
 			return;
 		}
@@ -1066,40 +1168,8 @@ export class ChatListWidget extends Disposable {
 	 * Layout the list.
 	 */
 	layout(height: number, width: number): void {
-		this._bodyDimension = new dom.Dimension(width ?? this._container.clientWidth, height);
-		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
-	}
-
-	private _bodyDimension: dom.Dimension | null = null;
-	private _previousLastItemMinHeight: number | null = null;
-
-	private updateLastItemMinHeight(): void {
-		if (!this._bodyDimension) {
-			return;
-		}
-
-		const contentHeight = this._bodyDimension.height;
-		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
-			this._container.style.removeProperty('--chat-current-response-min-height');
-		} else {
-			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			const maxRequestShownHeight = 200;
-			const secondToLastItemHeight = Math.min(
-				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
-					secondToLastItem.currentRenderedHeight ?? this._delegate.getMeasuredHeight(secondToLastItem) ?? 150 : 150,
-				maxRequestShownHeight);
-			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
-			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
-			if (lastItemMinHeight !== this._previousLastItemMinHeight) {
-				this._previousLastItemMinHeight = lastItemMinHeight;
-				const lastItem = this._viewModel?.getItems().at(-1);
-				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
-					this._updateElementHeight(lastItem, undefined);
-				}
-			}
-		}
 	}
 
 	//#endregion

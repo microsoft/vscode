@@ -63,21 +63,6 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory — the distinguished root this chat is
-	 * centered on (e.g. the agent's process root for this chat, the default
-	 * location for relative paths). MUST be one of this chat's effective working
-	 * directories ({@link workingDirectories}, or the session's set when that is
-	 * absent). Present when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
-	 *
-	 * **Read-only and fixed at creation.** It is set from
-	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
-	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
-	 * not change over the chat's lifetime — there is no action to mutate it, and
-	 * it does not participate in `session/chatUpdated`.
-	 */
-	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -150,11 +135,6 @@ export interface ChatSummary {
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory.
-	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
-	 */
-	primaryWorkingDirectory?: URI;
 }
 
 /**
@@ -413,6 +393,17 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
+ * Why the agent requested chat input.
+ *
+ * @category Chat Input Types
+ */
+export const enum ChatInputRequestPurpose {
+	AskUser = 'askUser',
+	Elicitation = 'elicitation',
+	PlanReview = 'planReview',
+}
+
+/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -424,6 +415,8 @@ export type ChatInputQuestion = ChatInputTextQuestion
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
+	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
+	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
@@ -816,10 +809,19 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
  * An attachment that references a chat transcript through a fixed completed
  * turn.
  *
- * The referenced chat MUST belong to the same session as the message's chat.
- * The host resolves the transcript from its first retained turn through
- * `endTurn`, inclusive, when accepting the message. Later turns do not
- * change the context represented by an already-sent attachment.
+ * The referenced chat MAY belong to a different session than the message's
+ * chat. The attachment's model representation identifies the chat in a way
+ * that hosts can resolve regardless of the session that owns it.
+ *
+ * When `endTurn` is omitted, the host MUST resolve and pin the referenced
+ * chat's latest completed turn when accepting the message. This lets clients
+ * attach a chat without knowing its turn identifiers. When provided, `endTurn`
+ * MUST reference a completed, retained turn. The host resolves the transcript
+ * from its first retained turn through the pinned turn, inclusive. Later turns
+ * do not change the context represented by an already-sent attachment.
+ *
+ * When the referenced chat has no completed retained turns, the resolved
+ * transcript is empty and hosts MUST NOT reject the attachment on that basis.
  *
  * Hosts MUST NOT recursively expand chat attachments found inside the
  * referenced transcript. Clients SHOULD keep rendering `label` if the
@@ -832,8 +834,11 @@ export interface MessageChatAttachment extends MessageAttachmentBase {
 	type: MessageAttachmentKind.Chat;
 	/** URI of the referenced chat. */
 	resource: URI;
-	/** Last completed turn included in the referenced transcript. */
-	endTurn: string;
+	/**
+	 * Last completed turn included in the referenced transcript. When omitted,
+	 * the host pins the latest completed turn when accepting the message.
+	 */
+	endTurn?: string;
 }
 
 /**
@@ -881,7 +886,7 @@ export interface MarkdownResponsePart {
  *
  * @category Response Parts
  */
-export interface ResourceReponsePart extends ContentRef {
+export interface ResourceResponsePart extends ContentRef {
 	/** Discriminant */
 	kind: ResponsePartKind.ContentRef;
 }
@@ -921,7 +926,7 @@ export interface ReasoningResponsePart {
  */
 export type ResponsePart =
 	| MarkdownResponsePart
-	| ResourceReponsePart
+	| ResourceResponsePart
 	| ToolCallResponsePart
 	| ReasoningResponsePart
 	| SystemNotificationResponsePart
@@ -1185,9 +1190,23 @@ interface ToolCallBase {
 interface ToolCallParameterFields {
 	/** Message describing what the tool will do */
 	invocationMessage: StringOrMarkdown;
-	/** Raw tool input */
-	toolInput?: string;
+	/**
+	 * Final tool input.
+	 *
+	 * Referenced input is mutable until the tool call leaves
+	 * `pending-confirmation`. When the client confirms with `editedToolInput`,
+	 * the host MUST replace the resource contents before echoing the accepted
+	 * confirmation action. Clients MUST NOT cache tool input across confirmation.
+	 */
+	toolInput?: ToolInput;
 }
+
+/**
+ * Tool input represented inline or by reference.
+ *
+ * @category Tool Call Types
+ */
+export type ToolInput = string | ContentRef;
 
 /**
  * Tool execution result details, available after execution completes.
@@ -1222,7 +1241,7 @@ export interface ToolCallResult {
  */
 export interface ToolCallStreamingState extends ToolCallBase {
 	status: ToolCallStatus.Streaming;
-	/** Partial parameters accumulated so far */
+	/** Partial parameters accumulated from tool-call deltas. */
 	partialInput?: string;
 	/** Progress message shown while parameters are streaming */
 	invocationMessage?: StringOrMarkdown;

@@ -45,6 +45,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
+		"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool-call counts keyed by telemetry-safe tool name." },
 		"initiatorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the response was initiated by a user or an agent." },
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
@@ -55,6 +56,9 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated completion tokens.", "isMeasurement": true },
 		"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated reasoning tokens.", "isMeasurement": true },
 		"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total number of tokens used by the response.", "isMeasurement": true },
+		"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens used by tool definitions.", "isMeasurement": true },
+		"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools available to the model.", "isMeasurement": true },
+		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
 		"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Turn number within the session.", "isMeasurement": true },
 		"timeToFirstToken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the first response token.", "isMeasurement": true },
 		"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the response completed.", "isMeasurement": true }
@@ -76,6 +80,27 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Transport used for the request." }
+	}
+*/
+
+/* __GDPR__
+	"copilotCli/task_complete_todo_state": {
+		"owner": "amunger",
+		"comment": "Reports the aggregate state of the Copilot CLI todo list when task completion is recorded. Contains only todo-status counts and derived boolean indicators; it does not contain todo text or other user content.",
+		"${include}": [ "${CopilotCliForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe product surface that recorded task completion." },
+		"billable": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the interaction is billable." },
+		"had_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the Copilot CLI todo list contained at least one item when task completion was recorded." },
+		"has_open_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the Copilot CLI todo list contained at least one pending, in-progress, or blocked item when task completion was recorded." },
+		"pending_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the pending state when task completion was recorded.", "isMeasurement": true },
+		"in_progress_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the in-progress state when task completion was recorded.", "isMeasurement": true },
+		"blocked_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the blocked state when task completion was recorded.", "isMeasurement": true },
+		"done_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the done state when task completion was recorded.", "isMeasurement": true },
+		"open_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items not yet done, comprising pending, in-progress, and blocked items, when task completion was recorded.", "isMeasurement": true },
+		"total_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of todo items when task completion was recorded.", "isMeasurement": true }
 	}
 */
 

@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1440,8 +1440,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
-			const { topMargin, bottomMargin } = this.getFloatingPanelHeightInsets();
-			height = Math.max(0, height - topMargin - bottomMargin);
+			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
+			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {
@@ -1460,21 +1460,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Layout editor container
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
-	}
-
-	/**
-	 * Returns the top and bottom margins (in pixels) to subtract from the editor height
-	 * when the floating panels experiment is active. The top uses the outer shell gutter;
-	 * the bottom uses either an inner card gap or an outer shell gutter.
-	 */
-	private getFloatingPanelHeightInsets(): { topMargin: number; bottomMargin: number } {
-		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
-		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		const statusBarVisible = this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow);
-		const bottomMargin = panelAtBottom
-			? FLOATING_PANEL_INNER_MARGIN
-			: (statusBarVisible ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2);
-		return { topMargin: FLOATING_PANEL_MARGIN, bottomMargin };
 	}
 
 	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {

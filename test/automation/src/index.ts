@@ -24,6 +24,7 @@ export * from './statusbar';
 export * from './terminal';
 export * from './viewlet';
 export * from './localization';
+export * from './modelConfigPicker';
 export * from './workbench';
 export * from './task';
 export * from './chat';

@@ -40,6 +40,10 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
+import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
+import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
+import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
+import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
 
 // `http`/`https`/`js-yaml` are lazily required (slow to load and/or not in this
 // layer's import allowlist); `import type` above still gives us http/https types.
@@ -58,14 +62,17 @@ const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
+
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
  * `homeDir` normalization misses it — scrub it explicitly to keep local identity
  * out of fixtures.
  */
-const USER_PLACEHOLDER = '${user}';
+const USER_PLACEHOLDER = USER_NAME_PLACEHOLDER;
 /**
  * Placeholder for the upstream CAPI origin in recorded response bodies. Token /
  * user-discovery responses echo the CAPI host (`endpoints.api`); rewriting that
@@ -197,12 +204,28 @@ export interface ICapiReplayProxyOptions {
 	 * replaying. Defaults to true. Ignored while recording.
 	 */
 	readonly strict?: boolean;
+	/**
+	 * Skip the POSIX-only shell command check when writing a fixture.
+	 *
+	 * Only for a scenario that genuinely cannot be portable — the test must also
+	 * be scoped to a platform explicitly at its call site, with the reason
+	 * stated there. See `posixCommandLint.ts`.
+	 */
+	readonly allowPosixCommands?: boolean;
+
+	/**
+	 * Skip comparing the live model request against the recorded one.
+	 *
+	 * Only for a capture that cannot be refreshed; see
+	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
+	 */
+	readonly allowStaleRecordedRequest?: boolean;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
 	| { readonly kind: 'raw'; readonly response: IRecordedResponse }
-	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage };
+	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
 interface IReplayBucket {
@@ -225,6 +248,9 @@ export class CapiReplayProxy {
 	private readonly _recorded: IRecordedExchange[] = [];
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
+	private readonly _requestMismatches: string[] = [];
+	private readonly _replayPlaceholderValues = new Map<string, string>();
+	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 
 	/**
@@ -235,7 +261,15 @@ export class CapiReplayProxy {
 	 */
 	private _fixturePath: string;
 
+	/**
+	 * Whether the current fixture's recorded request may disagree with the live
+	 * one. Per-test like {@link _fixturePath}, since a shared replay proxy
+	 * serves every test in the suite.
+	 */
+	private _allowStaleRecordedRequest: boolean;
+
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
+		this._allowStaleRecordedRequest = _options.allowStaleRecordedRequest ?? false;
 		this._fixturePath = _options.fixturePath;
 		this._workingDirectory = _options.workDir;
 		const fixtureExists = existsSync(this._fixturePath);
@@ -295,7 +329,7 @@ export class CapiReplayProxy {
 		await this._closeSocket();
 
 		if (this._isReplaying) {
-			this.assertNoCacheMisses();
+			this.assertNoReplayMismatches();
 			return;
 		}
 
@@ -312,7 +346,7 @@ export class CapiReplayProxy {
 	 * valid). Clears the previous fixture's replay buckets and cache-miss log.
 	 * Replay-only: recording keeps one fixture per proxy.
 	 */
-	resetForReplay(fixturePath: string): void {
+	resetForReplay(fixturePath: string, allowStaleRecordedRequest = false): void {
 		if (!this._isReplaying) {
 			throw new Error('[capi-replay] resetForReplay is only valid in replay mode');
 		}
@@ -320,10 +354,14 @@ export class CapiReplayProxy {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
 		}
 		this._fixturePath = fixturePath;
+		this._allowStaleRecordedRequest = allowStaleRecordedRequest;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
 		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
+		this._requestMismatches.length = 0;
+		this._replayPlaceholderValues.clear();
+		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
 
@@ -336,35 +374,49 @@ export class CapiReplayProxy {
 	}
 
 	/**
-	 * Surface strict replay cache-misses without stopping the proxy. Lets a
-	 * shared replay server verify each test's traffic in `teardown` while keeping
-	 * the server (and the agent host's cached SDK client) alive for the next test.
+	 * Surface strict replay failures — unrecorded requests and requests that do
+	 * not match the recorded one — without stopping the proxy. Lets a shared
+	 * replay server verify each test's traffic in `teardown` while keeping the
+	 * server (and the agent host's cached SDK client) alive for the next test.
 	 */
-	assertNoCacheMisses(): void {
-		const error = this._createCacheMissError();
+	assertNoReplayMismatches(): void {
+		const error = this._createReplayError();
 		if (error) {
 			throw error;
 		}
 	}
 
 	/** Returns and consumes the current replay failure so it can be surfaced at the original test failure. */
-	takeCacheMissError(): Error | undefined {
-		const error = this._createCacheMissError();
+	takeReplayError(): Error | undefined {
+		const error = this._createReplayError();
 		this._cacheMisses.length = 0;
+		this._requestMismatches.length = 0;
 		return error;
 	}
 
-	private _createCacheMissError(): Error | undefined {
-		if (!this._isReplaying || !this._strict || this._cacheMisses.length === 0) {
+	private _createReplayError(): Error | undefined {
+		if (!this._isReplaying || !this._strict) {
 			return undefined;
 		}
-		return new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		const sections: string[] = [];
+		if (this._cacheMisses.length > 0) {
+			sections.push(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		}
+		if (this._requestMismatches.length > 0) {
+			sections.push(`[capi-replay] ${this._requestMismatches.length} model request mismatch(es):\n${this._requestMismatches.join('\n')}`);
+		}
+		const unconsumed = Array.from(this._replayBuckets.entries())
+			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
+		if (unconsumed.length > 0) {
+			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
+		}
+		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;
 	}
 
 	/**
-	 * Close the HTTP server socket without running the strict cache-miss check or
+	 * Close the HTTP server socket without running the strict replay checks or
 	 * writing a fixture. Used to tear down a shared replay proxy after per-test
-	 * verification has already happened via {@link assertNoCacheMisses}.
+	 * verification has already happened via {@link assertNoReplayMismatches}.
 	 */
 	async close(): Promise<void> {
 		if (this._stopped) {
@@ -441,6 +493,7 @@ export class CapiReplayProxy {
 		}
 
 		if (item.kind === 'turn') {
+			this._assertRecordedRequest(item.dialect, item.request, body);
 			// Regenerate the dialect's SSE stream from the captured reply.
 			const message = this._expandReplayMessage(item.message);
 			const sseBody = item.dialect === 'responses' ? responsesMessageToSse(message) : anthropicMessageToSse(message);
@@ -455,6 +508,44 @@ export class CapiReplayProxy {
 		delete headers['transfer-encoding'];
 		res.writeHead(item.response.status, headers);
 		res.end(this._expandReplayPlaceholders(item.response.body));
+	}
+
+	/**
+	 * Compare the live request against the one recorded for this turn.
+	 *
+	 * Both sides go through the same summarizer and the same projection, so the
+	 * committed `request:` block becomes the expectation without its stored
+	 * shape having to change.
+	 */
+	private _assertRecordedRequest(dialect: TurnDialect, recorded: IReadableAnthropicRequest, body: string): void {
+		const turnIndex = this._modelTurnCount++;
+		const summarize = dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
+		const normalizedBody = this._normalize(body);
+		const observed = summarize(normalizedBody);
+		if (!observed) {
+			return;
+		}
+		captureReplayPlaceholderValues(recorded, observed, this._replayPlaceholderValues);
+		if (this._allowStaleRecordedRequest) {
+			return;
+		}
+		const normalizedObserved = summarize(this._normalizeReplayPlaceholderValues(normalizedBody));
+		if (!normalizedObserved) {
+			return;
+		}
+		const expected = projectModelRequest(recorded);
+		const actual = projectModelRequest(normalizedObserved);
+		if (!modelRequestsMatch(expected, actual)) {
+			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
+		}
+	}
+
+	private _normalizeReplayPlaceholderValues(text: string): string {
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, value, placeholder);
+		}
+		return result;
 	}
 
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
@@ -572,7 +663,7 @@ export class CapiReplayProxy {
 					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._fixturePath}`);
 				}
 				key = `${turnEndpoint.method} ${turnEndpoint.path}`;
-				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason } };
+				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason }, request: exchange.request };
 			} else {
 				key = `${exchange.method} ${exchange.path}`;
 				item = { kind: 'raw', response: exchange.response };
@@ -591,6 +682,7 @@ export class CapiReplayProxy {
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
 		this._normalizeUuids(exchanges);
+		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
 		// exchange.
@@ -598,6 +690,42 @@ export class CapiReplayProxy {
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
 		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+	}
+
+	/**
+	 * Reject a recording whose shell commands cannot run on Windows.
+	 *
+	 * Only the assistant's `tool_use` blocks matter: those are what replay feeds
+	 * back to the agent, so they are the commands that will actually be executed
+	 * on whatever platform the test later runs on. The `tool_result` blocks
+	 * echoed in request summaries are never read back.
+	 *
+	 * Throws before the file is written so a rejected recording cannot leave a
+	 * half-portable fixture behind.
+	 */
+	private _assertNoPosixOnlyCommands(exchanges: IFixtureExchange[]): void {
+		if (this._options.allowPosixCommands) {
+			return;
+		}
+		const commands: IRecordedCommand[] = [];
+		for (const exchange of exchanges) {
+			if (!isTurnExchange(exchange)) {
+				continue;
+			}
+			for (const block of deserializeAnthropicContent(exchange.response.content)) {
+				if (block.type !== 'tool_use') {
+					continue;
+				}
+				const command = getRecordedShellCommand(block.input as { command?: unknown; cmd?: unknown } | undefined);
+				if (command) {
+					commands.push({ command, toolName: block.name });
+				}
+			}
+		}
+		const findings = findPosixOnlyCommands(commands);
+		if (findings.length > 0) {
+			throw new Error(formatPosixCommandError(this._fixturePath, findings));
+		}
 	}
 
 	/**
@@ -734,7 +862,7 @@ export class CapiReplayProxy {
 			} catch {
 				// non-serializable input; keep as-is
 			}
-			return { type: 'tool_use', id: block.id, name: block.name, input };
+			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
 		});
 	}
 
@@ -753,10 +881,11 @@ export class CapiReplayProxy {
 			}
 		}
 		if (this._options.homeDir) {
+			result = replaceAll(result, escapeJsonString(this._options.homeDir), HOMEDIR_PLACEHOLDER);
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
 		}
 		if (this._options.userName) {
-			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
+			result = scrubUserName(result, this._options.userName);
 		}
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
@@ -767,9 +896,17 @@ export class CapiReplayProxy {
 	private _expandReplayMessage(message: IAnthropicMessage): IAnthropicMessage {
 		return {
 			...message,
-			content: message.content.map(block => block.type === 'text'
-				? { ...block, text: this._expandReplayPlaceholders(block.text) }
-				: { ...block, input: this._expandReplayValue(block.input) }),
+			content: message.content.map(block => {
+				if (block.type === 'text') {
+					return { ...block, text: this._expandReplayPlaceholders(block.text) };
+				}
+				if (block.type === 'tool_use') {
+					return { ...block, name: expandShellToolName(block.name), input: this._expandReplayValue(block.input) };
+				}
+				// Any future block kind passes through untouched rather than being
+				// rewritten as if it were a tool call.
+				return block;
+			}),
 		};
 	}
 
@@ -824,8 +961,67 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
 		}
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
 		return result;
 	}
+}
+
+function captureReplayPlaceholderValues(recorded: unknown, observed: unknown, values: Map<string, string>): void {
+	if (typeof recorded === 'string' && typeof observed === 'string') {
+		captureReplayPlaceholderValuesFromString(recorded, observed, values);
+		return;
+	}
+	if (Array.isArray(recorded) && Array.isArray(observed)) {
+		for (let index = 0; index < Math.min(recorded.length, observed.length); index++) {
+			captureReplayPlaceholderValues(recorded[index], observed[index], values);
+		}
+		return;
+	}
+	if (!isRecord(recorded) || !isRecord(observed)) {
+		return;
+	}
+	for (const [key, value] of Object.entries(recorded)) {
+		captureReplayPlaceholderValues(value, observed[key], values);
+	}
+}
+
+function captureReplayPlaceholderValuesFromString(recorded: string, observed: string, values: Map<string, string>): void {
+	const placeholders: string[] = [];
+	let pattern = '^';
+	let offset = 0;
+	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
+		pattern += `(${UUID_PATTERN})`;
+		placeholders.push(match[0]);
+		offset = match.index + match[0].length;
+	}
+	if (placeholders.length === 0) {
+		return;
+	}
+	pattern += `${escapeRegExpCharacters(recorded.slice(offset))}$`;
+	const match = new RegExp(pattern, 'i').exec(observed);
+	if (!match) {
+		return;
+	}
+	const captured = new Map<string, string>();
+	for (let index = 0; index < placeholders.length; index++) {
+		const placeholder = placeholders[index];
+		const value = match[index + 1];
+		if ((captured.has(placeholder) && captured.get(placeholder) !== value)
+			|| (values.has(placeholder) && values.get(placeholder) !== value)) {
+			return;
+		}
+		captured.set(placeholder, value);
+	}
+	for (const [placeholder, value] of captured) {
+		values.set(placeholder, value);
+	}
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function replaceAll(text: string, search: string, replacement: string): string {

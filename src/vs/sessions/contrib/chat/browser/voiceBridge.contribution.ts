@@ -14,8 +14,8 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -213,12 +213,28 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 	) {
 		super();
 
+		let voiceDraftSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
-			const resource = active?.isCreated.read(reader)
-				? active.activeChat.read(reader)?.resource
-				: undefined;
-			this.voiceSessionController.setActiveSessionShown(resource);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget) {
+				voiceDraftSession = undefined;
+			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+				voiceDraftSession = active;
+			}
+			if (voiceDraftSession?.isCreated.read(reader)) {
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+				voiceDraftSession = undefined;
+			}
+			if (!active) {
+				this.voiceSessionController.setActiveSessionShown(undefined);
+				return;
+			}
+			if (!active.isCreated.read(reader)) {
+				this.voiceSessionController.setActiveSessionShown(null);
+				return;
+			}
+			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
 		}));
 	}
 }
@@ -282,3 +298,41 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
+
+/** Ends voice when a different welcome composer becomes active; routing in-session composers are exempt. */
+export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.voiceNewComposer';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
+	) {
+		super();
+
+		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
+		let voiceComposer: INewChatVoiceComposer | undefined;
+		let voiceComposerCaptured = false;
+		this._register(autorun(reader => {
+			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			if (!connected) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = false;
+				return;
+			}
+			if (!voiceComposerCaptured) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = true;
+				return;
+			}
+			// A different welcome composer took over while voice is connected: the
+			// connection is bound to the previous surface and can't route here.
+			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive) {
+				voiceSessionController.disconnect('internal');
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(SessionsVoiceNewComposerContribution.ID, SessionsVoiceNewComposerContribution, WorkbenchPhase.AfterRestored);

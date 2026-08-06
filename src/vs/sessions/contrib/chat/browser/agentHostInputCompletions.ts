@@ -361,6 +361,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					},
 				};
 			}
+			case 'chat': {
+				// The new-chat surface does not support chat references; ignore.
+				return undefined;
+			}
 			default: {
 				const label = attachment.displayName ?? item.insertText;
 				const description = attachment.uri.path;

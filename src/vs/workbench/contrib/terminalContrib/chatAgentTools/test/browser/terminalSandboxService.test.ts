@@ -325,6 +325,7 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
 			socatInstalled: true,
+			apparmorRestrictsUnprivilegedUserNamespaces: true,
 		};
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -1432,43 +1433,6 @@ suite('TerminalSandboxService - network domains', () => {
 			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
 			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
 		}
-	});
-
-	test('should not fall back to deprecated settings outside user scope', async () => {
-		const originalInspect = configurationService.inspect.bind(configurationService);
-		configurationService.inspect = <T>(key: string) => {
-			if (key === AgentSandboxSettingId.AgentSandboxEnabled) {
-				return {
-					value: undefined,
-					defaultValue: AgentSandboxEnabledValue.Off,
-					userValue: undefined,
-					userLocalValue: undefined,
-					userRemoteValue: undefined,
-					workspaceValue: undefined,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
-				return {
-					value: true,
-					defaultValue: false,
-					userValue: undefined,
-					userLocalValue: undefined,
-					userRemoteValue: undefined,
-					workspaceValue: true,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			return originalInspect<T>(key);
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {

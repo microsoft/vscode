@@ -8,14 +8,15 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, isAncestor, $, clearNode, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -95,15 +96,6 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN * 2 : 0;
 	}
 
-	private get floatingVerticalGutter(): number {
-		if (!this.layoutService.isFloatingPanelsEnabled()) {
-			return 0;
-		}
-
-		const bottomGutter = this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) ? ActivitybarPart.FLOATING_MARGIN : ActivitybarPart.FLOATING_MARGIN * 2;
-		return ActivitybarPart.FLOATING_MARGIN + bottomGutter;
-	}
-
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
 	private _isCompact: boolean;
@@ -142,6 +134,8 @@ export class ActivitybarPart extends Part {
 	private updateCompactStyle(): void {
 		if (this.element) {
 			this.element.classList.toggle('compact', this._isCompact);
+			// Mirrored on the workbench root for floatingPanels.css
+			this.layoutService.mainContainer.classList.toggle('activitybar-compact', this._isCompact);
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
@@ -271,18 +265,34 @@ export class ActivitybarPart extends Part {
 	override layout(width: number, height: number): void {
 		super.layout(width, height, 0, 0);
 
-		if (!this.compositeBar.value) {
-			return;
+		if (!this.content) {
+			return; // not created yet
 		}
 
+		const { top, bottom } = this.getFloatingGutters();
 		const contentWidth = Math.max(0, width - this.floatingHorizontalGutter);
-		const contentHeight = Math.max(0, height - this.floatingVerticalGutter);
+		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
+		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height);
+	}
+
+	/**
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`. Each one
+	 * doubles on the window edge the activity bar faces.
+	 */
+	private getFloatingGutters(): { top: number; bottom: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { top: 0, bottom: 0 };
+		}
+
+		return {
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+		};
 	}
 
 	toJSON(): object {

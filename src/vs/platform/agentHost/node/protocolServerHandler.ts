@@ -64,16 +64,9 @@ const REPLAY_BUFFER_CAPACITY = 1000;
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
 /**
- * Client-dispatchable actions that are declared in the protocol but not yet
- * operational in this build. The multiroot working-directory mutations
- * (`session|chat/workingDirectorySet|Removed`) would mutate the synchronized
- * working-directory set without reconfiguring the agent's actual directory
- * access, so they are rejected in the dispatch path until capability-backed
- * multiroot support lands.
+ * Chat-level working-directory subsets are not yet operational in this build.
  */
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
-	ActionType.SessionWorkingDirectorySet,
-	ActionType.SessionWorkingDirectoryRemoved,
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
 ]);
@@ -469,13 +462,7 @@ export class ProtocolServerHandler extends Disposable {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							// Multiroot working-directory mutations are declared in the
-							// protocol but not yet supported: they would mutate the
-							// synchronized access set without reconfiguring the agent's
-							// actual directory access. Reject them through the normal
-							// reconciliation path (preserving the client's origin) so the
-							// client rolls back its optimistic action instead of leaving
-							// it pending, until capability-backed multiroot support lands.
+							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
 								this._stateManager.rejectClientAction(
@@ -1190,7 +1177,8 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
+					_meta: params._meta,
+					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
@@ -1270,24 +1258,16 @@ export class ProtocolServerHandler extends Disposable {
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
-				// Encode isRead/isArchived as status bitmask flags
-				let status = s.status ?? SessionStatus.Idle;
-				if (s.isRead) {
-					status |= SessionStatus.IsRead;
-				}
-				if (s.isArchived) {
-					status |= SessionStatus.IsArchived;
-				}
 				return {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status,
+					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectory ? [s.workingDirectory.toString()] : undefined,
+					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
 					// `_meta` carries the workspace-less marker, which seeds or
 					// promotes the client's session kind and cannot be

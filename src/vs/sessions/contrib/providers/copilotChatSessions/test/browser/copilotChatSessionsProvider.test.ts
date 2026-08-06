@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '.
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -239,7 +239,7 @@ function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	opts?: ICreateProviderOptions,
-): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean> } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
@@ -247,10 +247,11 @@ function createProviderWithConfig(
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
 	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
+	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -309,12 +310,11 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return { provider, configService };
+	return { provider, configService, agentHostEnabled };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -386,7 +386,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
@@ -439,9 +439,9 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('preferAgentHost is not respected when chat.agentHost.enabled is false', () => {
+	test('preferAgentHost is not respected when Agent Host is unavailable', () => {
 		// Yielding to the agent host's Claude only makes sense when the agent
-		// host is enabled to register it. With the agent host disabled the
+		// host is available to register it. Without an Agent Host runtime the
 		// preference must be ignored so this provider keeps surfacing Claude;
 		// otherwise Claude would disappear entirely.
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true, agentHostEnabled: false });
@@ -522,21 +522,32 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('hideExtensionHost is not respected when chat.agentHost.enabled is false', () => {
+	test('hideExtensionHost is not respected when Agent Host is unavailable', () => {
 		// Hiding the Extension Host Copilot CLI only makes sense when the agent
-		// host is enabled to surface the Agent Host Copilot CLI in its place. With
-		// the agent host disabled the hide setting must be ignored so the entry
+		// host is available to surface the Agent Host Copilot CLI in its place.
+		// Without an Agent Host runtime the hide setting must be ignored so the entry
 		// stays visible.
 		const provider = createProvider(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('chat.agentHost.enabled is read once when the provider is created', () => {
-		// With the hide setting on but the agent host initially disabled, the
-		// Copilot CLI entry is visible. Since enablement is fixed at startup,
-		// the provider always reflects the initial value.
-		const { provider } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+	test('Agent Host availability is observed after the provider is created', () => {
+		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
+		let changeCount = 0;
+		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
+		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
+
+		agentHostEnabled.set(true, undefined);
+
+		assert.deepStrictEqual({
+			visibleBeforeAvailability,
+			visibleAfterAvailability: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
+			changeCount,
+		}, {
+			visibleBeforeAvailability: true,
+			visibleAfterAvailability: false,
+			changeCount: 1,
+		});
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {

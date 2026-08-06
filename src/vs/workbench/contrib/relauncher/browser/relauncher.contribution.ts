@@ -70,9 +70,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'accessibility.verbosity.debug',
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
-		'chat.agentHost.enabled',
 		'chat.agentHost.claudeAgent.enabled',
-		'chat.agentHost.codexAgent.enabled',
 		'chat.agentHost.byokModels.enabled',
 		'chat.agents.claude.preferAgentHost',
 		'chat.editor.claude.preferAgentHost',
@@ -99,9 +97,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
-	private readonly agentHostEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
-	private readonly agentHostCodexAgentEnabled = new ChangeObserver('boolean');
 	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
 	private readonly agentsClaudePreferAgentHost = new ChangeObserver('boolean');
 	private readonly editorClaudePreferAgentHost = new ChangeObserver('boolean');
@@ -205,12 +201,10 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		processChanged(this.extensionUnificationEnabled.handleChange(config.chat?.extensionUnification?.enabled) && config.chat?.extensionUnification?.enabled === true);
 
 		// Agent Host
-		processChanged(this.agentHostEnabled.handleChange(config.chat?.agentHost?.enabled));
 		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
 
-		// Provider registration and implementation preferences are read at spawn.
+		// Claude provider registration and implementation preferences are read at spawn.
 		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));
-		processChanged(this.agentHostCodexAgentEnabled.handleChange(config.chat?.agentHost?.codexAgent?.enabled));
 		processChanged(this.agentsClaudePreferAgentHost.handleChange(config.chat?.agents?.claude?.preferAgentHost));
 		processChanged(this.editorClaudePreferAgentHost.handleChange(config.chat?.editor?.claude?.preferAgentHost));
 		processChanged(this.editorCodexPreferAgentHost.handleChange(config.chat?.editor?.codex?.preferAgentHost));

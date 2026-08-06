@@ -18,15 +18,16 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
-import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
+import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -37,7 +38,8 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -176,6 +178,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _clientId: string;
 	private readonly _address: string;
+	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
 	/** Disposable holding the listeners attached to the current transport. */
@@ -300,7 +303,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	constructor(
-		address: string,
+		identity: AgentHostResourceIdentity,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
 		loadEstimator: ILoadEstimator | undefined,
 		clientId: string | undefined = undefined,
@@ -310,9 +313,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._address = address;
+		this._resourceIdentity = identity;
+		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = clientId ?? generateUuid();
-		this._connectionAuthority = agentHostAuthority(address);
+		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 
 		if (typeof transportOrFactory === 'function') {
@@ -337,64 +341,35 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
+			if (this._state.kind !== AgentHostClientState.Connected) {
+				return;
+			}
+			const patch: Record<string, unknown> = {};
+			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
+				if (!e.affectsConfiguration(entry.settingId)) {
+					continue;
 				}
+				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
+				if (value !== undefined) {
+					patch[entry.sync.key] = value;
+				}
+			}
+			if (Object.keys(patch).length) {
+				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
 			}
-			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateSessionSyncEnabled();
-			}
-			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateTerminalAutoApproveEnabled();
-			}
-			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateGlobalAutoApproveEnabled();
-			}
-			if (e.affectsConfiguration(AUTO_REPLY_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateAutoReplyEnabled();
-			}
 			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
 				this._updatePreferLongContextEnabled();
 			}
-			if (e.affectsConfiguration(AgentHostSystemProxyEnabledSettingId)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateSystemProxyEnabled();
+			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
+				this._updateTerminalAutoApproveEnabled();
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
 				this._updateTerminalAutoApproveRules();
 			}
-			if (e.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
-				this._updateCodexEnabled();
-			}
 			if (e.affectsConfiguration(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID)) {
-				if (this._state.kind !== AgentHostClientState.Connected) {
-					return;
-				}
 				this._updateDisableRepoInfoTelemetry();
 			}
 		}));
@@ -462,7 +437,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 			const result = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 				channel: ROOT_STATE_URI,
-				protocolVersions: [PROTOCOL_VERSION],
+				// Advertise every version this client can negotiate, most-preferred first, so an
+				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
+				// instead of rejecting the connection. A current host still picks the newest.
+				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				initialSubscriptions: [ROOT_STATE_URI],
@@ -620,6 +598,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 			this._applyReconnectResult(result);
 
+			// Re-push renderer-owned config on reconnect too: a reconnected host may
+			// be a freshly restarted process that never received these values (the
+			// reconnect result itself carries none), which would otherwise leave
+			// early-read config like the migrate flag at its host-side default.
+			this._forwardClientConfig();
+
 			// Drain the outbox BEFORE the transition so listeners reacting to
 			// {@link onDidChangeConnectionState} that synchronously dispatch see
 			// state=Connected and go direct, landing after the drained outbox
@@ -664,7 +648,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [PROTOCOL_VERSION],
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			initialSubscriptions: subscriptions,
@@ -680,15 +664,28 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			const directory = result.defaultDirectory;
 			this._defaultDirectory = typeof directory === 'string' ? URI.parse(directory).path : URI.revive(directory).path;
 		}
+		this._forwardClientConfig();
+	}
+
+	/**
+	 * Push the renderer-owned config values the host mirrors (telemetry level,
+	 * proxy discovery, migrate flag, …) as `RootConfigChanged` actions. Called on
+	 * initial connect AND on reconnect: a reconnected host may be a freshly
+	 * restarted process (or one that lost these values), and re-pushing is a cheap
+	 * no-op when nothing changed. Without this, a value read early — like the
+	 * migrate flag in `listSessions` — can be missing after a window reload.
+	 *
+	 * Most settings arrive here declaratively, via `agentHost` on their
+	 * configuration schema. The explicit calls below cover the cases a single
+	 * key-plus-transform can't express: values derived from several settings, and
+	 * settings contributed by an extension rather than by core.
+	 */
+	private _forwardClientConfig(): void {
+		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
 		this._updateTelemetryLevel();
-		this._updateSessionSyncEnabled();
-		this._updateTerminalAutoApproveEnabled();
-		this._updateGlobalAutoApproveEnabled();
-		this._updateAutoReplyEnabled();
 		this._updatePreferLongContextEnabled();
-		this._updateSystemProxyEnabled();
+		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
-		this._updateCodexEnabled();
 		this._updateDisableRepoInfoTelemetry();
 	}
 
@@ -879,8 +876,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
+			_meta: config?._meta,
 			provider,
-			workingDirectories: config?.workingDirectory ? [fromAgentHostUri(config.workingDirectory).toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
 			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
@@ -1051,8 +1049,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			status: s.status,
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
-			isRead: !!(s.status & SessionStatus.IsRead),
-			isArchived: !!(s.status & SessionStatus.IsArchived),
+			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
 			changes: s.changes,
 			// Carry `_meta` so a session first materialized from a listing (window
 			// reload, list refresh) resolves its kind correctly.
@@ -1118,7 +1115,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			return;
 		}
 		this._grantedImplicitReadUris.add(uri);
-		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._address, uri));
+		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._resourceIdentity, uri));
 	}
 
 	/**
@@ -1299,7 +1296,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._rejectPendingRequests(error);
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
-		this._resourceService.connectionClosed(this._address);
+		this._resourceService.connectionClosed(this._resourceIdentity);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
 	}
@@ -1362,61 +1359,61 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		};
 
 		const p = (params ?? {}) as Record<string, unknown>;
-		const addr = this._address;
+		const identity = this._resourceIdentity;
 		void (async () => {
 			try {
 				switch (method) {
 					case 'resourceList': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.list(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.list(identity, URI.parse(p.uri as string));
 						sendResult({ entries: result.entries });
 						return;
 					}
 					case 'resourceRead': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.read(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.read(identity, URI.parse(p.uri as string));
 						sendResult({ data: encodeBase64(result.bytes), encoding: ContentEncoding.Base64 });
 						return;
 					}
 					case 'resourceWrite': {
 						if (!p.uri || p.data === undefined) { throw new Error('Missing uri or data'); }
-						await this._resourceService.write(addr, p as unknown as Parameters<typeof this._resourceService.write>[1]);
+						await this._resourceService.write(identity, p as unknown as Parameters<typeof this._resourceService.write>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceDelete': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.del(addr, p as unknown as Parameters<typeof this._resourceService.del>[1]);
+						await this._resourceService.del(identity, p as unknown as Parameters<typeof this._resourceService.del>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceMove': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.move(addr, p as unknown as Parameters<typeof this._resourceService.move>[1]);
+						await this._resourceService.move(identity, p as unknown as Parameters<typeof this._resourceService.move>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceCopy': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.copy(addr, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
+						await this._resourceService.copy(identity, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceResolve': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.resolve(addr, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
+						const result = await this._resourceService.resolve(identity, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
 						sendResult(result);
 						return;
 					}
 					case 'resourceMkdir': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.mkdir(addr, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
+						await this._resourceService.mkdir(identity, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceRequest': {
 						try {
-							await this._resourceService.request(addr, p as unknown as ResourceRequestParams);
+							await this._resourceService.request(identity, p as unknown as ResourceRequestParams);
 							sendResult({});
 						} catch (err) {
 							if (err instanceof CancellationError) {
@@ -1470,84 +1467,39 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _updateTelemetryLevel(): void {
+		this._dispatchRootConfig({ [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) });
+	}
+
+	/** Merge a patch into the agent host's root configuration. */
+	private _dispatchRootConfig(config: Record<string, unknown>): void {
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
-			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+			config,
 		}, this._clientId, 0);
 	}
 
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled },
-		}, this._clientId, 0);
-	}
-
-	private _updateSessionSyncEnabled(): void {
-		const enabled = !!this._configurationService.getValue<boolean>(SESSION_SYNC_ENABLED_SETTING_ID);
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
-	}
-
-	private _updateTerminalAutoApproveEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
-	}
-
-	private _updateGlobalAutoApproveEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID) === true;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
-	}
-
-	private _updateAutoReplyEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(AUTO_REPLY_SETTING_ID) === true;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostAutoReplyEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
+		this._dispatchRootConfig({ [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled });
 	}
 
 	private _updatePreferLongContextEnabled(): void {
 		const enabled = this._configurationService.getValue<boolean>(PREFER_LONG_CONTEXT_SETTING_ID) === true;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostPreferLongContextEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
+		this._dispatchRootConfig({ [AgentHostPreferLongContextEnabledConfigKey]: enabled });
 	}
 
-	private _updateSystemProxyEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(AgentHostSystemProxyEnabledSettingId) !== false;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSystemProxyEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
-	}
-
-	private _updateCodexEnabled(): void {
-		// Always forwards the current value; the host only acts on enable, so a
-		// forwarded `false` only takes effect on the next agent host restart
-		// (otherwise in-progress Codex sessions would have to be stopped).
-		const enabled = this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true;
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostCodexEnabledConfigKey]: enabled },
-		}, this._clientId, 0);
+	private _updateTerminalAutoApproveEnabled(): void {
+		// Deliberately on the manual, workspace-aware path rather than declaring
+		// `agentHost` on its schema: the setting is `restricted` and settable per
+		// workspace, and its companion rule set (`terminalAutoApproveRules`) is
+		// workspace-aware too. Resolving only the global value here would let a
+		// workspace that turned auto-approval off still have it applied.
+		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
+		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled });
 	}
 
 	private _updateTerminalAutoApproveRules(): void {
-		this.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostTerminalAutoApproveRulesConfigKey]: getAgentHostTerminalAutoApproveRulesConfig(this._configurationService) },
-		}, this._clientId, 0);
+		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: getAgentHostTerminalAutoApproveRulesConfig(this._configurationService) });
 	}
 
 	/**

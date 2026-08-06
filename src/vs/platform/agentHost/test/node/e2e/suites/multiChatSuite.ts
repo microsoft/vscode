@@ -27,12 +27,14 @@ import {
 	type RootState,
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
-import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled } = context;
+	const { config, createdSessions, tempDirs } = context;
+	/** See the same constant in `fileOperationsSuite`. */
+	const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-multichat-${prefix}-`));
@@ -99,6 +101,17 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			return run.call(this);
 		});
+	}
+
+	function fileReadToolNames(provider: string): readonly string[] {
+		switch (provider) {
+			case 'claude':
+				return ['Read'];
+			case 'copilotcli':
+				return ['view'];
+			default:
+				return ['Read', 'view', 'shell'];
+		}
 	}
 
 	interface IObservedModelMessage {
@@ -178,7 +191,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 				) {
 					return false;
 				}
-				return getActionEnvelope(n).channel === chatUri;
+				if (getActionEnvelope(n).channel !== chatUri) {
+					return false;
+				}
+				return (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
 			}, 90_000);
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
@@ -209,6 +225,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		for (const notification of context.client.receivedNotifications(n =>
 			(isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/delta'))
 			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId
 		)) {
 			const action = getActionEnvelope(notification).action;
 			if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown) {
@@ -524,6 +541,14 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read', `Read the file at ${file} and reply with its exact contents only.`, 1);
 
 		assert.match(response, /PEER_FILE_VALUE/);
+		assertToolCallCompleteText(context.client, {
+			channel: peer,
+			turnId: 'peer-read',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/PEER_FILE_VALUE/],
+			success: true,
+		});
 	});
 
 	providerTest('peer chat reads a file from a nested directory', async function () {
@@ -537,6 +562,14 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read-nested', `Read the file at ${file} and reply with its exact contents only.`, 1);
 
 		assert.match(response, /PEER_NESTED_READ/);
+		assertToolCallCompleteText(context.client, {
+			channel: peer,
+			turnId: 'peer-read-nested',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/PEER_NESTED_READ/],
+			success: true,
+		});
 	});
 
 	providerTest('peer chat creates a file in the parent workspace', async function () {
@@ -550,7 +583,6 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_CREATED');
 	});
 
-	// Copilot's fixture uses a POSIX shell for this mutation.
 	providerTest('peer chat edits an existing workspace file', async function () {
 		const { sessionUri, workspace } = await createSession('edit-file');
 		const file = join(workspace, 'peer-edit.txt');
@@ -558,22 +590,26 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-edit', `Replace the complete contents of ${file} with AFTER_PEER.`, 1);
+		await driveTurn(peer, 'peer-edit', `Replace the complete contents of ${file} with AFTER_PEER.${PREFER_FILE_TOOLS}`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
-	}, config.supportsMultipleChats && (config.provider !== 'copilotcli' || shellToolReplayEnabled));
+	}, config.supportsMultipleChats);
 
-	// Copilot's fixture uses a POSIX shell for this mutation.
 	providerTest('peer chat creates a file in a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('nested-create');
 		const file = join(workspace, 'peer-output', 'report.txt');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-nested-create', `Create the file at ${file} containing exactly PEER_NESTED.`, 1);
+		// Pinned for the same reason as `creates a file in a new nested directory`
+		// in fileOperationsSuite: directory creation has no file tool. Relative to
+		// the session's working directory so the command carries no absolute path,
+		// which would need escaping on Windows.
+		const peerNestedCommand = `node -e "const fs=require('fs');fs.mkdirSync('peer-output',{recursive:true});fs.writeFileSync('peer-output/report.txt','PEER_NESTED')"`;
+		await driveTurn(peer, 'peer-nested-create', `Run exactly this shell command, with no modifications: \`${peerNestedCommand}\`. Then reply with exactly "created".`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_NESTED');
-	}, config.supportsMultipleChats && (config.provider !== 'copilotcli' || shellToolReplayEnabled));
+	}, config.supportsMultipleChats);
 
 	providerTest('peer chat handles a missing workspace file without an error', async function () {
 		const { sessionUri, workspace } = await createSession('missing-file');
@@ -581,9 +617,17 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-missing', `Try to read ${file}. If it does not exist, reply exactly "missing".`, 1);
+		const response = await driveTurn(peer, 'peer-missing', `Try to read ${file}. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`, 1);
 
 		assert.match(response, /missing/i);
+		assertToolCallCompleteText(context.client, {
+			channel: peer,
+			turnId: 'peer-missing',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/does not exist/],
+			success: false,
+		});
 	});
 
 	providerTest('peer chat reads a filename containing spaces', async function () {
@@ -596,6 +640,14 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-spaces', `Read the file at ${file} and reply with its exact contents only.`, 1);
 
 		assert.match(response, /PEER_SPACED/);
+		assertToolCallCompleteText(context.client, {
+			channel: peer,
+			turnId: 'peer-spaces',
+			toolNames: fileReadToolNames(config.provider),
+			workspace,
+			expected: [/PEER_SPACED/],
+			success: true,
+		});
 	});
 
 	providerTest('two peer chats write distinct workspace files', async function () {

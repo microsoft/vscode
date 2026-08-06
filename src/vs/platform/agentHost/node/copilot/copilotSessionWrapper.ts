@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -17,21 +18,39 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+	private readonly _shutdown = new DeferredPromise<void>();
+	private _disconnectPromise: Promise<void> | undefined;
 
 	constructor(readonly session: CopilotSession) {
 		super();
 		const unsubscribeAll = session.on(event => {
+			if (event.type === 'session.shutdown') {
+				void this._shutdown.complete();
+			}
 			if (!this._handledEventTypes.has(event.type)) {
 				this._onUnhandledEvent.fire(event);
 			}
 		});
 		this._register(toDisposable(unsubscribeAll));
 		this._register(toDisposable(() => {
-			session.disconnect().catch(() => { /* best-effort */ });
+			void this.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
 	get sessionId(): string { return this.session.sessionId; }
+
+	/** Disconnects once the request completes or the SDK reports session shutdown. */
+	disconnect(): Promise<void> {
+		if (this._shutdown.isSettled) {
+			return this._shutdown.p;
+		}
+		this._disconnectPromise ??= this.session.disconnect().catch(error => {
+			if (!this._shutdown.isSettled) {
+				throw error;
+			}
+		});
+		return Promise.race([this._disconnectPromise, this._shutdown.p]);
+	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
@@ -41,6 +60,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMessage: Event<SessionEventPayload<'assistant.message'>> | undefined;
 	get onMessage(): Event<SessionEventPayload<'assistant.message'>> {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
+	}
+
+	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
+	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
+		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
 	}
 
 	private _onToolStart: Event<SessionEventPayload<'tool.execution_start'>> | undefined;
@@ -56,6 +80,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
 	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
 		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
+	private _onPermissionCompleted: Event<SessionEventPayload<'permission.completed'>> | undefined;
+	get onPermissionCompleted(): Event<SessionEventPayload<'permission.completed'>> {
+		return this._onPermissionCompleted ??= this._sdkEvent('permission.completed');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
@@ -181,6 +210,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onUsage: Event<SessionEventPayload<'assistant.usage'>> | undefined;
 	get onUsage(): Event<SessionEventPayload<'assistant.usage'>> {
 		return this._onUsage ??= this._sdkEvent('assistant.usage');
+	}
+
+	private _onModelCallFailure: Event<SessionEventPayload<'model.call_failure'>> | undefined;
+	get onModelCallFailure(): Event<SessionEventPayload<'model.call_failure'>> {
+		return this._onModelCallFailure ??= this._sdkEvent('model.call_failure');
 	}
 
 	private _onAbort: Event<SessionEventPayload<'abort'>> | undefined;

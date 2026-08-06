@@ -329,7 +329,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const accessor: IStatusbarEntryAccessor = {
 			update: entry => {
 				lastEntry = entry;
+				const hadBackgroundColor = itemContainer.classList.contains('has-background-color');
 				item.update(this.withEntryOverride(entry, id));
+				if (hadBackgroundColor !== itemContainer.classList.contains('has-background-color')) {
+					this.updateVisibleBackgroundColorNeighbors();
+				}
 			},
 			dispose: () => {
 				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
@@ -590,6 +594,38 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 					}));
 				}
 			}
+		}
+
+		this.updateVisibleBackgroundColorNeighbors();
+	}
+
+	private updateVisibleBackgroundColorNeighbors(): void {
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.LEFT), StatusbarAlignment.LEFT);
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse(), StatusbarAlignment.RIGHT);
+	}
+
+	private doUpdateVisibleBackgroundColorNeighbors(entries: IStatusbarViewModelEntry[], alignment: StatusbarAlignment): void {
+		let previousVisibleEntry: IStatusbarViewModelEntry | undefined;
+
+		for (const entry of entries) {
+			entry.container.classList.remove('visible-background-color-neighbor');
+
+			if (this.viewModel.isHidden(entry.id)) {
+				continue;
+			}
+
+			const isCompactNeighbor = alignment === StatusbarAlignment.LEFT
+				? previousVisibleEntry?.container.classList.contains('compact-right') && entry.container.classList.contains('compact-left')
+				: previousVisibleEntry?.container.classList.contains('compact-left') && entry.container.classList.contains('compact-right');
+			if (
+				previousVisibleEntry?.container.classList.contains('has-background-color') &&
+				entry.container.classList.contains('has-background-color') &&
+				!isCompactNeighbor
+			) {
+				entry.container.classList.add('visible-background-color-neighbor');
+			}
+
+			previousVisibleEntry = entry;
 		}
 	}
 
