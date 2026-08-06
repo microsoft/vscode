@@ -46,15 +46,15 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses a 4px inter-card gap', () => {
+	test('uses a 6px inter-card gap', () => {
 		assert.deepStrictEqual({
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
 		}, {
 			leadingMargin: 4,
-			trailingMargin: 0,
-			gap: 4,
+			trailingMargin: 2,
+			gap: 6,
 		});
 	});
 });

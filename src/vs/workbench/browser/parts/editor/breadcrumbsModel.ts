@@ -149,7 +149,7 @@ export class BreadcrumbsModel {
 
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const folderCount = this._workspaceService.getWorkspace().folders.length;
-			if (folderCount > 1) {
+			if (folderCount > 1 || isEqual(info.folder.uri, this.resource)) {
 				info.path.unshift(new FileElement(
 					info.folder.uri,
 					FileKind.ROOT_FOLDER,
