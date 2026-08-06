@@ -136,6 +136,23 @@ suite('Breadcrumb Model', function () {
 		]);
 	});
 
+	test('keeps workspace root when it is the breadcrumb resource', function () {
+		const workspace = new TestContextService(new Workspace(
+			'ffff',
+			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
+			URI.parse('foo:/workspace.code-workspace')
+		));
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
+			uri: element.uri.toString(),
+			kind: element.kind,
+			label: element.label
+		})), [
+			{ uri: 'foo:/bar/baz/ws', kind: FileKind.ROOT_FOLDER, label: 'ws' }
+		]);
+	});
+
 	test('shows plain workspace root in multi-root Sessions window', function () {
 		const workspace = new TestContextService(new Workspace(
 			'ffff',
