@@ -9,6 +9,7 @@ import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscod
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -105,8 +106,6 @@ import { ISessionsManagementService } from '../../../../sessions/services/sessio
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
-import { constObservable } from '../../../../base/common/observable.js';
-
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
 
@@ -380,17 +379,18 @@ function getReverseStylesheetsOption(input: unknown): ReverseStylesheetsOption {
 	return parsedInput.reverseStylesheetsRange ?? parsedInput.reverseStylesheets;
 }
 
-/** Inputs exposed as Component Explorer controls. */
-const fixtureInputSchema = z.object({
-	reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
-	reverseStylesheetsRange: z.object({
-		fromIndex: z.number(),
-		toIndex: z.number(),
-	}).optional().describe('Reverse the bundled CSS documents in this half-open index range.'),
-	enableAnimations: z.boolean().default(false).describe('Enable CSS animations and transitions.'),
-	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
-	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
-});
+function createFixtureInputSchema(enableAnimationsByDefault: boolean) {
+	return z.object({
+		reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+		reverseStylesheetsRange: z.object({
+			fromIndex: z.number(),
+			toIndex: z.number(),
+		}).optional().describe('Reverse the bundled CSS documents in this half-open index range.'),
+		enableAnimations: z.boolean().default(enableAnimationsByDefault).describe('Enable CSS animations and transitions.'),
+		outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
+		outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
+	});
+}
 
 function getPlatformClass(): string {
 	const alwaysUseMac = true;
@@ -860,6 +860,7 @@ export interface ComponentFixtureContext {
 	disposableStore: DisposableStore;
 	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
+	animationsEnabled: IObservable<boolean>;
 }
 
 export interface ComponentFixtureOptions {
@@ -867,6 +868,8 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	enableAnimationsByDefault?: boolean;
+	disableAnimationsWithCss?: boolean;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -898,7 +901,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
-		inputSchema: fixtureInputSchema,
+		inputSchema: createFixtureInputSchema(options.enableAnimationsByDefault ?? false),
 		inputControls: {
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },
 			enableAnimations: { placement: 'toolbar', label: 'Enable Animations' },
@@ -906,6 +909,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);
+			const animationsEnabled = observableValue('componentFixtureAnimationsEnabled', input.enableAnimations);
 			const { label: themeLabel, theme, scopeThemingParticipants } = themeVariant;
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
@@ -1016,7 +1020,8 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('enableAnimations', value => {
-					container.classList.toggle('disable-animations', !value);
+					container.classList.toggle('disable-animations', (options.disableAnimationsWithCss ?? true) && !value);
+					animationsEnabled.set(value, undefined);
 				});
 
 				let renderTimeApi: IDisposable | undefined;
@@ -1046,7 +1051,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 				try {
 					const disposableStackStore = disposableStore.add(new DisposableStackStore());
-					const result = options.render({ container, disposableStore, disposableStackStore, theme });
+					const result = options.render({ container, disposableStore, disposableStackStore, theme, animationsEnabled });
 
 					const p2 = virtualTimeEnabled
 						? p.run({
