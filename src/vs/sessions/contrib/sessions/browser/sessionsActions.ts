@@ -535,10 +535,8 @@ registerAction2(class CloseChatAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				// Intercept Ctrl/Cmd+W (which otherwise closes the session) only
-				// while the active chat is a closeable non-main chat, so it closes
-				// the chat tab instead — like closing a tab vs the window.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionActiveChatIsClosableContext),
+				// Only the focused Sessions part owns Ctrl/Cmd+W; other surfaces keep their close command.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext, SessionActiveChatIsClosableContext),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
