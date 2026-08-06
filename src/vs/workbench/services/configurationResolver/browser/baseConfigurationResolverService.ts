@@ -165,7 +165,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			// Command
 			if (variable.name === 'command') {
 				const commandId = (variableToCommandMap ? variableToCommandMap[variable.arg!] : undefined) || variable.arg!;
-				const value = await this.commandService.executeCommand(commandId, expr.toObject());
+				const value = await this.commandService.executeCommand<string | undefined>(commandId, expr.toObject());
 				if (!Types.isUndefinedOrNull(value)) {
 					if (typeof value !== 'string') {
 						throw new VariableError(VariableKind.Command, localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
@@ -191,7 +191,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				result = typeof resolvedValue === 'string' ? { value: resolvedValue } : resolvedValue;
 			}
 
-			if (result === undefined) {
+			if (result === undefined || result.value === undefined) {
 				// Skip the entire flow if any input variable was canceled
 				return undefined;
 			}
@@ -339,7 +339,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.command)) {
 						missingAttribute('command');
 					}
-					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string>(info.command, info.args)).then(result => {
+					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string | undefined>(info.command, info.args)).then(result => {
 						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
 							return { value: result, input: info };
 						}
