@@ -15,7 +15,7 @@ const updatePackageJsonModulePath = fileURLToPath(updatePackageJsonModuleUrl);
 async function updateMarkdownEditorPackageJsonFile(): Promise<unknown> {
 	const version = (await stat(updatePackageJsonModulePath)).mtimeMs;
 	const module = await import(`${updatePackageJsonModuleUrl.href}?version=${version}`) as typeof import('./scripts/updateMarkdownEditorPackageJson.mts');
-	return module.updatePackageJsonFile('write');
+	return module.updateMarkdownEditorManifestFiles('write');
 }
 
 run({

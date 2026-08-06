@@ -221,273 +221,273 @@
       },
       {
         "command": "markdown.editor.cursorLeft",
-        "title": "Move Cursor Left",
+        "title": "%markdown.editor.cursorLeft.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorRight",
-        "title": "Move Cursor Right",
+        "title": "%markdown.editor.cursorRight.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorUp",
-        "title": "Move Cursor Up",
+        "title": "%markdown.editor.cursorUp.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDown",
-        "title": "Move Cursor Down",
+        "title": "%markdown.editor.cursorDown.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorLeftSelect",
-        "title": "Select Left",
+        "title": "%markdown.editor.cursorLeftSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorRightSelect",
-        "title": "Select Right",
+        "title": "%markdown.editor.cursorRightSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorUpSelect",
-        "title": "Select Up",
+        "title": "%markdown.editor.cursorUpSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDownSelect",
-        "title": "Select Down",
+        "title": "%markdown.editor.cursorDownSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorWordLeft",
-        "title": "Move Cursor Word Left",
+        "title": "%markdown.editor.cursorWordLeft.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorWordRight",
-        "title": "Move Cursor Word Right",
+        "title": "%markdown.editor.cursorWordRight.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorWordLeftSelect",
-        "title": "Select Word Left",
+        "title": "%markdown.editor.cursorWordLeftSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorWordRightSelect",
-        "title": "Select Word Right",
+        "title": "%markdown.editor.cursorWordRightSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorVisualLineStart",
-        "title": "Move Cursor to Visual Line Start",
+        "title": "%markdown.editor.cursorVisualLineStart.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorVisualLineEnd",
-        "title": "Move Cursor to Visual Line End",
+        "title": "%markdown.editor.cursorVisualLineEnd.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorVisualLineStartSelect",
-        "title": "Select to Visual Line Start",
+        "title": "%markdown.editor.cursorVisualLineStartSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorVisualLineEndSelect",
-        "title": "Select to Visual Line End",
+        "title": "%markdown.editor.cursorVisualLineEndSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorLogicalLineStart",
-        "title": "Move Cursor to Logical Line Start",
+        "title": "%markdown.editor.cursorLogicalLineStart.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorLogicalLineEnd",
-        "title": "Move Cursor to Logical Line End",
+        "title": "%markdown.editor.cursorLogicalLineEnd.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorLogicalLineStartSelect",
-        "title": "Select to Logical Line Start",
+        "title": "%markdown.editor.cursorLogicalLineStartSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorLogicalLineEndSelect",
-        "title": "Select to Logical Line End",
+        "title": "%markdown.editor.cursorLogicalLineEndSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDocumentStart",
-        "title": "Move Cursor to Document Start",
+        "title": "%markdown.editor.cursorDocumentStart.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDocumentEnd",
-        "title": "Move Cursor to Document End",
+        "title": "%markdown.editor.cursorDocumentEnd.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDocumentStartSelect",
-        "title": "Select to Document Start",
+        "title": "%markdown.editor.cursorDocumentStartSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.cursorDocumentEndSelect",
-        "title": "Select to Document End",
+        "title": "%markdown.editor.cursorDocumentEndSelect.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.selectAll",
-        "title": "Select All",
+        "title": "%markdown.editor.selectAll.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteLeft",
-        "title": "Delete Left",
+        "title": "%markdown.editor.deleteLeft.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteRight",
-        "title": "Delete Right",
+        "title": "%markdown.editor.deleteRight.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteWordLeft",
-        "title": "Delete Word Left",
+        "title": "%markdown.editor.deleteWordLeft.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteWordRight",
-        "title": "Delete Word Right",
+        "title": "%markdown.editor.deleteWordRight.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteLineLeft",
-        "title": "Delete All Left",
+        "title": "%markdown.editor.deleteLineLeft.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.deleteLineRight",
-        "title": "Delete All Right",
+        "title": "%markdown.editor.deleteLineRight.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.undo",
-        "title": "Undo",
+        "title": "%markdown.editor.undo.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.redo",
-        "title": "Redo",
+        "title": "%markdown.editor.redo.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.insertTab",
-        "title": "Insert Tab",
+        "title": "%markdown.editor.insertTab.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.outdent",
-        "title": "Outdent",
+        "title": "%markdown.editor.outdent.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.toggleTabFocus",
-        "title": "Toggle Tab Key Moves Focus",
+        "title": "%markdown.editor.toggleTabFocus.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.smartEnter",
-        "title": "Insert Paragraph",
+        "title": "%markdown.editor.smartEnter.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.insertHardLineBreak",
-        "title": "Insert Hard Line Break",
+        "title": "%markdown.editor.insertHardLineBreak.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
       },
       {
         "command": "markdown.editor.insertParagraph",
-        "title": "Insert Paragraph Without Continuing Markup",
+        "title": "%markdown.editor.insertParagraph.title%",
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true

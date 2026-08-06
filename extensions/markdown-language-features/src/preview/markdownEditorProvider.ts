@@ -142,11 +142,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			return;
 		}
 		const webview = webviewPanel.webview;
-		this.#webviewPanels.add(webviewPanel);
 		const codeBlockEditorProviders = await this.#loadCodeBlockEditorProviders();
 		if (token.isCancellationRequested) {
 			return;
 		}
+		this.#webviewPanels.add(webviewPanel);
 		this.#configureWebview(document.uri, webview);
 		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders);
 	}

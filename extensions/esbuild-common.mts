@@ -63,7 +63,8 @@ export async function runBuild(
 	if (isWatch) {
 		await watchWithParcel(
 			resolvedOptions,
-			[config.srcDir, ...(config.additionalWatchPaths ?? [])],
+			config.srcDir,
+			config.additionalWatchPaths ?? [],
 			config.beforeBuild,
 			() => didBuild?.(outdir),
 		);
@@ -80,7 +81,8 @@ export async function runBuild(
 // We use @parcel/watcher as it has much lower cpu usage when idle compared to esbuild's watch mode
 async function watchWithParcel(
 	options: esbuild.BuildOptions,
-	watchPaths: readonly string[],
+	srcDir: string,
+	additionalWatchPaths: readonly string[],
 	beforeBuild?: () => Promise<unknown> | unknown,
 	didBuild?: () => Promise<unknown> | unknown,
 ): Promise<void> {
@@ -104,26 +106,31 @@ async function watchWithParcel(
 	};
 
 	const watcher = await import('@parcel/watcher');
-	// Ignore the build's own output directory so emitted files never re-trigger the watcher
-	// (which would cause an infinite rebuild loop when `outdir` lives inside `srcDir`).
-	const ignore = ['**/node_modules/**', '**/dist/**', '**/out/**'];
+	const ignoredOutputPaths: string[] = [];
 	if (options.outdir) {
-		// `@parcel/watcher` matches `ignore` entries as globs with forward slashes, so normalize the
-		// path separators and append `/**` so that every file emitted inside `outdir` is ignored too.
 		const outdirGlob = options.outdir.replace(/\\/g, '/').replace(/\/$/, '');
-		ignore.push(outdirGlob, `${outdirGlob}/**`);
+		ignoredOutputPaths.push(outdirGlob, `${outdirGlob}/**`);
 	}
-	await Promise.all(watchPaths.map(async watchPath => {
+
+	const subscribe = async (watchPath: string, ignore: readonly string[]) => {
 		const watchPathStat = await stat(watchPath);
 		const watchedFile = watchPathStat.isDirectory() ? undefined : path.resolve(watchPath);
 		const watchRoot = watchedFile ? path.dirname(watchedFile) : watchPath;
-		return watcher.subscribe(watchRoot, (_err, events) => {
+		return watcher.subscribe(watchRoot, (error, events) => {
+			if (error) {
+				console.error('[watch] watcher error:', error);
+				return;
+			}
 			if (!watchedFile || events.some(event => path.resolve(event.path) === watchedFile)) {
 				rebuild();
 			}
 		}, {
-			ignore
+			ignore: [...ignore],
 		});
-	}));
+	};
+	await Promise.all([
+		subscribe(srcDir, ['**/node_modules/**', '**/dist/**', '**/out/**', ...ignoredOutputPaths]),
+		...additionalWatchPaths.map(watchPath => subscribe(watchPath, ignoredOutputPaths)),
+	]);
 	rebuild();
 }
