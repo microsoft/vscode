@@ -5105,6 +5105,29 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('excludes a workspace-disabled root MCP server before the session is registered', async () => {
+			const { agent, configurationService, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'seeded-workspace-disabled-root-mcp');
+			const workspace = URI.file('/workspace');
+			try {
+				configurationService.updateRootConfig({ [AgentHostMcpServersConfigKey]: rootMcpServers() });
+				storageService.set(CustomizationEnablementStorageKey, {
+					workingDirectories: { [workspace.toString()]: { 'mcpServers#slack': false } },
+				});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				assert.strictEqual(stateManager.getSessionState(session.toString())?.workingDirectories, undefined, 'precondition: session is not yet registered with working directories');
+				await agent.getSessionCustomizations(session);
+
+				assert.deepStrictEqual(await getActiveClient(agent, session).snapshot(), {
+					tools: [],
+					plugins: [],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('includes a root MCP server without a disabled policy in the launch snapshot', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);
 			const session = AgentSession.uri('copilotcli', 'enabled-root-mcp');
@@ -5159,6 +5182,32 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(await activeClient.snapshot(), {
 					tools: [],
 					plugins: [{ ...plugin, mcpServers: [] }],
+					mcpServers: {},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('drops a workspace-disabled plugin before the session is registered', async () => {
+			const { agent, stateManager, storageService } = createTestAgentContext(disposables);
+			const session = AgentSession.uri('copilotcli', 'seeded-workspace-disabled-plugin');
+			const workspace = URI.file('/workspace');
+			try {
+				storageService.set(CustomizationEnablementStorageKey, {
+					workingDirectories: { [workspace.toString()]: { [pluginSource]: false } },
+				});
+				await agent.createSession({ session, workingDirectories: [workspace] });
+				assert.strictEqual(stateManager.getSessionState(session.toString())?.workingDirectories, undefined, 'precondition: session is not yet registered with working directories');
+				await agent.getSessionCustomizations(session);
+				const activeClient = getActiveClient(agent, session) as TestActiveClient & {
+					pluginController: { getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> };
+				};
+				activeClient.pluginController.getAppliedPlugins = async () => [parsedPluginWithSlackMcp()];
+
+				assert.deepStrictEqual(await activeClient.snapshot(), {
+					tools: [],
+					plugins: [],
 					mcpServers: {},
 				});
 			} finally {

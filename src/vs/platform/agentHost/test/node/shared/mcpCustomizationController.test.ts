@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agentService.js';
@@ -18,7 +19,7 @@ import { AgentConfigurationService } from '../../../node/agentConfigurationServi
 import { applySessionMcpServerEnablement, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 import { getPrimaryWorkingDirectory, mcpServerPolicyKey, resolveEnablement, updateCustomizationEnablementPolicy } from '../../../node/shared/mcpServerEnablement.js';
 
-function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean; resolveChildId?: (name: string) => string | undefined } = {}) {
+function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean; fallbackWorkingDirectory?: URI; resolveChildId?: (name: string) => string | undefined } = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 	const configurationService = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
@@ -52,6 +53,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		providerId: 'copilot',
 		sessionId: 'session-1',
 		sessionUri,
+		fallbackWorkingDirectory: opts.fallbackWorkingDirectory,
 		resolveChildId: opts.resolveChildId ?? (name => findMcpChildId(opts.customizations ?? [], name)),
 		emit: a => actions.push(a),
 	}, stateManager, enablementService);
@@ -335,6 +337,26 @@ suite('McpCustomizationController', () => {
 		}]);
 	});
 
+	test('resolves top-level workspace policy from its fallback anchor before session registration', () => {
+		const workspace = URI.file('/workspace');
+		const { controller, stateManager, storageService } = harness(store, { fallbackWorkingDirectory: workspace });
+		store.add(controller);
+		storageService.set(CustomizationEnablementStorageKey, {
+			workingDirectories: { [workspace.toString()]: { 'mcpServers#search': false } },
+		});
+
+		assert.strictEqual(stateManager.getSessionState(AgentSession.uri('copilot', 'session-1').toString())?.workingDirectories, undefined);
+		controller.applyOne(server('search', starting()));
+
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => ({
+			enabled: customization.enabled,
+			enablement: customization.enablement,
+		})), [{
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+		}]);
+	});
+
 	test('child-backed server: ready/error/ready transitions only update state+channel', () => {
 		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
@@ -392,6 +414,44 @@ suite('McpCustomizationController', () => {
 				id: 'mcp-child:demo:fs',
 			}],
 			runtimeStates: new Map(),
+			topLevelCustomizations: [],
+		});
+	});
+
+	test('re-homes a top-level server when its plugin child becomes resolvable', () => {
+		const childIds = new Map<string, string>();
+		const { controller, actions } = harness(store, {
+			resolveChildId: name => childIds.get(name),
+		});
+		store.add(controller);
+		const topLevelId = 'mcp-top-level:copilot:session-1:fs';
+
+		controller.applyOne(server('fs', ready()));
+		childIds.set('fs', 'mcp-child:demo:fs');
+		controller.applyOne(server('fs', ready()));
+
+		assert.deepStrictEqual({
+			actions: actions.map(action => action.type === ActionType.SessionCustomizationUpdated
+				? { type: action.type, id: action.customization.id }
+				: action.type === ActionType.SessionCustomizationRemoved || action.type === ActionType.SessionMcpServerStateChanged
+					? { type: action.type, id: action.id }
+					: { type: action.type, id: undefined }),
+			runtimeStates: controller.runtimeStates.get(),
+			topLevelCustomizations: controller.topLevelCustomizations(),
+		}, {
+			actions: [{
+				type: ActionType.SessionCustomizationUpdated,
+				id: topLevelId,
+			}, {
+				type: ActionType.SessionCustomizationRemoved,
+				id: topLevelId,
+			}, {
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+			}],
+			runtimeStates: new Map([
+				['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: 'mcp://copilot/session-1/fs' }],
+			]),
 			topLevelCustomizations: [],
 		});
 	});
@@ -533,8 +593,10 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
 	});
 
-	test('top-level entry stays top-level across updates (id stable)', () => {
-		const { controller, actions } = harness(store);
+	test('genuinely sourceless server keeps its top-level id across updates', () => {
+		const { controller, actions } = harness(store, {
+			resolveChildId: () => undefined,
+		});
 		store.add(controller);
 
 		controller.applyOne(server('search', starting()));

@@ -4794,7 +4794,8 @@ class ActiveClient extends Disposable {
 
 	private _getMcpServers(): AgentHostMcpServers {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
-		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()));
+		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()))
+			?? this.pluginController.directory?.toString();
 		const sessionEnabled = this._sessionEnabledMcpServerPolicyKeys();
 		return structuredClone(Object.fromEntries(Object.entries(servers).filter(([name]) =>
 			this._customizationEnablementService.resolveRootMcpServerEnablement(name, workingDirectory).enabled
@@ -4803,7 +4804,8 @@ class ActiveClient extends Disposable {
 	}
 
 	private async _getPlugins(): Promise<readonly ICopilotPluginInfo[]> {
-		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()));
+		const workingDirectory = getPrimaryWorkingDirectory(this._configurationService.getEffectiveWorkingDirectories(this._sessionUri.toString()))
+			?? this.pluginController.directory?.toString();
 		const sessionEnabled = this._sessionEnabledMcpServerPolicyKeys();
 		return (await this.pluginController.getAppliedPlugins()).flatMap(plugin => {
 			if (!this._isPluginEnabled(plugin, workingDirectory)) {

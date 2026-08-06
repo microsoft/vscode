@@ -906,6 +906,7 @@ export class CopilotAgentSession extends Disposable {
 			providerId: this.sessionUri.scheme,
 			sessionId: this.sessionId,
 			sessionUri: this.sessionUri,
+			fallbackWorkingDirectory: this._customizationDirectory,
 			resolveChildId: options.resolveMcpChildId,
 			emit: action => this._emitAction(action),
 		}));

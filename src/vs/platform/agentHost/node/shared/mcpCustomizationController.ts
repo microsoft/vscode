@@ -71,6 +71,8 @@ export interface IMcpCustomizationControllerOptions {
 	readonly sessionId: string;
 	/** Canonical session URI used to resolve persisted customization state. */
 	readonly sessionUri: URI;
+	/** Working-directory anchor available before the session is registered in state. */
+	readonly fallbackWorkingDirectory?: URI;
 	/**
 	 * Resolves an existing child customization id for a given server
 	 * name. See {@link IMcpChildIdResolver}.
@@ -287,12 +289,25 @@ export class McpCustomizationController extends Disposable {
 		const previous = this._live.get().get(server.name);
 		const state = this._stateForUpdate(previous?.state, server.state);
 		const enabled = server.enabled ?? previous?.enabled ?? true;
-		// Once promoted to a top-level entry, stay top-level for the
-		// session — flipping back to a child mid-stream would orphan the
-		// previously-published top-level id.
+		const childId = this._options.resolveChildId(server.name);
 		let topLevelId = previous?.topLevelId;
+		if (topLevelId !== undefined && childId !== undefined) {
+			this._knownChildIds.set(server.name, childId);
+			this._deleteLiveEntry(server.name, tx);
+			this._options.emit({
+				type: ActionType.SessionCustomizationRemoved,
+				id: topLevelId,
+			});
+			this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
+			this._options.emit({
+				type: ActionType.SessionMcpServerStateChanged,
+				id: childId,
+				state,
+				channel: this._buildChannel(server.name, state),
+			});
+			return;
+		}
 		if (topLevelId === undefined) {
-			const childId = this._options.resolveChildId(server.name);
 			if (childId !== undefined) {
 				this._knownChildIds.set(server.name, childId);
 				this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
@@ -416,7 +431,8 @@ export class McpCustomizationController extends Disposable {
 			.find(customization => customization.id === id);
 		const enablement = this._customizationEnablementService.resolveEnablement(
 			existing ?? { type: CustomizationType.McpServer, id, uri: id, name: serverName, enabled: true, state },
-			getPrimaryWorkingDirectory(this._stateManager.getSessionState(this._options.sessionUri.toString())?.workingDirectories),
+			getPrimaryWorkingDirectory(this._stateManager.getSessionState(this._options.sessionUri.toString())?.workingDirectories)
+			?? this._options.fallbackWorkingDirectory?.toString(),
 		);
 		return {
 			type: CustomizationType.McpServer,
