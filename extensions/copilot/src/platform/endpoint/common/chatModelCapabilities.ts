@@ -159,6 +159,12 @@ export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
 	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
 }
 
+export function modelSupportsOriginalImageDetail(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	const isSupportedGpt54 = isGpt54(model) && !family.startsWith('gpt-5.4-mini') && !family.startsWith('gpt-5.4-nano');
+	return isSupportedGpt54 || isGpt55(model) || isGpt56(model);
+}
+
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
 	return family.startsWith('gpt-5.3-codex');

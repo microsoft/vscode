@@ -1002,6 +1002,7 @@ export namespace ConfigKey {
 	/** How the semantic_search (codebase) tool is offered to the agent: available, removed entirely, or available with instructions telling the agent to prefer it over exploratory reads and text searches. */
 	export const SemanticSearchToolMode = defineSetting<'enabled' | 'disabled' | 'preferred'>('chat.semanticSearchTool.mode', ConfigType.ExperimentBased, 'enabled');
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
+	export const ChatImageDetail = defineSetting<'high' | 'original'>('chat.imageDetail', ConfigType.Simple, 'high');
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
 	/** Maximum number of web searches allowed per request */

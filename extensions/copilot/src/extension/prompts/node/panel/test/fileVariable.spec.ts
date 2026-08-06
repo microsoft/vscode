@@ -5,6 +5,7 @@
 
 import { type JSONTree, OutputMode, Raw } from '@vscode/prompt-tsx';
 import { beforeAll, describe, expect, test } from 'vitest';
+import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
@@ -134,6 +135,31 @@ describe('FileVariable', () => {
 				omitContents: true,
 			});
 		expect(jsonTreeToString(result.node)).toMatchSnapshot();
+	});
+
+	test('uses the configured image detail', async () => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const mockEndpoint = createMockEndpoint({ family: 'gpt-5.4', model: 'gpt-5.4' });
+		const mockFs = new MockFileSystemService();
+		const imageUri = Uri.parse('file:///workspace/image.png');
+		mockFs.mockFile(imageUri, '\x89PNG');
+		testingServiceCollection.define(IEndpointProvider, new MockEndpointProvider(mockEndpoint));
+		testingServiceCollection.define(IFileSystemService, mockFs);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.ChatImageDetail, 'original');
+		const renderer = PromptRenderer.create(
+			accessor.get(IInstantiationService),
+			mockEndpoint,
+			FileVariable,
+			{
+				variableName: 'image',
+				variableValue: imageUri,
+			});
+		const { messages } = await renderer.render();
+		const image = messages.flatMap(message => message.content).find(part => part.type === Raw.ChatCompletionContentPartKind.Image);
+
+		expect(image?.imageUrl.detail).toBe('original');
 	});
 });
 

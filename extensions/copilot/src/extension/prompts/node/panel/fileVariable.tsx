@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { BasePromptElementProps, ChatResponseReferencePartStatusKind, Document, Image, PromptElement, PromptReference, PromptSizing } from '@vscode/prompt-tsx';
+import { BasePromptElementProps, ChatResponseReferencePartStatusKind, Document, PromptElement, PromptReference, PromptSizing } from '@vscode/prompt-tsx';
 import { UserMessage } from '@vscode/prompt-tsx/dist/base/promptElements';
 import { AbstractDocumentWithLanguageId } from '../../../../platform/editing/common/abstractText';
 import { NotebookDocumentSnapshot } from '../../../../platform/editing/common/notebookDocumentSnapshot';
@@ -30,6 +30,7 @@ import { SummarizedDocumentLineNumberStyle } from '../inline/summarizedDocument/
 import { ICostFnFactory, ProjectedDocument, RemovableNode } from '../inline/summarizedDocument/summarizeDocument';
 import { DocumentSummarizer, NotebookDocumentSummarizer } from '../inline/summarizedDocument/summarizeDocumentHelpers';
 import { BinaryFileHexdump, hexdumpIfBinary } from './binaryFileHexdump';
+import { ConfiguredImage } from './image';
 import { CodeBlock } from './safeElements';
 
 export interface FileVariableProps extends BasePromptElementProps {
@@ -103,7 +104,7 @@ export class FileVariable extends PromptElement<FileVariableProps, unknown> {
 				const base64string = Buffer.from(buffer).toString('base64');
 				return (
 					<UserMessage priority={0}>
-						<Image src={base64string} detail={'high'} />
+						<ConfiguredImage src={base64string} />
 						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: uri } : uri, undefined, options)]} />
 					</UserMessage>
 
