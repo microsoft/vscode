@@ -158,7 +158,6 @@ suite('ChatSpeechToTextService', () => {
 				trace: () => { },
 			};
 			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
-			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
 			let settled = false;
 			cleanupPromise.then(() => settled = true);
 			await clock.tickAsync(1499);
