@@ -2039,6 +2039,66 @@
               "title": "API Type",
               "markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
             },
+            "global": {
+              "type": "object",
+              "description": "Global default settings applied to all models under this endpoint provider.",
+              "title": "Global Model Settings",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?://.+",
+                  "patternErrorMessage": "URL must start with http:// or https://",
+                  "markdownDescription": "Default URL endpoint for models in this group."
+                },
+                "apiType": {
+                  "type": "string",
+                  "enum": [
+                    "chat-completions",
+                    "responses",
+                    "messages"
+                  ],
+                  "enumItemLabels": [
+                    "Chat Completions",
+                    "Responses",
+                    "Messages"
+                  ],
+                  "enumDescriptions": [
+                    "Chat Completions API",
+                    "Responses API",
+                    "Messages API"
+                  ],
+                  "title": "API Type"
+                },
+                "toolCalling": {
+                  "type": "boolean",
+                  "description": "Whether models support tool calling by default"
+                },
+                "vision": {
+                  "type": "boolean",
+                  "description": "Whether models support vision capabilities by default"
+                },
+                "maxInputTokens": {
+                  "type": "number",
+                  "description": "Default maximum number of input tokens"
+                },
+                "maxOutputTokens": {
+                  "type": "number",
+                  "description": "Default maximum number of output tokens"
+                },
+                "contextWindow": {
+                  "type": "number",
+                  "description": "Default context window in tokens"
+                },
+                "thinking": {
+                  "type": "boolean",
+                  "description": "Whether models support thinking by default"
+                },
+                "streaming": {
+                  "type": "boolean",
+                  "description": "Whether models support streaming by default"
+                }
+              }
+            },
             "models": {
               "type": "array",
               "defaultSnippets": [
