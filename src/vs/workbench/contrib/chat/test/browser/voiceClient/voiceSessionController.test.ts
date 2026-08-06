@@ -1738,6 +1738,70 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('narrates three approvals when one tool invocation is re-armed', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/rearmed-tool-approvals');
+		const tool = waitingTerminalTool('rearmed-tool');
+		const model = pendingResponsePartModel(sessionResource, tool, 'Needs approval', true, 'routed-request');
+		const toolState = tool.state as IChatToolInvocation['state'] & {
+			set(value: IChatToolInvocation.State, transaction: undefined): void;
+		};
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const pendingIds: (string | undefined)[] = [];
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource, 'existing_session');
+		chatService.setModels([model]);
+
+		const narrateCurrentApproval = () => {
+			const state = getAgentStateInfo.call(controller, model);
+			handleStateChange.call(controller, sessionResource.toString(), state.state, state.detail, undefined, sessionResource.toString(), state.confirmation_type);
+			const request = voiceClientService.requests.at(-1)!;
+			pendingIds.push(request.pendingId);
+			markNarrationHeard.call(controller, request.narrationId);
+		};
+		const rearm = (command: string) => toolState.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command },
+			confirmationMessages: {
+				title: 'Run zsh command?',
+				message: 'Installs dependencies - pulls untrusted third-party code.',
+			},
+			confirm: () => { },
+		}, undefined);
+
+		narrateCurrentApproval();
+		rearm('npm install');
+		narrateCurrentApproval();
+		rearm('npm test');
+		narrateCurrentApproval();
+
+		assert.deepStrictEqual({
+			requestCount: voiceClientService.requests.length,
+			uniquePendingIds: new Set(pendingIds).size,
+			kinds: voiceClientService.requests.map(request => request.kind),
+		}, {
+			requestCount: 3,
+			uniquePendingIds: 3,
+			kinds: ['confirmation', 'confirmation', 'confirmation'],
+		});
+	});
+
 	test('confirmation watchdog narrates a sequential approval missed by the transition path', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { derivePendingId, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
@@ -54,5 +56,45 @@ suite('derivePendingId', () => {
 		const carousel = part('questionCarousel');
 		const minted = derivePendingId('req-1', carousel);
 		assert.strictEqual(peekPendingId('req-1', carousel), minted);
+	});
+
+	test('distinguishes re-armed approvals on the same tool part', () => {
+		const firstConfirm = () => { };
+		const state = observableValue<IChatToolInvocation.State>('toolState', {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: {},
+			confirm: firstConfirm,
+		});
+		const tool = { kind: 'toolInvocation', state };
+		const first = derivePendingId('req-1', tool);
+
+		// A presentation update clones the state but retains its callback, so it
+		// is still the same actionable occurrence.
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: {},
+			confirmationMessages: { title: 'Updated title' },
+			confirm: firstConfirm,
+		}, undefined);
+		const presentationUpdate = derivePendingId('req-1', tool);
+
+		// Re-arming the card installs a new confirmation callback.
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: {},
+			confirmationMessages: { title: 'Updated title' },
+			confirm: () => { },
+		}, undefined);
+		const rearmed = derivePendingId('req-1', tool);
+
+		assert.deepStrictEqual({
+			presentationUpdateMatches: presentationUpdate === first,
+			rearmedDiffers: rearmed !== first,
+			currentPartNoLongerResolvesOldId: peekPendingId('req-1', tool) !== first,
+		}, {
+			presentationUpdateMatches: true,
+			rearmedDiffers: true,
+			currentPartNoLongerResolvesOldId: true,
+		});
 	});
 });

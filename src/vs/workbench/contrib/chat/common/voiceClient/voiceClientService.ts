@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import type { ChatVoiceProgressStage } from '../chatService/chatService.js';
+import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
@@ -57,11 +57,33 @@ export interface IVoiceSessionPending {
  * partial answers off this id, so a reused id lets a draft written for one form
  * be submitted against another.
  *
- * A token minted per part object cannot be reused, because a spliced-out part is
- * never seen again. Entries are weakly held, so they die with the model.
+ * Most parts use their own object identity. Tool invocations are different: the
+ * agent host can re-arm the same tool card for another approval, so their
+ * current confirmation/cancellation callback identifies the occurrence. Those
+ * callbacks survive cosmetic state clones but change whenever the tool actually
+ * enters a new pending state. Entries are weakly held, so they die with the
+ * model.
  */
 const pendingOccurrenceTokens = new WeakMap<object, string>();
 let pendingOccurrenceCounter = 0;
+
+/** Return the identity of the currently actionable occurrence represented by a response part. */
+function pendingOccurrenceIdentity(part: object): object {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
+		return part;
+	}
+
+	const state = invocation.state.get();
+	if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+		|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+		return typeof state.confirm === 'function' ? state.confirm : part;
+	}
+	if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+		return typeof state.cancel === 'function' ? state.cancel : part;
+	}
+	return part;
+}
 
 /**
  * Derive the id that routes a voice response back to this exact pending part.
@@ -73,10 +95,11 @@ let pendingOccurrenceCounter = 0;
 
 
 export function derivePendingId(requestId: string, part: object): string {
-	let token = pendingOccurrenceTokens.get(part);
+	const occurrence = pendingOccurrenceIdentity(part);
+	let token = pendingOccurrenceTokens.get(occurrence);
 	if (token === undefined) {
 		token = `p${++pendingOccurrenceCounter}`;
-		pendingOccurrenceTokens.set(part, token);
+		pendingOccurrenceTokens.set(occurrence, token);
 	}
 	return `${requestId}#${token}`;
 }
@@ -88,7 +111,7 @@ export function derivePendingId(requestId: string, part: object): string {
  * echoed id can only match the part it was issued for.
  */
 export function peekPendingId(requestId: string, part: object): string | undefined {
-	const token = pendingOccurrenceTokens.get(part);
+	const token = pendingOccurrenceTokens.get(pendingOccurrenceIdentity(part));
 	return token === undefined ? undefined : `${requestId}#${token}`;
 }
 
