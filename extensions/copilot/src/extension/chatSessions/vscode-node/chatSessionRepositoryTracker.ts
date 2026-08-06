@@ -30,8 +30,8 @@ export class ChatSessionRepositoryTracker extends Disposable {
 	) {
 		super();
 
-		// Only open repositories and track their changes when the extension-host
-		// provider is preferred in the Agents window.
+		// Agent Host tracks its own session changes; this tracker is only needed
+		// when the Agents window uses the extension-host sessions provider.
 		if (
 			vscode.workspace.isAgentSessionsWorkspace &&
 			this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID) !== true
