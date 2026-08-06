@@ -12,7 +12,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/com
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Menus } from '../../browser/menus.js';
 import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
@@ -75,30 +75,50 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane editor layout actions render in the layout cluster ordered hide, then maximize/restore', async () => {
+	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', async () => {
 		await import('../../contrib/editor/browser/editor.contribution.js');
 
-		// Single-pane layout entries live on the shared editor-title layout menu (so
-		// they render after the editor-title actions, like the classic layout) and are
-		// distinguished from the classic entries by the MainEditorAreaVisibleContext gate.
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
 		const groupOrder = (id: string) => layoutItems
 			.filter(item => item.command.id === id)
-			.map(item => ({ group: item.group, order: item.order }));
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				precondition: item.command.precondition?.serialize(),
+			}));
 
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'), [{ group: 'navigation', order: 20 }]);
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.restoreMainEditorPart'), [{ group: 'navigation', order: 20 }]);
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.hideMainEditorPart'), [{ group: 'navigation', order: 10 }]);
+		assert.deepStrictEqual({
+			maximize: groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'),
+			restore: groupOrder('workbench.action.agentSessions.restoreMainEditorPart'),
+			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
+			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
+		}, {
+			maximize: [{ group: 'navigation', order: 10, precondition: undefined }],
+			restore: [{ group: 'navigation', order: 10, precondition: undefined }],
+			hide: [{ group: 'navigation', order: 20, precondition: AuxiliaryBarVisibleContext.key }],
+			show: [{ group: 'navigation', order: 20, precondition: undefined }],
+		});
 
-		// Hide is additionally gated on the changes/files detail being active.
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(hideWhen.includes(HasDockedDetailsContext.key));
+		assert.ok(!hideWhen.includes(HasDockedDetailsContext.key), 'Hide Editor should always show, regardless of whether the active tab has a docked detail');
+		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
+		assert.ok(hideWhen.includes(MainEditorAreaVisibleContext.key));
+		assert.ok(!hideWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
 
-		// Add File as Context stays an editor-title action, not a layout action.
-		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		const showWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
+		assert.ok(!showWhen.includes(HasDockedDetailsContext.key), 'Show Editor should always show, regardless of whether the active tab has a docked detail');
+		assert.ok(showWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
+
+		// Hide/Show no longer render in the trailing editor-header layout group; Toggle Details stays there alone.
+		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
+		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
+
+		// Add File as Context stays a right-header action, not a layout action.
+		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 });

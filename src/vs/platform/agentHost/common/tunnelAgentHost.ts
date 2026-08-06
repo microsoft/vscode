@@ -323,6 +323,9 @@ export interface ITunnelAgentHostMainService {
 	 */
 	listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[]): Promise<ITunnelInfo[]>;
 
+	/** Delete a dev tunnel and close any associated relay connections. */
+	deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void>;
+
 	/**
 	 * Connect to a tunnel's agent host via the dev tunnels relay and
 	 * begin relaying WebSocket messages through IPC.
@@ -412,6 +415,12 @@ export interface ITunnelAgentHostService {
 	 * it deterministically reuses a standalone or spawns `newDedicated`.
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
+
+	/** Whether {@link deleteTunnel} is supported by this implementation. */
+	readonly canDeleteTunnels: boolean;
+
+	/** Delete a dev tunnel and remove it from the local tunnel cache. */
+	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.

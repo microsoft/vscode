@@ -19,7 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	getInlineToolInput, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -27,7 +27,7 @@ import { TerminalClaimKind } from '../../../../common/state/protocol/channels-te
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
-	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
+	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
@@ -517,7 +517,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 		seenNotifications.add(notification as object);
 
 		if (isActionNotification(notification, 'chat/error')) {
-			throw new Error(`Session error while driving ${turnId}`);
+			const action = getActionEnvelope(notification).action as ChatErrorAction;
+			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -702,7 +703,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				}
 				const matchingRule = options.allow.find(rule =>
 					rule.toolName === toolName
-					&& (rule.matchInput?.(action.toolInput) ?? true));
+					&& (rule.matchInput?.(getInlineToolInput(action.toolInput)) ?? true));
 
 				if (!matchingRule) {
 					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);

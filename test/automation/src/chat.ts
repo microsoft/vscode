@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
@@ -463,12 +464,36 @@ export class Chat {
 	/**
 	 * Returns the visible model-configuration button label (the combined
 	 * "Effort Context" summary, e.g. "High 200K", shown in UBB mode).
+	 *
+	 * The button only renders in the model picker's full (non-compact) layout, so
+	 * this widens the panel first — callers may read the label before ever opening
+	 * the dropdown. The label is (re-)rendered when the selected model and its
+	 * configuration resolve, so this polls until it carries text rather than
+	 * returning an empty intermediate state.
 	 */
-	async getModelConfigLabel(): Promise<string> {
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
 		const page = this.code.driver.currentPage;
+		await this.ensureModelPickerExpanded();
 		const button = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
-		await button.waitFor({ state: 'visible', timeout: 15_000 });
-		return ((await button.textContent()) ?? '').trim();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Returns the section headers and option rows of the open model configuration
+	 * dropdown. Call after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
 	}
 
 	/**

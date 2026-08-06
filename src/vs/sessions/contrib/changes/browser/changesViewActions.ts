@@ -24,7 +24,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
@@ -155,6 +155,7 @@ class ChangesHeaderActionsAction extends Action2 {
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
 					SinglePaneLayoutEnabledContext,
+					SessionIsCreatedContext,
 					SessionHasChangesContext
 				)
 			},
@@ -179,7 +180,7 @@ class SetChangesListViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
@@ -210,7 +211,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
