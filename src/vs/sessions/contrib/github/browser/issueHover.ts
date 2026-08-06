@@ -47,7 +47,8 @@ export function createIssueHoverElement(data: IIssueHoverData): HTMLElement {
 	append(hoverElement, $('.sessions-issue-hover-title', undefined, data.issue?.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number)));
 
 	const body = data.issue?.body.trim() || localize('agentSessions.issueHover.bodyFallback', "No description provided.");
-	append(hoverElement, $('.sessions-issue-hover-description', undefined, body));
+	const description = append(hoverElement, $('.sessions-issue-hover-description'));
+	append(description, $('.sessions-issue-hover-description-content', undefined, body));
 
 	return hoverElement;
 }
