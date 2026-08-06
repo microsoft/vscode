@@ -3755,20 +3755,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
-		// Presentational: keep subagent observation current, and if the
-		// protocol call reaches a terminal state while the shared invocation is
-		// still streaming (the watcher never ran it), settle the card so the UI
-		// is not stuck.
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
+			const state = invocation.state.read(reader);
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
+			if (tc.status === ToolCallStatus.PendingConfirmation && state.type === IChatToolInvocation.StateKind.Streaming) {
+				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
+				invocation.transitionFromStreaming(prepared, invocation.parameters, getClientToolPreApproval(tc));
+			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)
-				&& invocation.state.read(reader).type === IChatToolInvocation.StateKind.Streaming) {
+				&& !IChatToolInvocation.isComplete(invocation, reader)) {
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 				if (fileEdits.length > 0) {
 					opts.onFileEdits?.(tc, fileEdits);
 				}
-				invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
 			}
 		}));
 	}
