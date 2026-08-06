@@ -16,6 +16,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
 import { basename } from '../../../base/common/path.js';
+import { endsWithIgnoreCase, equalsIgnoreCase, startsWithIgnoreCase } from '../../../base/common/strings.js';
 import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -273,7 +274,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				const startTime = Date.now();
 				this.setState(State.Downloading(update, explicit, this._overwrite, 0, undefined, startTime));
 
-				return this.cleanup(update.version).then(() => {
+				return this.cleanupObsoleteUpdatePackages(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
 						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
@@ -378,13 +379,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
-	private async cleanup(exceptVersion: string | null = null): Promise<void> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
-
+	private async cleanupObsoleteUpdatePackages(currentVersion: string): Promise<void> {
 		const cachePath = await this.cachePath;
-		const versions = await pfs.Promises.readdir(cachePath);
-
-		const promises = versions.filter(filter).map(one => this.unlink(path.join(cachePath, one)));
+		const fileNames = await pfs.Promises.readdir(cachePath);
+		const currentPackageName = `CodeSetup-${this.productService.quality}-${currentVersion}.exe`;
+		const obsoletePackageNames = fileNames.filter(fileName =>
+			!equalsIgnoreCase(fileName, currentPackageName)
+			&& startsWithIgnoreCase(fileName, 'CodeSetup-')
+			&& (endsWithIgnoreCase(fileName, '.exe') || endsWithIgnoreCase(fileName, '.exe.tmp'))
+		);
+		const promises = obsoletePackageNames.map(fileName => this.unlink(path.join(cachePath, fileName)));
 		await Promise.all(promises);
 	}
 
@@ -600,7 +604,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		try {
 			const cachePath = await this.cachePath;
 			const files = await pfs.Promises.readdir(cachePath);
-			await Promise.all(files.filter(file => file.endsWith('.tmp')).map(file => this.unlink(path.join(cachePath, file))));
+			await Promise.all(files.filter(file => endsWithIgnoreCase(file, '.tmp')).map(file => this.unlink(path.join(cachePath, file))));
 		} catch (err) {
 			this.logService.warn('update#cleanupTempFiles: failed to remove temporary download files', err);
 		}

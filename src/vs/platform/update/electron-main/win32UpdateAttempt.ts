@@ -8,6 +8,7 @@ import { unlinkSync } from 'fs';
 import { readFile, readdir, unlink, writeFile } from 'fs/promises';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import * as path from '../../../base/common/path.js';
+import { endsWithIgnoreCase, startsWithIgnoreCase } from '../../../base/common/strings.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUpdateChildProcess, Win32UpdateProcess } from './win32UpdateProcess.js';
 
@@ -61,7 +62,7 @@ export class Win32UpdateAttempt {
 		const cachePath = path.dirname(this.updateFilePath);
 		const fileNames = await readdir(cachePath);
 		this.updateFilePathsToAccept = fileNames
-			.filter(fileName => fileName.startsWith(this.updateFilePrefix) && fileName.endsWith('.flag'))
+			.filter(fileName => startsWithIgnoreCase(fileName, this.updateFilePrefix) && endsWithIgnoreCase(fileName, '.flag'))
 			.map(fileName => path.join(cachePath, fileName));
 	}
 
