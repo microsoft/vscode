@@ -53,7 +53,7 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -317,17 +317,29 @@ suite('AgentHostClientTools', () => {
 						throw options.throwBeforeConfirmation;
 					}
 					if (options?.requireConfirmation && toolInvocation) {
-						// Mirror the real service: a caller-provided `preApproved`
-						// reason is treated as auto-confirmation so the invocation
-						// transitions straight to executing without ever entering
-						// `WaitingForConfirmation`.
-						toolInvocation.transitionFromStreaming({
-							invocationMessage: 'Run Task',
+						const prepared = {
+							invocationMessage: `Run ${(invocation.parameters as { task?: string }).task}`,
 							confirmationMessages: {
 								title: 'Confirm tool execution',
 								message: 'Run the task?',
+								approveCombination: {
+									label: `Approve ${(invocation.parameters as { task?: string }).task}`,
+									key: JSON.stringify(invocation.parameters),
+									arguments: JSON.stringify(invocation.parameters),
+								},
 							},
-						}, invocation.parameters, invocation.preApproved);
+							presentation: ToolInvocationPresentation.HiddenAfterComplete,
+							toolSpecificData: {
+								kind: 'simpleToolInvocation' as const,
+								input: JSON.stringify(invocation.parameters),
+								output: '',
+							},
+						};
+						if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.Streaming) {
+							toolInvocation.transitionFromStreaming(prepared, invocation.parameters, invocation.preApproved);
+						} else {
+							toolInvocation.updatePreparedInvocation(prepared, invocation.parameters);
+						}
 						const confirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token ?? CancellationToken.None);
 						// Mirror the real service: a cancelled/denied confirmation
 						// aborts execution instead of producing a result. A token
@@ -1548,7 +1560,7 @@ suite('AgentHostClientTools', () => {
 			return chatURI;
 		}
 
-		test('confirms a pending client tool before executing it exactly once', async () => {
+		test('hydrates and confirms a pending client tool before executing it exactly once', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
 			const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
 			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
@@ -1573,9 +1585,7 @@ suite('AgentHostClientTools', () => {
 
 			const invocation = toolsService.begunToolCalls.find(invocation => invocation.toolCallId === 'tool-call-1');
 			const stateBeforeApproval = invocation?.state.get().type;
-			const confirmationAccepted = IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
-			await timeout(0);
-			const invocationsBeforeClientExecution = toolsService.invokedToolCalls.length;
+			const parametersBeforeExecution = invocation?.parameters;
 
 			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
 				toolCallId: 'tool-call-1',
@@ -1588,22 +1598,59 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 			await timeout(0);
 
+			const hydratedInvocation = invocation && {
+				state: invocation.state.get().type,
+				parameters: invocation.parameters,
+				invocationMessage: invocation.invocationMessage,
+				confirmationTitle: invocation.confirmationMessages?.title,
+				approveCombination: invocation.confirmationMessages?.approveCombination,
+				presentation: invocation.presentation,
+				toolSpecificData: invocation.toolSpecificData,
+			};
+			const confirmationAccepted = IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await timeout(0);
+			await timeout(0);
+
 			assert.deepStrictEqual({
 				stateBeforeApproval,
+				parametersBeforeExecution,
+				hydratedInvocation,
 				confirmationAccepted,
-				invocationsBeforeClientExecution,
 				invocationsAfterClientExecution: toolsService.invokedToolCalls.length,
 				actions: connection.dispatchedActions
 					.filter(entry => isChatAction(entry.action)
 						&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
 						&& entry.action.toolCallId === 'tool-call-1')
-					.map(entry => entry.action.type === ActionType.ChatToolCallConfirmed
-						? { type: entry.action.type, approved: entry.action.approved, confirmed: entry.action.approved ? entry.action.confirmed : undefined }
-						: { type: entry.action.type, success: entry.action.result.success }),
+					.map(entry => {
+						if (entry.action.type === ActionType.ChatToolCallConfirmed) {
+							return { type: entry.action.type, approved: entry.action.approved, confirmed: entry.action.approved ? entry.action.confirmed : undefined };
+						}
+						if (entry.action.type === ActionType.ChatToolCallComplete) {
+							return { type: entry.action.type, success: entry.action.result.success };
+						}
+						throw new Error(`Unexpected action type: ${entry.action.type}`);
+					}),
 			}, {
 				stateBeforeApproval: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parametersBeforeExecution: undefined,
+				hydratedInvocation: {
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					parameters: { task: 'build' },
+					invocationMessage: 'Run build',
+					confirmationTitle: 'Confirm tool execution',
+					approveCombination: {
+						label: 'Approve build',
+						key: '{"task":"build"}',
+						arguments: '{"task":"build"}',
+					},
+					presentation: ToolInvocationPresentation.HiddenAfterComplete,
+					toolSpecificData: {
+						kind: 'simpleToolInvocation',
+						input: '{"task":"build"}',
+						output: '',
+					},
+				},
 				confirmationAccepted: true,
-				invocationsBeforeClientExecution: 0,
 				invocationsAfterClientExecution: 1,
 				actions: [
 					{ type: ActionType.ChatToolCallConfirmed, approved: true, confirmed: ToolCallConfirmationReason.UserAction },
