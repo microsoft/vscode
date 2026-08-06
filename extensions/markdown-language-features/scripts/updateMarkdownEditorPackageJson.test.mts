@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { EditorCommandDefinition } from '@vscode/markdown-editor/commands';
-import { debounceAsync, updatePackageJson } from './updateMarkdownEditorPackageJson.mts';
+import { debounceAsync, updatePackageJson, updatePackageNlsJson } from './updateMarkdownEditorPackageJson.mts';
 
 const command: EditorCommandDefinition = {
 	id: 'markdown.editor.cursorLeft',
@@ -45,17 +45,17 @@ describe('updatePackageJson', () => {
 		if (result.kind !== 'updated') {
 			return;
 		}
-		assert.deepEqual(result.packageJson.contributes?.commands, [
+		assert.deepEqual(result.value.contributes?.commands, [
 			{ command: 'manual', title: 'Manual' },
 			{
 				command: command.id,
-				title: command.title,
+				title: `%${command.id}.title%`,
 				category: 'Markdown Editor',
 				enablement: `activeCustomEditorId == 'vscode.markdown.editor'`,
 				$generated: true,
 			},
 		]);
-		assert.deepEqual(result.packageJson.contributes?.menus?.commandPalette, [
+		assert.deepEqual(result.value.contributes?.menus?.commandPalette, [
 			{ command: 'manual', when: 'editorFocus' },
 			{
 				command: command.id,
@@ -63,7 +63,7 @@ describe('updatePackageJson', () => {
 				$generated: true,
 			},
 		]);
-		assert.deepEqual(result.packageJson.contributes?.keybindings, [
+		assert.deepEqual(result.value.contributes?.keybindings, [
 			{ command: 'manual', key: 'f1' },
 			{
 				command: command.id,
@@ -86,7 +86,7 @@ describe('updatePackageJson', () => {
 		if (first.kind !== 'updated') {
 			return;
 		}
-		assert.deepEqual(updatePackageJson(first.packageJson, [command]), { kind: 'unchanged' });
+		assert.deepEqual(updatePackageJson(first.value, [command]), { kind: 'unchanged' });
 	});
 
 	it('rejects collisions with manual command entries', () => {
@@ -115,19 +115,47 @@ describe('updatePackageJson', () => {
 		if (result.kind !== 'updated') {
 			return;
 		}
-		assert.deepEqual(result.packageJson.contributes?.commands, [{
+		assert.deepEqual(result.value.contributes?.commands, [{
 			command: localCommand.id,
-			title: localCommand.title,
+			title: `%${localCommand.id}.title%`,
 			category: 'Markdown Editor',
 			enablement: `activeCustomEditorId == 'vscode.markdown.editor'`,
 			$generated: true,
 		}]);
-		assert.deepEqual(result.packageJson.contributes?.menus?.commandPalette, [{
+		assert.deepEqual(result.value.contributes?.menus?.commandPalette, [{
 			command: localCommand.id,
 			when: 'false',
 			$generated: true,
 		}]);
-		assert.deepEqual(result.packageJson.contributes?.keybindings, []);
+		assert.deepEqual(result.value.contributes?.keybindings, []);
+	});
+});
+
+describe('updatePackageNlsJson', () => {
+	it('replaces generated command titles and preserves manual entries', () => {
+		const result = updatePackageNlsJson({
+			displayName: 'Markdown Language Features',
+			'markdown.editor.stale.title': 'Stale',
+			description: 'Provides rich language support for Markdown.',
+		}, [command]);
+
+		assert.deepEqual(result, {
+			kind: 'updated',
+			value: {
+				displayName: 'Markdown Language Features',
+				[`${command.id}.title`]: command.title,
+				description: 'Provides rich language support for Markdown.',
+			},
+		});
+	});
+
+	it('returns unchanged for current generated command titles', () => {
+		const current = {
+			displayName: 'Markdown Language Features',
+			[`${command.id}.title`]: command.title,
+		};
+
+		assert.deepEqual(updatePackageNlsJson(current, [command]), { kind: 'unchanged' });
 	});
 });
 

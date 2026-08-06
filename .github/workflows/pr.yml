@@ -82,8 +82,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check Markdown editor package.json
-        run: npm run markdown-editor-package-json-check
+      - name: Check Markdown editor manifests
+        run: |
+          npm run markdown-editor-package-json-check
+          npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
 
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts

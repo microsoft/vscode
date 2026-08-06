@@ -13,6 +13,8 @@ import type {
 } from '@vscode/markdown-editor/commands';
 
 const GENERATED_MARKER = '$generated';
+const MARKDOWN_EDITOR_COMMAND_ID_PREFIX = 'markdown.editor.';
+const GENERATED_COMMAND_TITLE_SUFFIX = '.title';
 const MARKDOWN_EDITOR_ACTIVE = `activeCustomEditorId == 'vscode.markdown.editor'`;
 const MARKDOWN_EDITOR_KEYBINDING = `${MARKDOWN_EDITOR_ACTIVE} && markdownEditorFocus`;
 const PACKAGE_JSON_UPDATE_DEBOUNCE_MS = 2_000;
@@ -52,9 +54,12 @@ interface PackageJson {
 	readonly [key: string]: unknown;
 }
 
-export type PackageJsonUpdate =
+type JsonUpdate<T> =
 	| { readonly kind: 'unchanged' }
-	| { readonly kind: 'updated'; readonly packageJson: PackageJson };
+	| { readonly kind: 'updated'; readonly value: T };
+
+export type PackageJsonUpdate = JsonUpdate<PackageJson>;
+export type PackageNlsJsonUpdate = JsonUpdate<Readonly<Record<string, string>>>;
 
 export function updatePackageJson(
 	currentPackageJson: PackageJson,
@@ -63,7 +68,7 @@ export function updatePackageJson(
 	const hostCommands = commandDefinitions.filter(command => command.routing !== 'local');
 	const generatedCommands: readonly CommandContribution[] = commandDefinitions.map(command => ({
 		command: command.id,
-		title: command.title,
+		title: `%${commandTitleLocalizationKey(command)}%`,
 		category: 'Markdown Editor',
 		enablement: MARKDOWN_EDITOR_ACTIVE,
 		$generated: true,
@@ -117,7 +122,29 @@ export function updatePackageJson(
 
 	return JSON.stringify(updatedPackageJson) === JSON.stringify(currentPackageJson)
 		? { kind: 'unchanged' }
-		: { kind: 'updated', packageJson: updatedPackageJson };
+		: { kind: 'updated', value: updatedPackageJson };
+}
+
+export function updatePackageNlsJson(
+	currentPackageNlsJson: Readonly<Record<string, string>>,
+	commandDefinitions: readonly EditorCommandDefinition[],
+): PackageNlsJsonUpdate {
+	const currentEntries = Object.entries(currentPackageNlsJson);
+	const firstGeneratedIndex = currentEntries.findIndex(([key]) => isGeneratedCommandTitleLocalizationKey(key));
+	const manualEntries = currentEntries.filter(([key]) => !isGeneratedCommandTitleLocalizationKey(key));
+	const generatedEntries = commandDefinitions.map(command => [commandTitleLocalizationKey(command), command.title] as const);
+	const insertionIndex = firstGeneratedIndex < 0
+		? manualEntries.length
+		: Math.min(firstGeneratedIndex, manualEntries.length);
+	const updatedPackageNlsJson = Object.fromEntries([
+		...manualEntries.slice(0, insertionIndex),
+		...generatedEntries,
+		...manualEntries.slice(insertionIndex),
+	]);
+
+	return JSON.stringify(updatedPackageNlsJson) === JSON.stringify(currentPackageNlsJson)
+		? { kind: 'unchanged' }
+		: { kind: 'updated', value: updatedPackageNlsJson };
 }
 
 function replaceGeneratedItems<T extends Record<string, unknown>>(
@@ -153,6 +180,14 @@ function replaceGeneratedItems<T extends Record<string, unknown>>(
 
 function isGenerated(item: Record<string, unknown>): boolean {
 	return item[GENERATED_MARKER] === true;
+}
+
+function commandTitleLocalizationKey(command: EditorCommandDefinition): string {
+	return `${command.id}${GENERATED_COMMAND_TITLE_SUFFIX}`;
+}
+
+function isGeneratedCommandTitleLocalizationKey(key: string): boolean {
+	return key.startsWith(MARKDOWN_EDITOR_COMMAND_ID_PREFIX) && key.endsWith(GENERATED_COMMAND_TITLE_SUFFIX);
 }
 
 function toVsCodeKeybinding(binding: EditorCommandKeybinding): string {
@@ -198,33 +233,51 @@ function combineWhenClauses(...clauses: readonly (string | undefined)[]): string
 	return clauses.filter((clause): clause is string => clause !== undefined).join(' && ');
 }
 
-const updatePackageJsonFileDebounced = debounceAsync(
-	() => updatePackageJsonFileNow('write'),
+const updateManifestFilesDebounced = debounceAsync(
+	() => updateManifestFilesNow('write'),
 	PACKAGE_JSON_UPDATE_DEBOUNCE_MS,
 );
 
-export function updatePackageJsonFile(mode: 'write' | 'check'): Promise<'unchanged' | 'updated'> {
+export function updateMarkdownEditorManifestFiles(mode: 'write' | 'check'): Promise<'unchanged' | 'updated'> {
 	return mode === 'write'
-		? updatePackageJsonFileDebounced()
-		: updatePackageJsonFileNow(mode);
+		? updateManifestFilesDebounced()
+		: updateManifestFilesNow(mode);
 }
 
-async function updatePackageJsonFileNow(mode: 'write' | 'check'): Promise<'unchanged' | 'updated'> {
+async function updateManifestFilesNow(mode: 'write' | 'check'): Promise<'unchanged' | 'updated'> {
 	const packageJsonPath = path.resolve(import.meta.dirname, '..', 'package.json');
-	const currentText = await readFile(packageJsonPath, 'utf8');
-	const currentPackageJson = JSON.parse(currentText) as PackageJson;
+	const packageNlsJsonPath = path.resolve(import.meta.dirname, '..', 'package.nls.json');
+	const [currentPackageJsonText, currentPackageNlsJsonText] = await Promise.all([
+		readFile(packageJsonPath, 'utf8'),
+		readFile(packageNlsJsonPath, 'utf8'),
+	]);
+	const currentPackageJson = JSON.parse(currentPackageJsonText) as PackageJson;
+	const currentPackageNlsJson = JSON.parse(currentPackageNlsJsonText) as Readonly<Record<string, string>>;
 	const commandDefinitions = await loadCommandDefinitions();
-	const update = updatePackageJson(currentPackageJson, commandDefinitions);
-	if (update.kind === 'unchanged') {
+	const packageJsonUpdate = updatePackageJson(currentPackageJson, commandDefinitions);
+	const packageNlsJsonUpdate = updatePackageNlsJson(currentPackageNlsJson, commandDefinitions);
+	if (packageJsonUpdate.kind === 'unchanged' && packageNlsJsonUpdate.kind === 'unchanged') {
 		return 'unchanged';
 	}
 	if (mode === 'check') {
-		throw new Error('package.json is out of date. Run npm run update-markdown-editor-package-json.');
+		throw new Error('package.json or package.nls.json is out of date. Run npm run update-markdown-editor-package-json.');
 	}
-	const newline = currentText.includes('\r\n') ? '\r\n' : '\n';
-	const updatedText = `${JSON.stringify(update.packageJson, null, 2)}\n`.replaceAll('\n', newline);
-	await writeFile(packageJsonPath, updatedText);
+	await Promise.all([
+		packageJsonUpdate.kind === 'updated'
+			? writeJsonFile(packageJsonPath, currentPackageJsonText, packageJsonUpdate.value)
+			: undefined,
+		packageNlsJsonUpdate.kind === 'updated'
+			? writeJsonFile(packageNlsJsonPath, currentPackageNlsJsonText, packageNlsJsonUpdate.value)
+			: undefined,
+	]);
 	return 'updated';
+}
+
+function writeJsonFile(filePath: string, currentText: string, value: object): Promise<void> {
+	const newline = currentText.includes('\r\n') ? '\r\n' : '\n';
+	const indentation = currentText.match(/^[\t ]+(?=")/m)?.[0] ?? '\t';
+	const updatedText = `${JSON.stringify(value, null, indentation)}\n`.replaceAll('\n', newline);
+	return writeFile(filePath, updatedText);
 }
 
 export function debounceAsync<T>(callback: () => Promise<T>, delay: number): () => Promise<T> {
@@ -278,8 +331,8 @@ async function main(): Promise<void> {
 	if (argument !== '--write' && argument !== '--check') {
 		throw new Error(`Unknown argument '${argument}'. Expected --write or --check.`);
 	}
-	const result = await updatePackageJsonFile(argument === '--check' ? 'check' : 'write');
-	console.log(`Markdown editor package.json: ${result}`);
+	const result = await updateMarkdownEditorManifestFiles(argument === '--check' ? 'check' : 'write');
+	console.log(`Markdown editor manifests: ${result}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
