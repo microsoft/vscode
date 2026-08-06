@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
@@ -24,7 +25,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private _innerInput: MultiDiffEditorInput | undefined;
+	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
 
 	constructor(
 		readonly multiDiffSource: URI,
@@ -62,13 +63,13 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	private get innerInput(): MultiDiffEditorInput {
-		if (!this._innerInput) {
-			this._innerInput = this._register(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+		if (!this._innerInput.value) {
+			this._innerInput.value = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 				multiDiffSource: this.multiDiffSource,
 				label: this.getName(),
-			}, this.instantiationService));
+			}, this.instantiationService);
 		}
-		return this._innerInput;
+		return this._innerInput.value;
 	}
 
 	/**
@@ -82,6 +83,10 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {
 		return this.innerInput.getViewModel();
+	}
+
+	releaseResolvedModel(): void {
+		this._innerInput.clear();
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

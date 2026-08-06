@@ -374,12 +374,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override clearInput(): void {
+		const input = this.input;
 		this._pendingFocus.clear();
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
 		super.clearInput();
 		this.viewModel = undefined;
 		this.widget?.setViewModel(undefined);
+		if (input instanceof SessionChangesEditorInput) {
+			input.releaseResolvedModel();
+		}
 	}
 
 	override focus(): void {

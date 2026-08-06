@@ -30,6 +30,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
+import { createGenerationGuardedHandler } from './utils/generation';
 import { hash } from './utils/hash';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
@@ -516,7 +517,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.isRestarting = false;
 		});
 
-		handle.onEvent(event => this.dispatchEvent(event));
+		handle.onEvent(createGenerationGuardedHandler(mytoken, () => this.token, event => this.dispatchEvent(event)));
 
 		this.serviceStarted(resendModels);
 
