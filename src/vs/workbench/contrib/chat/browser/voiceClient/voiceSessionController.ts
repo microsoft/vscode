@@ -1984,12 +1984,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: Promise.resolve();
 				sendPromise.finally(() => {
 					this.voiceClientService.sendToolResult(e.callId, 'ok');
-					this._voiceState.set('idle', undefined);
-					this._statusText.set('Hold to speak...', undefined);
+					this._voiceState.set(this._awaitingReplyAudio ? 'processing' : 'idle', undefined);
+					this._statusText.set(this._awaitingReplyAudio ? 'Waiting for response...' : 'Hold to speak...', undefined);
 					this._sendContext();
-					if (this._omniInputActive.get() && this._isHandsFreeEnabled()) {
-						this._enterAutoListen();
-					}
 				});
 				return;
 			}

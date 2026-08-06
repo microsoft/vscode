@@ -4898,7 +4898,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
-	test('omni returns to listening after sending a routed voice request', async () => {
+	test('omni waits for the routed response before returning to listening', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new TestCommandService();
 		const mic = new RecordingMicCaptureService();
@@ -4927,9 +4927,9 @@ suite('VoiceSessionController', () => {
 			status: controller.statusText.get(),
 			micStarts: mic.pttDownCalls.length,
 		}, {
-			state: 'listening',
-			status: 'Listening...',
-			micStarts: 1,
+			state: 'processing',
+			status: 'Waiting for response...',
+			micStarts: 0,
 		});
 	});
 
