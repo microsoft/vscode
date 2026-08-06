@@ -130,6 +130,11 @@ export interface IMergeGroupOptions {
 
 export interface ICloseEditorOptions {
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Forces editors to close even when they declare `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export type ICloseEditorsFilter = {

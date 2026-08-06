@@ -1564,7 +1564,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false;
 		}
 
-		if (!internalOptions?.force && editor.hasCapability(EditorInputCapabilities.CannotClose)) {
+		if (!options?.force && !internalOptions?.force && editor.hasCapability(EditorInputCapabilities.CannotClose)) {
 			return false;
 		}
 
@@ -1903,7 +1903,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
-		const editors = this.doGetEditorsToClose(args).filter(editor => !editor.hasCapability(EditorInputCapabilities.CannotClose));
+		const editors = this.doGetEditorsToClose(args).filter(editor => options?.force || !editor.hasCapability(EditorInputCapabilities.CannotClose));
 		if (!editors.length) {
 			return true;
 		}

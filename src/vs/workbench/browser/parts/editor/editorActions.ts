@@ -32,7 +32,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -490,7 +490,8 @@ export class RevertAndCloseEditorAction extends Action2 {
 			id: 'workbench.action.revertAndCloseActiveEditor',
 			title: localize2('revertAndCloseActiveEditor', 'Revert and Close Editor'),
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: ActiveEditorCannotCloseContext.toNegated()
 		});
 	}
 
@@ -501,6 +502,10 @@ export class RevertAndCloseEditorAction extends Action2 {
 		const activeEditorPane = editorService.activeEditorPane;
 		if (activeEditorPane) {
 			const editor = activeEditorPane.input;
+			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
+				return;
+			}
+
 			const group = activeEditorPane.group;
 
 			// first try a normal revert where the contents of the editor are restored

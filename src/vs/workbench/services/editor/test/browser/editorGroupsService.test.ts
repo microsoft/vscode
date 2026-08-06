@@ -714,6 +714,11 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.activeEditor, input);
 		assert.ok(!input.gotDisposed);
+
+		const forceClosed = await group.closeEditor(input, { force: true });
+		assert.strictEqual(forceClosed, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input.gotDisposed);
 	});
 
 	test('closeEditors - dirty editor handling', async () => {
@@ -790,6 +795,11 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [input2]);
 		assert.ok(input1.gotDisposed);
 		assert.ok(!input2.gotDisposed);
+
+		const forceCloseResult = await group.closeEditors([input2], { force: true });
+		assert.strictEqual(forceCloseResult, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input2.gotDisposed);
 	});
 
 	test('closeEditors (except one, sticky editor)', async () => {

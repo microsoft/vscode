@@ -382,7 +382,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 	/** Closes editors we own, preserving focus so a transient close never steals it. */
 	private async _closeManagedEditors(group: IEditorGroup, editors: EditorInput[]): Promise<void> {
-		await this._editorService.closeEditors(editors.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true });
+		await this._editorService.closeEditors(editors.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true, force: true });
 	}
 
 	private _pinFirst(group: IEditorGroup, editor: EditorInput): void {

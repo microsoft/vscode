@@ -877,10 +877,8 @@ export const enum EditorInputCapabilities {
 	/**
 	 * Signals that the editor cannot be closed through standard user
 	 * initiated close actions, such as the tab close button, middle
-	 * click, or close commands (Close Editor, Close All, Close Group,
-	 * etc). Internal or programmatic close operations (for example
-	 * during shutdown, window reload, workspace changes or when an
-	 * editor fails to restore) are not affected by this capability.
+	 * click, or close commands. Callers with an explicit lifecycle
+	 * requirement can force the editor to close.
 	 */
 	CannotClose = 1 << 13
 }

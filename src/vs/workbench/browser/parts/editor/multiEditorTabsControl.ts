@@ -1627,7 +1627,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const hasUnpinAction = isCloseable && isTabSticky && options.tabActionUnpinVisibility;
+		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
 		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 

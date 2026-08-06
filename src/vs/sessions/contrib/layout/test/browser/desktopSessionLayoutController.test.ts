@@ -3290,7 +3290,8 @@ suite('LayoutController (desktop)', () => {
 
 		const staleClosed = harness.closedEditors.some(e => e.resource && isEqual(e.resource, staleChangesResource));
 		const allClosesSuppressed = harness.closeSuppressionFlags.every(flag => flag);
-		assert.deepStrictEqual({ staleClosed, allClosesSuppressed }, { staleClosed: true, allClosesSuppressed: true });
+		const allClosesForced = harness.closeForceFlags.every(flag => flag);
+		assert.deepStrictEqual({ staleClosed, allClosesSuppressed, allClosesForced }, { staleClosed: true, allClosesSuppressed: true, allClosesForced: true });
 	});
 
 	test('[managed tabs / Issue 1] re-ensures the Files tab when the side pane is reopened via the aux bar alone', async () => {
