@@ -1282,6 +1282,7 @@ suite('LanguageModels - Custom Endpoint Configuration Reload', function () {
 
 	test('reloads a manually configured custom endpoint model (#328601)', async function () {
 		const onDidChangeLanguageModelGroups = disposables.add(new Emitter<readonly ILanguageModelsProviderGroup[]>());
+		const storageService = disposables.add(new TestStorageService());
 		let providerGroups: readonly ILanguageModelsProviderGroup[] = [];
 		const languageModelsService = disposables.add(new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -1290,7 +1291,7 @@ suite('LanguageModels - Custom Endpoint Configuration Reload', function () {
 				}
 			},
 			new NullLogService(),
-			new TestStorageService(),
+			storageService,
 			new MockContextKeyService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override readonly onDidChangeLanguageModelGroups = onDidChangeLanguageModelGroups.event;
