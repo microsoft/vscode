@@ -637,7 +637,7 @@ export class MarkerViewModel extends Disposable {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
 							return getCodeActions(this.languageFeaturesService.codeActionProvider, model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
-								type: CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.ProblemsView, filter: { include: CodeActionKind.QuickFix }
+								type: CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.ProblemsView, filter: { include: CodeActionKind.QuickFix }, diagnostics: [this.marker.marker]
 							}, Progress.None, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
@@ -650,7 +650,24 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(item => toAction({
+		// Filter code actions to only those relevant to the specific marker.
+		// Keep actions that either have no diagnostics or have at least one
+		// diagnostic matching this marker's range and message.
+		const marker = this.marker.marker;
+		const relevant = codeActions.validActions.filter(item => {
+			const diagnostics = item.action.diagnostics;
+			if (!diagnostics || diagnostics.length === 0) {
+				return true;
+			}
+			return diagnostics.some(d =>
+				d.message === marker.message &&
+				d.startLineNumber === marker.startLineNumber &&
+				d.startColumn === marker.startColumn &&
+				d.endLineNumber === marker.endLineNumber &&
+				d.endColumn === marker.endColumn
+			);
+		});
+		return relevant.map(item => toAction({
 			id: item.action.command ? item.action.command.id : item.action.title,
 			label: item.action.title,
 			run: async () => {
