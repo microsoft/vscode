@@ -19,6 +19,7 @@
 }
 
 .scm-view .monaco-tl-contents > div {
+	padding-left: 2px;
 	padding-right: 12px;
 	overflow: hidden;
 }
