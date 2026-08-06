@@ -5,6 +5,7 @@
 
 import * as fs from 'fs/promises';
 import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -344,6 +345,8 @@ export class WorktreeIsolation extends Disposable {
 	 * on disk and their persisted working directory already points at it.
 	 */
 	private readonly _pending = new Set<string>();
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
 	/** Fixed log label; one host-owned instance serves every agent. */
 	private readonly _logLabel = 'AgentHost';
@@ -383,12 +386,17 @@ export class WorktreeIsolation extends Disposable {
 	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
-		this._pending.add(sessionId);
+		if (!this._pending.has(sessionId)) {
+			this._pending.add(sessionId);
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/** Clears a pending marker when a session will not materialize a worktree. */
 	clearPending(sessionId: string): void {
-		this._pending.delete(sessionId);
+		if (this._pending.delete(sessionId)) {
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/**

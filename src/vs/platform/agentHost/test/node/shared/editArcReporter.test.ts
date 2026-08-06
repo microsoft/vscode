@@ -66,7 +66,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		fileService = disposables.add(new CountingFileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		telemetry = new RecordingTelemetryService();
-		config = createConfigurationService(true);
+		config = createConfigurationService(true, disposables);
 	});
 
 	teardown(() => disposables.clear());
@@ -439,12 +439,14 @@ interface TestAgentConfigurationService extends IAgentConfigurationService {
 	setEnabled(enabled: boolean): void;
 }
 
-function createConfigurationService(enabled: boolean): TestAgentConfigurationService {
-	const rootConfigChange = new Emitter<void>();
+function createConfigurationService(enabled: boolean, disposables: DisposableStore): TestAgentConfigurationService {
+	const rootConfigChange = disposables.add(new Emitter<void>());
+	const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 	return {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
+		onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		getEffectiveValue: () => undefined,
 		getEffectiveWorkingDirectory: () => undefined,
 		getEffectiveWorkingDirectories: () => undefined,

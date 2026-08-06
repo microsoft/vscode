@@ -56,6 +56,8 @@ import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -230,6 +232,7 @@ async function main(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
+	const storageResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-storage.json');
 
 	// Build the DI container early so the git service can be created via
 	// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -263,6 +266,16 @@ async function main(): Promise<void> {
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
+	const storageService = disposables.add(new AgentHostStorageService(storageResource, logService));
+	diServices.set(IAgentHostStorageService, storageService);
+	const customizationEnablementService = disposables.add(new AgentHostCustomizationEnablementService(
+		storageService,
+		sessionDataService,
+		agentService.configurationService,
+		agentService.stateManager,
+		logService,
+	));
+	diServices.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -472,14 +485,12 @@ async function main(): Promise<void> {
 		// a late-arriving action could keep queuing DB writes and either
 		// undermine the flush or push us past the timeout.
 		wsServer.dispose();
-		// Wait for in-flight persistence writes to flush to the per-session
-		// SQLite databases. Without this, a SIGTERM arriving while a
-		// `setMetadata` write (configValues, customTitle, isRead, isDone,
-		// diffs) is in flight can drop the latest value — see the
-		// "Session Config persistence across restarts" integration test.
+		// Wait for in-flight persistence writes to flush. Without this, a
+		// SIGTERM arriving during a session or agent-host storage write can
+		// drop the latest decision.
 		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await raceTimeout(sessionDataService.whenIdle(), 3000, () => {
-			logService.warn('[AgentHostServer] Timed out waiting for session database writes to flush; exiting anyway.');
+		await raceTimeout(Promise.all([sessionDataService.whenIdle(), customizationEnablementService.whenIdle()]), 3000, () => {
+			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
 		disposables.dispose();
 		loggerService?.dispose();

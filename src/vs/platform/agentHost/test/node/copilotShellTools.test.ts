@@ -120,10 +120,12 @@ suite('CopilotShellTools', () => {
 		const sandbox: Record<string, unknown> = { ...initialSandbox };
 		const configValues: Record<string, unknown> = { [AgentHostSandboxConfigKey.Sandbox]: sandbox };
 		const emitter = disposables.add(new Emitter<void>());
+		const workingDirectoryPendingEmitter = disposables.add(new Emitter<string>());
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: Event.None,
+			onDidChangeWorkingDirectoryPending: workingDirectoryPendingEmitter.event,
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectory: () => undefined,
 			getEffectiveWorkingDirectories: () => undefined,

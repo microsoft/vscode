@@ -1560,7 +1560,9 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
+			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			svc.setWorktreeIsolation({
+				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 				removeCreatedWorktree: async () => { order.push('removeCreatedWorktree'); },
 			} as unknown as WorktreeIsolation);
 

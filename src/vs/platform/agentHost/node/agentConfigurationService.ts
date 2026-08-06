@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -56,6 +56,7 @@ export interface IAgentConfigurationService {
 
 	/** Fires whenever a session configuration change is processed. */
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
+	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
@@ -159,6 +160,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
 	/**
 	 * Host-owned worktree isolation controller. Injected after construction (via
@@ -168,9 +171,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	 * folder behavior while it is unset (tests, early startup).
 	 */
 	private _worktree: WorktreeIsolation | undefined;
+	private readonly _worktreePendingListener = this._register(new MutableDisposable());
 
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
+		this._worktreePendingListener.value = worktree.onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId));
 	}
 
 	constructor(

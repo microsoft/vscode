@@ -5364,8 +5364,10 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// deferred MUST resolve with `false` so the SDK's `for await`
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
+		const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 		const fakeConfigService: IAgentConfigurationService = {
 			getSessionConfigValues: () => undefined,
+			onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		} as unknown as IAgentConfigurationService;
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionData = new RecordingSessionDataService(createSessionDataService());

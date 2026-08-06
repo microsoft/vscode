@@ -21,6 +21,8 @@ import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentMo
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -145,6 +147,7 @@ async function startAgentHost(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
+	const storageResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-storage.json');
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -219,6 +222,16 @@ async function startAgentHost(): Promise<void> {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		const storageService = disposables.add(new AgentHostStorageService(storageResource, logService));
+		diServices.set(IAgentHostStorageService, storageService);
+		const customizationEnablementService = disposables.add(new AgentHostCustomizationEnablementService(
+			storageService,
+			sessionDataService,
+			agentService.configurationService,
+			agentService.stateManager,
+			logService,
+		));
+		diServices.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
