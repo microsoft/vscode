@@ -51,6 +51,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
+			isLinux,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),

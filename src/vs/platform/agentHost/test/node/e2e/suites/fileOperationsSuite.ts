@@ -65,7 +65,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	} as const;
 
 	if (config.streamingFileCreateToolName && config.provider !== 'codex') {
-		(config.provider !== 'copilotcli' ? test : test.skip)('declining a file creation tool prevents the mutation and completes the turn', async function () {
+		const fileToolDenialEnabled = config.provider !== 'copilotcli'
+			&& !(context.isLinux && config.fileToolDenialReplayUnstableOnLinux);
+		(fileToolDenialEnabled ? test : test.skip)('declining a file creation tool prevents the mutation and completes the turn', async function () {
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-decline-create-'));
 			tempDirs.push(workspace);

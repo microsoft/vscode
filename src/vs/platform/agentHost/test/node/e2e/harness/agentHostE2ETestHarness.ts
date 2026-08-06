@@ -304,6 +304,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsWorktreeIncludeFilesE2E?: boolean;
 	/** Provider can deterministically replay cancellation while paused on input or approval. */
 	readonly supportsPausedTurnCancellationE2E?: boolean;
+	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
+	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).

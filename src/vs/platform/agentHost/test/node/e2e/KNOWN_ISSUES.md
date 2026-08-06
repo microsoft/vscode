@@ -30,6 +30,21 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
     --grep "declining a file creation tool"
   ```
 
+### Claude file-tool denial mutates the workspace during Linux replay
+
+- Test: `declining a file creation tool prevents the mutation and completes the turn`.
+- Scope: Claude on Linux.
+- Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
+- Observed: the turn completes after the denial, but `denied.txt` exists on Linux; the same fixture passes on macOS.
+- Gate: the Claude variant is disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
+- Reproduce on Linux:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "declining a file creation tool"
+  ```
+
 ### Client-pushed plugin MCP coverage is provider-scoped
 
 - Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.
