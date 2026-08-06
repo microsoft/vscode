@@ -29,6 +29,18 @@ suite('AgentHostInputCompletions', () => {
 		);
 	});
 
+	test('does not resolve a numbered reference inside a higher-numbered sibling', () => {
+		const text = 'see #attachment:Pasted text #10 here';
+
+		assert.deepStrictEqual({
+			prefixOfSibling: getAgentHostCompletionAttachmentRange(text, '#attachment:Pasted text #1', undefined, 0, text.length),
+			exactSibling: getAgentHostCompletionAttachmentRange(text, '#attachment:Pasted text #10', undefined, 0, text.length),
+		}, {
+			prefixOfSibling: undefined,
+			exactSibling: new OffsetRange(4, 31),
+		});
+	});
+
 	test('converts accepted occurrence ranges to trimmed message offsets', () => {
 		const rawText = '  /rename  ';
 		const messageText = rawText.trim();

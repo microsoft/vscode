@@ -25,6 +25,20 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes long pasted text attachments', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+		}, {
+			agentView: true,
+			inlineChat: true,
+		});
+	});
+
 	test('describes the VS Code pet context menu', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

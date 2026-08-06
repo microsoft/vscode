@@ -73,7 +73,7 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, getPastedTextArtifactResource, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -161,7 +161,9 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 	protected attachClearButton() {
 
-		if (this.attachment.range || !this.options.supportsDeletion) {
+		// Pasted text artifacts keep their clear button: the pill is the primary
+		// handle on content that only exists in the attachment.
+		if ((this.attachment.range && !isPastedTextArtifact(this.attachment)) || !this.options.supportsDeletion) {
 			// no clear button for attachments with ranges because range means
 			// referenced from prompt
 			return;
@@ -772,6 +774,28 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	return disposable;
 }
 
+/**
+ * Opens a pasted-text attachment so its full contents can be reviewed; the
+ * attachment pill is otherwise the only handle on that text. Prefers the
+ * read-only resource associated at paste time, which keeps one editor per
+ * artifact and prevents edits that would not reach the attachment.
+ */
+export async function openPastedTextArtifact(editorService: IEditorService, attachment: IChatRequestPasteVariableEntry): Promise<void> {
+	const contentResource = getPastedTextArtifactResource(attachment);
+	if (contentResource) {
+		await editorService.openEditor({ resource: contentResource, options: { pinned: true } });
+		return;
+	}
+
+	// Restored attachments predate the association, so fall back to a scratch copy.
+	await editorService.openEditor({
+		resource: URI.from({ scheme: Schemas.untitled, path: `/${attachment.id}/${attachment.name}` }),
+		contents: attachment.code,
+		languageId: attachment.language,
+		options: { pinned: true },
+	});
+}
+
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
@@ -818,6 +842,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (copiedFromResource) {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
+		} else if (isPastedTextArtifact(attachment)) {
+			this.element.style.cursor = 'pointer';
+			this._register(registerOpenEditorListeners(this.element, async () => {
+				await this.instantiationService.invokeFunction(accessor => openPastedTextArtifact(accessor.get(IEditorService), attachment));
+			}));
 		}
 	}
 }

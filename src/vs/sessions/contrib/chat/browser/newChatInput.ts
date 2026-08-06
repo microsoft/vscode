@@ -11,8 +11,9 @@ import { Gesture, EventType as TouchEventType } from '../../../../base/browser/t
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -20,9 +21,12 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -45,6 +49,10 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { ChatDragAndDrop } from '../../../../workbench/contrib/chat/browser/widget/chatDragAndDrop.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
+import { inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
+
 import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -84,6 +92,8 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
+import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
@@ -322,6 +332,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private readonly _inputModelReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 	private _sessionControlsContainer: HTMLElement | undefined;
 
 	// Send button
@@ -383,6 +394,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
@@ -460,7 +473,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Overflow widget DOM node at the top level so the suggest widget
 		// is not clipped by any overflow:hidden ancestor.
-		const editorOverflowWidgetsDomNode = dom.append(root, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
+		// Mounted on the workbench container (not the composer subtree) so overflow
+		// widgets such as suggest and the post-paste selector are not clipped by,
+		// or stacked beneath, the composer's own layout.
+		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(root)).appendChild(dom.$('.sessions-chat-editor-overflow.monaco-editor'));
 		// Suppress the default `Text` kind icon in the suggest widget; chat slash/skill
 		// completions use that kind and rely on the chat module's CSS rule scoped to this class.
 		editorOverflowWidgetsDomNode.classList.add('hideSuggestTextIcons');
@@ -497,11 +513,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const inputArea = dom.append(inputAreaWrapper, dom.$('.new-chat-input-area'));
 
 		// Attachments row (pills only) inside input area, above editor
+		const contextAttachments = this._contextAttachments;
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
-		this._contextAttachments.registerDropTarget(root);
-		this._contextAttachments.registerPasteHandler(inputArea);
+		this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => undefined, {
+			get attachments() { return contextAttachments.attachments; },
+			addAttachments: (entries: readonly IChatRequestVariableEntry[]) => contextAttachments.addAttachments(...entries),
+		}, {
+			listForeground: inactiveSessionViewForeground,
+			listBackground: inactiveSessionViewBackground,
+			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
+		})).addOverlay(root, root);
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
@@ -596,6 +619,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		handleTerminalCommandPaste(e, this._editor, this._getTerminalCommandPrefix(), this.dialogService, this.storageService);
 	}
 
+	/**
+	 * Paste edits are applied through the bulk edit service, which resolves the
+	 * input model and force-destroys it when the last reference is released.
+	 * Holding one keeps the model alive for this editor's lifetime.
+	 */
+	private async _holdInputModelReference(uri: URI): Promise<void> {
+		try {
+			this._inputModelReference.value = await this.textModelService.createModelReference(uri);
+		} catch (error) {
+			this.logService.error('Failed to hold the chat input model reference', error);
+		}
+	}
+
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		const minHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
@@ -610,12 +646,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
-		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
+		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${Date.now()}` });
 		const textModel = this._register(this.modelService.createModel('', null, uri, true));
+		void this._holdInputModelReference(uri);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
+			// Match the workbench chat input so the post-paste selector is offered.
+			pasteAs: EditorOptions.pasteAs.defaultValue,
 			ariaLabel: this._getAriaLabel(),
 			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
 			fontFamily: NEW_CHAT_INPUT_FONT_FAMILY,
@@ -644,6 +683,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				SuggestController.ID,
 				SnippetController2.ID,
 				PlaceholderTextContribution.ID,
+				CopyPasteController.ID,
 			]),
 		};
 
@@ -758,6 +798,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
+
+		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
+			this._editor,
+			this._contextAttachments,
+			this._agentHostInputCompletionHandler,
+			() => this._getTerminalCommandPrefix(),
+			() => this.options.session.get()?.resource,
+			textModel.uri,
+		)));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();

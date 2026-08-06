@@ -21,9 +21,10 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getCommandArgumentHint, getCompletionAction, type IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { chatVariableLeader } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../../workbench/contrib/chat/browser/agentHostCompletionAction.js';
@@ -89,17 +90,23 @@ export function getAgentHostCompletionAttachmentRange(
 	let bestIndex = -1;
 	let bestDistance = Number.MAX_SAFE_INTEGER;
 	let from = 0;
+	// A reference ending in digits is a prefix of its higher-numbered siblings
+	// (`... #1` inside `... #10`), so such a match must not continue with a digit.
+	const endsWithDigit = /\d$/.test(referenceText);
 	while (true) {
 		const index = value.indexOf(referenceText, from);
 		if (index < 0) {
 			break;
+		}
+		from = index + referenceText.length;
+		if (endsWithDigit && /\d/.test(value.charAt(from))) {
+			continue;
 		}
 		const distance = preferredRange ? Math.abs(index - preferredRange.start) : index;
 		if (distance < bestDistance) {
 			bestIndex = index;
 			bestDistance = distance;
 		}
-		from = index + referenceText.length;
 	}
 
 	if (bestIndex < 0) {
@@ -180,6 +187,9 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	 * the attachment chip.
 	 */
 	private readonly _insertedReferences = new Map<string /* id */, { text: string; range: OffsetRange | undefined }>();
+
+	/** Ids whose inline reference should be removed with the attachment. */
+	private readonly _artifactReferenceIds = new Set<string>();
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -454,12 +464,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			const reference = this._insertedReferences.get(entry.id)
 				?? (isAgentHostCompletionVariableEntry(entry) ? { text: entry.name, range: undefined } : undefined);
 			if (!reference) {
-				result.push(entry);
+				if (!isPastedTextArtifact(entry) || !entry.range) {
+					result.push(entry);
+				}
 				continue;
 			}
 			const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, messageOffset, messageLength);
 			if (!range) {
-				if (!isAgentHostCompletionVariableEntry(entry)) {
+				if (!isAgentHostCompletionVariableEntry(entry) && (!isPastedTextArtifact(entry) || !entry.range)) {
 					result.push(entry);
 				}
 				continue;
@@ -478,6 +490,26 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._updateDecorations();
 	}
 
+	/** Removes an inline reference's text, including one trailing space. */
+	private _removeReferenceText(text: string, preferredRange: OffsetRange | undefined): void {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+		const value = model.getValue();
+		const range = getAgentHostCompletionAttachmentRange(value, text, preferredRange, 0, value.length);
+		if (!range) {
+			return;
+		}
+		const endExclusive = value.charAt(range.endExclusive) === ' ' ? range.endExclusive + 1 : range.endExclusive;
+		const start = model.getPositionAt(range.start);
+		const end = model.getPositionAt(endExclusive);
+		this._editor.executeEdits('sessionsChat.removeAttachmentReference', [{
+			range: Range.fromPositions(start, end),
+			text: '',
+		}]);
+	}
+
 	private _updateDecorations(): void {
 		// Drop tracking for any URI that is no longer attached. The chip
 		// being removed is the canonical signal that the reference is
@@ -486,7 +518,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const attachedIds = new Set(this._contextAttachments.attachments.map(a => a.id));
 		for (const id of [...this._insertedReferences.keys()]) {
 			if (!attachedIds.has(id)) {
+				const removed = this._insertedReferences.get(id);
 				this._insertedReferences.delete(id);
+				// A pasted-text artifact is bound to its inline reference, so removing
+				// the chip takes the reference text with it rather than leaving a token
+				// that no longer resolves to anything.
+				if (removed && this._artifactReferenceIds.delete(id)) {
+					this._removeReferenceText(removed.text, removed.range);
+				}
 			}
 		}
 
@@ -495,6 +534,27 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			return;
 		}
 		const value = model.getValue();
+		const orphanedArtifacts: string[] = [];
+		for (const entry of this._contextAttachments.attachments) {
+			if (!isPastedTextArtifact(entry) || !entry.range) {
+				continue;
+			}
+			const text = `${chatVariableLeader}attachment:${entry.name}`;
+			const preferredRange = new OffsetRange(entry.range.start, entry.range.endExclusive);
+			const range = getAgentHostCompletionAttachmentRange(value, text, preferredRange, 0, value.length);
+			if (range) {
+				this._artifactReferenceIds.add(entry.id);
+				this._insertedReferences.set(entry.id, { text, range });
+			} else {
+				// The inline reference is the only handle on an artifact, so the
+				// attachment goes with it. Mirrors the workbench prompt-attachment autorun.
+				orphanedArtifacts.push(entry.id);
+			}
+		}
+		for (const id of orphanedArtifacts) {
+			this._insertedReferences.delete(id);
+			this._contextAttachments.removeAttachment(id);
+		}
 		const decos: IModelDeltaDecoration[] = [];
 		for (const reference of this._insertedReferences.values()) {
 			const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, 0, value.length);

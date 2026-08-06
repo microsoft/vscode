@@ -90,6 +90,9 @@ export namespace Schemas {
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
+	/** Scheme used for the Agents window new-session composer input */
+	export const sessionsChatInput = 'sessions-chat';
+
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
 

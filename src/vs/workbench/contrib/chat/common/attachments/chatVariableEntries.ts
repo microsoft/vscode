@@ -100,6 +100,8 @@ export const ChatPasteAttachmentMetadata = {
 	Language: 'vscode.chat.attachment.language',
 	FileName: 'vscode.chat.attachment.fileName',
 	PastedLines: 'vscode.chat.attachment.pastedLines',
+	TextArtifact: 'vscode.chat.attachment.textArtifact',
+	ContentResource: 'vscode.chat.attachment.contentResource',
 } as const;
 
 export interface IRestorablePasteAttachment {
@@ -806,6 +808,16 @@ export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): ob
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isPastedTextArtifact(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return isPasteVariableEntry(obj) && obj._meta?.[ChatPasteAttachmentMetadata.TextArtifact] === true;
+}
+
+/** The read-only resource holding a pasted-text artifact's full contents, if one was created. */
+export function getPastedTextArtifactResource(entry: IChatRequestPasteVariableEntry): URI | undefined {
+	const value = entry._meta?.[ChatPasteAttachmentMetadata.ContentResource];
+	return typeof value === 'string' ? URI.parse(value) : undefined;
 }
 
 export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {

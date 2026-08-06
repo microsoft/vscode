@@ -268,6 +268,13 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	'openai-codex', // Codex session custom editor scheme
 ]);
 
+/** Schemes whose models are chat input editors. */
+export const chatInputSchemes: readonly string[] = [Schemas.vscodeChatInput, Schemas.sessionsChatInput];
+
+export function isChatInputModel(uri: URI): boolean {
+	return chatInputSchemes.includes(uri.scheme);
+}
+
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
 	const chatService = accessor.get(IChatSessionsService);
 

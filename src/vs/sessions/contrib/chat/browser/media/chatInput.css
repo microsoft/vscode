@@ -561,6 +561,15 @@
 }
 
 /* Attachment pills */
+.sessions-chat-attachment-image {
+	width: 13px;
+	height: 13px;
+	border-radius: 2px;
+	object-fit: cover;
+	flex-shrink: 0;
+	margin: 0 3px;
+}
+
 .sessions-chat-attachment-pill {
 	display: inline-flex;
 	align-items: center;
@@ -632,48 +641,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Drag and drop */
-.sessions-chat-dnd-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	box-sizing: border-box;
-	display: none;
-	z-index: 10;
-	background-color: var(--vscode-sideBar-dropBackground, var(--vscode-list-dropBackground));
-}
 
-.sessions-chat-dnd-overlay.visible {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.sessions-chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
-	display: flex;
-	align-items: center;
-	text-align: center;
-	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
-}
-
-.sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
-	height: 12px;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	margin-right: 3px;
-}
-
-/* --- Chat input notification in the new-session homepage --- */
-
-/* Hide the container when no notification is active */
-.new-chat-input-container > .chat-input-notification-container:not(.has-notification) {
-	display: none;
-}
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification {
 	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */

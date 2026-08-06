@@ -59,11 +59,12 @@ import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatM
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
+import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
@@ -72,7 +73,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -310,6 +311,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+
+	private readonly mainPasteTargetRegistration = this._register(new MutableDisposable());
+	private readonly inlinePasteTargetRegistration = this._register(new MutableDisposable());
+	private _pasteTarget: ChatWidgetPasteTarget | undefined;
+
+	/**
+	 * Shared across the main and inline input parts: it resolves the active part
+	 * through {@link input}, so one instance serves whichever is in use.
+	 */
+	private get pasteTarget(): ChatWidgetPasteTarget {
+		return this._pasteTarget ??= new ChatWidgetPasteTarget(this);
+	}
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -460,6 +473,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -944,6 +958,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestToolSetPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
 					if (part instanceof ChatRequestDynamicVariablePart && part.isAttachmentReference) {
+						const attachment = this.attachmentModel.attachments.find(attachment => attachment.id === part.id);
+						if (attachment && isPastedTextArtifact(attachment)) {
+							newPromptAttachments.set(attachment.id, { ...attachment, range: part.range });
+							oldPromptAttachments.delete(attachment.id);
+						}
 						continue;
 					}
 					newPromptAttachments.set(entry.id, entry);
@@ -2127,6 +2146,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				true
 			);
+			this.inlinePasteTargetRegistration.value = this.chatPasteTargetService.registerTarget(this.inlineInputPart.inputUri, this.pasteTarget);
 		} else {
 			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
@@ -2134,6 +2154,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				false
 			);
+			this.mainPasteTargetRegistration.value = this.chatPasteTargetService.registerTarget(this.inputPart.inputUri, this.pasteTarget);
 			this._register(autorun(reader => {
 				this.inputPart.height.read(reader);
 				if (!this.listWidget) {
