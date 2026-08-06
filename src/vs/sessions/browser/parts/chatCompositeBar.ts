@@ -7,10 +7,11 @@ import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseUpListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow, isHTMLElement, reset } from '../../../base/browser/dom.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
+import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -38,6 +39,8 @@ import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData } from '../dnd.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -100,6 +103,7 @@ export class ChatCompositeBar extends Disposable {
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -119,6 +123,17 @@ export class ChatCompositeBar extends Disposable {
 			useShadows: false,
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
+
+		const preventMiddleButtonDefault = (e: MouseEvent) => {
+			if (e.button === 1 && !this._isInTabInput(e)) {
+				e.preventDefault();
+			}
+		};
+		this._register(addDisposableGenericMouseDownListener(this._tabsContainer, preventMiddleButtonDefault));
+		// Prevent Linux primary-selection paste after the middle-button release (https://github.com/microsoft/vscode/issues/201696).
+		if (isLinux) {
+			this._register(addDisposableGenericMouseUpListener(this._tabsContainer, preventMiddleButtonDefault));
+		}
 
 		// "New Chat" button pinned at the end of the tab strip. Starting a new chat
 		// is offered here while the tabs are shown; when the session has a single
@@ -338,6 +353,23 @@ export class ChatCompositeBar extends Disposable {
 			this._onTabClicked(chat);
 		}));
 
+		this._tabDisposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
+			if (e.button !== 1) {
+				return;
+			}
+			if (this._isInTabInput(e)) {
+				return;
+			}
+
+			EventHelper.stop(e, true);
+			if (isMainChat || !session) {
+				return;
+			}
+
+			this._cancelTabEditing();
+			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, { session, chat }).catch(onUnexpectedError);
+		}));
+
 		// Make the tab a drag source that offers a chat reference, so it can be
 		// dropped into an agent-host chat input to insert an inline `#chat:` ref.
 		tab.draggable = true;
@@ -440,6 +472,10 @@ export class ChatCompositeBar extends Disposable {
 		if (this._session) {
 			this._sessionsService.openChat(this._session, chat.resource);
 		}
+	}
+
+	private _isInTabInput(event: MouseEvent): boolean {
+		return isHTMLElement(event.target) && !!event.target.closest('.chat-composite-bar-tab-input-container');
 	}
 
 	/**
