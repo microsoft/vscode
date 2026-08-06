@@ -9,6 +9,7 @@ import { cloneAndChange } from '../../base/common/objects.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import * as path from '../../base/common/path.js';
 import * as platform from '../../base/common/platform.js';
+import { removeDangerousEnvVariables } from '../../base/common/processes.js';
 import { URI } from '../../base/common/uri.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
@@ -210,7 +211,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService, this._configurationService);
+		const resolverEnv = { ...args.resolverEnv };
+		removeDangerousEnvVariables(resolverEnv);
+		const baseEnv = await buildUserEnvironment(resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService, this._configurationService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
