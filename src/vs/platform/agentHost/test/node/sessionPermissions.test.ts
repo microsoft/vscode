@@ -130,6 +130,24 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, files.map(() => undefined));
 	});
 
+	test('requires confirmation for package manager configuration files', async () => {
+		const files = [
+			'.npmrc',
+			'.yarnrc',
+			'.yarnrc.yml',
+			'.pnpmfile.js',
+			'.pnpmfile.cjs',
+			'.pnpmfile.mjs',
+			'pnpm-workspace.yaml',
+			join('packages', 'nested', '.npmrc'),
+		];
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const file of files) {
+			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
+		}
+		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
 	test('requires confirmation for paths containing null bytes', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'a\u0000b.txt')), sessionUri);
 		assert.strictEqual(result, undefined);
