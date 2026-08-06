@@ -123,7 +123,9 @@ export function getMappingForIncludedLanguages(): Record<string, string> {
 	// language specific extensions can provide emmet completion support
 	const MAPPED_MODES: Record<string, string> = {
 		'handlebars': 'html',
-		'php': 'html'
+		'php': 'html',
+		'erb': 'html',
+		'html.erb': 'html'
 	};
 
 	const finalMappedModes: Record<string, string> = {};
