@@ -76,9 +76,9 @@ default layout instead of stale state. Open editors are still preserved.
   copies a replaced active draft's editor-part hidden state to the committed resource before that resource's
   first working-set apply, avoiding a fall-through to the created-session default. Cleanup on
   `onDidChangeSessions` (`_deleteWorkingSet` drops only the working set, never view state). Clearing a
-  session Changes pane releases its resolved multi-diff models while retaining the serializable editor
-  input and persisted view state, so a restored working set re-resolves documents without keeping an
-  inactive session's files open.
+  session Changes pane releases its resolved multi-diff models, including models that finish resolving
+  after the pane clears, while retaining the serializable editor input and persisted view state. A
+  restored working set therefore re-resolves documents without keeping an inactive session's files open.
 - **Persistence & migration [B3]** — per-session state is keyed by session `URI` and persisted to the
   workspace-scoped storage key `sessions.layoutState` (`StorageTarget.MACHINE`). `_loadState` restores
   on construction and drops corrupt data defensively; if the key is absent it migrates once from the

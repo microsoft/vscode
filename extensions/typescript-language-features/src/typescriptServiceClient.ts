@@ -517,7 +517,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.isRestarting = false;
 		});
 
-		handle.onEvent(createGenerationGuardedHandler(mytoken, () => this.token, event => this.dispatchEvent(event)));
+		handle.onEvent(createGenerationGuardedHandler(
+			mytoken,
+			() => this.token,
+			() => !this.isDisposed && this.serverState.type === ServerState.Type.Running && this.serverState.server === handle,
+			event => this.dispatchEvent(event),
+		));
 
 		this.serviceStarted(resendModels);
 

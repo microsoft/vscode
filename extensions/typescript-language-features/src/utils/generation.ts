@@ -6,10 +6,11 @@
 export function createGenerationGuardedHandler<T>(
 	generation: number,
 	getCurrentGeneration: () => number,
+	isActive: () => boolean,
 	handler: (value: T) => void,
 ): (value: T) => void {
 	return value => {
-		if (getCurrentGeneration() === generation) {
+		if (getCurrentGeneration() === generation && isActive()) {
 			handler(value);
 		}
 	};
