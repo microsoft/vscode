@@ -83,6 +83,7 @@ suite('Agent Edit Attribution Service', () => {
 				editIdLength: marker.editId.length,
 				beforeDigest: marker.beforeDigest,
 				afterDigest: marker.afterDigest,
+				source: marker.source,
 			} : marker,
 			events: events.map(event => ({
 				eventName: event.eventName,
@@ -112,6 +113,12 @@ suite('Agent Edit Attribution Service', () => {
 				editIdLength: 36,
 				beforeDigest: createFileEditContentDigest('abcdef'),
 				afterDigest: createFileEditContentDigest('aBcdeF'),
+				source: {
+					modelId: 'model',
+					conversationId: 'session-1',
+					requestId: 'turn-1',
+					harness: 'copilotcli',
+				},
 			},
 			events: [{
 				eventName: 'editTelemetry.editSources.details',

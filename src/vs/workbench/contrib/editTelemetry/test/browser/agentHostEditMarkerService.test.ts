@@ -46,6 +46,36 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('shares one resolved attribution with all active consumers', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const first = correlation.register('a', 'ab');
+		const second = correlation.register('a', 'ab');
+		correlation.release(first);
+
+		context.fireMarker(marker(1, 'a', 'ab', {
+			modelId: 'gpt-5',
+			conversationId: 'session-1',
+			requestId: 'turn-1',
+			harness: 'copilotcli',
+		}));
+
+		const resolution = correlation.getResolution?.(second);
+		assert.deepStrictEqual({
+			sharedObservation: first === second,
+			suppressed: correlation.isSuppressed(second),
+			sourceKey: resolution?.source?.toKey(1),
+			sessionId: resolution?.source?.props.$$sessionId,
+			requestId: resolution?.source?.props.$$requestId,
+		}, {
+			sharedObservation: true,
+			suppressed: true,
+			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
+			sessionId: 'session-1',
+			requestId: 'turn-1',
+		});
+	});
+
 	test('records oversized Agent edits as coverage gaps without suppressing reloads', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);
@@ -69,6 +99,25 @@ suite('Agent Host Edit Marker Service', () => {
 				editCount: 1,
 				insertedCount: 42,
 			},
+		});
+	});
+
+	test('does not evict active observations when the cap is reached', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const first = correlation.register('before-0', 'after-0');
+		for (let index = 1; index <= 128; index++) {
+			correlation.register(`before-${index}`, `after-${index}`);
+		}
+
+		context.fireMarker(marker(1, 'before-0', 'after-0'));
+
+		assert.deepStrictEqual({
+			firstSuppressed: correlation.isSuppressed(first),
+			suppressedIds: context.suppressedIds,
+		}, {
+			firstSuppressed: true,
+			suppressedIds: [first],
 		});
 	});
 
@@ -226,6 +275,42 @@ suite('Agent Host Edit Marker Service', () => {
 		}, {
 			suppressed: false,
 			suppressedIds: [],
+		});
+	});
+
+	test('uses metadata from the matching repeated digest cycle', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		context.fireMarker(marker(1, 'a', 'ab', {
+			modelId: 'old-model',
+			conversationId: 'old-session',
+			requestId: 'old-turn',
+			harness: 'copilotcli',
+		}));
+		context.fireMarker(marker(2, 'ab', 'a', {
+			modelId: 'old-model',
+			conversationId: 'old-session',
+			requestId: 'old-turn',
+			harness: 'copilotcli',
+		}));
+		context.fireMarker(marker(3, 'a', 'ab', {
+			modelId: 'new-model',
+			conversationId: 'new-session',
+			requestId: 'new-turn',
+			harness: 'claude',
+		}));
+
+		const observation = correlation.register('a', 'ab');
+		const resolution = correlation.getResolution?.(observation);
+
+		assert.deepStrictEqual({
+			sourceKey: resolution?.source?.toKey(1),
+			sessionId: resolution?.source?.props.$$sessionId,
+			requestId: resolution?.source?.props.$$requestId,
+		}, {
+			sourceKey: 'source:Chat.applyEdits-$modelId:new-model-$harness:claude-$origin:agentHost',
+			sessionId: 'new-session',
+			requestId: 'new-turn',
 		});
 	});
 
@@ -640,12 +725,18 @@ suite('Agent Host Edit Marker Service', () => {
 	}
 });
 
-function marker(sequence: number, before: string, after: string): IFileEditAttributionMarker {
+function marker(sequence: number, before: string, after: string, source?: {
+	readonly modelId?: string;
+	readonly conversationId: string;
+	readonly requestId: string;
+	readonly harness: string;
+}): IFileEditAttributionMarker {
 	return {
 		version: 1,
 		editId: `edit-${sequence}`,
 		sequence,
 		beforeDigest: createFileEditContentDigest(before),
 		afterDigest: createFileEditContentDigest(after),
+		source,
 	};
 }

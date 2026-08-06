@@ -21,10 +21,18 @@ interface IFileEditAttributionMarkerBase {
 	readonly sequence: number;
 }
 
+export interface IFileEditAttributionSource {
+	readonly modelId?: string;
+	readonly conversationId: string;
+	readonly requestId: string;
+	readonly harness: string;
+}
+
 export interface ITrackedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
 	readonly status?: 'tracked';
 	readonly beforeDigest: string;
 	readonly afterDigest: string;
+	readonly source?: IFileEditAttributionSource;
 }
 
 export interface ISkippedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
@@ -144,7 +152,16 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 	if (marker.status !== undefined && marker.status !== 'tracked') {
 		return undefined;
 	}
-	return typeof marker.beforeDigest === 'string' && typeof marker.afterDigest === 'string' ? marker : undefined;
+	return typeof marker.beforeDigest === 'string' &&
+		typeof marker.afterDigest === 'string' &&
+		(marker.source === undefined || (
+			(marker.source.modelId === undefined || typeof marker.source.modelId === 'string') &&
+			typeof marker.source.conversationId === 'string' &&
+			typeof marker.source.requestId === 'string' &&
+			typeof marker.source.harness === 'string'
+		))
+		? marker
+		: undefined;
 }
 
 export function createFileEditContentDigest(content: string): string {

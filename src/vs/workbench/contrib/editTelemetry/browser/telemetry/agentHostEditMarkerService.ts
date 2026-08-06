@@ -17,6 +17,7 @@ import { buildCancelEditAttributionResource, buildCommitEditAttributionResource,
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { EditTelemetryTrigger } from '../../../../../platform/telemetry/common/editTelemetry.js';
+import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 
 const MARKER_TTL = 5 * 60 * 1000;
 const ROUTE_TTL = 10 * 60 * 60 * 1000;
@@ -48,8 +49,8 @@ interface IExternalObservation {
 	readonly id: string;
 	readonly beforeDigest: string;
 	readonly afterDigest: string;
-	readonly timestamp: number;
-	suppressed: boolean;
+	referenceCount: number;
+	resolution?: IExternalEditCorrelationResolution;
 }
 
 interface IAgentHostResourceRoute {
@@ -88,10 +89,18 @@ export interface IAgentHostEditMarkerService {
 
 export interface IExternalEditCorrelation {
 	readonly onDidSuppress: Event<string>;
+	readonly onDidResolve?: Event<IExternalEditCorrelationResolution>;
 	readonly onDidInvalidate: Event<string>;
 	register(before: string, after: string): string;
 	isSuppressed(id: string): boolean;
+	getResolution?(id: string): IExternalEditCorrelationResolution | undefined;
+	waitForResolution?(ids: readonly string[], timeoutMs: number): Promise<void>;
 	release(id: string): void;
+}
+
+export interface IExternalEditCorrelationResolution {
+	readonly id: string;
+	readonly source?: TextModelEditSource;
 }
 
 export class AgentHostEditMarkerService extends Disposable implements IAgentHostEditMarkerService {
@@ -102,6 +111,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	private readonly _acknowledgedCoverageGapIds = new Map<string, number>();
 	private readonly _pendingCoverageGapAcknowledgements = new Map<string, { readonly acknowledgements: readonly IEditAttributionCoverageGapAcknowledgement[]; readonly timestamp: number }>();
 	private readonly _onDidSuppress = this._register(new Emitter<string>());
+	private readonly _onDidResolve = this._register(new Emitter<IExternalEditCorrelationResolution>());
 	private readonly _onDidInvalidate = this._register(new Emitter<string>());
 	private readonly _onDidReceiveMarker = this._register(new Emitter<{ readonly resourceKey: string; readonly connection: IAgentConnection; readonly sequence: number }>());
 	private readonly _connectionListeners = this._register(new DisposableStore());
@@ -117,11 +127,31 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 
 	createCorrelation(resource: URI): IExternalEditCorrelation {
 		const resourceKey = this._key(resource);
+		let currentRegistration: { readonly before: string; readonly after: string; readonly id: string } | undefined;
+		let clearRegistrationScheduled = false;
 		return {
 			onDidSuppress: this._onDidSuppress.event,
+			onDidResolve: this._onDidResolve.event,
 			onDidInvalidate: this._onDidInvalidate.event,
-			register: (before, after) => this._registerObservation(resourceKey, before, after),
-			isSuppressed: id => this._observations.get(resourceKey)?.some(observation => observation.id === id && observation.suppressed) ?? false,
+			register: (before, after) => {
+				if (currentRegistration?.before === before && currentRegistration.after === after) {
+					this._retainObservation(resourceKey, currentRegistration.id);
+					return currentRegistration.id;
+				}
+				const id = this._registerObservation(resourceKey, before, after);
+				currentRegistration = { before, after, id };
+				if (!clearRegistrationScheduled) {
+					clearRegistrationScheduled = true;
+					queueMicrotask(() => {
+						currentRegistration = undefined;
+						clearRegistrationScheduled = false;
+					});
+				}
+				return id;
+			},
+			isSuppressed: id => this._getObservation(resourceKey, id)?.resolution !== undefined,
+			getResolution: id => this._getObservation(resourceKey, id)?.resolution,
+			waitForResolution: (ids, timeoutMs) => this._waitForResolution(resourceKey, ids, timeoutMs),
 			release: id => this._releaseObservation(resourceKey, id),
 		};
 	}
@@ -480,19 +510,15 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			id: generateUuid(),
 			beforeDigest: createFileEditContentDigest(before),
 			afterDigest: createFileEditContentDigest(after),
-			timestamp: Date.now(),
-			suppressed: false,
+			referenceCount: 1,
 		};
 		const observations = this._observations.get(resourceKey) ?? [];
-		observations.push(observation);
-		while (observations.length > MAX_OBSERVATIONS_PER_RESOURCE) {
-			const removed = observations.shift();
-			if (removed?.suppressed) {
-				this._onDidInvalidate.fire(removed.id);
-			}
+		if (observations.length >= MAX_OBSERVATIONS_PER_RESOURCE) {
+			return observation.id;
 		}
+		observations.push(observation);
 		this._observations.set(resourceKey, observations);
-		this._trySuppress(resourceKey, observation);
+		this._tryResolve(resourceKey, observation);
 		return observation.id;
 	}
 
@@ -509,12 +535,12 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			this._markers.set(resourceKey, markers);
 		}
 		for (const observation of this._observations.get(resourceKey) ?? []) {
-			this._trySuppress(resourceKey, observation);
+			this._tryResolve(resourceKey, observation);
 		}
 	}
 
-	private _trySuppress(resourceKey: string, observation: IExternalObservation): void {
-		if (observation.suppressed) {
+	private _tryResolve(resourceKey: string, observation: IExternalObservation): void {
+		if (observation.resolution) {
 			return;
 		}
 		const markers = this._markers.get(resourceKey);
@@ -546,7 +572,19 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			if (afterDigest !== observation.afterDigest) {
 				continue;
 			}
-			observation.suppressed = true;
+			const sources = consumed.map(index => markers[index].source);
+			const firstSource = sources[0];
+			const source = firstSource && sources.every(candidate =>
+				candidate !== undefined &&
+				candidate.modelId === firstSource.modelId &&
+				candidate.harness === firstSource.harness
+			) ? EditSources.agentHostChatApplyEdits({
+				modelId: firstSource.modelId,
+				sessionId: firstSource.conversationId,
+				requestId: firstSource.requestId,
+				harness: firstSource.harness,
+			}) : undefined;
+			observation.resolution = { id: observation.id, source };
 			for (const index of consumed.toSorted((a, b) => b - a)) {
 				markers.splice(index, 1);
 			}
@@ -554,7 +592,15 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 				this._markers.delete(resourceKey);
 			}
 			this._onDidSuppress.fire(observation.id);
+			this._onDidResolve.fire(observation.resolution);
 			return;
+		}
+	}
+
+	private _retainObservation(resourceKey: string, id: string): void {
+		const observation = this._getObservation(resourceKey, id);
+		if (observation) {
+			observation.referenceCount++;
 		}
 	}
 
@@ -565,7 +611,11 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		}
 		const index = observations.findIndex(observation => observation.id === id);
 		if (index >= 0) {
-			observations.splice(index, 1);
+			const observation = observations[index];
+			observation.referenceCount--;
+			if (observation.referenceCount <= 0) {
+				observations.splice(index, 1);
+			}
 		}
 		if (observations.length === 0) {
 			this._observations.delete(resourceKey);
@@ -587,7 +637,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			return;
 		}
 		for (const observation of observations) {
-			if (observation.suppressed) {
+			if (observation.resolution) {
 				this._onDidInvalidate.fire(observation.id);
 			}
 		}
@@ -603,7 +653,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		} else {
 			this._markers.delete(resourceKey);
 		}
-		const observations = this._observations.get(resourceKey)?.filter(observation => observation.suppressed || observation.timestamp >= minimumTimestamp);
+		const observations = this._observations.get(resourceKey)?.filter(observation => observation.referenceCount > 0);
 		if (observations?.length) {
 			this._observations.set(resourceKey, observations);
 		} else {
@@ -631,6 +681,35 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			? URI.from({ scheme: Schemas.file, path: resource.path })
 			: resource;
 		return this._uriIdentityService.extUri.getComparisonKey(this._uriIdentityService.asCanonicalUri(normalizedResource));
+	}
+
+	private _getObservation(resourceKey: string, id: string): IExternalObservation | undefined {
+		return this._observations.get(resourceKey)?.find(observation => observation.id === id);
+	}
+
+	private async _waitForResolution(resourceKey: string, ids: readonly string[], timeoutMs: number): Promise<void> {
+		const unresolved = new Set(ids.filter(id => {
+			const observation = this._getObservation(resourceKey, id);
+			return observation !== undefined && observation.resolution === undefined;
+		}));
+		if (unresolved.size === 0) {
+			return;
+		}
+		const store = new DisposableStore();
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const complete = (id: string) => {
+					unresolved.delete(id);
+					if (unresolved.size === 0) {
+						resolve();
+					}
+				};
+				store.add(this._onDidResolve.event(resolution => complete(resolution.id)));
+				store.add(this._onDidInvalidate.event(complete));
+			}), timeoutMs);
+		} finally {
+			store.dispose();
+		}
 	}
 }
 
